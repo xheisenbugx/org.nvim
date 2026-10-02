@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/media/logo.png" alt="org.nvim logo: an Org outline with headings and a checkbox, and a unicorn" width="200">
+<img src="https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/logo.png" alt="org.nvim logo: an Org outline with headings and a checkbox, and a unicorn" width="200">
 
 # org.nvim
 
@@ -24,7 +24,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 
 <br>
 
-<img src="docs/media/hero.gif" alt="Cycling an outline, ticking a checkbox and marking a task DONE from the agenda" width="900">
+<img src="https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/hero.gif" alt="Cycling an outline, ticking a checkbox and marking a task DONE from the agenda" width="900">
 
 </div>
 
@@ -135,7 +135,7 @@ pressed.
 of its children (`<leader>oK` / `<leader>oJ` or `M-k` / `M-j`), promote and
 demote it, or cut, paste and sort it.
 
-![Cycling visibility with TAB and S-TAB, then moving a subtree up and down](docs/media/outline.gif)
+![Cycling visibility with TAB and S-TAB, then moving a subtree up and down](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/outline.gif)
 
 ### Structure editing
 
@@ -145,7 +145,7 @@ and `<leader>oit` adds a TODO heading. `M-h` / `M-l` promote and demote.
 date and more), and `<leader>ohn` narrows to a subtree so you can edit it
 on its own.
 
-![Adding a heading, demoting and promoting it, adding a TODO heading, sorting children and narrowing to a subtree](docs/media/headings.gif)
+![Adding a heading, demoting and promoting it, adding a TODO heading, sorting children and narrowing to a subtree](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/headings.gif)
 
 ### TODOs, checklists and priorities
 
@@ -154,7 +154,7 @@ Marking a task DONE logs a `CLOSED:` timestamp and updates its parent's
 cookie. Set the state with `cit` or with the fast-selection menu
 (`<leader>oS`), and the priority with `<leader>o,`.
 
-![Ticking checkboxes, marking a task DONE and giving another one priority A](docs/media/todo.gif)
+![Ticking checkboxes, marking a task DONE and giving another one priority A](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/todo.gif)
 
 ### Plain lists
 
@@ -164,7 +164,7 @@ checkbox item. `TAB` on a new empty item indents it. `M-Up` / `M-Down` move
 an item with its children, and numbered lists are renumbered as you go.
 `<leader>o-` turns plain lines into a list.
 
-![Cycling bullet styles, adding and indenting items, moving a numbered item, turning lines into a list and adding a checkbox](docs/media/lists.gif)
+![Cycling bullet styles, adding and indenting items, moving a numbered item, turning lines into a list and adding a checkbox](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lists.gif)
 
 ### Tags and properties
 
@@ -172,7 +172,7 @@ an item with its children, and numbered lists are renumbered as you go.
 exclusive groups like `{ @office @remote }`. `<leader>oxe` sets the effort
 from `Effort_ALL`, and `<leader>op` sets any property.
 
-![Setting three tags with fast keys, an effort and an OWNER property](docs/media/tags.gif)
+![Setting three tags with fast keys, an effort and an OWNER property](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/tags.gif)
 
 ### Dates with a real calendar
 
@@ -182,14 +182,14 @@ the chosen date ("in 3 days"). Move around it with `hjkl`, or press `i`
 and type a date the way you'd say it: `fri 14:00`, `+2w`, `sep 15`, `w39`.
 Its colors are `OrgCalendar*` highlight groups (`:h org-calendar`).
 
-![Scheduling a task from the calendar and typing "fri 14:00" for a deadline](docs/media/dates.gif)
+![Scheduling a task from the calendar and typing "fri 14:00" for a deadline](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/dates.gif)
 
 You don't need the calendar to change a date. `S-Right` / `S-Left` move it
 by a day, `<C-a>` / `<C-x>` (or `S-Up` / `S-Down`) change the part under
 the cursor (year, month, day, hour or minutes, rounded to 5), and `<CR>`
 on a date opens the agenda for that day.
 
-![Shifting a date by days, changing the hour and minutes in place, then opening the agenda on a date range](docs/media/timestamps.gif)
+![Shifting a date by days, changing the hour and minutes in place, then opening the agenda on a date range](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/timestamps.gif)
 
 ### A real agenda
 
@@ -198,19 +198,19 @@ deadline countdowns, overdue items and a habit consistency graph, the
 same as in Emacs. From the agenda you can change states, reschedule, clock
 in, refile, filter and run bulk actions. `vw` switches to the week.
 
-![The agenda day view: marking a task DONE, then switching to the week view](docs/media/agenda.gif)
+![The agenda day view: marking a task DONE, then switching to the week view](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/agenda.gif)
 
 <details>
 <summary>The week view</summary>
 
-![The agenda week view](docs/media/agenda-week.png)
+![The agenda week view](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/agenda-week.png)
 
 </details>
 
 The dispatcher has the other Emacs views too: every TODO (`t`), a
 tags/property match (`m`, here `+oss`) and a word search (`s`).
 
-![The TODO list, a +oss tag match and a word search in the agenda](docs/media/agenda-views.gif)
+![The TODO list, a +oss tag match and a word search in the agenda](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/agenda-views.gif)
 
 ### Capture from anywhere
 
@@ -219,7 +219,7 @@ grouped under a prefix key (`w` → `t` here). Type the task and finish with
 `<C-c><C-c>` or `:w`. It's filed where the template says: under a
 headline, an outline path or a date tree.
 
-![Capturing a work task that lands under the Inbox heading of work.org](docs/media/capture.gif)
+![Capturing a work task that lands under the Inbox heading of work.org](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/capture.gif)
 
 ### Refile and archive
 
@@ -227,7 +227,7 @@ headline, an outline path or a date tree.
 labelled with the file name). `<leader>o$` archives a finished subtree to
 `<file>_archive` and keeps its context in `ARCHIVE_*` properties.
 
-![Refiling an inbox task into work.org/Projects and archiving a DONE task](docs/media/refile.gif)
+![Refiling an inbox task into work.org/Projects and archiving a DONE task](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/refile.gif)
 
 ### Spreadsheet tables
 
@@ -235,27 +235,27 @@ Type a rough table, press `<C-c><C-c>` on its `#+TBLFM` line, and it
 aligns itself and evaluates its formulas with a Calc-compatible evaluator.
 Change a value, recalculate with `<leader>oTf`, and the totals follow.
 
-![Typing a rough table, evaluating its formulas and recalculating after an edit](docs/media/tables.gif)
+![Typing a rough table, evaluating its formulas and recalculating after an edit](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/tables.gif)
 
 Rows and columns are easy to edit. `<leader>oTr` / `<leader>oTi` insert a
 row or a column, `M-j` / `M-k` and `M-h` / `M-l` move them, and
 `<leader>oTR` / `<leader>oTI` delete them. Formulas in `#+TBLFM` are
 rewritten to follow the moves.
 
-![Inserting a row and a column, moving them, then deleting a column and a row](docs/media/table-edit.gif)
+![Inserting a row and a column, moving them, then deleting a column and a row](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/table-edit.gif)
 
 `<leader>oTs` sorts the rows (alphabetically, numerically, by date or with
 a function), and `<leader>oTt` transposes the table. Type `:=` followed by
 a formula in a field to add a field formula to `#+TBLFM`.
 
-![Sorting rows by price, adding a Total row with a field formula, then transposing the table](docs/media/table-tools.gif)
+![Sorting rows by price, adding a Total row with a field formula, then transposing the table](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/table-tools.gif)
 
 ### Code that runs in your notes
 
 `<C-c><C-c>` on a source block runs it asynchronously and writes the
 output back into the file:
 
-![Running Python, shell and Lua blocks and inserting their results](docs/media/babel.gif)
+![Running Python, shell and Lua blocks and inserting their results](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/babel.gif)
 
 Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
 supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
@@ -268,7 +268,7 @@ so you can type into it), and
 so it gets that language's highlighting, indentation and filetype plugins.
 `<C-c>'` writes it back.
 
-![Editing a Lua block in its own buffer, writing it back and running it](docs/media/src-edit.gif)
+![Editing a Lua block in its own buffer, writing it back and running it](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/src-edit.gif)
 
 ### Clocking, clock tables and column view
 
@@ -277,7 +277,7 @@ against the effort estimate. `<leader>oxr` inserts a clock table that
 matches Emacs's output. `<leader>oC` opens column view, drawn over
 the headlines like Emacs, which sums efforts and clocked time up the tree.
 
-![Clocking in, inserting a clock table, then opening column view](docs/media/clock.gif)
+![Clocking in, inserting a clock table, then opening column view](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/clock.gif)
 
 ### Images and LaTeX, right in your notes
 
@@ -291,13 +291,13 @@ can edit it. On older Neovim, or inside tmux, org.nvim uses
 [image.nvim](https://github.com/3rd/image.nvim) instead. `#+STARTUP:
 linkpreviews` and `latexpreview` turn them on when a file opens.
 
-![Previewing the images of an entry and then the whole buffer, scrolling and folding with them](docs/media/images.gif)
+![Previewing the images of an entry and then the whole buffer, scrolling and folding with them](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/images.gif)
 
 LaTeX is rendered in the background with `latex` + `dvipng` like Emacs, or
 with `tectonic` / `pdflatex`, in your colorscheme's text color, and the
 results are cached:
 
-![Rendering an inline formula, a displayed integral and an align environment, then hiding one](docs/media/latex.gif)
+![Rendering an inline formula, a displayed integral and an align environment, then hiding one](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/latex.gif)
 
 These two were recorded in a real kitty window
 ([`docs/media/kitty`](docs/media/kitty)); VHS can't show Kitty graphics.
@@ -335,9 +335,9 @@ switches to the other interface for one jump. `<leader>og` jumps to any
 heading of your agenda files. The pickers use `vim.ui.select`, so they get
 your picker: snacks.nvim here, or Telescope or fzf-lua.
 
-![Fuzzy-finding a heading in the file, then with the Emacs key](docs/media/goto-buffer.gif)
+![Fuzzy-finding a heading in the file, then with the Emacs key](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/goto-buffer.gif)
 
-![Jumping to headings in other agenda files](docs/media/goto-agenda.gif)
+![Jumping to headings in other agenda files](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/goto-agenda.gif)
 
 ### Timers
 
@@ -346,12 +346,12 @@ with the elapsed time, handy for meeting notes. `<C-c><C-x>,` pauses and
 resumes it, and `<C-c><C-x>_` stops it. The running time is part of the
 statusline component.
 
-![Taking timed meeting notes, pausing and stopping the timer](docs/media/timers.gif)
+![Taking timed meeting notes, pausing and stopping the timer](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/timers.gif)
 
 `<C-c><C-x>;` starts a countdown for the current entry and notifies you
 when it runs out:
 
-![A six-second countdown that ends with a "time out" notification](docs/media/countdown.gif)
+![A six-second countdown that ends with a "time out" notification](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/countdown.gif)
 
 ### Appointment reminders
 
@@ -360,7 +360,7 @@ checks your agenda for timed entries and reminds you before they start,
 by default 12, 9, 6, 3 and 0 minutes before, through `vim.notify` and the
 system notifier (`osascript` or `notify-send`).
 
-![Reminders for a scheduled call and a deadline, then the same entries in the agenda](docs/media/reminders.gif)
+![Reminders for a scheduled call and a deadline, then the same entries in the agenda](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/reminders.gif)
 
 ### Footnotes
 
@@ -368,7 +368,7 @@ system notifier (`osascript` or `notify-send`).
 definition, in a Footnotes section or inline. `<C-c><C-c>` jumps between a
 reference and its definition. A count sorts, renumbers or normalizes them.
 
-![Inserting a footnote and jumping between reference and definition](docs/media/footnotes.gif)
+![Inserting a footnote and jumping between reference and definition](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/footnotes.gif)
 
 ### Checking a file with org-lint
 
@@ -376,7 +376,7 @@ reference and its definition. A count sorts, renumbers or normalizes them.
 broken property drawers, links to missing IDs or files and src blocks
 without a language, and lists the problems in the location list.
 
-![org-lint listing five problems of a file and jumping to one](docs/media/lint.gif)
+![org-lint listing five problems of a file and jumping to one](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lint.gif)
 
 ### Speed keys
 
@@ -385,7 +385,7 @@ of a heading in Insert mode run commands, like Emacs's speed keys: `n` /
 `p` to move, `t` for the TODO state, `U` / `D` to move the subtree, `c` to
 cycle, and `?` for the full list.
 
-![Speed keys moving between headings, changing a TODO state, moving a subtree and listing every key](docs/media/speed-keys.gif)
+![Speed keys moving between headings, changing a TODO state, moving a subtree and listing every key](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/speed-keys.gif)
 
 ### Links
 
@@ -393,7 +393,7 @@ cycle, and `?` for the full list.
 and `<leader>oli` inserts it with completion. Links show only their
 description. `<CR>` follows them, and `<leader>olt` shows the raw text.
 
-![Storing a link to a heading, inserting it elsewhere, following it and showing the raw links](docs/media/links.gif)
+![Storing a link to a heading, inserting it elsewhere, following it and showing the raw links](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/links.gif)
 
 ### Sparse trees
 
@@ -401,7 +401,7 @@ description. `<CR>` follows them, and `<leader>olt` shows the raw text.
 a tag or property match, or deadlines. The matches are highlighted, and
 `<C-c><C-c>` clears the highlights.
 
-![A sparse tree of TODO entries, then one for a regexp](docs/media/sparse.gif)
+![A sparse tree of TODO entries, then one for a regexp](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/sparse.gif)
 
 ### Export
 
@@ -410,7 +410,7 @@ Markdown, ASCII, Org, iCalendar, ODT and Texinfo back-ends are ports of
 Emacs's, and pandoc handles DOCX, EPUB and more. You can export to a buffer to
 check the result:
 
-![Exporting an Org file to a Markdown buffer](docs/media/export-md.gif)
+![Exporting an Org file to a Markdown buffer](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/export-md.gif)
 
 ### Every key, one press away
 
@@ -419,7 +419,7 @@ available there, grouped by topic (visibility, structure, dates, clock,
 tables, Babel…), with each command's Vim and Emacs keys on one row. `/`
 searches it, and `{` / `}` jump between sections:
 
-![The g? keymap help float](docs/media/keymaps.png)
+![The g? keymap help float](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/keymaps.png)
 
 ---
 
@@ -979,7 +979,7 @@ its options may still change):
   `:Org present` shows the buffer as a slideshow, one top-level heading per
   slide, in its own tab (`:h org-extensions-present`).
 
-  ![Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file](docs/media/present.gif)
+  ![Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/present.gif)
 
 - ✅ **`ql`** ([org-ql](https://github.com/alphapapa/org-ql)): queries such as
   `(and (todo "NEXT") (tags "work"))` or `todo:NEXT tags:work !done`,
@@ -987,7 +987,7 @@ its options may still change):
   `ql_sparse_tree`, recent items, `org-ql` agenda custom commands and
   `#+BEGIN: org-ql` blocks (`:h org-extensions-ql`).
 
-  ![org-ql: a sexp query, changing a result's TODO state, the same search in plain syntax, a saved view sorted by deadline and an org-ql dynamic block](docs/media/ql.gif)
+  ![org-ql: a sexp query, changing a result's TODO state, the same search in plain syntax, a saved view sorted by deadline and an org-ql dynamic block](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/ql.gif)
 
 - ✅ **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam
   v2 notes in the same file format, so a directory can be shared with
@@ -1000,7 +1000,7 @@ its options may still change):
   node, `<prefix>mi` inserts one, `<prefix>ml` toggles the backlinks
   window, `<prefix>md…` the dailies) (`:h org-extensions-roam`).
 
-  ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](docs/media/roam.gif)
+  ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/roam.gif)
 
 - ✅ **`super_agenda`** ([org-super-agenda](https://github.com/alphapapa/org-super-agenda)):
   group agenda days and lists (including org-ql results) by time grid,
@@ -1008,7 +1008,7 @@ its options may still change):
   a group header folds the group, and `gj` / `gk` move between headers
   (`:h org-extensions-super-agenda`).
 
-  ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
+  ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/super-agenda.gif)
 
 - ✅ **`quickadd`** ([Todoist](https://todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)-style
   quick add): `:Org quickadd` or `<prefix>q` turns one line such as
@@ -1018,7 +1018,7 @@ its options may still change):
   Capture templates can use the same syntax with `quickadd = true`
   (`:h org-extensions-quickadd`).
 
-  ![Quick add: typing a Todoist-style line with a live preview of the parsed entry, which lands under the matching heading with its date, tags, priority and effort](docs/media/quickadd.gif)
+  ![Quick add: typing a Todoist-style line with a live preview of the parsed entry, which lands under the matching heading with its date, tags, priority and effort](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/quickadd.gif)
 
 - 🧪 **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
   through a weekly review in a float: empty the inbox (refile, schedule,
@@ -1028,7 +1028,7 @@ its options may still change):
   resumable progress. Finishing logs the review in a date tree. Steps can
   be reordered or replaced with your own (`:h org-extensions-review`).
 
-  ![Weekly review: scheduling and deleting inbox entries, stepping through stuck projects, waiting, overdue, upcoming, someday and clocked time, answering a reflection question, and the review logged in a date tree](docs/media/review.gif)
+  ![Weekly review: scheduling and deleting inbox entries, stepping through stuck projects, waiting, overdue, upcoming, someday and clocked time, answering a reflection question, and the review logged in a date tree](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/review.gif)
 
 - 🧪 **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
   `<prefix>zs` starts a pomodoro on the heading at the cursor and clocks it
@@ -1038,7 +1038,7 @@ its options may still change):
   optional overtime, a session that survives a restart, and a countdown
   in `require("org").statusline()` (`:h org-extensions-pomodoro`).
 
-  ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](docs/media/pomodoro.gif)
+  ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/pomodoro.gif)
 
 - 🧪 **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
   flashcards with spaced repetition. Headings tagged `:drill:` are cards
@@ -1049,7 +1049,7 @@ its options may still change):
   so a deck can be shared with Emacs. Leeches, cram mode and org-drill's
   weighted cloze types included (`:h org-extensions-drill`).
 
-  ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](docs/media/drill.gif)
+  ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/drill.gif)
 
 - 🧪 **`merge`**: a structural git merge driver for Org files. `:Org
   merge_install` registers it for the repository (`*.org merge=org`), and
@@ -1059,7 +1059,7 @@ its options may still change):
   property) both sides changed. Also usable without org.nvim's setup via
   `bin/org-merge` (`:h org-extensions-merge`).
 
-  ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](docs/media/merge.gif)
+  ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/merge.gif)
 
 - ✅ **`ics`**: subscribe to Google, Outlook or any iCalendar (`.ics`)
   calendar, a secret URL fetched with curl into a cache or a local file,
@@ -1068,7 +1068,7 @@ its options may still change):
   `ics_import` copies an event into an org file and `ics_refresh` fetches
   the calendars again (`:h org-extensions-ics`).
 
-  ![The week agenda with events from two subscribed calendars next to org tasks, then ics_import copying a meeting into inbox.org as a heading](docs/media/ics.gif)
+  ![The week agenda with events from two subscribed calendars next to org tasks, then ics_import copying a meeting into inbox.org as a heading](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/ics.gif)
 
 - 🧪 **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
   prints the agenda as text, CSV or JSON, captures with a template, clocks
@@ -1076,7 +1076,7 @@ its options may still change):
   searches and exports, from a config file of its own
   (`:h org-extensions-cli`).
 
-  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](docs/media/cli.gif)
+  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/cli.gif)
 
 - 🧪 **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
   ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
@@ -1086,7 +1086,7 @@ its options may still change):
   image backend is available, and `render_on_save` re-renders changed
   diagrams on `:w` (`:h org-extensions-diagrams`).
 
-  ![Diagrams: C-c C-c on a mermaid block inserts a file: link to a real PNG, and saving renders every diagram block, re-rendering only the one that changed](docs/media/diagrams.gif)
+  ![Diagrams: C-c C-c on a mermaid block inserts a file: link to a real PNG, and saving renders every diagram block, re-rendering only the one that changed](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/diagrams.gif)
 
 - 🧪 **`code`**: a bridge between code and notes. `code_capture` turns a
   Visual selection into a `#+begin_src` block with a link back and the git
@@ -1097,7 +1097,7 @@ its options may still change):
   comments; opt-in clocking by git branch. Keys under `<prefix>j`
   (`:h org-extensions-code`).
 
-  ![code: a Visual selection in a Lua file captured as a src block with a code: link and the branch, the link followed back to the function, and the project agenda with the TODO comments of the repository](docs/media/code.gif)
+  ![code: a Visual selection in a Lua file captured as a src block with a code: link and the branch, the link followed back to the function, and the project agenda with the TODO comments of the repository](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/code.gif)
 
 - 🧪 **`literate`**: a literate Neovim config. Saving `init.org` tangles it
   and runs only the Lua blocks you changed, so an option or keymap applies
@@ -1106,7 +1106,7 @@ its options may still change):
   back to the block, and `:Org literate_bootstrap` for an init.lua that
   re-tangles a newer init.org on startup (`:h org-extensions-literate`).
 
-  ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](docs/media/literate.gif)
+  ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/literate.gif)
 
 - 🧪 **`lsp`**: a language server for org buffers that runs inside Neovim
   (nothing to install), so every LSP feature and plugin works in Org
@@ -1118,7 +1118,7 @@ its options may still change):
   headline, CUSTOM_ID, ID or target that rewrites every link to it across
   files, something Emacs can't do (`:h org-extensions-lsp`).
 
-  ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](docs/media/lsp.gif)
+  ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lsp.gif)
 
 - 🧪 **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
   `#+transclude: [[file:notes.org::*Heading]] :level 2` or
@@ -1129,7 +1129,7 @@ its options may still change):
   transclusion; sources are watched, nested transclusions expand, and
   `#+transclude:` is expanded on export (`:h org-extensions-transclusion`).
 
-  ![Live transclusion: a heading of another file and lines of a Python file shown under their #+transclude: keywords, the heading edited in a float and written back, the text inserted into the buffer and back to virtual lines, then folded away with their headings](docs/media/transclusion.gif)
+  ![Live transclusion: a heading of another file and lines of a Python file shown under their #+transclude: keywords, the heading edited in a float and written back, the text inserted into the buffer and back to virtual lines, then folded away with their headings](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/transclusion.gif)
 
 - ✅ **`kanban`**: a board with a column per TODO keyword (or group of
   keywords, with WIP limits) and a card per heading showing its priority,
@@ -1139,7 +1139,7 @@ its options may still change):
   opens the heading. Cards come from the agenda files, a buffer, a subtree
   or a query (`:Org kanban`, `<prefix>Vk`, `:h org-extensions-kanban`).
 
-  ![Kanban board: moving a card to NEXT goes over the WIP limit, filtering by a tag, moving a card to DONE and opening its heading with CLOSED logged](docs/media/kanban.gif)
+  ![Kanban board: moving a card to NEXT goes over the WIP limit, filtering by a tag, moving a card to DONE and opening its heading with CLOSED logged](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/kanban.gif)
 
 - 🧪 **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
   DEADLINE or Effort: bars from start to deadline, ◆ deadlines, today's
@@ -1147,7 +1147,7 @@ its options may still change):
   (day, week, month), `[` / `]` pan, `S` / `D` reschedule
   (`:Org timeline`, `<prefix>Vt`, `:h org-extensions-timeline`).
 
-  ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](docs/media/timeline.gif)
+  ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/timeline.gif)
 
 - 🧪 **`heatmap`**: a GitHub-style calendar of the time clocked each day,
   the tasks closed or the habits done, shaded from your colorscheme, with
@@ -1155,14 +1155,14 @@ its options may still change):
   agenda (`:Org heatmap [clock|closed|habit] [tag]`, `<prefix>Vh`,
   `:h org-extensions-heatmap`).
 
-  ![Heatmap: nine months of clocked time, a day's total and tasks, tasks closed per day, one tag only and the agenda of the selected day](docs/media/heatmap.gif)
+  ![Heatmap: nine months of clocked time, a day's total and tasks, tasks closed per day, one tag only and the agenda of the selected day](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/heatmap.gif)
 
 - ✅ **`sidebar`**: a narrow "Today" window with the running clock against
   its effort, the next appointment with a countdown, today's items,
   habits due and the inbox count, kept up to date by a timer and on writes
   (`sidebar_toggle`, `<prefix>Vs`, `:h org-extensions-sidebar`).
 
-  ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](docs/media/sidebar.gif)
+  ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/sidebar.gif)
 
 ---
 

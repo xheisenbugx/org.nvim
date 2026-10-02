@@ -15,6 +15,18 @@ local utils = require("org.utils")
 local M = {}
 
 local db = nil
+-- What the last scan found in each file, kept in the database so that a
+-- scan reads again only the files whose mtime or size changed:
+-- path -> { sec, nsec, size, ids, archive?, archives, filename? }
+local scan = {}
+-- `scan` encoded, until it changes (the database is written on every new
+-- id, the scan only changes in a scan)
+local scan_json = nil
+-- the key of `scan` in a JSON database: no ID starts with a space, and
+-- readers of the plain id -> file map drop values that are not strings
+local SCAN_KEY = " org.nvim-scan"
+-- the comment holding it in Emacs's format, which Emacs's `read` skips
+local SCAN_COMMENT = "; org.nvim-scan: "
 
 local function db_path()
   local id = config.opts.id or {}
@@ -90,6 +102,7 @@ function M.parse_emacs_locations(text, base)
       i = i + 1
     elseif c == ")" then
       if depth == 2 and entry and entry[1] then
+        -- lint: allow gsub: utils.home is a function
         local file = entry[1]:gsub("^~", utils.home)
         if base and not utils.is_absolute(file) then
           file = base .. "/" .. file
@@ -161,16 +174,23 @@ local function load_db()
   if not db then
     local path = db_path()
     local text = read_text(path)
+    local stamps
     if text and db_format(path, text) == "emacs" then
       local ok, parsed = pcall(M.parse_emacs_locations, text, vim.fs.dirname(path))
       db = ok and parsed or {}
+      local json = text:match("\n" .. vim.pesc(SCAN_COMMENT) .. "([^\n]*)")
+      local jok, decoded = pcall(vim.json.decode, json or "")
+      stamps = jok and decoded or nil
     else
       local ok, parsed = pcall(vim.json.decode, text or "")
       db = ok and parsed or {}
+      stamps = type(db) == "table" and db[SCAN_KEY] or nil
     end
     if type(db) ~= "table" then
       db = {}
     end
+    scan = type(stamps) == "table" and stamps or {}
+    scan_json = nil
     -- a hand-edited or damaged file: keep only id -> file name entries
     for k, v in pairs(db) do
       if type(k) ~= "string" or type(v) ~= "string" then
@@ -183,12 +203,78 @@ end
 
 local function save_db()
   local path = db_path()
+  if next(scan) and not scan_json then
+    scan_json = vim.json.encode(scan)
+  end
+  local stamps = next(scan) and scan_json or nil
   if db_format(path, read_text(path)) == "emacs" then
     -- `print` puts a newline before and after the object
-    pcall(utils.writefile, path, { "", M.format_emacs_locations(db or {}, vim.fs.dirname(path)) })
+    local lines = { "", M.format_emacs_locations(db or {}, vim.fs.dirname(path)) }
+    if stamps then
+      lines[#lines + 1] = SCAN_COMMENT .. stamps
+    end
+    pcall(utils.writefile, path, lines)
+  elseif stamps then
+    -- the id -> file map with the scan as one more member
+    local member = vim.json.encode(SCAN_KEY) .. ":" .. stamps
+    local text = next(db or {}) and vim.json.encode(db):sub(1, -2) .. "," .. member .. "}" or "{" .. member .. "}"
+    pcall(utils.writefile, path, { text })
   else
     pcall(utils.write_json, path, db or {})
   end
+end
+
+--- What file `p` holds for the scan: its ids and archive locations. From
+--- the last scan while the file's mtime and size are unchanged, else
+--- parsed now. A file loaded in a buffer is read from the buffer (maybe
+--- unsaved) and leaves the scan of the file on disk alone.
+---@param p string a normalized path
+---@return { ids: string[], archive?: string, archives: string[], filename?: string }|nil
+local function file_info(p)
+  local loaded = utils.find_buffer(p) ~= nil
+  local st = not loaded and vim.uv.fs_stat(p) or nil
+  local s = scan[p]
+  if
+    st
+    and type(s) == "table"
+    and s.sec == st.mtime.sec
+    and s.nsec == st.mtime.nsec
+    and s.size == st.size
+    and type(s.ids) == "table"
+    and type(s.archives) == "table"
+  then
+    return s
+  end
+  local f = files.get(p)
+  if not f then
+    return nil
+  end
+  local info = { ids = {}, archives = {} }
+  local fid = f.properties and f.properties.ID
+  if fid then
+    info.ids[1] = fid
+  end
+  if f.settings.archive and f.settings.archive ~= "" then
+    info.archive = f.settings.archive
+  end
+  for _, hl in ipairs(f.headlines) do
+    local props = hl.properties
+    if props.ID then
+      info.ids[#info.ids + 1] = props.ID
+    end
+    if props.ARCHIVE then
+      info.archives[#info.archives + 1] = props.ARCHIVE
+    end
+  end
+  if f.filename and f.filename ~= p then
+    info.filename = f.filename
+  end
+  if st then
+    info.sec, info.nsec, info.size = st.mtime.sec, st.mtime.nsec, st.size
+    scan[p] = info
+    scan_json = nil
+  end
+  return info
 end
 
 --- Record `id` as living in `filename`.
@@ -347,9 +433,11 @@ end
 --- and the loaded org buffers.
 function M.files()
   local cfg = config.opts.id or {}
-  local out, seen = {}, {}
+  local out, seen, raw = {}, {}, {}
   local function add(p)
-    if type(p) == "string" and p ~= "" then
+    -- many ids share a file: normalize each spelling once
+    if type(p) == "string" and p ~= "" and not raw[p] then
+      raw[p] = true
       p = vim.fs.normalize(p)
       if not seen[p] and utils.exists(p) then
         seen[p] = true
@@ -357,14 +445,34 @@ function M.files()
       end
     end
   end
-  for _, p in ipairs(files.agenda_file_paths()) do
+  local agenda = vim.tbl_map(vim.fs.normalize, files.agenda_file_paths())
+  for _, p in ipairs(agenda) do
     add(p)
   end
   if cfg.search_archives ~= false then
-    local ok, view = pcall(require, "org.agenda.view")
-    if ok and view.archive_files then
-      for _, f in ipairs(view.archive_files(files.agenda_files())) do
-        add(f.filename)
+    -- the archives of the agenda files, found like the agenda's archive
+    -- mode does (org-agenda-files with 'ifmode), from the last scan of
+    -- each file while it is unchanged
+    load_db()
+    local archive = require("org.archive")
+    local own = {}
+    for _, p in ipairs(agenda) do
+      own[p] = true
+    end
+    for _, p in ipairs(agenda) do
+      local info = file_info(p)
+      if info then
+        local locs = { info.archive, config.opts.archive_location }
+        for _, loc in ipairs(info.archives) do
+          locs[#locs + 1] = loc
+        end
+        for _, loc in pairs(locs) do
+          local ok, parsed = pcall(archive.parse_location, loc, info.filename or p)
+          local path = ok and parsed and parsed.filename
+          if path and not own[vim.fs.normalize(path)] then
+            add(path)
+          end
+        end
       end
     end
   end
@@ -403,15 +511,19 @@ function M.update_locations()
     count = count + 1
     new[id] = filename
   end
+  load_db()
+  local kept = {}
   for _, p in ipairs(M.files()) do
-    local f = files.get(p)
-    if f then
-      add(f.properties and f.properties.ID, f.filename or p)
-      for _, hl in ipairs(f.headlines) do
-        add(hl.properties.ID, f.filename or p)
+    local info = file_info(p)
+    if info then
+      kept[p] = scan[p]
+      for _, id in ipairs(info.ids) do
+        add(id, info.filename or p)
       end
     end
   end
+  -- forget the files no longer scanned
+  scan, scan_json = kept, nil
   db = new
   save_db()
   if #dups > 0 then

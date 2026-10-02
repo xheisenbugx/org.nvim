@@ -1,0 +1,47 @@
+# Visibility cases: <name> <file> <commands...>
+# Commands run after the file is opened (startup visibility applied):
+#   L<n>  move to line n (any command other than TAB/S-TAB ends a cycle)
+#   T     TAB (org-cycle)
+#   S     S-TAB (org-shifttab, global cycling)
+# "-" means no command: the startup visibility itself.
+content         content.org     -
+content-tab1    content.org     L3 T
+content-tab2    content.org     L3 T T
+content-tab3    content.org     L3 T T T
+content-tabB    content.org     L8 T
+content-tabB2   content.org     L8 T T
+content-stab1   content.org     S
+content-stab2   content.org     S S
+content-stab3   content.org     S S S
+show2           show2.org       -
+show2-tab       show2.org       L4 T
+show2-stab      show2.org       S
+visprops        visprops.org    -
+visprops-tabA   visprops.org    L2 T
+visprops-tabA2  visprops.org    L2 T T
+visprops-tabF   visprops.org    L11 T
+visprops-tabH   visprops.org    L21 T
+visprops-tabH2  visprops.org    L21 T T
+showall         showall.org     -
+showall-tabB    showall.org     L14 T
+showall-tabB2   showall.org     L14 T T
+showall-tabA    showall.org     L2 T
+showall-tabA2   showall.org     L2 T T
+showall-drawer  showall.org     L3 T
+showall-archive showall.org     L11 T
+showall-stab    showall.org     S
+sep             sep.org         -
+sep-tab         sep.org         L2 T
+sep-tab2        sep.org         L2 T T
+nested          nested.org      -
+nested-tab      nested.org      L4 T
+nested-tab2     nested.org      L4 T T
+skip            skip.org        -
+skip-tab        skip.org        L2 T
+skip-tab2       skip.org        L2 T T
+everything      everything.org  -
+everything-stab everything.org  S
+blocks          blocks.org      -
+blocks-block    blocks.org      L9 T
+blocks-drawer   blocks.org      L6 T
+blocks-tabB     blocks.org      L12 T

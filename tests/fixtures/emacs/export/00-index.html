@@ -1,0 +1,153 @@
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org2dc5823">1. How to use these files</a></li>
+<li><a href="#org1183b91">2. The files</a>
+<ul>
+<li><a href="#orgaf6c356">2.1. Writing and structure</a></li>
+<li><a href="#org2fc59bc">2.2. Tasks</a></li>
+<li><a href="#orge8718bb">2.3. Finding things</a></li>
+<li><a href="#orgb4ec9e4">2.4. Collecting and organising</a></li>
+<li><a href="#orga368926">2.5. Tables and code</a></li>
+<li><a href="#orge87d85b">2.6. Publishing and display</a></li>
+<li><a href="#org6852f3b">2.7. Everything else</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org2dc5823" class="outline-2">
+<h2 id="org2dc5823"><span class="section-number-2">1.</span> How to use these files</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Each file in this directory covers one feature area of org.nvim in depth.
+They are meant to be <b>worked through</b>, not just read: every section explains
+a feature, shows several examples, and ends with exercises.
+</p>
+
+<ul class="org-ul">
+<li>Lines starting with <b>Try:</b> are exercises, with the exact keys to press.</li>
+<li>Lines starting with <b>Expect:</b> say what you should see afterwards, so you can
+check that the feature works.</li>
+<li>Lines starting with <code>#</code> are Org comments that annotate the example next to
+them. They are dimmed, and they are never exported.</li>
+<li>Keys use <code>&lt;prefix&gt;</code> for the org.nvim prefix, <code>&lt;leader&gt;o</code> by default.
+Press <code>g?</code> in any org buffer to list the keys of that buffer.</li>
+<li>Nothing breaks if you make a mess: <code>u</code> undoes, and
+<code>git checkout examples/</code> restores every file.</li>
+</ul>
+
+<p>
+Start Neovim from the repository root with the bundled init file, so the
+examples use a known configuration and your own notes are never touched:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/00-index.org
+</code></pre>
+</div>
+
+<p>
+It points <code>agenda_files</code> at the files of this directory and sends captures to
+a scratch directory under <code>stdpath("state")</code>. Put the cursor on a link below
+and press <code>&lt;CR&gt;</code> to open that file. <code>&lt;C-o&gt;</code> brings you back here.
+</p>
+
+<p>
+The examples use dates around late September 2026. When they are in the
+past, press <code>&lt;C-a&gt;</code> on the day of a timestamp to move it forward.
+</p>
+
+<p>
+If you would rather take a quick tour of everything in one file first, start
+with <a href="tutorial.html">tutorial.org</a>.
+</p>
+</div>
+</div>
+<div id="outline-container-org1183b91" class="outline-2">
+<h2 id="org1183b91"><span class="section-number-2">2.</span> The files</h2>
+<div class="outline-text-2" id="text-2">
+</div>
+<div id="outline-container-orgaf6c356" class="outline-3">
+<h3 id="orgaf6c356"><span class="section-number-3">2.1.</span> Writing and structure</h3>
+<div class="outline-text-3" id="text-2-1">
+<ul class="org-ul">
+<li><a href="01-outline.html">01 Outline</a>: headlines, folding, motions, moving and sorting subtrees,
+narrowing.</li>
+<li><a href="02-markup.html">02 Markup</a>: emphasis, blocks, comments, entities, sub- and
+superscripts.</li>
+<li><a href="03-lists.html">03 Lists</a>: plain lists, bullets, counters, checkboxes and progress
+cookies.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org2fc59bc" class="outline-3">
+<h3 id="org2fc59bc"><span class="section-number-3">2.2.</span> Tasks</h3>
+<div class="outline-text-3" id="text-2-2">
+<ul class="org-ul">
+<li><a href="04-todo.html">04 TODO items</a>: keywords, logging, repeaters, habits, dependencies,
+priorities.</li>
+<li><a href="05-tags.html">05 Tags</a>: fast selection, groups, inheritance, file tags.</li>
+<li><a href="06-properties-columns.html">06 Properties and column view</a>: drawers, allowed values, inheritance,
+column summaries.</li>
+<li><a href="07-dates.html">07 Dates and times</a>: timestamps, SCHEDULED and DEADLINE, the calendar,
+date input.</li>
+<li><a href="08-clocking.html">08 Clocking</a>: clocking in and out, effort estimates, clock tables.</li>
+<li><a href="20-timers-reminders.html">20 Timers and reminders</a>: relative and countdown timers, appointment
+notifications.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orge8718bb" class="outline-3">
+<h3 id="orge8718bb"><span class="section-number-3">2.3.</span> Finding things</h3>
+<div class="outline-text-3" id="text-2-3">
+<ul class="org-ul">
+<li><a href="09-agenda.html">09 Agenda</a>: day and week views, the TODO list, matches, custom commands,
+bulk actions.</li>
+<li><a href="10-sparse-trees.html">10 Sparse trees</a>: folding a file down to matches, and the match syntax.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgb4ec9e4" class="outline-3">
+<h3 id="orgb4ec9e4"><span class="section-number-3">2.4.</span> Collecting and organising</h3>
+<div class="outline-text-3" id="text-2-4">
+<ul class="org-ul">
+<li><a href="11-capture.html">11 Capture</a>: templates, expansions, targets.</li>
+<li><a href="12-refile-archive.html">12 Refile and archive</a>: moving subtrees around and out of the way.</li>
+<li><a href="13-links.html">13 Links</a>: every link type, IDs, radio targets, attachments.</li>
+<li><a href="14-footnotes.html">14 Footnotes</a>: inserting, jumping, renumbering.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orga368926" class="outline-3">
+<h3 id="orga368926"><span class="section-number-3">2.5.</span> Tables and code</h3>
+<div class="outline-text-3" id="text-2-5">
+<ul class="org-ul">
+<li><a href="15-tables.html">15 Tables</a>: creating, aligning, editing, moving, sorting, importing.</li>
+<li><a href="16-spreadsheet.html">16 Spreadsheet</a>: <code>#+TBLFM</code> formulas, references, functions, formats,
+worked sheets.</li>
+<li><a href="17-babel.html">17 Babel</a>: running source blocks, results, variables, noweb, tangling.</li>
+<li><a href="18-dynamic-blocks.html">18 Dynamic blocks</a>: clock tables, column view blocks, custom blocks.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orge87d85b" class="outline-3">
+<h3 id="orge87d85b"><span class="section-number-3">2.6.</span> Publishing and display</h3>
+<div class="outline-text-3" id="text-2-6">
+<ul class="org-ul">
+<li><a href="19-export.html">19 Export</a>: the dispatcher, back-ends, export settings.</li>
+<li><a href="21-images-latex.html">21 Images and LaTeX</a>: inline image and LaTeX previews.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org6852f3b" class="outline-3">
+<h3 id="org6852f3b"><span class="section-number-3">2.7.</span> Everything else</h3>
+<div class="outline-text-3" id="text-2-7">
+<ul class="org-ul">
+<li><a href="22-extras.html">22 Extras</a>: completion, org-lint, speed keys, inline tasks, encryption,
+commands and health checks.</li>
+</ul>
+</div>
+</div>
+</div>

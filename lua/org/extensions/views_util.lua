@@ -14,7 +14,6 @@
 ---   - face helpers for TODO keywords, priorities and tags, and small
 ---     formatting helpers
 
-local date = require("org.date")
 local utils = require("org.utils")
 
 local M = {}
@@ -404,7 +403,7 @@ end
 ---@param files org.File[]
 ---@return string
 function M.files_key(files)
-  local parts = { tostring(date.today_days()) }
+  local parts = { tostring(require("org.date").today_days()) }
   for i, f in ipairs(files) do
     parts[i + 1] = tostring(f)
   end
@@ -431,7 +430,7 @@ end
 ---@return integer|nil
 function M.effort(hl)
   local v = hl:get_property(require("org.config").opts.effort_property or "Effort")
-  return v and date.parse_duration(v) or nil
+  return v and require("org.date").parse_duration(v) or nil
 end
 
 --- A reference to a headline that survives re-parsing: file, line and

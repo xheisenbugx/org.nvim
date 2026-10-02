@@ -149,6 +149,10 @@ describe("export (Emacs features)", function()
   end)
 
   it("expands nested macros, escaped commas, property, n and results", function()
+    config.opts.babel.evaluate_on_export = true
+    babel.export_evaluate = function(_, l)
+      return l
+    end
     local lines = {
       "#+MACRO: pair ($1 / $2)",
       "#+MACRO: wrap [{{{pair($1,$2)}}}]",
@@ -163,6 +167,29 @@ describe("export (Emacs features)", function()
     }
     -- like Emacs, the space after the comma belongs to the second argument
     has(html(lines), "[(x / y)] (a, b /  c) blue 1 2 5 2026 42")
+  end)
+
+  it("exports a link to another file's /regexp/ search without a broken link", function()
+    -- Emacs: the search is a sparse tree (org-occur), never an error
+    local dir = tmpdir()
+    vim.fn.writefile({ "* A", ":PROPERTIES:", ":OWNER: Alice", ":END:" }, dir .. "/other.org")
+    require("org.utils").notify = function() end
+    local h = html({ "[[file:other.org::/OWNER: +Alice/][Alice]]" }, { filename = dir .. "/main.org" })
+    has(h, '<a href="other.html#MissingReference">Alice</a>')
+  end)
+
+  it("replaces {{{results}}} only when Babel runs on export (org-export-use-babel)", function()
+    -- Emacs 9.8.10: org-export-as expands the results macro after
+    -- Babel ran; with org-export-use-babel nil it stays and exports as
+    -- nothing
+    local lines = { "#+OPTIONS: toc:nil", "* H", "A {{{results(42)}}} B" }
+    has(html(lines), "A B")
+    hasnt(html(lines), "42")
+    config.opts.babel.evaluate_on_export = true
+    babel.export_evaluate = function(_, l)
+      return l
+    end
+    has(html(lines), "A 42 B")
   end)
 
   it("does not expand macros in code, blocks or fixed-width areas", function()
@@ -226,6 +253,11 @@ describe("export (Emacs features)", function()
     local h3 = html({ "#+begin_example -n 9", "a", "b", "#+end_example", "#+begin_example +n", "c", "#+end_example" })
     has(h3, '<span class="linenr"> 9: </span>a\n<span class="linenr">10: </span>b')
     has(h3, '<span class="linenr">11: </span>c')
+  end)
+
+  it("resolves a coderef whose label has pattern characters (ref:a-b)", function()
+    local h = html({ "#+begin_src sh -n -r", "echo a", "echo b (ref:a-b)", "#+end_src", "", "Line [[(a-b)]]." })
+    has(h, ">2</a>.")
   end)
 
   it("expands noweb references in exported code with :noweb yes", function()

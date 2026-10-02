@@ -1092,10 +1092,13 @@ local function describe_datum(datum, info)
   elseif not number then
     return translate("Unknown reference", info)
   elseif et == "paragraph" then
+    -- lint: allow gsub: an ordinal of a number
     return (translate("See figure %s", info):gsub("%%s", ordinal_string(number)))
   elseif et == "src-block" then
+    -- lint: allow gsub: an ordinal of a number
     return (translate("See listing %s", info):gsub("%%s", ordinal_string(number)))
   elseif et == "table" then
+    -- lint: allow gsub: an ordinal of a number
     return (translate("See table %s", info):gsub("%%s", ordinal_string(number)))
   end
   return translate("Unknown reference", info)

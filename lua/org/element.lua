@@ -712,7 +712,10 @@ function M.drag_forward()
     return
   end
   local new_first = swap(bufnr, el, nxt)
-  vim.api.nvim_win_set_cursor(0, { new_first + (pos[1] - el.first), pos[2] })
+  -- from the blank lines after the element, the shifted cursor can be
+  -- past the end of the buffer (Emacs's goto-char stops at point-max)
+  local lnum = math.min(new_first + (pos[1] - el.first), vim.api.nvim_buf_line_count(bufnr))
+  vim.api.nvim_win_set_cursor(0, { lnum, pos[2] })
 end
 
 --- org-transpose-element (C-M-t): swap the element at the cursor with

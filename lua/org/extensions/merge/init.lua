@@ -144,6 +144,7 @@ function M.config_values(o)
     { "todo", todo },
     { "setDrawers", drawers },
     { "renameSimilarity", sim == false and { "2" } or (tonumber(sim) and { tostring(sim) } or {}) },
+    -- lint: allow expand: the config_file option
     { "config", o.config_file and { vim.fn.expand(o.config_file) } or {} },
   }
 end

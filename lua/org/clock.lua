@@ -171,6 +171,10 @@ local function unnamed(bufnr)
   return buf_path(bufnr) == nil and bufnr or nil
 end
 
+-- The last find_open_clock answer, valid while the clock state, the
+-- buffer and its changedtick stay the same.
+local open_cache
+
 --- Locate the open clock line of the running clock.
 ---@return integer|nil bufnr, integer|nil lnum
 function M.find_open_clock()
@@ -194,19 +198,33 @@ function M.find_open_clock()
     end
     bufnr = utils.load_buffer(st.path)
   end
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local c = open_cache
+  if c and c.state == st and c.start == st.start and c.bufnr == bufnr and c.tick == tick then
+    return c.lnum and bufnr or nil, c.lnum
+  end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local pat = "^%s*CLOCK:%s*" .. utils.escape_pattern(st.start) .. "%s*$"
+  local found
   for i, l in ipairs(lines) do
     if l:match(pat) then
-      return bufnr, i
+      found = i
+      break
     end
   end
   -- the line may be written differently from the state's normalized
   -- start (no day name, another day name, extra spaces)
-  for i, l in ipairs(lines) do
-    if l:find("CLOCK:", 1, true) and M._is_open_clock_of(l, st.start) then
-      return bufnr, i
+  if not found then
+    for i, l in ipairs(lines) do
+      if l:find("CLOCK:", 1, true) and M._is_open_clock_of(l, st.start) then
+        found = i
+        break
+      end
     end
+  end
+  open_cache = { state = st, start = st.start, bufnr = bufnr, tick = tick, lnum = found }
+  if found then
+    return bufnr, found
   end
   return nil
 end
@@ -475,6 +493,7 @@ function M.notify(msg)
     -- the terminal bell
     pcall(vim.api.nvim_chan_send, vim.v.stderr, "\7")
   elseif type(sound) == "string" and sound ~= "" then
+    -- lint: allow expand: the sound option
     local file = vim.fn.expand(sound)
     for _, player in ipairs({ "afplay", "paplay", "aplay" }) do
       if vim.fn.executable(player) == 1 then
@@ -1273,6 +1292,10 @@ function M.timestamps_adjust_closest(n)
     return false
   end
   local new = parser.parse_clock_line(vim.api.nvim_get_current_line())
+  if not new then
+    -- on a bracket, the change made the timestamp active: no clock left
+    return true
+  end
   local delta = (on_start and new.start:minutes() or (new["end"] and new["end"]:minutes() or before)) - before
   local hl = files.get_buffer(bufnr):headline_at(lnum)
   if #M.history < 2 or not hl or delta == 0 then

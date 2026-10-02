@@ -22,10 +22,10 @@ local config = require("org.config")
 local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
+local marks = require("org.marks")
 local utils = require("org.utils")
 
 local M = {}
-local archive_ns = vim.api.nvim_create_namespace("org.archive.source")
 
 --- The raw archive location for a headline.
 function M.location_for(hl)
@@ -343,7 +343,8 @@ function M.archive_subtree(target, opts)
   local itags = hl:get_inherited_tags()
 
   local abuf, open_line
-  local before = vim.api.nvim_buf_line_count(bufnr)
+  -- the subtree moves when text is added above it (same-file archives)
+  local source = assert(marks.range(bufnr, s, e))
   if same then
     abuf = bufnr
   else
@@ -373,22 +374,15 @@ function M.archive_subtree(target, opts)
   same = abuf == bufnr
   local original = vim.api.nvim_buf_get_lines(abuf, 0, -1, false)
   local modified = vim.bo[abuf].modified
-  local source_mark = same
-    and vim.api.nvim_buf_set_extmark(bufnr, archive_ns, s - 1, 0, {
-      end_row = e,
-      end_col = 0,
-      right_gravity = true,
-      end_right_gravity = false,
-    })
   local at, level, blank = archive_point(abuf, loc, closed or date.today(), open_line)
   if same then
-    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, archive_ns, source_mark, { details = true })
+    local s1, e1 = source:rows()
     local parent = files.get_buffer(abuf):headline_at(at)
     while parent and parent.level >= level do
       parent = parent.parent
     end
-    vim.api.nvim_buf_del_extmark(bufnr, archive_ns, source_mark)
-    if parent and parent.line > pos[1] and parent.line <= pos[3].end_row then
+    if parent and s1 and parent.line >= s1 and parent.line <= e1 then
+      source:del()
       utils.restore_buffer(abuf, original, modified)
       utils.warn("Cannot archive to a position inside the source subtree")
       return
@@ -422,23 +416,33 @@ function M.archive_subtree(target, opts)
   if not same and save then
     local ok, err = utils.save_buffer(abuf)
     if not ok then
+      source:del()
       utils.restore_buffer(abuf, original, modified)
       utils.error("Archive not saved, subtree kept: " .. err)
       return
     end
   end
   require("org.id").register_lines(new, vim.fs.normalize(loc.filename))
-  -- back in the source: the subtree moved when archiving above it
-  if same and lnum <= s then
-    local delta = vim.api.nvim_buf_line_count(bufnr) - before
-    s, e = s + delta, e + delta
-  end
+  local parent = hl.parent and marks.set(bufnr, hl.parent.line)
   fire("OrgArchive", data)
-  delete_attachments(bufnr, s)
-  local parent = hl.parent and hl.parent.line
-  vim.api.nvim_buf_set_lines(bufnr, s - 1, e, false, {})
+  s = source:rows()
+  if s then
+    delete_attachments(bufnr, s)
+  end
+  -- back in the source, wherever the archived copy pushed it
+  s, e = source:rows()
+  source:del()
+  if s then
+    vim.api.nvim_buf_set_lines(bufnr, s - 1, e, false, {})
+  else
+    utils.warn("The archived subtree was removed from " .. utils.abbreviate(file.filename))
+  end
   if parent then
-    pcall(require("org.lists").update_statistics_for, bufnr, parent)
+    local pline = parent:lnum()
+    parent:del()
+    if pline then
+      pcall(require("org.lists").update_statistics_for, bufnr, pline)
+    end
   end
   if bufnr == vim.api.nvim_get_current_buf() then
     local n = vim.api.nvim_buf_line_count(bufnr)
@@ -475,32 +479,30 @@ function M.archive_to_sibling(target)
   end
   local s, e = hl.line, hl.end_line
   local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
-  local before = vim.api.nvim_buf_line_count(bufnr)
+  local source = assert(marks.range(bufnr, s, e))
+  local parent = hl.parent and marks.set(bufnr, hl.parent.line)
   local sib_line
   if sib then
     sib_line = sib.line
   else
     -- created at the end of the parent's subtree (after the source)
-    local at = hl.parent and hl.parent.end_line or before
+    local at = hl.parent and hl.parent.end_line or vim.api.nvim_buf_line_count(bufnr)
     local heading = edit.align_tags_line(string.rep("*", hl.level) .. " " .. name .. " :ARCHIVE:", file.settings.todo)
     vim.api.nvim_buf_set_lines(bufnr, at, at, false, { heading })
     sib_line = at + 1
-    before = before + 1
   end
+  local sibling = assert(marks.set(bufnr, sib_line))
   local shl = files.get_buffer(bufnr):headline_at(sib_line)
   local at = config.opts.archive_reversed_order and shl.body_end or shl.end_line
   vim.api.nvim_buf_set_lines(bufnr, at, at, false, edit.relevel(lines, hl.level + 1))
   edit.set_property(bufnr, at + 1, "ARCHIVE_TIME", archive_time())
-  if at < s then
-    local delta = vim.api.nvim_buf_line_count(bufnr) - before
-    s, e = s + delta, e + delta
-  end
+  s, e = source:rows()
   vim.api.nvim_buf_set_lines(bufnr, s - 1, e, false, {})
-  if sib_line > e then
-    sib_line = sib_line - (e - s + 1)
-  end
-  if hl.parent then
-    pcall(require("org.lists").update_statistics_for, bufnr, hl.parent.line)
+  sib_line = sibling:lnum()
+  local pline = parent and parent:lnum()
+  marks.del(source, sibling, parent)
+  if pline then
+    pcall(require("org.lists").update_statistics_for, bufnr, pline)
   end
   if bufnr == vim.api.nvim_get_current_buf() then
     local n = vim.api.nvim_buf_line_count(bufnr)
@@ -557,44 +559,38 @@ local function archive_all_matches(predicate, opts)
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local on = file:headline_at(lnum)
   local list = (on and on.line == lnum) and on.children or file.children
-  local candidates = {}
-  for _, c in ipairs(list) do
-    local reason = predicate(c)
-    if reason and not (opts.tag and c:is_archived()) then
-      candidates[#candidates + 1] = { line = c.line, raw = c.raw, reason = reason }
-    end
-  end
-  --- Current line of a candidate (archiving may shift lines).
-  local function find(c)
-    local f = files.get_buffer(bufnr)
-    local hl = f:headline_at(c.line)
-    if hl and hl.line == c.line and hl.raw == c.raw then
-      return hl
-    end
-    return f:find_headline(function(h)
-      return h.raw == c.raw
-    end)
-  end
   local confirm = opts.confirm
     or function(hl, reason)
       local q = opts.tag and "Set ARCHIVE tag? " or "Move subtree to archive? "
       return utils.confirm(q .. "(" .. reason .. ") " .. hl:plain_title())
     end
-  local n = 0
-  -- bottom-up so earlier line numbers stay valid
-  for i = #candidates, 1, -1 do
-    local hl = find(candidates[i])
-    if hl and confirm(hl, candidates[i].reason) then
-      if opts.tag then
-        if not hl:is_archived() then
-          M.toggle_archive_tag({ bufnr = bufnr, lnum = hl.line })
-        end
-      else
-        M.archive_subtree({ bufnr = bufnr, lnum = hl.line })
+  local n = marks.with(function(track)
+    local candidates = {}
+    for _, c in ipairs(list) do
+      local reason = predicate(c)
+      if reason and not (opts.tag and c:is_archived()) then
+        -- archiving (to this file, too) moves the others: follow them
+        candidates[#candidates + 1] = { mark = track(bufnr, c.line, nil, { invalidate = true }), reason = reason }
       end
-      n = n + 1
     end
-  end
+    local count = 0
+    -- in buffer order, like org-archive-all-matches
+    for _, c in ipairs(candidates) do
+      local l = c.mark:lnum()
+      local hl = l and files.get_buffer(bufnr):headline_on(l)
+      if hl and confirm(hl, c.reason) then
+        if opts.tag then
+          if not hl:is_archived() then
+            M.toggle_archive_tag({ bufnr = bufnr, lnum = hl.line })
+          end
+        else
+          M.archive_subtree({ bufnr = bufnr, lnum = hl.line })
+        end
+        count = count + 1
+      end
+    end
+    return count
+  end)
   utils.notify(string.format("%d trees archived", n))
   return n
 end

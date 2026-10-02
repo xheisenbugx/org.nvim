@@ -41,20 +41,36 @@ function M.builder()
   return setmetatable({ lines = {}, hls = {}, items = {}, line_hls = {}, blocks = {} }, Builder)
 end
 
---- Add a line made of parts { text, group? }.
-function Builder:add(parts, item, line_hl)
-  local text = {}
+--- The text of a line made of parts { text, group? } and its highlights
+--- { start_col, end_col, group } (byte columns).
+---@return string text, table[] hls
+function M.line_text(parts)
+  local text, hls = {}, {}
   local len = 0
-  local row = #self.lines
   for _, p in ipairs(parts) do
     local s = p[1] or ""
     if p[2] and #s > 0 then
-      self.hls[#self.hls + 1] = { row, len, len + #s, p[2] }
+      hls[#hls + 1] = { len, len + #s, p[2] }
     end
     text[#text + 1] = s
     len = len + #s
   end
-  self.lines[#self.lines + 1] = table.concat(text)
+  return table.concat(text), hls
+end
+
+--- Add a line made of parts { text, group? }.
+function Builder:add(parts, item, line_hl)
+  local text, hls = M.line_text(parts)
+  return self:add_line(text, hls, item, line_hl)
+end
+
+--- Add a line `text` with highlights { start_col, end_col, group, priority? }.
+function Builder:add_line(text, hls, item, line_hl)
+  local row = #self.lines
+  for _, h in ipairs(hls) do
+    self.hls[#self.hls + 1] = { row, h[1], h[2], h[3], h[4] }
+  end
+  self.lines[#self.lines + 1] = text
   if item then
     self.items[#self.lines] = item
   end
@@ -737,12 +753,16 @@ function M.is_blocked(it)
   return ok2 and reason ~= nil
 end
 
---- Add an item line (plus its entry text in entry-text mode).
-function M.add_item(b, it, ctx)
+--- The line of an item (org-agenda-format-item and the faces of
+--- org-agenda-finalize): its text, highlights { start_col, end_col, group,
+--- priority? } and line highlight; nil when it is not shown (a blocked
+--- entry with `dim_blocked = "invisible"`).
+---@return string|nil text, table[] hls, string|nil line_hl
+function M.item_line(it, ctx)
   local parts = M.item_parts(it, ctx)
   if ctx.dim_blocked and M.is_blocked(it) then
     if ctx.dim_blocked == "invisible" then
-      return
+      return nil, {}, nil
     end
     for _, p in ipairs(parts) do
       if p[2] ~= "OrgAgendaCategory" then
@@ -750,7 +770,7 @@ function M.add_item(b, it, ctx)
       end
     end
   end
-  local row = b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  local text, hls = M.line_text(parts)
   local fp = config.opts.agenda.fontify_priorities
   if parts.priority_index and (fp == true or type(fp) == "table") then
     -- the priority face from the cookie to the end of the line
@@ -760,9 +780,23 @@ function M.add_item(b, it, ctx)
     end
     local group = M.priority_group(it)
     if group then
-      b.hls[#b.hls + 1] = { row - 1, col, #b.lines[row], group, 115 }
+      hls[#hls + 1] = { col, #text, group, 115 }
     end
   end
+  return text, hls, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil
+end
+
+--- Add an item line (plus its entry text in entry-text mode). The context
+--- of the line is kept in `b.line_ctx`, to format it again after a change
+--- of its entry (org-agenda-change-all-lines).
+function M.add_item(b, it, ctx)
+  local text, hls, line_hl = M.item_line(it, ctx)
+  if not text then
+    return
+  end
+  local row = b:add_line(text, hls, it, line_hl)
+  b.line_ctx = b.line_ctx or {}
+  b.line_ctx[row] = ctx
   if ctx.entry_text and it.headline then
     local acfg = config.opts.agenda
     -- a number: the count given to `E` (org-agenda-entry-text-mode N)

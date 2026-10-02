@@ -348,6 +348,7 @@ function M.entry(opts)
   if target == nil or target == "diary-file" then
     return diary_file_entry(d1, d2, opts.nonmarking)
   end
+  -- lint: allow expand: the diary_entry_file option, not document text
   return org_file_entry(vim.fs.normalize(vim.fn.expand(target)), d1, d2)
 end
 
@@ -361,6 +362,7 @@ function M.calendar_entry(d1, d2)
   if target == nil or target == "diary-file" then
     return nil
   end
+  -- lint: allow expand: the diary_entry_file option, not document text
   return org_file_entry(vim.fs.normalize(vim.fn.expand(target)), d1, d2)
 end
 

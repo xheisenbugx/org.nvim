@@ -175,7 +175,9 @@ function M.setup(opts)
     types.code = require(C .. ".link").type
   end
   require(C .. ".context").register()
-  require("org.agenda.render").sources.code_todos = require(C .. ".todos").source
+  require("org.lazy").on_load("org.agenda.render", "code", function(render)
+    render.sources.code_todos = require(C .. ".todos").source
+  end)
   local key = opts.template_key
   local templates = config.opts.capture.templates
   if key and templates and templates[key] == nil then
@@ -234,10 +236,11 @@ function M.teardown()
     types.code = nil
   end
   require(C .. ".context").unregister()
-  local render = require("org.agenda.render")
-  if render.sources.code_todos == require(C .. ".todos").source then
-    render.sources.code_todos = nil
-  end
+  require("org.lazy").if_loaded("org.agenda.render", "code", function(render)
+    if render.sources.code_todos == require(C .. ".todos").source then
+      render.sources.code_todos = nil
+    end
+  end)
   if added_template then
     local templates = config.opts.capture.templates
     if templates[added_template.key] == added_template.tpl then

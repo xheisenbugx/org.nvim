@@ -1,0 +1,608 @@
+\section{How to use this file}
+\label{sec:orgba55d0f}
+This file shows how Org marks up text: emphasis, sub- and superscripts,
+special symbols, blocks, comments, line breaks, keywords and macros. Most of
+this markup is \textbf{shown} by the editor (colours, hidden markers) and \textbf{used}
+by the exporter (HTML, \LaTeX{}, plain text\ldots{}).
+
+Start Neovim from the root of the repository with the bundled config:
+
+\begin{verbatim}
+nvim -u examples/minimal_init.lua examples/02-markup.org
+\end{verbatim}
+
+\begin{itemize}
+\item The file opens folded. \texttt{<Tab>} on a heading opens it, \texttt{<S-Tab>} cycles
+the whole buffer.
+\item \texttt{<prefix>} means \texttt{<leader>o} (\texttt{<Space>o} with the bundled config). \texttt{g?}
+lists every key of the buffer.
+\item \texttt{u} undoes; \texttt{git checkout examples/02-markup.org} restores the file.
+\item \textbf{Try:} lines are exercises, \textbf{Expect:} lines say what you should see.
+\item Lines starting with =\# = are comments: notes for you, never exported.
+\end{itemize}
+\subsection{How to check the result: export one subtree}
+\label{sec:org3ef3b96}
+Markup is easiest to verify by exporting. With the cursor anywhere inside a
+heading, this command exports \textbf{only that subtree}, without the HTML page
+around it, into a scratch buffer:
+
+\begin{verbatim}
+:Org export html subtree body buffer
+\end{verbatim}
+
+A split named "Org HTML Export" opens with the HTML. Close it with \texttt{:q}.
+For a plain-text view use \texttt{utf8} instead of \texttt{html}. The same exports are in
+the menu of \texttt{<prefix>e} (Emacs \texttt{<C-c><C-e>}): press \texttt{s} (subtree only) and
+\texttt{b} (body only), then \texttt{h H} (HTML buffer) or \texttt{t U} (UTF-8 buffer). Export
+itself is covered in \href{19-export.org}{19-export.org}.
+
+Most \textbf{Expect:} lines below quote the exact HTML you should find.
+\subsection{Keys in this file}
+\label{sec:orga0d449c}
+\begin{center}
+\begin{tabular}{ll}
+Key & What it does\\
+\hline
+\texttt{<prefix>E} & emphasize: wrap the selection in \texttt{*} \texttt{/} \texttt{\_}\ldots{}\\
+\texttt{<C-c><C-x><C-f>} & the same, Emacs key\\
+\texttt{<C-c><C-x>\textbackslash{}} & toggle pretty entities (\texttt{\textbackslash{}alpha} shown as α)\\
+\texttt{<C-c>:} & toggle fixed-width =: = on the line / selection\\
+\texttt{<prefix>ib} & insert a block (quote, example, src\ldots{})\\
+\texttt{<prefix>hC} & toggle the COMMENT keyword of a headline\\
+\texttt{<Tab>} & on a \texttt{\#+begin\_} line: fold / unfold the block\\
+\texttt{<prefix>e} & export menu\\
+\texttt{<prefix>xl} & preview \LaTeX{} fragments as images\\
+\end{tabular}
+\end{center}
+\section{Emphasis}
+\label{sec:org9627784}
+Six markers change how text looks. Put the marker right before the first
+character and right after the last one:
+
+\begin{center}
+\begin{tabular}{lll}
+You write & You get & HTML\\
+\hline
+\texttt{*bold*} & \textbf{bold} & \texttt{<b>bold</b>}\\
+\texttt{/italic/} & \emph{italic} & \texttt{<i>italic</i>}\\
+\texttt{\_underlined\_} & \uline{underlined} & \texttt{<span class}"underline">\ldots{}=\\
+\texttt{+strike+} & \sout{strike} & \texttt{<del>strike</del>}\\
+\texttt{=verbatim=} & \texttt{verbatim} & \texttt{<code>verbatim</code>}\\
+\texttt{\textasciitilde{}code\textasciitilde{}} & \texttt{code} & \texttt{<code>code</code>}\\
+\end{tabular}
+\end{center}
+
+\texttt{verbatim} and \texttt{code} look the same in most exports; the difference is
+that nothing inside them is interpreted: no emphasis, no links, no
+entities. Use \texttt{code} for code and \texttt{verbatim} for keys, file names and
+literal strings (this is the convention of the Org manual).
+
+Emphasis can be nested, and can span \textbf{two} lines, but not more.
+
+\textbf{Try:} open "Emphasis examples" below and look at the colours: each kind of
+markup has its own highlight group (\texttt{OrgBold}, \texttt{OrgItalic}, \texttt{OrgUnderline},
+\texttt{OrgStrikethrough}, \texttt{OrgVerbatim}, \texttt{OrgCode}). Then, with the cursor in it,
+run \texttt{:Org export html subtree body buffer}.
+
+\textbf{Expect:} the HTML contains, one per line:
+\begin{verbatim}
+<b>bold</b>, <i>italic</i>, <span class="underline">underlined</span>,
+<del>strike-through</del>, <code>verbatim</code> and <code>code</code>.
+<b>bold with <i>italic inside</i> it</b>
+<code>*not bold*</code>
+<b>emphasis over
+two lines</b>
+\end{verbatim}
+\subsection{Emphasis examples}
+\label{sec:org2dc5823}
+\textbf{bold}, \emph{italic}, \uline{underlined},
+\sout{strike-through}, \texttt{verbatim} and \texttt{code}.
+\textbf{bold with \emph{italic inside} it}
+\texttt{*not bold*} because verbatim shows its text as it is.
+\textbf{emphasis over
+two lines} works.
+\subsection{When emphasis does not work}
+\label{sec:orgeab1bb9}
+The markers are only recognised in the right context (Org's
+\texttt{org-emphasis-regexp-components}):
+
+\begin{itemize}
+\item The opening marker must be at the start of a line or after a space or one
+of \texttt{-('"\{}. The closing marker must be followed by a space, the end of the
+line, or one of \texttt{-.,:!?;'")\}\textbackslash{}[}. So markers inside a word do nothing:
+\texttt{a*b*c} stays as it is.
+\item The text inside cannot start or end with a space: \texttt{* no *} is not bold.
+\item Emphasis spans at most two lines. Three lines: no emphasis.
+\item Inside \texttt{verbatim} and \texttt{code} nothing is interpreted.
+\end{itemize}
+
+\textbf{Try:} open "Things that are not emphasis" and export it as above.
+
+\textbf{Expect:} none of these lines has \texttt{<b>}, \texttt{<i>} or \texttt{<del>} in the HTML:
+the stars, slashes and plus signs come out as plain characters:
+\begin{verbatim}
+a*b*c in the middle of a word.
+Here * no stars * because of the spaces inside.
+2+3+4 is just arithmetic.
+path/to/file is not italic.
+\end{verbatim}
+(Underscores are different: \texttt{snake\_case} gives a subscript, see the next
+topic.)
+\subsection{Things that are not emphasis}
+\label{sec:orgaf6c356}
+a*b*c in the middle of a word.
+Here * no stars * because of the spaces inside.
+2+3+4 is just arithmetic.
+path/to/file is not italic.
+\subsection{Adding emphasis with a key}
+\label{sec:org3030266}
+\texttt{<prefix>E} (Emacs \texttt{<C-c><C-x><C-f>}) asks for a marker (\texttt{*} \texttt{/} \texttt{\_} \texttt{+}
+\texttt{=} \texttt{\textasciitilde{}}) and:
+\begin{itemize}
+\item in Visual mode, wraps the selection in it; if the selection already has a
+marker, it is replaced; answering \texttt{<Space>} removes the markers;
+\item in Normal mode, inserts a pair of markers and puts you in Insert mode
+between them.
+\end{itemize}
+Spaces are added when needed so the markers are recognised.
+
+\textbf{Try:} on the line "Make this word bold." below, put the cursor on "word",
+press \texttt{viw}, then \texttt{<prefix>E} and \texttt{*}.
+
+\textbf{Expect:} the line reads \texttt{Make this *word* bold.} and "word" turns bold.
+
+\textbf{Try:} put the cursor on the first star of \texttt{*word*}, select up to the
+second star with \texttt{vf*}, press \texttt{<prefix>E} and \texttt{/}.
+
+\textbf{Expect:} the stars are replaced: \texttt{Make this /word/ bold.}
+
+\textbf{Try:} on the line "Type between alpha beta", put the cursor on the \texttt{b} of
+"beta", press \texttt{<prefix>E} and \texttt{\textasciitilde{}}, type \texttt{ls} and press \texttt{<Esc>}.
+
+\textbf{Expect:} \texttt{Type between alpha \textasciitilde{}ls\textasciitilde{} beta}: the pair was inserted before
+"beta" and a space was added after it, so the markers are recognised.
+\subsubsection{Emphasize playground}
+\label{sec:org28d6e92}
+Make this word bold.
+Type between alpha beta
+\subsection{Hiding the markers}
+\label{sec:org8463113}
+With \texttt{ui.hide\_emphasis\_markers = true} the markers are concealed: you see
+\textbf{bold} without its stars. The markers stay in the file, and show again on
+the line under the cursor (depending on \texttt{'concealcursor'}).
+
+\textbf{Try:} run these two commands, then look at "Emphasis examples":
+
+\begin{verbatim}
+:lua require("org.config").opts.ui.hide_emphasis_markers = true
+:w | e
+\end{verbatim}
+
+\textbf{Expect:} the markers disappear from lines away from the cursor. Set it
+back to \texttt{false} the same way.
+\section{Subscripts and superscripts}
+\label{sec:org1183b91}
+\texttt{\_} makes a subscript and \texttt{\textasciicircum{}} a superscript: \texttt{x\textasciicircum{}2}, \texttt{a\_i}. Without braces
+the script extends over all the letters and digits that follow, so write
+\texttt{H\_\{2\}O} (not \texttt{H\_2O}, which subscripts "2O"). Braces are always safe:
+\texttt{x\textasciicircum{}\{10\}}, \texttt{a\_\{ij\}}.
+
+Two settings control them:
+\begin{itemize}
+\item In the buffer, with \texttt{ui.pretty\_entities} on (see Entities below), scripts
+are drawn with Unicode super/subscript characters when all of their
+characters have one (x², aᵢⱼ), else highlighted with \texttt{OrgSuperscript} /
+\texttt{OrgSubscript}.
+\item In the export, \texttt{\#+OPTIONS: \textasciicircum{}:\{\}} (or \texttt{:EXPORT\_OPTIONS: \textasciicircum{}:\{\}} on a
+subtree) only accepts scripts in braces, so \texttt{snake\_case} stays intact.
+\texttt{\textasciicircum{}:nil} turns them off.
+\end{itemize}
+
+\textbf{Try:} export "Scripts with defaults" (\texttt{:Org export html subtree body
+buffer}).
+
+\textbf{Expect:}
+\begin{verbatim}
+H<sub>2</sub>O and E=mc<sup>2</sup> and a<sub>ij</sub>
+H<sub>2O</sub> is wrong: "2O" is subscripted.
+snake<sub>case</sub>
+\end{verbatim}
+
+\textbf{Try:} export "Scripts with braces only" the same way.
+
+\textbf{Expect:} \texttt{H\_2O} and \texttt{snake\_case} stay as they are, only the braced ones
+change:
+\begin{verbatim}
+H_2O snake_case x<sup>2</sup> a<sub>ij</sub>
+\end{verbatim}
+\subsection{Scripts with defaults}
+\label{sec:orgbdb4163}
+H\textsubscript{2}O and E=mc\textsuperscript{2} and a\textsubscript{ij}
+H\textsubscript{2O} is wrong: "2O" is subscripted.
+snake\textsubscript{case}
+\subsection{Scripts with braces only}
+\label{sec:org6852f3b}
+H\textsubscript{2O} snake\textsubscript{case} x\textsuperscript{2} a\textsubscript{ij}
+\section{Entities}
+\label{sec:org3d780a4}
+Entities are \TeX{}-like names for symbols: \texttt{\textbackslash{}alpha}, \texttt{\textbackslash{}to}, \texttt{\textbackslash{}deg},
+\texttt{\textbackslash{}copy}\ldots{} Org knows hundreds of them (the same list as Emacs'
+\texttt{org-entities}). Each exporter writes the right thing: \texttt{\&alpha;} in HTML,
+\texttt{\textbackslash{}alpha} in \LaTeX{}, \texttt{α} in UTF-8 text. End an entity with \texttt{\{\}} when a letter
+follows: \texttt{\textbackslash{}alpha\{\}beta}.
+
+In the buffer, \texttt{ui.pretty\_entities = true} (or \texttt{\#+STARTUP: entitiespretty})
+shows them as their Unicode character. \texttt{<C-c><C-x>\textbackslash{}} toggles this for the
+current buffer. Entities are never prettified in blocks, code, verbatim or
+links. As in Emacs, only entities with a one-character symbol are drawn:
+\texttt{\textbackslash{}sin} or \texttt{\textbackslash{}lim} stay as written in the buffer (they still export as
+\texttt{sin} and \texttt{lim}).
+
+\begin{center}
+\begin{tabular}{llll}
+Write & Shows as & Write & Shows as\\
+\hline
+\texttt{\textbackslash{}alpha} & α & \texttt{\textbackslash{}to} & →\\
+\texttt{\textbackslash{}beta} & β & \texttt{\textbackslash{}larr} & ←\\
+\texttt{\textbackslash{}pi} & π & \texttt{\textbackslash{}deg} & °\\
+\texttt{\textbackslash{}infty} & ∞ & \texttt{\textbackslash{}copy} & ©\\
+\texttt{\textbackslash{}pm} & ± & \texttt{\textbackslash{}euro} & €\\
+\texttt{\textbackslash{}times} & × & \texttt{\textbackslash{}nbsp} & (space)\\
+\end{tabular}
+\end{center}
+
+\textbf{Try:} open "Entity examples" and press \texttt{<C-c><C-x>\textbackslash{}}.
+
+\textbf{Expect:} \texttt{\textbackslash{}alpha} is drawn as α, \texttt{\textbackslash{}to} as →, \texttt{\textbackslash{}deg\{\}} as °, and the
+scripts \texttt{x\textasciicircum{}2} and \texttt{a\_\{ij\}} as x² and aᵢⱼ. Press \texttt{<C-c><C-x>\textbackslash{}} again to see
+the plain text.
+
+\textbf{Try:} export "Entity examples" to HTML.
+
+\textbf{Expect:}
+\begin{verbatim}
+&alpha; &beta; &pi; &rarr; 20&deg;C &copy; 2026
+&alpha;beta (the {} ends the name)
+\end{verbatim}
+\subsection{Entity examples}
+\label{sec:orgc4eb537}
+\(\alpha\) \(\beta\) \(\pi\) \(\to\) 20\textdegree{}C \textcopyright{} 2026
+\(\alpha\)beta (the \{\} ends the name)
+x\textsuperscript{2} and a\textsubscript{ij}
+\section{Special strings and smart quotes}
+\label{sec:org5570f68}
+When exporting, a few character sequences become typographic symbols
+(\texttt{\#+OPTIONS: -:t}, the default; \texttt{-:nil} turns it off):
+
+\begin{center}
+\begin{tabular}{lll}
+Write & Becomes & HTML\\
+\hline
+\texttt{-{}-{}} & en dash – & \texttt{\&ndash;}\\
+\texttt{-{}-{}-} & em dash — & \texttt{\&mdash;}\\
+\texttt{...} & ellipsis … & \texttt{\&hellip;}\\
+\texttt{\textbackslash{}-} & soft hyphen & \texttt{\&shy;}\\
+\end{tabular}
+\end{center}
+
+Smart quotes (\texttt{\#+OPTIONS: ':t}, off by default) turn "straight" quotes
+into curly ones, using the quotes of \texttt{\#+LANGUAGE:}.
+
+\textbf{Try:} export "Dashes and dots", then "Curly quotes".
+
+\textbf{Expect:}
+\begin{verbatim}
+pages 10&ndash;20 &mdash; and so on&hellip;
+\end{verbatim}
+and for "Curly quotes":
+\begin{verbatim}
+&ldquo;Hello,&rdquo; she said. It&rsquo;s fine.
+\end{verbatim}
+\subsection{Dashes and dots}
+\label{sec:orgcda24b4}
+pages 10--20 --- and so on\ldots{}
+\subsection{Curly quotes}
+\label{sec:org14c171c}
+"Hello," she said. It's fine.
+\section{\LaTeX{} fragments}
+\label{sec:org42f874c}
+Math is written in \LaTeX{}: \texttt{\$x\textasciicircum{}2\$} or \texttt{\textbackslash{}(x\textasciicircum{}2\textbackslash{})} inline, \texttt{\textbackslash{}[ ... \textbackslash{}]} or
+\texttt{\textbackslash{}begin\{equation\}} \ldots{} \texttt{\textbackslash{}end\{equation\}} for displayed formulas. In the
+buffer they are highlighted (\texttt{OrgLatex}); \texttt{<prefix>xl} (Emacs
+\texttt{<C-c><C-x><C-l>}) previews them as images if you have \LaTeX{} and an image
+backend. HTML export uses MathJax. Details and previews:
+\href{21-images-latex.org}{21-images-latex.org}.
+
+\texttt{\$} is only math when it is not next to a space inside: \texttt{\$5 and \$10} is
+money, not math.
+
+\textbf{Try:} export "Math examples".
+
+\textbf{Expect:}
+\begin{verbatim}
+The area is \(\pi r^2\) and \(a+b\).
+\[ E = mc^2 \]
+It costs $5 and $10.
+\end{verbatim}
+\subsection{Math examples}
+\label{sec:org765f93b}
+The area is \(\pi r^2\) and \(a+b\).
+\[ E = mc^2 \]
+It costs \$5 and \$10.
+\section{Paragraphs, line breaks and rules}
+\label{sec:org2ee9fa0}
+\begin{itemize}
+\item A \textbf{paragraph} is a group of lines; blank lines separate paragraphs. Line
+breaks inside a paragraph are ignored when exporting.
+\item \texttt{\textbackslash{}\textbackslash{}} at the end of a line forces a line break.
+\item \texttt{\#+OPTIONS: \textbackslash{}n:t} keeps every line break of the file.
+\item A line of \textbf{five or more dashes} (\texttt{-{}-{}-{}-{}-}) is a horizontal rule.
+\end{itemize}
+
+\textbf{Try:} export "Breaks and rules".
+
+\textbf{Expect:} the first paragraph has no \texttt{<br />} (a browser shows its two
+lines as one), the second has one after "Forced", and the dashes became
+\texttt{<hr />}:
+\begin{verbatim}
+<p>
+These two lines
+form one paragraph.
+</p>
+
+<p>
+Forced <br />
+break here.
+</p>
+
+<hr />
+\end{verbatim}
+\subsection{Breaks and rules}
+\label{sec:org4f04a7e}
+These two lines
+form one paragraph.
+
+Forced \\
+break here.
+
+\noindent\rule{\textwidth}{0.5pt}
+
+A new paragraph after the rule.
+\section{Blocks}
+\label{sec:orgd42c180}
+Blocks start with \texttt{\#+begin\_NAME} and end with \texttt{\#+end\_NAME} (upper or lower
+case). Insert them with \texttt{<prefix>ib} (see
+\href{01-outline.org}{01-outline.org}). \texttt{<Tab>} on the \texttt{\#+begin\_} line
+folds the block; \texttt{\#+STARTUP: hideblocks} folds all of them when the file
+opens.
+
+\begin{center}
+\begin{tabular}{ll}
+Block & Meaning\\
+\hline
+\texttt{quote} & a quotation\\
+\texttt{center} & centered text\\
+\texttt{verse} & a poem: line breaks and indentation are kept\\
+\texttt{example} & verbatim text in a monospace font\\
+\texttt{src LANG} & source code in language LANG\\
+\texttt{export BACKEND} & raw text for one exporter only (\texttt{html}, \texttt{latex}\ldots{})\\
+\texttt{comment} & never exported\\
+\end{tabular}
+\end{center}
+
+Markup works inside quote, center and verse blocks, but not inside example
+and src blocks.
+
+\textbf{Try:} on "Block examples", press \texttt{<Tab>} until everything shows, then
+press \texttt{<Tab>} on each \texttt{\#+begin\_} line to fold and unfold it.
+
+\textbf{Expect:} each block folds into its \texttt{\#+begin\_} line.
+
+\textbf{Try:} export "Block examples".
+
+\textbf{Expect:} in the HTML you find \texttt{<blockquote>} with \texttt{<b>ideas</b>} inside,
+\texttt{<div class}"org-center">=, \texttt{<p class}"verse">= with \texttt{\&nbsp;} for the
+indentation and \texttt{<br />} at every line end, \texttt{<pre class}"example">= with
+\texttt{*not bold*} left as it is, \texttt{<pre class}"src src-lua">=, the raw
+\texttt{<em>raw HTML</em>}, and \textbf{no} trace of "This is a comment block".
+\subsection{Block examples}
+\label{sec:org15303e2}
+\begin{quote}
+Everything is made of \textbf{ideas}. --- Anonymous
+\end{quote}
+
+\begin{center}
+Centered title
+\end{center}
+
+\begin{verse}
+Roses are red,\\
+\hspace*{2\fontdimen2\font}violets are blue,\\
+\hspace*{4\fontdimen2\font}verses keep\\
+\hspace*{6\fontdimen2\font}their indentation too.\\
+\end{verse}
+
+\begin{verbatim}
+Example text: *not bold*, shown exactly as typed.
+\end{verbatim}
+
+\begin{verbatim}
+print("hello from Lua")
+\end{verbatim}
+\subsection{Line numbers in examples}
+\label{sec:org97668aa}
+Example and src blocks accept switches. \texttt{-n} numbers the lines, \texttt{+n}
+continues the numbering of the previous block.
+
+\textbf{Try:} export "Numbered example".
+
+\textbf{Expect:} the lines start with \texttt{<span class}"linenr">1: </span>= and
+\texttt{<span class}"linenr">2: </span>=.
+\subsection{Numbered example}
+\label{sec:org8457a29}
+\begin{verbatim}
+1  first line
+2  second line
+\end{verbatim}
+\section{Fixed-width lines}
+\label{sec:orgd54f3f3}
+A line starting with a colon and a space (=: =) is shown and exported
+verbatim, like a one-line example block. Handy for short program output.
+
+\texttt{<C-c>:} (\texttt{toggle\_fixed\_width}) adds or removes the =: = prefix on the
+current line, or on every line of a Visual selection.
+
+\textbf{Try:} select the two "output" lines below with \texttt{V} and \texttt{j}, press \texttt{<C-c>:}.
+
+\textbf{Expect:} both lines start with \texttt{: = and are highlighted as fixed-width.
+Select the two lines again (=V} and \texttt{j}) and press \texttt{<C-c>:} to remove it.
+
+\textbf{Try:} export "Fixed-width example".
+
+\textbf{Expect:}
+\begin{verbatim}
+<pre class="example">
+$ date
+Mon Sep 28 10:00:00 2026
+</pre>
+\end{verbatim}
+\subsection{Fixed-width playground}
+\label{sec:orgd81a00d}
+output line one
+output line two
+\subsection{Fixed-width example}
+\label{sec:orgbc77e6e}
+\begin{verbatim}
+$ date
+Mon Sep 28 10:00:00 2026
+\end{verbatim}
+\section{Comments}
+\label{sec:org8f24d88}
+Three ways to keep text out of the export:
+
+\begin{enumerate}
+\item A line starting with \texttt{\#} followed by a space (or \texttt{\#} alone) is a
+comment line. \texttt{\#+} starts a keyword instead, and \texttt{\#word} is plain text.
+\item A \texttt{\#+begin\_comment} / \texttt{\#+end\_comment} block (see Blocks).
+\item A headline starting with \texttt{COMMENT} comments out the whole subtree: it is
+left out of the export and the agenda. \texttt{<prefix>hC} (Emacs \texttt{<C-c>;})
+toggles the keyword.
+\end{enumerate}
+
+\textbf{Try:} export "Comment examples".
+
+\textbf{Expect:} only "Visible text." and "\#hashtag is not a comment." are in the
+HTML. Nothing of "Secret child" appears.
+
+\textbf{Try:} on "Secret child", press \texttt{<prefix>hC}, and export again.
+
+\textbf{Expect:} the keyword is removed, and "Secret child" and "Its text." now
+appear in the HTML.
+\subsection{Comment examples}
+\label{sec:org73cb48e}
+Visible text.
+
+\#hashtag is not a comment.
+\section{Keywords}
+\label{sec:org1fec826}
+Lines like \texttt{\#+TITLE: ...} are keywords: settings for the file or the
+export. The ones at the top of this file are:
+
+\begin{description}
+\item[{\texttt{\#+TITLE:} and \texttt{\#+AUTHOR:}}] the document title and author.
+\item[{\texttt{\#+STARTUP:}}] how the file opens (see
+\href{01-outline.org}{01-outline.org}).
+\item[{\texttt{\#+CATEGORY:}}] the name used by the agenda.
+\item[{\texttt{\#+MACRO:}}] text macros (see Macros below).
+\end{description}
+
+Others you will meet: \texttt{\#+OPTIONS:} (export options), \texttt{\#+TODO:},
+\texttt{\#+TAGS:}, \texttt{\#+PROPERTY:}, \texttt{\#+COLUMNS:}, and the \textbf{affiliated} keywords
+\texttt{\#+NAME:}, \texttt{\#+CAPTION:} and \texttt{\#+ATTR\_HTML:} which go right above an element
+(a table, a block, an image) to name or describe it. After editing a \texttt{\#+}
+line, press \texttt{<C-c><C-c>} on it so the buffer picks up the change.
+\section{Export snippets}
+\label{sec:orgde2857d}
+\texttt{@@BACKEND:text@@} inserts raw text for one exporter only, inline. Other
+exporters drop it. Use it for things Org markup can't express, e.g.
+keyboard keys in HTML.
+
+\textbf{Try:} export "Snippet example" to HTML, then to UTF-8
+(\texttt{:Org export utf8 subtree body buffer}).
+
+\textbf{Expect:} in HTML: \texttt{Press <kbd>Ctrl</kbd>-<kbd>S</kbd> to save.} In UTF-8:
+\texttt{Press Ctrl-S to save.}
+\subsection{Snippet example}
+\label{sec:org8242909}
+Press Ctrl-S to save.
+\section{Macros}
+\label{sec:orgb72b707}
+Macros are templates expanded when exporting: \texttt{\#+MACRO: name text} defines
+one, \texttt{\{\{\{name(arg1,arg2)\}\}\}} uses it. In the text, \texttt{\$1}, \texttt{\$2}\ldots{} are the
+arguments and \texttt{\$0} all of them. A comma inside an argument is written
+\texttt{\textbackslash{},}. This file defines three macros at the top:
+
+\begin{verbatim}
+#+MACRO: greet Hello, $1!
+#+MACRO: swap $2 before $1
+#+MACRO: kbd @@html:<kbd>@@$1@@html:</kbd>@@
+\end{verbatim}
+
+Built-in macros:
+
+\begin{center}
+\begin{tabular}{ll}
+Macro & Expands to\\
+\hline
+\texttt{\{\{\{title\}\}\}} & the \texttt{\#+TITLE:}\\
+\texttt{\{\{\{author\}\}\}} & the \texttt{\#+AUTHOR:}\\
+\texttt{\{\{\{date(FMT)\}\}\}} & the \texttt{\#+DATE:}, formatted (FMT optional)\\
+\texttt{\{\{\{time(FMT)\}\}\}} & the export time, e.g. \texttt{\%Y-\%m-\%d}\\
+\texttt{\{\{\{keyword(NAME)\}\}\}} & the value of any \texttt{\#+NAME:} keyword\\
+\texttt{\{\{\{property(NAME)\}\}\}} & a property of the entry around the macro\\
+\texttt{\{\{\{n\}\}\}} & a counter: 1, 2, 3\ldots{} (\texttt{\{\{\{n(name)\}\}\}})\\
+\texttt{\{\{\{input-file\}\}\}} & the name of this file\\
+\texttt{\{\{\{modification-time(FMT)\}\}\}} & when the file was last changed\\
+\end{tabular}
+\end{center}
+
+In the buffer, macros are highlighted with \texttt{OrgMacro} and not expanded.
+
+\textbf{Try:} export "Macro examples".
+
+\textbf{Expect:} (the export also has a small table of contents, because of the
+child headline)
+\begin{verbatim}
+Hello, World! Hello, Ada, Grace!
+second before first
+Press <kbd>C-c</kbd>.
+Title: Markup: emphasis, blocks, comments and friends
+Author: Ada Lovelace
+Steps 1, 2, 3.
+\end{verbatim}
+and under the "Weekly meeting" heading:
+\begin{verbatim}
+Room: Blue room
+\end{verbatim}
+\subsection{Macro examples}
+\label{sec:orgd57504c}
+Hello, World! Hello, Ada, Grace!
+second before first
+Press C-c.
+Title: Markup: emphasis, blocks, comments and friends
+Author: Ada Lovelace
+Steps 1, 2, 3.
+\subsubsection{Weekly meeting}
+\label{sec:org0c92d11}
+Room: Blue room
+\section{Further reading}
+\label{sec:orgb0f1a4e}
+\begin{description}
+\item[{\texttt{:h org-appearance}}] hiding markers, pretty entities, highlights
+\item[{\texttt{:h org-highlights}}] the highlight groups (\texttt{OrgBold}, \texttt{OrgLatex}\ldots{})
+\item[{\texttt{:h org-structure}}] \texttt{<prefix>E}, \texttt{<prefix>ib}, \texttt{<C-c>:}
+\item[{\texttt{:h org-export-settings}}] \texttt{\#+OPTIONS:} keys and macros
+\item[{\texttt{:h org-images}}] \LaTeX{} previews
+\item \href{19-export.org}{19-export.org} and
+\href{21-images-latex.org}{21-images-latex.org} :: more on export and math
+\end{description}

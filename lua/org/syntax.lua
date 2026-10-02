@@ -210,6 +210,7 @@ function M.latex_and_related(ui)
 end
 
 function M.apply(bufnr)
+  require("org.highlights").ensure()
   local config = require("org.config").opts
   local file = require("org.files").get_buffer(bufnr)
   local todo = file.settings.todo
@@ -259,8 +260,11 @@ function M.apply(bufnr)
   -- Lists --------------------------------------------------------------------
   cmd([=[syntax match orgListBullet /^\s*\zs\([-+]\|\d\+[.)]\|\a[.)]\)\ze\(\s\|$\)/]=])
   cmd([=[syntax match orgListBullet /^\s\+\zs\*\ze\s/]=])
+  -- \%#=1: the backtracking engine tests the look-behind first; the NFA
+  -- engine tried the lazy \{-} from every column of every line first,
+  -- which was most of the first redraw of a file with long lines
   cmd(
-    [=[syntax match orgListTerm /\(^\s*\([-+]\|\s\*\)\s\+\(\[[ xX-]\]\s\+\)\?\)\@<=\S.\{-}\ze\s::\(\s\|$\)/ contains=orgBold,orgItalic,orgCode,orgVerbatim]=]
+    [=[syntax match orgListTerm /\%#=1\(^\s*\([-+]\|\s\*\)\s\+\(\[[ xX-]\]\s\+\)\?\)\@<=\S.\{-}\ze\s::\(\s\|$\)/ contains=orgBold,orgItalic,orgCode,orgVerbatim]=]
   )
   cmd([=[syntax match orgCheckbox /\(^\s*\([-+*]\|\d\+[.)]\)\s\+\)\@<=\[ \]/]=])
   cmd([=[syntax match orgCheckboxChecked /\(^\s*\([-+*]\|\d\+[.)]\)\s\+\)\@<=\[[xX]\]/]=])

@@ -215,10 +215,10 @@ function M.render_after_save(bufnr, on_done)
     local valid = vim.api.nvim_buf_is_valid(bufnr)
     -- written again only when nothing but results changed
     if valid and vim.bo[bufnr].modified and without_results(bufnr) == before then
+      -- through save_buffer: this may run inside BufWritePost, where a
+      -- nested write would skip the write hooks
       saving[bufnr] = true
-      pcall(vim.api.nvim_buf_call, bufnr, function()
-        vim.cmd("silent write")
-      end)
+      require("org.utils").save_buffer_or_warn(bufnr)
       saving[bufnr] = nil
     end
     if on_done then
@@ -461,20 +461,27 @@ end
 ---------------------------------------------------------------------------
 
 function M.setup(o)
-  local ob = require("org.babel.ob")
   local render = require("org.extensions.diagrams.render")
   local bl = require("org.config").opts.babel.languages
-  saved = { handlers = {}, languages = {} }
+  local s = { handlers = {}, languages = {} }
+  saved = s
+  local langs = {}
   for _, lang in ipairs(o.languages or {}) do
     if render[lang] then
-      saved.handlers[lang] = { value = ob.HANDLERS[lang] }
-      ob.HANDLERS[lang] = render[lang]
+      langs[#langs + 1] = lang
       if bl[lang] == nil then
-        saved.languages[lang] = true
+        s.languages[lang] = true
         bl[lang] = { default_header_args = vim.deepcopy(DEFAULT_HEADER_ARGS) }
       end
     end
   end
+  -- babel loads on the first evaluation, not at startup
+  require("org.lazy").on_load("org.babel.ob", "diagrams", function(ob)
+    for _, lang in ipairs(langs) do
+      s.handlers[lang] = { value = ob.HANDLERS[lang] }
+      ob.HANDLERS[lang] = render[lang]
+    end
+  end)
   group = vim.api.nvim_create_augroup("org_extensions_diagrams", { clear = true })
   vim.api.nvim_create_autocmd("User", {
     group = group,
@@ -508,11 +515,13 @@ function M.teardown()
   if not saved then
     return
   end
-  local ob = require("org.babel.ob")
   local bl = require("org.config").opts.babel.languages
-  for lang, s in pairs(saved.handlers) do
-    ob.HANDLERS[lang] = s.value
-  end
+  local handlers = saved.handlers
+  require("org.lazy").if_loaded("org.babel.ob", "diagrams", function(ob)
+    for lang, s in pairs(handlers) do
+      ob.HANDLERS[lang] = s.value
+    end
+  end)
   for lang in pairs(saved.languages) do
     bl[lang] = nil
   end
@@ -541,6 +550,7 @@ function M.health(h, o)
     local po = require("org.config").opts.babel.languages.plantuml
     if type(po) ~= "table" then
       h.warn("diagrams: plantuml is off in babel.languages")
+    -- lint: allow expand: the jar_path option
     elseif (po.jar_path or "") ~= "" and vim.fn.filereadable(vim.fn.expand(po.jar_path)) == 1 then
       if vim.fn.executable("java") == 1 then
         h.ok("diagrams: plantuml renders with " .. po.jar_path)

@@ -1,0 +1,197 @@
+=== day
+Day-agenda (W40):
+Thursday    1 October 2026
+               8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:        9:00 ┄┄┄┄┄ Scheduled:  TODO [#A] Important task           :work:
+  work:       10:00-11:30 Meeting                                   :work:meet:
+              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       14:00 ┄┄┄┄┄ Deadline:   TODO Deadline today
+              14:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       16:00 ┄┄┄┄┄ Scheduled:  TODO Child one                    :proj::
+              16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  chores:     18:00 ┄┄┄┄┄ Scheduled:  TODO Laundry                  :personal::
+              18:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       19:30 ┄┄┄┄┄ Evening event
+              20:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  home:       In   7 d.:  TODO [#A] Pay bills               :personal::finance:
+  work:       Sched. 7x:  WAITING Repeater
+  chores:     Sched. 5x:  TODO Plants                               :personal::
+  work:       Sched. 3x:  TODO Late task
+  chores:     Sched. 1x:  NEXT Groceries                     :personal::errand:
+  work:       Scheduled:  DONE Done today
+  work:        2 d. ago:  TODO [#B] Child two                       :proj::sub:
+  work:       (2/3):  Range meeting
+  chores:     In   1 d.:  NEXT Groceries                     :personal::errand:
+  work:       In   3 d.:  NEXT Deadline soon                             :home:
+  work:       Scheduled:  TODO [#C] Low prio scheduled
+=== day-past
+Day-agenda (W40):
+Tuesday    29 September 2026
+  work:       Deadline:   TODO [#B] Child two                       :proj::sub:
+=== day-future
+Day-agenda (W40):
+Saturday    3 October 2026
+               8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  home:        9:00 ┄┄┄┄┄ (1/2):  Trip                              :personal::
+              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              14:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              18:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              20:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       Scheduled:  TODO Future scheduled
+  home:       Birthday                                              :personal::
+=== week
+Week-agenda (W40):
+Monday     28 September 2026 W40
+  work:       Scheduled:  TODO Late task
+Tuesday    29 September 2026
+  work:       Deadline:   TODO [#B] Child two                       :proj::sub:
+Wednesday  30 September 2026
+  chores:     Scheduled:  NEXT Groceries                     :personal::errand:
+  work:       (1/3):  Range meeting
+Thursday    1 October 2026
+               8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:        9:00 ┄┄┄┄┄ Scheduled:  TODO [#A] Important task           :work:
+  work:       10:00-11:30 Meeting                                   :work:meet:
+              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       14:00 ┄┄┄┄┄ Deadline:   TODO Deadline today
+              14:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       16:00 ┄┄┄┄┄ Scheduled:  TODO Child one                    :proj::
+              16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  chores:     18:00 ┄┄┄┄┄ Scheduled:  TODO Laundry                  :personal::
+              18:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       19:30 ┄┄┄┄┄ Evening event
+              20:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  home:       In   7 d.:  TODO [#A] Pay bills               :personal::finance:
+  work:       Sched. 7x:  WAITING Repeater
+  chores:     Sched. 5x:  TODO Plants                               :personal::
+  work:       Sched. 3x:  TODO Late task
+  chores:     Sched. 1x:  NEXT Groceries                     :personal::errand:
+  work:       Scheduled:  DONE Done today
+  work:        2 d. ago:  TODO [#B] Child two                       :proj::sub:
+  work:       (2/3):  Range meeting
+  chores:     In   1 d.:  NEXT Groceries                     :personal::errand:
+  work:       In   3 d.:  NEXT Deadline soon                             :home:
+  work:       Scheduled:  TODO [#C] Low prio scheduled
+Friday      2 October 2026
+  home:        8:30 ┄┄┄┄┄ Dentist                            :personal::health:
+  chores:     Scheduled:  TODO Plants                               :personal::
+  work:       (3/3):  Range meeting
+  chores:     Deadline:   NEXT Groceries                     :personal::errand:
+Saturday    3 October 2026
+  home:        9:00 ┄┄┄┄┄ (1/2):  Trip                              :personal::
+  work:       Scheduled:  TODO Future scheduled
+  home:       Birthday                                              :personal::
+Sunday      4 October 2026
+  home:       18:00 ┄┄┄┄┄ (2/2):  Trip                              :personal::
+  work:       Deadline:   NEXT Deadline soon                             :home:
+=== log-day
+Day-agenda (W40):
+Thursday    1 October 2026
+  work:        8:00 ┄┄┄┄┄ Closed:     DONE Done today
+               8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:        9:00 ┄┄┄┄┄ Scheduled:  TODO [#A] Important task           :work:
+  work:       10:00-11:30 Meeting                                   :work:meet:
+              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       14:00 ┄┄┄┄┄ Deadline:   TODO Deadline today
+              14:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       16:00 ┄┄┄┄┄ Scheduled:  TODO Child one                    :proj::
+              16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  chores:     18:00 ┄┄┄┄┄ Scheduled:  TODO Laundry                  :personal::
+              18:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:       19:30 ┄┄┄┄┄ Evening event
+              20:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  home:       In   7 d.:  TODO [#A] Pay bills               :personal::finance:
+  work:       Sched. 7x:  WAITING Repeater
+  chores:     Sched. 5x:  TODO Plants                               :personal::
+  work:       Sched. 3x:  TODO Late task
+  chores:     Sched. 1x:  NEXT Groceries                     :personal::errand:
+  work:       Scheduled:  DONE Done today
+  work:        2 d. ago:  TODO [#B] Child two                       :proj::sub:
+  work:       (2/3):  Range meeting
+  chores:     In   1 d.:  NEXT Groceries                     :personal::errand:
+  work:       In   3 d.:  NEXT Deadline soon                             :home:
+  work:       Scheduled:  TODO [#C] Low prio scheduled
+=== todo
+Global list of TODO items of type: ALL
+Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE
+                      (3)WAITING (4)NEXT (5)TODO
+  work:       TODO [#A] Important task                                   :work:
+  home:       TODO [#A] Pay bills                           :personal::finance:
+  work:       TODO Late task
+  work:       NEXT Deadline soon                                         :home:
+  work:       TODO Deadline today
+  work:       WAITING Repeater
+  work:       TODO Child one                                            :proj::
+  work:       TODO [#B] Child two                                   :proj::sub:
+  work:       TODO Delayed
+  work:       TODO Future scheduled
+  work:       TODO Unscheduled task with a longer title to see truncation and tags :work:urgent:
+  chores:     TODO Laundry                                          :personal::
+  chores:     TODO Plants                                           :personal::
+  work:       TODO [#C] Low prio scheduled
+=== todo-kw
+Global list of TODO items of type: WAITING|NEXT
+Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE
+                      (3)WAITING (4)NEXT (5)TODO
+  work:       NEXT Deadline soon                                         :home:
+  work:       WAITING Repeater
+=== tags
+Headlines with TAGS match: +work
+Press ‘C-u r’ to search again
+  work:       TODO [#A] Important task                                   :work:
+  work:       Meeting                                               :work:meet:
+  work:       TODO Unscheduled task with a longer title to see truncation and tags :work:urgent:
+=== tags-or
+Headlines with TAGS match: work|personal
+Press ‘C-u r’ to search again
+  work:       TODO [#A] Important task                                   :work:
+  home:       TODO [#A] Pay bills                           :personal::finance:
+  work:       Meeting                                               :work:meet:
+  work:       TODO Unscheduled task with a longer title to see truncation and tags :work:urgent:
+  chores:     Chores                                                :personal::
+  chores:     TODO Laundry                                          :personal::
+  chores:     NEXT Groceries                                 :personal::errand:
+  chores:     TODO Plants                                           :personal::
+  home:       Events                                                :personal::
+  home:       Dentist                                        :personal::health:
+  home:       Birthday                                              :personal::
+  home:       Trip                                                  :personal::
+  home:       WAITING Package delivery                              :personal::
+  home:       DONE Old thing                                :personal::finance:
+=== tags-not
+Headlines with TAGS match: -work+TODO="TODO"
+Press ‘C-u r’ to search again
+  home:       TODO [#A] Pay bills                           :personal::finance:
+  work:       TODO Late task
+  work:       TODO Deadline today
+  work:       TODO Child one                                            :proj::
+  work:       TODO [#B] Child two                                   :proj::sub:
+  work:       TODO Delayed
+  work:       TODO Future scheduled
+  chores:     TODO Laundry                                          :personal::
+  chores:     TODO Plants                                           :personal::
+  work:       TODO [#C] Low prio scheduled
+=== tags-prop
+Headlines with TAGS match: CATEGORY="chores"
+Press ‘C-u r’ to search again
+  chores:     Chores                                                :personal::
+  chores:     TODO Laundry                                          :personal::
+  chores:     NEXT Groceries                                 :personal::errand:
+  chores:     TODO Plants                                           :personal::
+=== tags-todo
+Headlines with TAGS match: +work|+home
+Press ‘C-u r’ to search again
+  work:       TODO [#A] Important task                                   :work:
+  work:       NEXT Deadline soon                                         :home:
+  work:       TODO Unscheduled task with a longer title to see truncation and tags :work:urgent:
+=== search
+Search words: task
+Press ‘[’, ‘]’ to add/sub word, ‘{’, ‘}’ to add/sub regexp, ‘C-u r’ for a fresh search
+  work:       TODO [#A] Important task                                   :work:
+  work:       TODO Late task
+  work:       TODO Unscheduled task with a longer title to see truncation and tags :work:urgent:

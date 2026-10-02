@@ -1,0 +1,1914 @@
+\section{How to use this file}
+\label{sec:org15303e2}
+Export turns an Org file (or one subtree of it) into another format: HTML,
+\LaTeX{}/PDF, Beamer slides, Markdown, plain text, ODT, iCalendar, Texinfo,
+Org, or anything pandoc can write. This file walks through the dispatcher,
+every back-end, the export settings and the markup that only matters on
+export, with sample subtrees you export yourself and compare with the
+output quoted here.
+
+\begin{itemize}
+\item The file opens folded (\texttt{\#+STARTUP: overview}). \texttt{<Tab>} on a heading opens
+it, \texttt{<S-Tab>} cycles the whole buffer.
+\item \texttt{u} undoes anything; \texttt{git checkout examples/19-export.org} restores the
+file.
+\item \texttt{g?} lists every key of the current buffer. \texttt{<prefix>} is \texttt{<leader>o}
+(with the bundled init, \texttt{<Space>o}). Emacs keys work too: \texttt{C-c C-e} is the
+dispatcher.
+\item Lines starting with \textbf{Try:} are exercises, \textbf{Expect:} says what you should
+see. Lines starting with =\# = (hash, space) are comments: they explain
+the examples and are never exported.
+\end{itemize}
+
+Start Neovim from the repo root with the bundled init, which keeps your own
+config and notes out of the way:
+
+\begin{verbatim}
+nvim -u examples/minimal_init.lua examples/19-export.org
+\end{verbatim}
+
+(\texttt{examples/minimal\_init.lua} sets the agenda files to \texttt{examples/*.org}, puts
+captures in a scratch directory under \texttt{stdpath("state")} and defines a few
+capture templates and agenda commands; none of that matters for export.)
+\subsection{Where does the output go?}
+\label{sec:org42f874c}
+\begin{itemize}
+\item \textbf{To a buffer} (the capital-letter keys: \texttt{h H}, \texttt{m M}, \texttt{t A}, \texttt{t U},
+\texttt{l L}, \texttt{l B}, \texttt{O O}, \texttt{m G}): the result opens in a vertical split, in a
+scratch buffer named like "Org HTML Export \#12". Nothing is written to
+disk; close it with \texttt{:q}. \textbf{All exercises in this file use these keys.}
+\item \textbf{To a file} (lower-case keys: \texttt{h h}, \texttt{m m}, \texttt{t a}, \texttt{l l}, \texttt{o o}, \ldots{}):
+the file is written \textbf{next to this one, inside the repo}
+(\texttt{examples/19-export.html} and friends, or \texttt{\#+EXPORT\_FILE\_NAME}). Only a
+few exercises do that and they say so; delete the files afterwards
+(\texttt{git status} shows them as untracked) or set \texttt{export.output\_dir} in
+your config to send them elsewhere.
+\end{itemize}
+\subsection{Why the samples are subtrees}
+\label{sec:org38bae4b}
+Almost every exercise exports \textbf{one subtree}: put the cursor anywhere inside
+a heading called "Sample: \ldots{}" and press \texttt{<prefix>e s} first (\texttt{s} toggles
+"export scope = subtree"), then the back-end keys. A subtree export:
+\begin{itemize}
+\item uses only the body of that heading: its children become the top-level
+sections of the output, and the heading itself is not a section;
+\item reads \texttt{EXPORT\_*} properties from the heading's \texttt{:PROPERTIES:} drawer
+(\texttt{EXPORT\_TITLE}, \texttt{EXPORT\_OPTIONS}, \ldots{}). They override the \texttt{\#+...}
+keywords of the file, so every sample carries its own settings.
+\end{itemize}
+
+\textbf{Important:} \texttt{\#+TITLE:}, \texttt{\#+OPTIONS:}, \texttt{\#+HTML\_HEAD:} and the other
+settings keywords apply to the \textbf{whole file}, wherever they are written,
+even when you export only a subtree. That is why this file shows
+file-level keywords inside \texttt{\#+begin\_src org} blocks (those are just code)
+and uses \texttt{EXPORT\_*} properties for the samples. The only live settings
+keywords are the few at the top of this file and the \texttt{\#+MACRO:} lines of
+the macros sample.
+
+Each "Sample: \ldots{}" heading is followed by an "Exercises: \ldots{}" heading with
+the \textbf{Try:} / \textbf{Expect:} steps. Keep the cursor \textbf{inside the sample} when you
+export: with the cursor in the Exercises heading you would export the
+exercise text instead.
+\subsection{Keys in this file}
+\label{sec:orgefbd59a}
+\begin{center}
+\begin{tabular}{ll}
+Keys & What it does\\
+\hline
+\texttt{<prefix>e} (\texttt{C-c C-e}) & open the export dispatcher\\
+\texttt{s} \texttt{b} \texttt{v} \texttt{a} & toggles: subtree, body only, visible, async\\
+\texttt{h H} / \texttt{m M} / \texttt{m G} & HTML / Markdown / GFM to a buffer\\
+\texttt{t A} / \texttt{t U} / \texttt{t L} & ASCII / UTF-8 / Latin-1 text to a buffer\\
+\texttt{l L} / \texttt{l B} / \texttt{O O} & \LaTeX{} / Beamer / Org to a buffer\\
+\texttt{\#} & insert the export settings template\\
+\texttt{<Esc>} & close the dispatcher\\
+\texttt{:Org export ...} & exports without the menu (see below)\\
+\texttt{<Tab>}, \texttt{<S-Tab>} & fold / unfold (matters for \texttt{v})\\
+\texttt{<prefix>'} (\texttt{C-c '}) & edit a source or export block in a split\\
+\end{tabular}
+\end{center}
+\section{The export dispatcher}
+\label{sec:org99af24e}
+\texttt{<prefix>e} (Emacs \texttt{C-c C-e}) opens a small menu. Each line shows a key in
+brackets; press the key, no \texttt{<CR>} needed. Keys with \texttt{…} open a sub-menu.
+
+The first four lines are \textbf{toggles}. Pressing one redraws the menu with the
+new value, so you can combine them before choosing a format:
+
+\begin{center}
+\begin{tabular}{lll}
+Key & Toggle & Effect when on\\
+\hline
+\texttt{b} & body only & no preamble: no \texttt{<html>=/=<head>}, no\\
+ &  & \texttt{\textbackslash{}documentclass}, no title block\\
+\texttt{s} & export scope & "subtree": only the subtree at the cursor\\
+\texttt{v} & visible only & skip what is folded right now\\
+\texttt{a} & async (PDF) & compile PDFs in the background (see below)\\
+\end{tabular}
+\end{center}
+
+Then one line per back-end (\texttt{h} HTML, \texttt{l} \LaTeX{}/Beamer/PDF, \texttt{m} Markdown,
+\texttt{t} plain text, \texttt{O} Org, \texttt{o} ODT, \texttt{d} DOCX, \texttt{i} Texinfo, \texttt{c} iCalendar,
+\texttt{P} publish, \texttt{p} any pandoc format) and \texttt{\#} (insert the settings template).
+The toggles are reset every time you open the dispatcher.
+
+The same exports without the menu, as an Ex command (the words after the
+format are optional and can be in any order):
+
+\begin{verbatim}
+:Org export html subtree buffer      " like <prefix>e s h H
+:Org export md subtree body buffer   " subtree, body only, to a buffer
+:Org export ascii visible buffer     " only what is unfolded
+:Org export latex                    " whole file to examples/19-export.tex
+:Org export pdf async open           " compile in the background, then open
+:Org export                          " no format: opens the dispatcher
+\end{verbatim}
+
+And from Lua (handy for mappings and scripts): \texttt{to\_string} returns the text
+and writes nothing, \texttt{export} behaves like the dispatcher.
+
+\begin{verbatim}
+local exp = require("org.export")
+local md = exp.to_string("md", { body_only = true })  -- whole buffer
+local line = vim.api.nvim_win_get_cursor(0)[1]
+local txt = exp.to_string("ascii", { subtree_line = line })
+exp.export("html", { subtree = true, to_buffer = true })
+exp.export("md", { output = "/tmp/notes.md" })   -- choose the file
+\end{verbatim}
+\subsection{Sample: first export}
+\label{sec:orgd42c180}
+Hello from a \textbf{subtree}. It has \emph{emphasis}, \texttt{verbatim} and a \href{https://neovim.io}{link}.
+\subsubsection{A child heading}
+\label{sec:org8457a29}
+Children of the sample become the top-level headings of the output.
+\subsection{Exercises: first export}
+\label{sec:orgbc77e6e}
+\textbf{Try:} put the cursor on the line "Hello from a subtree" in the sample
+above. Press \texttt{<prefix>e}, then \texttt{s} (the menu now says "export scope =
+subtree"), then \texttt{m}, then \texttt{M}.
+
+\textbf{Expect:} a vertical split with a Markdown buffer. Its whole content is:
+
+\begin{verbatim}
+Hello from a **subtree**. It has *emphasis*, `verbatim` and a [link](https://neovim.io).
+
+
+# A child heading
+
+Children of the sample become the top-level headings of the output.
+\end{verbatim}
+
+The comment line (\texttt{\# This is the body ...}) is not there, and Markdown has
+no title block, so \texttt{EXPORT\_TITLE} and \texttt{EXPORT\_AUTHOR} are not visible.
+Close the split with \texttt{:q}.
+
+\textbf{Try:} same subtree, \texttt{<prefix>e s t A} (plain ASCII to a buffer).
+
+\textbf{Expect:} now the title and author are centered at the top, and the link
+target is listed as a note after the paragraph:
+
+\begin{verbatim}
+                           _________________
+
+                            MY FIRST EXPORT
+
+                                  Ada
+                           _________________
+
+
+Hello from a *subtree*. It has /emphasis/, `verbatim' and a [link].
+
+
+[link] <https://neovim.io>
+
+
+A child heading
+===============
+
+  Children of the sample become the top-level headings of the output.
+\end{verbatim}
+
+\textbf{Try:} same subtree, \texttt{<prefix>e s b h H} (subtree, \textbf{body only}, HTML).
+
+\textbf{Expect:} no \texttt{<!DOCTYPE>}, \texttt{<head>} or title, just the body:
+
+\begin{verbatim}
+<p>
+Hello from a <b>subtree</b>. It has <i>emphasis</i>, <code>verbatim</code> and a <a href="https://neovim.io">link</a>.
+</p>
+<div id="outline-container-org6793350" class="outline-2">
+<h2 id="org6793350">A child heading</h2>
+\end{verbatim}
+
+(The \texttt{org6793350} ids are computed from the content, so they are the same
+on every export and change only when you edit the text.)
+
+\textbf{Try:} \texttt{<prefix>e h H} \textbf{without} \texttt{s}: the whole file is exported. Search
+the HTML buffer for \texttt{My first export} with \texttt{/}: it is not found, because
+\texttt{EXPORT\_TITLE} only applies to subtree exports; the \texttt{<title>} is now
+"Export: hands-on examples", from the \texttt{\#+TITLE:} line at the top.
+
+\textbf{Try:} \texttt{:Org export md subtree buffer} with the cursor in the sample: the
+same Markdown buffer as the first exercise, without the menu.
+\subsection{Visible only}
+\label{sec:orgd54f3f3}
+With \texttt{v} on, whatever is folded at that moment is left out: fold a
+subtree with \texttt{<Tab>} and its body disappears from the output (its heading
+line is visible, so it stays). Useful to export "just the outline" or to
+hide parts temporarily.
+
+Combined with \texttt{s}, only the visible part of the subtree is exported; if
+the subtree's own heading is folded, its body is empty (Emacs does the
+same).
+\subsection{Sample: visible only}
+\label{sec:org90eb13a}
+The intro paragraph is always visible.
+\subsubsection{Section one}
+\label{sec:orge5cb850}
+Text of section one.
+\subsubsection{Section two}
+\label{sec:org2339d7e}
+Text of section two.
+\subsection{Exercises: visible only}
+\label{sec:org3ec8003}
+\textbf{Try:} open the sample above so you see both sections, then fold "Section
+one" with \texttt{<Tab>} on its heading. Press \texttt{<prefix>e v t A} (no \texttt{s}: the
+whole file, visible parts only). In the output, search with
+\texttt{/The intro paragraph}.
+
+\textbf{Expect:} the fold state of the whole file decides. Around the search hit
+you find (section numbers depend on what else is open):
+
+\begin{verbatim}
+  The intro paragraph is always visible.
+
+
+2.4.1 Section one
+-----------------
+
+
+2.4.2 Section two
+-----------------
+
+  Text of section two.
+\end{verbatim}
+
+"Text of section one." is missing because it was folded.
+
+\textbf{Try:} \texttt{<S-Tab>} until the buffer shows only the top-level headings
+(OVERVIEW), then \texttt{<prefix>e v t A} again: the output is little more than
+the table of contents and the numbered top-level headings.
+\subsection{Async}
+\label{sec:org302e170}
+\texttt{a} only concerns PDF: with it on, \LaTeX{} compilation (\texttt{l p}, \texttt{l P}) runs in
+the background and a message says when the PDF is ready, so you can keep
+editing. With the default config it already does
+(\texttt{export.latex.async\_compile = true}); \texttt{a} matters when you set that to
+\texttt{false}. The other formats are fast and always synchronous.
+\texttt{:Org export pdf async} is the command form.
+\subsection{The settings template (\texttt{\#})}
+\label{sec:orgf7915eb}
+\texttt{<prefix>e \#} asks for an option category (\texttt{default}, \texttt{html}, \texttt{latex},
+\texttt{md}, \ldots{}; \texttt{<Tab>} completes) and inserts every option with its current
+value:
+\begin{itemize}
+\item without \texttt{s}: \texttt{\#+options:} lines and \texttt{\#+title:}, \texttt{\#+author:}, \texttt{\#+date:},
+\texttt{\#+email:}, \texttt{\#+language:}, \texttt{\#+select\_tags:} \ldots{} keywords \textbf{at the cursor};
+\item with \texttt{s}: \texttt{EXPORT\_OPTIONS}, \texttt{EXPORT\_TITLE}, \texttt{EXPORT\_AUTHOR}, \ldots{} properties
+in the drawer of the current heading.
+\end{itemize}
+\subsubsection{Scratch heading for the template}
+\label{sec:orgcb89e30}
+\textbf{Try:} put the cursor on the heading above, press \texttt{<prefix>e s \#} and
+accept \texttt{default} with \texttt{<CR>}.
+
+\textbf{Expect:} a \texttt{:PROPERTIES:} drawer appears under "Scratch heading for the
+template". The values are the \textbf{defaults} (from your config), not what
+this file sets:
+
+\begin{verbatim}
+:PROPERTIES:
+:EXPORT_OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline author:t ...
+:EXPORT_TITLE: 19-export
+:EXPORT_DATE: <2026-09-28 Mon>
+:EXPORT_AUTHOR: (your name)
+:EXPORT_EMAIL:
+:EXPORT_LANGUAGE: en
+:EXPORT_SELECT_TAGS: export
+:EXPORT_EXCLUDE_TAGS: noexport
+:EXPORT_CREATOR: Neovim 0.x.y (org.nvim, Org mode 9.8 compatible)
+:EXPORT_CITE_EXPORT:
+:END:
+\end{verbatim}
+
+(the date is the day you do it). Delete what you don't need and edit the
+rest; press \texttt{u} to take it all out again.
+
+\textbf{Try:} on the empty line below, \texttt{<prefix>e \#} (no \texttt{s}) and \texttt{<CR>}.
+
+\textbf{Expect:} five \texttt{\#+options:} lines, then \texttt{\#+title: 19-export}, \texttt{\#+date:
+<...>}, \texttt{\#+author: ...}, \texttt{\#+email:}, \texttt{\#+language: en}, \texttt{\#+select\_tags:
+export}, \texttt{\#+exclude\_tags: noexport}, \texttt{\#+creator: ...} and \texttt{\#+cite\_export:},
+inserted at the cursor. Press \texttt{u}: left in place they would change every
+export of this file!
+\section{Back-ends and the tools they need}
+\label{sec:org4dafb16}
+Everything marked "none" is pure Lua and works out of the box. The \texttt{o}
+keys (\texttt{h o}, \texttt{m o}, \texttt{l o}, \ldots{}) also open the file with your system's
+viewer. \texttt{p} asks for a pandoc format name (\texttt{rst}, \texttt{epub}, \texttt{typst},
+\texttt{mediawiki}, \texttt{asciidoc}, \ldots{}). PDF uses \texttt{export.latex.compiler}
+(\texttt{pdflatex} by default) through \texttt{latexmk} when it is installed. ODT is
+zipped in Lua; LibreOffice is only needed to convert it further (see
+\texttt{export.odt.preferred\_output\_format}).
+
+\begin{center}
+\begin{tabular}{lll}
+Back-end & Keys (buffer / file) & External tool\\
+\hline
+HTML & \texttt{h H} / \texttt{h h}, \texttt{h o} & none\\
+Markdown & \texttt{m M} / \texttt{m m}, \texttt{m o} & none\\
+GitHub Markdown & \texttt{m G} / \texttt{m g} & none\\
+ASCII & \texttt{t A} / \texttt{t a} & none\\
+Latin-1 & \texttt{t L} / \texttt{t l} & none\\
+UTF-8 & \texttt{t U} / \texttt{t u} & none\\
+Org & \texttt{O O} / \texttt{O o}, \texttt{O v} & none\\
+\LaTeX{} & \texttt{l L} / \texttt{l l} & none\\
+PDF & - / \texttt{l p}, \texttt{l o} & latexmk or pdflatex\\
+Beamer & \texttt{l B} / \texttt{l b} & none\\
+Beamer PDF & - / \texttt{l P}, \texttt{l O} & latexmk or pdflatex\\
+ODT & - / \texttt{o o}, \texttt{o O} & none\\
+DOCX & - / \texttt{d d}, \texttt{d o} & pandoc\\
+other formats & - / \texttt{p} + format name & pandoc\\
+Texinfo & - / \texttt{i t} & none\\
+Info & - / \texttt{i i}, \texttt{i o} & makeinfo\\
+iCalendar & - / \texttt{c f}, \texttt{c a}, \texttt{c c} & none\\
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item ODT, DOCX, pandoc formats, Texinfo, PDF and iCalendar are always written
+to \textbf{files} (there is no buffer variant). Only try them if you are happy
+to get \texttt{examples/19-export.odt} etc. in the repo (delete them after).
+\item \texttt{:checkhealth org} reports which of the optional tools are installed.
+\item Pandoc exports first run the Org back-end (macros, \texttt{\#+INCLUDE},
+\texttt{noexport} are handled by org.nvim), then pipe the result to pandoc.
+\end{itemize}
+\section{Document keywords: title, author, date, \ldots{}}
+\label{sec:org74aee5d}
+These keywords fill the title block (HTML \texttt{<title>} and \texttt{<h1>}, \LaTeX{}
+\texttt{\textbackslash{}title\{\}}, the centered banner of the text export, ODT metadata):
+
+\begin{center}
+\begin{tabular}{lll}
+Keyword & Meaning & Property\\
+\hline
+\texttt{\#+TITLE:} & document title & \texttt{EXPORT\_TITLE}\\
+\texttt{\#+SUBTITLE:} & subtitle (HTML, \LaTeX{}, text) & \texttt{...\_SUBTITLE}\\
+\texttt{\#+AUTHOR:} & author; default: your name & \texttt{EXPORT\_AUTHOR}\\
+\texttt{\#+EMAIL:} & shown only with \texttt{email:t} & \texttt{EXPORT\_EMAIL}\\
+\texttt{\#+DATE:} & any text or a timestamp & \texttt{EXPORT\_DATE}\\
+\texttt{\#+LANGUAGE:} & translates generated words & \texttt{...\_LANGUAGE}\\
+\texttt{\#+CREATOR:} & shown only with \texttt{creator:t} & \texttt{...\_CREATOR}\\
+\texttt{\#+KEYWORDS:} & HTML/ODT metadata & \texttt{...\_KEYWORDS}\\
+\texttt{\#+DESCRIPTION:} & HTML/ODT metadata & \texttt{...\_DESCRIPTION}\\
+\texttt{\#+EXPORT\_FILE\_NAME:} & output file name (no extension) & \texttt{...\_FILE\_NAME}\\
+\end{tabular}
+\end{center}
+
+(\texttt{...\_X} stands for \texttt{EXPORT\_X}.) \texttt{\#+LANGUAGE:} translates the words the
+exporter writes itself: "Table of Contents", "Footnotes", "Figure", \ldots{}
+In a file they look like this (an example only, not live settings):
+
+\begin{verbatim}
+#+TITLE: Quarterly report
+#+SUBTITLE: Third quarter 2026
+#+AUTHOR: Ada Lovelace
+#+EMAIL: ada@example.org
+#+DATE: <2026-10-01 Thu>
+#+LANGUAGE: en
+#+OPTIONS: email:t toc:nil
+#+EXPORT_FILE_NAME: q3-report
+\end{verbatim}
+\subsection{Sample: title block}
+\label{sec:org14f7a8f}
+Revenue went up.
+\subsection{Exercises: title block}
+\label{sec:orgae84143}
+\textbf{Try:} cursor on "Revenue went up.", \texttt{<prefix>e s t A}.
+
+\textbf{Expect:} a banner with the title, the subtitle, the author, the e-mail
+(because of \texttt{email:t}) and the date:
+
+\begin{verbatim}
+                          ____________________
+
+                            QUARTERLY REPORT
+                           Third quarter 2026
+
+                              Ada Lovelace
+                            ada@example.org
+                          ____________________
+
+
+                            <2026-10-01 Thu>
+
+
+Revenue went up.
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s h H} and look at the top of the HTML buffer.
+
+\textbf{Expect:} the title in \texttt{<head>}, and as the first heading with the
+subtitle under it:
+
+\begin{verbatim}
+<title>Quarterly report</title>
+<meta name="author" content="Ada Lovelace" />
+...
+<h1 class="title">Quarterly report
+<br />
+<span class="subtitle">Third quarter 2026</span>
+</h1>
+\end{verbatim}
+
+and at the end a postamble with the date, author, e-mail link and the
+creation time of the export (\texttt{timestamp:t}):
+
+\begin{verbatim}
+<div id="postamble" class="status">
+<p class="date">Date: 2026-10-01 Thu 00:00</p>
+<p class="author">Author: Ada Lovelace</p>
+<p class="email">Email: <a href="mailto:ada@example.org">ada@example.org</a></p>
+<p class="date">Created: 2026-09-28 Mon 15:13</p>
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s l L} (\LaTeX{} to a buffer).
+
+\textbf{Expect:} the e-mail becomes a \texttt{\textbackslash{}thanks}, the subtitle a second title line:
+
+\begin{verbatim}
+\author{Ada Lovelace\thanks{ada@example.org}}
+\date{\textit{<2026-10-01 Thu>}}
+\title{Quarterly report\\\medskip
+\large Third quarter 2026}
+\end{verbatim}
+
+\textbf{Try:} change \texttt{email:t} to \texttt{email:nil} in \texttt{EXPORT\_OPTIONS} and export as
+ASCII again: the \texttt{ada@example.org} line disappears. With \texttt{date:nil} the
+date goes, with \texttt{author:nil} the author.
+\subsection{Sample: another language}
+\label{sec:org5befec0}
+Voir la note\footnote{Une note de bas de page.}.
+\subsubsection{Première partie}
+\label{sec:orgd279195}
+Du texte.
+\subsection{Exercises: another language}
+\label{sec:orgef0656a}
+\textbf{Try:} \texttt{<prefix>e s t U} (UTF-8 text to a buffer).
+
+\textbf{Expect:} the words the exporter generates are in French:
+
+\begin{verbatim}
+Table des matières
+──────────────────
+
+1. Première partie
+
+
+Voir la note[1].
+
+
+1 Première partie
+═════════════════
+
+  Du texte.
+
+
+
+Notes de bas de page
+────────────────────
+
+[1] Une note de bas de page.
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s t A} (plain ASCII): the table of contents is now
+titled \texttt{Sommaire}, the ASCII-only form of the French dictionary.
+
+\textbf{Try:} change \texttt{fr} to \texttt{de} and export again: \texttt{Inhaltsverzeichnis} and
+\texttt{Fußnoten}.
+\section{\#+OPTIONS: the export switches}
+\label{sec:org4a7a5fe}
+\texttt{\#+OPTIONS:} takes \texttt{key:value} pairs separated by spaces; in a subtree the
+same pairs go in \texttt{EXPORT\_OPTIONS}. Several \texttt{\#+OPTIONS:} lines add up. Values
+are Emacs Lisp: \texttt{t} (yes), \texttt{nil} (no), numbers, strings, lists like
+\texttt{("TODO" "NEXT")}. The defaults come from the \texttt{export} table of your
+config (\texttt{with\_toc}, \texttt{headline\_levels}, \ldots{}).
+
+\begin{center}
+\begin{tabular}{lll}
+Option & Default & Meaning\\
+\hline
+\texttt{toc:} & \texttt{t} & table of contents; a number = its depth\\
+\texttt{num:} & \texttt{t} & section numbers; a number = how deep\\
+\texttt{H:} & \texttt{3} & deeper headings become list items\\
+\texttt{\textasciicircum{}:} & \texttt{t} & \texttt{a\_b}, \texttt{a\textasciicircum{}b}; \texttt{\{\}} only \texttt{a\_\{b\}}; \texttt{nil} off\\
+\texttt{*:} & \texttt{t} & emphasis (\texttt{*bold*}, \texttt{/italic/}, \ldots{})\\
+\texttt{tags:} & \texttt{t} & headline tags; \texttt{not-in-toc}\\
+\texttt{todo:} & \texttt{t} & TODO keywords\\
+\texttt{pri:} & \texttt{nil} & priority cookies \texttt{[\#A]}\\
+\texttt{tasks:} & \texttt{t} & TODO entries: \texttt{nil}, \texttt{todo}, \texttt{done}, list\\
+\texttt{stat:} & \texttt{t} & statistics cookies \texttt{[1/3]}\\
+\texttt{prop:} & \texttt{nil} & property drawers; \texttt{t} or a list of names\\
+\texttt{d:} & see below & drawers: \texttt{t}, \texttt{nil}, list, \texttt{(not ...)}\\
+\texttt{p:} & \texttt{nil} & SCHEDULED, DEADLINE and CLOSED lines\\
+\texttt{c:} & \texttt{nil} & CLOCK lines\\
+\texttt{<:} & \texttt{t} & paragraphs made only of timestamps\\
+\texttt{timestamp:} & \texttt{t} & creation time (HTML postamble)\\
+\texttt{f:} & \texttt{t} & footnotes\\
+\texttt{\textbackslash{}n:} & \texttt{nil} & keep every line break\\
+\texttt{':} & \texttt{nil} & smart quotes\\
+\texttt{-:} & \texttt{t} & \texttt{-{}-{}}, \texttt{-{}-{}-}, \texttt{...} as dashes and ellipsis\\
+\texttt{e:} & \texttt{t} & entities like \texttt{\textbackslash{}alpha}\\
+\texttt{tex:} & \texttt{t} & \LaTeX{} fragments; \texttt{verbatim}, \texttt{nil}\\
+\texttt{\textbackslash{}vert:} & \texttt{t} & tables (the key is a pipe character)\\
+\texttt{::} & \texttt{t} & fixed-width lines (\texttt{: text})\\
+\texttt{arch:} & \texttt{headline} & archived trees: \texttt{t}, \texttt{nil}, \texttt{headline}\\
+\texttt{inline:} & \texttt{t} & inline tasks\\
+\texttt{title:} & \texttt{t} & the title\\
+\texttt{author:} & \texttt{t} & the author\\
+\texttt{date:} & \texttt{t} & the date\\
+\texttt{email:} & \texttt{nil} & the e-mail\\
+\texttt{creator:} & \texttt{nil} & the creator string\\
+\texttt{broken-links:} & \texttt{nil} & \texttt{nil} error, \texttt{t} drop, \texttt{mark} mark\\
+\end{tabular}
+\end{center}
+
+The default of \texttt{d:} is \texttt{(not "LOGBOOK")}: every drawer but LOGBOOK. In
+the table the pipe key is shown as \texttt{\textbackslash{}vert:} because a bare \texttt{|} would
+split the cell; in \texttt{\#+OPTIONS:} you write \texttt{|:nil}.
+\subsection{Sample: toc, num and H}
+\label{sec:orgd5de3e7}
+Intro.
+\subsubsection{Chapter}
+\label{sec:org925a93b}
+\begin{enumerate}
+\item Section
+\label{sec:org84cb207}
+\begin{enumerate}
+\item Too deep to be a section
+\label{sec:org8dacc29}
+This one becomes a list item.
+\end{enumerate}
+\end{enumerate}
+\subsubsection{Another chapter}
+\label{sec:org1858b08}
+Text.
+\subsection{Exercises: toc, num and H}
+\label{sec:orgf5f9677}
+\textbf{Try:} \texttt{<prefix>e s t A}.
+
+\textbf{Expect:} a table of contents with two levels, numbered sections, and the
+third level turned into a list item (a \texttt{*} bullet) under 1.1:
+
+\begin{verbatim}
+Table of Contents
+_________________
+
+1. Chapter
+.. 1. Section
+2. Another chapter
+
+
+Intro.
+
+
+1 Chapter
+=========
+
+1.1 Section
+~~~~~~~~~~~
+
+* 1.1.1 Too deep to be a section
+
+  This one becomes a list item.
+
+
+2 Another chapter
+=================
+
+  Text.
+\end{verbatim}
+
+\textbf{Try:} change \texttt{EXPORT\_OPTIONS} to \texttt{toc:nil num:1 H:2 title:nil author:nil}
+and export again: no table of contents, and only the first level is
+numbered: \texttt{1 Chapter}, then \texttt{Section} without a number, then
+\texttt{* Too deep to be a section}, then \texttt{2 Another chapter}.
+
+\textbf{Try:} \texttt{H:3} instead of \texttt{H:2}: "Too deep to be a section" is a real
+(sub-sub)section again, underlined with dashes.
+\subsection{Sample: sub- and superscripts}
+\label{sec:org6123cb4}
+file\textsubscript{name} and x\textsuperscript{2} stay as they are, but H\textsubscript{2}O and E = mc\textsuperscript{2} are converted.
+\subsection{Exercises: sub- and superscripts}
+\label{sec:orgd782e4f}
+\textbf{Try:} \texttt{<prefix>e s b m M} (body only, Markdown).
+
+\textbf{Expect:}
+
+\begin{verbatim}
+file\_name and x^2 stay as they are, but H<sub>2</sub>O and E = mc<sup>2</sup> are converted.
+\end{verbatim}
+
+\textbf{Try:} change \texttt{\textasciicircum{}:\{\}} to \texttt{\textasciicircum{}:t} and export again: \texttt{file\_name} becomes
+\texttt{file<sub>name</sub>} and \texttt{x\textasciicircum{}2} becomes \texttt{x<sup>2</sup>} too. With \texttt{\textasciicircum{}:nil} nothing is converted. \texttt{\textasciicircum{}:\{\}} is
+the usual choice for documents full of snake\textsubscript{case} names.
+\subsection{Sample: tags, TODO keywords and priorities}
+\label{sec:org3c0e124}
+\subsubsection{{\bfseries\sffamily TODO} Write the report\hfill{}\textsc{work}}
+\label{sec:org9c43852}
+\subsubsection{{\bfseries\sffamily DONE} Book the room\hfill{}\textsc{office}}
+\label{sec:orgfd896ea}
+\subsubsection{{\bfseries\sffamily NEXT} Plan the offsite [1/2]}
+\label{sec:org6063be0}
+\begin{itemize}
+\item[{$\boxtimes$}] pick a date
+\item[{$\square$}] pick a place
+\end{itemize}
+\subsection{Exercises: tags, TODO keywords and priorities}
+\label{sec:org439ff3f}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:} keywords, priorities, cookies and tags are all there (the
+statistics cookie is wrapped in \texttt{<code>}, like Emacs does):
+
+\begin{verbatim}
+# TODO [#A] Write the report     :work:
+
+
+# DONE Book the room     :office:
+
+
+# NEXT [#C] Plan the offsite <code>[1/2]</code>
+
+-   [X] pick a date
+-   [ ] pick a place
+\end{verbatim}
+
+\textbf{Try:} set \texttt{EXPORT\_OPTIONS} to \texttt{toc:nil num:nil title:nil author:nil
+tags:nil todo:nil pri:nil stat:nil} (one line) and export again: the
+headings become plain \texttt{\# Write the report}, \texttt{\# Book the room} and
+\texttt{\# Plan the offsite}; the checklist stays.
+
+\textbf{Try:} replace \texttt{tags:t todo:t pri:t} by \texttt{tasks:todo}: only the not-done
+entries are exported (\texttt{\# TODO Write the report     :work:} and
+\texttt{\# NEXT Plan the offsite <code>[1/2]</code>}; the priority is gone too
+because \texttt{pri:} is \texttt{nil} by default). \texttt{tasks:done} keeps only "Book the
+room", \texttt{tasks:("NEXT")} only "Plan the offsite", \texttt{tasks:nil} drops all
+three.
+\subsection{Sample: drawers, planning, clocks and timestamps}
+\label{sec:orgff4c1b8}
+\subsubsection{{\bfseries\sffamily DONE} Ship the release}
+\label{sec:org1040116}
+Remember to tag the commit.
+\textit{<2026-10-05 Mon>}
+
+The release went out on time.
+\subsection{Exercises: drawers, planning, clocks and timestamps}
+\label{sec:orgab33211}
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:} by default only the heading, the NOTES drawer (every drawer but
+LOGBOOK is exported), the lone timestamp and the paragraph:
+
+\begin{verbatim}
+DONE Ship the release
+=====================
+
+  Remember to tag the commit.
+  <2026-10-05 Mon>
+
+  The release went out on time.
+\end{verbatim}
+
+\textbf{Try:} one at a time, add these to \texttt{EXPORT\_OPTIONS} and export again
+(each adds or removes lines between the underline and "Remember to tag"):
+\begin{itemize}
+\item \texttt{p:t} adds \texttt{CLOSED: [2026-09-25 Fri 17:02]  SCHEDULED: <2026-09-24 Thu>};
+\item \texttt{prop:t} adds \texttt{VERSION: 2.1} and \texttt{OWNER: Ada}; \texttt{prop:("OWNER")} only
+\texttt{OWNER: Ada};
+\item \texttt{c:t} alone changes nothing: the clock line is inside LOGBOOK, which is
+still excluded. \texttt{c:t d:t} (all drawers) shows
+\texttt{CLOCK: [2026-09-24 Thu 09:00]-{}-{}[2026-09-24 Thu 11:30]  =>  2:30};
+\item \texttt{d:nil} removes "Remember to tag the commit." (no drawers at all);
+\texttt{d:("NOTES")} exports only the NOTES drawer (same output as now);
+\item \texttt{<:nil} removes \texttt{<2026-10-05 Mon>}, the paragraph made only of a
+timestamp (an empty line is left in its place).
+\end{itemize}
+\subsection{Sample: line breaks, quotes, special strings}
+\label{sec:org6d62026}
+Roses are red,
+violets are blue.
+"Quoted" text -- with an en dash --- and an em dash\ldots{}
+\subsection{Exercises: line breaks, quotes, special strings}
+\label{sec:org0f736aa}
+\textbf{Try:} \texttt{<prefix>e s b h H}.
+
+\textbf{Expect:} each line ends with \texttt{<br />} (from \texttt{\textbackslash{}n:t}), the quotes become
+curly (\texttt{':t}) and the dashes and dots entities (\texttt{-:t}):
+
+\begin{verbatim}
+<p>
+Roses are red,<br />
+violets are blue.<br />
+&ldquo;Quoted&rdquo; text &ndash; with an en dash &mdash; and an em dash&hellip;<br />
+</p>
+\end{verbatim}
+
+\textbf{Try:} set \texttt{EXPORT\_OPTIONS} to \texttt{toc:nil title:nil author:nil \textbackslash{}n:nil ':nil
+-:nil} and export again: the three lines come back as typed, with
+straight quotes, \texttt{-{}-{}}, \texttt{-{}-{}-} and \texttt{...}, and no \texttt{<br />}.
+\subsection{Sample: what to leave out entirely}
+\label{sec:orgfd0c27f}
+A \textbf{bold} claim\(\alpha\) with a footnote\footnote{Not exported with f:nil.}.
+
+\begin{center}
+\begin{tabular}{ll}
+a table & is dropped\\
+\end{tabular}
+\end{center}
+
+\begin{verbatim}
+fixed-width lines are dropped too
+\end{verbatim}
+\subsection{Exercises: what to leave out entirely}
+\label{sec:orgd22997b}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:} only one line: the asterisks stay literal (\texttt{*:nil}), \texttt{\textbackslash{}alpha}
+stays as typed (\texttt{e:nil}), no footnote, no table, no fixed-width line.
+Markdown escapes the characters that would otherwise be markup, so you see
+backslashes:
+
+\begin{verbatim}
+A \*bold\* claim\\alpha with a footnote.
+\end{verbatim}
+
+\textbf{Try:} remove \texttt{*:nil e:nil} and export again. Now the emphasis is
+converted and the entity is written as HTML:
+
+\begin{verbatim}
+A **bold** claim&alpha; with a footnote.
+\end{verbatim}
+\section{Choosing what is exported}
+\label{sec:org9320ec8}
+\subsection{Tags: noexport and export}
+\label{sec:org15298e3}
+\begin{itemize}
+\item A heading tagged \texttt{:noexport:} is removed with its whole subtree.
+\item If \textbf{any} heading carries an \texttt{:export:} tag, \textbf{only} the tagged subtrees
+are exported (in a whole-file export the text before the first heading
+is kept too).
+\item \texttt{\#+EXCLUDE\_TAGS:} / \texttt{\#+SELECT\_TAGS:} (or the \texttt{EXPORT\_EXCLUDE\_TAGS} /
+\texttt{EXPORT\_SELECT\_TAGS} properties) replace those tag lists. Tags are
+inherited: a child of a \texttt{:noexport:} heading goes too.
+\end{itemize}
+\subsection{Sample: noexport}
+\label{sec:orgc673174}
+\subsubsection{Kept}
+\label{sec:orgb2d4fbd}
+Public text.
+\subsubsection{Also kept}
+\label{sec:orga176ef6}
+More public text.
+\subsection{Exercises: noexport}
+\label{sec:org305e714}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:} two headings only, "Kept" and "Also kept"; no "Private text":
+
+\begin{verbatim}
+# Kept
+
+Public text.
+
+
+# Also kept
+
+More public text.
+\end{verbatim}
+\subsection{Sample: select tags}
+\label{sec:org760f570}
+Intro text of the sample.
+\subsubsection{Chosen\hfill{}\textsc{keep}}
+\label{sec:orgb9b8308}
+In.
+\subsubsection{Not chosen}
+\label{sec:org6edcd02}
+Out: no keep tag, and another heading has one.
+\subsubsection{Chosen but secret\hfill{}\textsc{keep:secret}}
+\label{sec:orgd462ce2}
+Out: exclude tags win.
+\subsection{Exercises: select tags}
+\label{sec:orgc851d76}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:} only the heading "Chosen". Even the intro text is dropped: in a
+subtree export it belongs to the sample heading, which is not selected
+(Emacs does the same).
+
+\begin{verbatim}
+# Chosen
+
+In.
+\end{verbatim}
+
+\textbf{Try:} remove the \texttt{keep} tag from \textbf{both} "Chosen" headings (edit the
+lines, or \texttt{<prefix>t} on each heading and delete \texttt{keep} from the prompt).
+Now no heading is selected, so the select tags do not apply at all:
+
+\begin{verbatim}
+Intro text of the sample.
+
+
+# Chosen
+
+In.
+
+
+# Not chosen
+
+Out: no keep tag, and another heading has one.
+\end{verbatim}
+
+"Chosen but secret" is still excluded by its \texttt{secret} tag. Press \texttt{u} to
+restore the tags.
+\subsection{Sample: COMMENT headings, comment lines and blocks}
+\label{sec:org8581edd}
+Visible paragraph.
+\subsubsection{Finished part}
+\label{sec:org8db22cf}
+Done.
+\subsection{Exercises: COMMENT headings, comment lines and blocks}
+\label{sec:org4fe12a3}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:}
+
+\begin{verbatim}
+Visible paragraph.
+
+
+# Finished part
+
+Done.
+\end{verbatim}
+
+\textbf{Try:} put the cursor on the "COMMENT Work in progress" heading and press
+\texttt{<prefix>hC} (toggle COMMENT, Emacs \texttt{C-c ;}): the word COMMENT goes away.
+Export again: "Work in progress" and its text are now exported between
+"Visible paragraph." and "Finished part". Press \texttt{<prefix>hC} again to put
+it back.
+\subsection{Sample: archived trees}
+\label{sec:org4787c0a}
+\subsubsection{Current work}
+\label{sec:org90ce335}
+Live.
+\subsubsection{Old project\hfill{}\textsc{ARCHIVE}}
+\label{sec:org331091e}
+\subsection{Exercises: archived trees}
+\label{sec:org1af4fa9}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:} "Old project" appears as a heading, but "Old details." is gone
+(\texttt{arch:headline}, the default):
+
+\begin{verbatim}
+# Current work
+
+Live.
+
+
+# Old project
+\end{verbatim}
+
+\textbf{Try:} add \texttt{arch:t} to \texttt{EXPORT\_OPTIONS}: "Old details." comes back. With
+\texttt{arch:nil} the "Old project" heading goes too.
+\section{Subtree properties (EXPORT\textsubscript{*})}
+\label{sec:org05b67b0}
+When you export a subtree, every export keyword can be set in its drawer as
+\texttt{EXPORT\_<KEYWORD>}: \texttt{EXPORT\_TITLE}, \texttt{EXPORT\_AUTHOR}, \texttt{EXPORT\_DATE},
+\texttt{EXPORT\_EMAIL}, \texttt{EXPORT\_OPTIONS}, \texttt{EXPORT\_FILE\_NAME}, \texttt{EXPORT\_LANGUAGE},
+\texttt{EXPORT\_SELECT\_TAGS}, \texttt{EXPORT\_EXCLUDE\_TAGS}, and the back-end ones
+(\texttt{EXPORT\_HTML\_HEAD}, \texttt{EXPORT\_LATEX\_CLASS}, \texttt{EXPORT\_LATEX\_HEADER}, \ldots{}).
+\begin{itemize}
+\item \texttt{EXPORT\_OPTIONS} is merged with \texttt{\#+OPTIONS}: keys it names win, others
+keep the file value.
+\item Without \texttt{EXPORT\_TITLE}, a subtree export is titled after the heading.
+\item These properties are ignored when the whole file is exported.
+\end{itemize}
+\subsection{Sample: a subtree is its own document}
+\label{sec:org0288272}
+A standalone page made from one heading.
+\subsection{Exercises: a subtree is its own document}
+\label{sec:orgc8654cb}
+\textbf{Try:} \texttt{<prefix>e s h H}.
+
+\textbf{Expect:} \texttt{<title>Sample: a subtree is its own document</title>}, the meta
+line from \texttt{EXPORT\_HTML\_HEAD} inside \texttt{<head>}, and "Author: Grace" in the
+postamble.
+
+\textbf{Try (writes a file outside the repo):} \texttt{<prefix>e s m m}. Because of
+\texttt{EXPORT\_FILE\_NAME}, the message says \texttt{Exported to /tmp/org-nvim-sample.md}
+(the extension is added for you). A relative name would be relative to
+this file, i.e. inside \texttt{examples/}.
+\section{Table of contents}
+\label{sec:org4bff50b}
+\begin{itemize}
+\item \texttt{toc:t} / \texttt{toc:nil} / \texttt{toc:2} in \texttt{\#+OPTIONS:} control the table at the
+top.
+\item \texttt{\#+TOC: headlines 2} puts a table of contents \textbf{where the keyword is};
+add \texttt{local} for only the headings below the current one. \texttt{\#+TOC: tables}
+and \texttt{\#+TOC: listings} list the captioned tables and source blocks.
+\item A heading with \texttt{:UNNUMBERED: t} has no number; \texttt{:UNNUMBERED: notoc} also
+keeps it out of the table of contents.
+\end{itemize}
+\subsection{Sample: tables of contents}
+\label{sec:orgaeccd88}
+\setcounter{tocdepth}{1}
+\tableofcontents
+\subsubsection*{Preface}
+\label{sec:org2f1a4d1}
+No number here.
+\subsubsection{Setup}
+\label{sec:orga155296}
+\startcontents[level-3]
+\printcontents[level-3]{}{0}{\setcounter{tocdepth}{5}}
+\begin{enumerate}
+\item Install
+\label{sec:org610520a}
+\item Configure
+\label{sec:orgfc3831a}
+\end{enumerate}
+\stopcontents[level-3]
+\subsubsection*{Colophon}
+\label{sec:orgce08296}
+Not in the table of contents.
+\subsection{Exercises: tables of contents}
+\label{sec:org4373b75}
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:} a first list with the level-1 headings (\texttt{Preface} without a
+number, \texttt{1. Setup}, no Colophon), then under "1 Setup" a local list with
+only its children:
+
+\begin{verbatim}
+Table of Contents
+_________________
+
+Preface
+1. Setup
+
+
+Preface
+=======
+
+  No number here.
+
+
+1 Setup
+=======
+
+  .. 1. Install
+  .. 2. Configure
+
+
+1.1 Install
+~~~~~~~~~~~
+
+
+1.2 Configure
+~~~~~~~~~~~~~
+
+
+Colophon
+========
+
+  Not in the table of contents.
+\end{verbatim}
+
+\textbf{Try:} change \texttt{\#+TOC: headlines 1} to \texttt{\#+TOC: headlines 2}: the first list
+now also shows \texttt{.. 1. Install} and \texttt{.. 2. Configure} under \texttt{1. Setup}.
+\section{Captions, names and cross-references}
+\label{sec:orgc1855ad}
+\begin{itemize}
+\item \texttt{\#+CAPTION:} before a table, image or source block gives it a caption;
+exported it is numbered: "Table 1:", "Figure 1:", "Listing 1:".
+\item \texttt{\#+NAME:} gives it a name; \texttt{[[name]]} links to it and is replaced by its
+number on export.
+\item \texttt{[[*Heading]]} links to a heading (by its text), \texttt{[[\#my-id]]} to a
+heading with \texttt{:CUSTOM\_ID: my-id}, \texttt{<{}<{}target>{}>{}} is an anchor you link to
+with \texttt{[[target]]}, and \texttt{<{}<{}<radio target>{}>{}>} turns every occurrence of
+the words into a link.
+\item A link with a description shows the description; without one, a link to
+a numbered heading shows the section number, a link to a named table
+its table number.
+\end{itemize}
+\subsection{Sample: cross-references}
+\label{sec:org6669e35}
+\subsubsection{Data}
+\label{sec:org6f030dd}
+\begin{table}[htbp]
+\caption{\label{tab:org00fb7c1}Monthly sales}
+\centering
+\begin{tabular}{lr}
+Month & Units\\
+\hline
+Oct & 12\\
+Nov & 17\\
+\end{tabular}
+\end{table}
+
+\begin{verbatim}
+return 2 * 21
+\end{verbatim}
+\captionof{figure}{\label{lst:org2cee34a}Doubling a number}
+
+The procedure:
+\begin{enumerate}
+\item Collect the numbers.
+\item \label{org543491e}Check the totals.
+\end{enumerate}
+\subsubsection{Discussion}
+\label{sec:org53d342f}
+See table \ref{tab:org00fb7c1}, listing \ref{lst:org2cee34a} and section \ref{sec:org6f030dd}. The
+same section by id: \hyperref[sec:org6f030dd]{the data section}. Never skip step \ref{org543491e}.
+\subsection{Exercises: cross-references}
+\label{sec:org254f1b8}
+\textbf{Try:} \texttt{<prefix>e s b h H} and look for "Discussion".
+
+\textbf{Expect:} the captions are numbered, the named elements and the target get
+ids, and the links point to them. The heading with a \texttt{CUSTOM\_ID} uses it
+as its id (\texttt{data}); the other ids look like \texttt{org} plus 7 hex digits:
+
+\begin{verbatim}
+<h2 id="data"><span class="section-number-2">1.</span> Data</h2>
+<table id="orgc141a8c" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+<caption class="t-above"><span class="table-number">Table 1:</span> Monthly sales</caption>
+...
+<label class="org-src-name"><span class="listing-number">Listing 1: </span>Doubling a number</label><pre class="src src-lua" id="org608ce3d"><code>return 2 * 21
+...
+<li><a id="org7457e97"></a>Check the totals.</li>
+...
+See table <a href="#orgc141a8c">1</a>, listing <a href="#org608ce3d">1</a> and section <a href="#data">1</a>. The
+same section by id: <a href="#data">the data section</a>. Never skip step <a href="#org7457e97">2</a>.
+\end{verbatim}
+
+A link to a \texttt{<{}<{}target>{}>{}} without a description shows the number of what
+holds the target: here the list item, so "step 2".
+
+(The generated ids are computed from the content, so they stay the same
+from one export to the next.)
+
+\textbf{Try:} \texttt{<prefix>e s b t A}: in plain text the references are just the
+numbers, and the table and the listing get their captions below them:
+
+\begin{verbatim}
+   Month  Units
+  --------------
+   Oct       12
+   Nov       17
+  Table 1: Monthly sales
+
+  ,----
+  | return 2 * 21
+  `----
+  Listing 1: Doubling a number
+...
+  See table 1, listing 1 and section 1. The same section by id: [the
+  data section]. Never skip step 2.
+
+
+[the data section] See section 1
+\end{verbatim}
+
+(The last line is the plain-text version of a described link: a note
+after the section.)
+
+\textbf{Try:} in the Discussion paragraph, replace \texttt{[[*Data]]} by \texttt{[[*Dataa]]} and
+export again: the link no longer resolves. Thanks to \texttt{broken-links:mark} at
+the top of this file you get \texttt{[BROKEN LINK: *Dataa]} instead of an error
+(see "Broken links" below). Press \texttt{u}.
+\section{Footnotes in export}
+\label{sec:org5b7a29e}
+Footnotes are numbered in order of first reference and collected at the
+end of the document (HTML: a "Footnotes" section; \LaTeX{}: real
+\texttt{\textbackslash{}footnote\{\}}; Markdown: a "Footnotes" section with links; text: a
+"Footnotes" section). Named \texttt{[fn:name]}, anonymous inline \texttt{[fn::text]} and
+named inline \texttt{[fn:name:text]} footnotes all work. \texttt{f:nil} drops them.
+\subsection{Sample: footnotes}
+\label{sec:org2580b9d}
+A named note\footnote{The definition of the named note.\label{org42d1764}}, an inline one\footnote{Defined right here.} and the
+named note again\textsuperscript{\ref{org42d1764}}.
+\subsection{Exercises: footnotes}
+\label{sec:org5f1eceb}
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:} references become \texttt{[1]} and \texttt{[2]} (the second use of \texttt{sample}
+is \texttt{[1]} again), with a footnotes section at the end:
+
+\begin{verbatim}
+A named note[1], an inline one[2] and the named note again[1].
+...
+Footnotes
+_________
+
+[1] The definition of the named note.
+
+[2] Defined right here.
+\end{verbatim}
+
+More on footnotes: \href{14-footnotes.org}{14-footnotes.org}.
+\section{Macros}
+\label{sec:org529bed1}
+\texttt{\#+MACRO: name replacement text} defines a macro; \texttt{\{\{\{name\}\}\}} uses it.
+\texttt{\$1}, \texttt{\$2} \ldots{} are the arguments (separated by commas; \texttt{\textbackslash{},} is a literal
+comma). Macros are expanded on export only, anywhere in the text.
+
+Built-in macros:
+\begin{center}
+\begin{tabular}{ll}
+Macro & Expands to\\
+\hline
+\texttt{\{\{\{title\}\}\}} & the document title\\
+\texttt{\{\{\{author\}\}\}} \texttt{\{\{\{email\}\}\}} & author, e-mail\\
+\texttt{\{\{\{date\}\}\}}, \texttt{\{\{\{date(\%Y)\}\}\}} & the \texttt{\#+DATE} (formatted if a timestamp)\\
+\texttt{\{\{\{time(\%H:\%M)\}\}\}} & the time of the export\\
+\texttt{\{\{\{modification-time(\%F)\}\}\}} & the file's modification time\\
+\texttt{\{\{\{input-file\}\}\}} & the file name\\
+\texttt{\{\{\{keyword(NAME)\}\}\}} & the value of \texttt{\#+NAME:}\\
+\texttt{\{\{\{property(NAME)\}\}\}} & a property of the current heading\\
+\texttt{\{\{\{n\}\}\}}, \texttt{\{\{\{n(name)\}\}\}} & a counter (per name), \texttt{n(name,-)} repeats\\
+\texttt{\{\{\{results(x)\}\}\}} & how inline babel results are wrapped\\
+\end{tabular}
+\end{center}
+
+Your config can define global ones: \texttt{export = \{ global\_macros = \{ ... \} \}}
+(strings, or Lua functions receiving the arguments).
+\subsection{Sample: macros}
+\label{sec:org4554367}
+Hello, world!  two before one.
+This is "Export: hands-on examples" by org.nvim examples, exported from 19-export.org.
+Step 1, step 2, step 3; again step 3.
+Press .
+\subsubsection{Owned part}
+\label{sec:org617150d}
+This part is owned by Charles.
+\subsection{Exercises: macros}
+\label{sec:orgb6d0386}
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:}
+
+\begin{verbatim}
+Hello, world!  two before one.  This is "Export: hands-on examples" by
+org.nvim examples, exported from 19-export.org.  Step 1, step 2, step 3;
+again step 3.  Press .
+
+
+Owned part
+==========
+
+  This part is owned by Charles.
+\end{verbatim}
+
+Things to notice:
+\begin{itemize}
+\item \texttt{\{\{\{title\}\}\}} and \texttt{\{\{\{author\}\}\}} are the file's \texttt{\#+TITLE:} and
+\texttt{\#+AUTHOR:}, not the sample's \texttt{EXPORT\_TITLE} (Emacs does the same).
+\item The \texttt{kbd} macro produced nothing in plain text: it expands to an HTML
+export snippet (next section). With \texttt{<prefix>e s b h H} the line reads
+\texttt{Press <kbd>C-c C-e</kbd>.}
+\item \texttt{\{\{\{property(OWNER)\}\}\}} reads the heading it is written under. Text
+right under the exported heading reads that heading's own drawer: in the
+sample, \texttt{\{\{\{property(EXPORT\_TITLE)\}\}\}} would give \texttt{Macro demo}.
+\end{itemize}
+
+\textbf{Try:} add a line \texttt{\{\{\{greet(Neovim\textbackslash{}, again)\}\}\}} to the sample and export:
+\texttt{Hello, Neovim, again!} (the escaped comma is not an argument separator).
+\section{Raw output for one back-end}
+\label{sec:org59c8980}
+Sometimes you want to write HTML or \LaTeX{} directly. Three ways, all passed
+through untouched to \textbf{their} back-end and dropped by all others:
+\begin{itemize}
+\item export snippets inside a paragraph: \texttt{@@html:<mark>@@text@@html:</mark>@@},
+\texttt{@@latex:\textbackslash{}newpage@@}, \texttt{@@md:...@@}, \texttt{@@ascii:...@@};
+\item one-line keywords: \texttt{\#+HTML: ...}, \texttt{\#+LATEX: ...}, \texttt{\#+ASCII: ...},
+\texttt{\#+MD: ...}, \texttt{\#+ODT: ...}, \texttt{\#+BEAMER: ...}, \texttt{\#+TEXINFO: ...};
+\item export blocks: \texttt{\#+begin\_export html} \ldots{} \texttt{\#+end\_export} (also \texttt{latex},
+\texttt{md}, \texttt{ascii}, \texttt{odt}, \ldots{}). Insert one with \texttt{<prefix>ib} (Emacs
+\texttt{C-c C-,}) then \texttt{h} (html), \texttt{l} (latex), \texttt{a} (ascii) or \texttt{E} (asks for
+the back-end); edit its content in a split with \texttt{<prefix>'}.
+\end{itemize}
+\subsection{Sample: snippets and export blocks}
+\label{sec:orgc0a76d1}
+This word is highlighted in HTML, \emph{emphasized} in \LaTeX{}.
+\newpage
+\begin{center}Only in \LaTeX.\end{center}
+The end.
+\subsection{Exercises: snippets and export blocks}
+\label{sec:orgdbb46a5}
+\textbf{Try:} \texttt{<prefix>e s b h H}.
+
+\textbf{Expect:} the HTML parts only:
+
+\begin{verbatim}
+<p>
+This word is <mark>highlighted</mark> in HTML, emphasized in LaTeX.
+</p>
+<hr class="fancy" />
+<div class="note">Only in HTML.</div>
+<p>
+The end.
+</p>
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:} no markup at all, and the \texttt{ascii} block:
+
+\begin{verbatim}
+This word is highlighted in HTML, emphasized in LaTeX.
+Only in plain text.
+The end.
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s b l L}.
+
+\textbf{Expect:} the \LaTeX{} parts:
+
+\begin{verbatim}
+This word is highlighted in HTML, \emph{emphasized} in LaTeX.
+\newpage
+\begin{center}Only in \LaTeX.\end{center}
+The end.
+\end{verbatim}
+\section{HTML specifics: \#+ATTR\textsubscript{HTML} and \#+HTML\textsubscript{HEAD}}
+\label{sec:org024036c}
+\begin{itemize}
+\item \texttt{\#+ATTR\_HTML: :class wide :style color: red} before a table, image,
+link-only paragraph, list or block adds those HTML attributes. For a
+link, the attributes go to the \texttt{<a>} (or \texttt{<img>}) element.
+\item \texttt{\#+HTML\_HEAD:} and \texttt{\#+HTML\_HEAD\_EXTRA:} add lines to \texttt{<head>} (CSS,
+meta tags); in a subtree use \texttt{EXPORT\_HTML\_HEAD}.
+\item \texttt{\#+HTML\_DOCTYPE: html5} and \texttt{\#+OPTIONS: html5-fancy:t} give HTML5
+elements (\texttt{<section>}, \texttt{<figure>}, \ldots{}). \texttt{html-postamble:nil} removes
+the footer, \texttt{html-style:nil} the default CSS.
+\item \texttt{\#+HTML\_LINK\_HOME:} / \texttt{\#+HTML\_LINK\_UP:} add navigation links,
+\texttt{\#+HTML\_CONTAINER:} changes the \texttt{div} around sections.
+\end{itemize}
+
+A file set up for HTML (example, not live):
+
+\begin{verbatim}
+#+TITLE: Team page
+#+HTML_DOCTYPE: html5
+#+OPTIONS: html5-fancy:t html-postamble:nil toc:nil
+#+HTML_HEAD: <link rel="stylesheet" href="style.css" />
+#+HTML_HEAD_EXTRA: <meta name="theme-color" content="#336699" />
+\end{verbatim}
+\subsection{Sample: HTML attributes}
+\label{sec:orgd2a95fb}
+\begin{center}
+\begin{tabular}{ll}
+Name & Role\\
+\hline
+Ada & analyst\\
+\end{tabular}
+\end{center}
+
+\href{https://neovim.io}{Neovim}
+
+\begin{itemize}
+\item one
+\item two
+\end{itemize}
+\subsection{Exercises: HTML attributes}
+\label{sec:orgf5c2116}
+\textbf{Try:} \texttt{<prefix>e s h H}.
+
+\textbf{Expect:} the style line at the end of \texttt{<head>}, and in the body:
+
+\begin{verbatim}
+<style>.wide { width: 100%; }</style>
+</head>
+...
+<table id="team" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides" class="wide">
+...
+<p target="_blank" title="Neovim home page">
+<a href="https://neovim.io" target="_blank" title="Neovim home page">Neovim</a>
+</p>
+
+<ul class="org-ul checklist">
+\end{verbatim}
+
+The \texttt{:id} replaced the generated table id, the \texttt{:class} was added to the
+default attributes (for lists, to the \texttt{org-ul} class). For a paragraph
+holding only a link, the attributes land on both the \texttt{<p>} and the \texttt{<a>},
+exactly like Emacs. The page ends right after the content: no postamble
+(\texttt{html-postamble:nil}).
+\section{\LaTeX{} and PDF specifics}
+\label{sec:org058cbc1}
+\begin{itemize}
+\item \texttt{\#+LATEX\_CLASS: article} (default), \texttt{report}, \texttt{book}, \texttt{beamer} \ldots{} from
+\texttt{export.latex.classes}; \texttt{\#+LATEX\_CLASS\_OPTIONS: [a4paper,11pt]}.
+\item \texttt{\#+LATEX\_HEADER: \textbackslash{}usepackage\{xcolor\}} adds preamble lines
+(\texttt{EXPORT\_LATEX\_HEADER} in a subtree); \texttt{\#+LATEX\_HEADER\_EXTRA:} too.
+\item \texttt{\#+ATTR\_LATEX:} before a table: \texttt{:environment longtable}, \texttt{:align
+  l|r}, \texttt{:booktabs t}, \texttt{:float nil}, \texttt{:placement [H]}, \texttt{:caption}; before
+an image: \texttt{:width 0.5\textbackslash{}textwidth}; before a list, \texttt{:options}.
+\item \LaTeX{} fragments (\texttt{\$E=mc\textasciicircum{}2\$}, \texttt{\textbackslash{}(...\textbackslash{})}, \texttt{\textbackslash{}begin\{equation\}}) pass through
+to \LaTeX{}; HTML shows them with MathJax.
+\item PDF (\texttt{l p}) writes the .tex file next to this one and runs \texttt{latexmk}
+(or \texttt{pdflatex} three times). Without a \TeX{} installation you get an error
+message and only the .tex file.
+\end{itemize}
+\subsection{Sample: \LaTeX{} attributes}
+\label{sec:org76b3a65}
+\begin{table}[h]
+\caption{Results}
+\centering
+\begin{tabular}{lr}
+\toprule
+Test & Score\\
+\midrule
+A & 91\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Inline math \(a^2 + b^2 = c^2\) and a display:
+\begin{equation}
+e^{i\pi} + 1 = 0
+\end{equation}
+\subsection{Exercises: \LaTeX{} attributes}
+\label{sec:org1b1dca1}
+\textbf{Try:} \texttt{<prefix>e s l L}.
+
+\textbf{Expect:} the class, its options and the extra package in the preamble:
+
+\begin{verbatim}
+\documentclass[a4paper]{report}
+...
+\usepackage{booktabs}
+\end{verbatim}
+
+and in the body a \texttt{table} float with \texttt{[h]}, the \texttt{lr} column spec and
+booktabs rules:
+
+\begin{verbatim}
+\begin{table}[h]
+\caption{Results}
+\centering
+\begin{tabular}{lr}
+\toprule
+Test & Score\\
+\midrule
+A & 91\\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{verbatim}
+
+The math is copied as it is. With the \texttt{report} class, level-1 headings
+would be \texttt{\textbackslash{}chapter} instead of \texttt{\textbackslash{}section}.
+\section{Beamer slides}
+\label{sec:org2ee033a}
+Beamer is \LaTeX{} for presentations. By default level-1 headings are frames
+(slides); \texttt{H:2} makes level 2 the frames and level 1 sections. Properties
+refine it: \texttt{BEAMER\_env} (\texttt{block}, \texttt{alertblock}, \texttt{example}, \texttt{columns},
+\texttt{column}, \texttt{note}, \texttt{ignoreheading}, \ldots{}), \texttt{BEAMER\_col} (column width),
+\texttt{BEAMER\_act} (overlay like \texttt{<2->}), \texttt{BEAMER\_opt} (frame options).
+\texttt{\#+BEAMER\_THEME:} (\texttt{EXPORT\_BEAMER\_THEME}) picks the theme. \texttt{l B} exports
+to a buffer; \texttt{l P} makes a PDF (needs \LaTeX{}).
+\subsection{Sample: slides}
+\label{sec:orgedb6c51}
+\subsubsection{First slide}
+\label{sec:org86f8e79}
+\begin{itemize}
+\item point one
+\item point two
+\end{itemize}
+\subsubsection{Two columns}
+\label{sec:org94b392a}
+\begin{enumerate}
+\item Left
+\label{sec:org09ddd66}
+Text on the left.
+\item Right
+\label{sec:org4257b0b}
+Careful!
+\end{enumerate}
+\subsection{Exercises: slides}
+\label{sec:orgd18ddfe}
+\textbf{Try:} \texttt{<prefix>e s l B}.
+
+\textbf{Expect:} a Beamer document with the theme, a title frame, then one frame
+per level-1 heading of the sample:
+
+\begin{verbatim}
+\documentclass[presentation]{beamer}
+...
+\usetheme{Madrid}
+\author{Ada}
+\date{\today}
+\title{A tiny talk}
+...
+\maketitle
+\begin{frame}[label={sec:orgcc50823}]{First slide}
+\begin{itemize}
+\item point one
+\item point two
+\end{itemize}
+\end{frame}
+\begin{frame}[label={sec:orgcd668b6}]{Two columns}
+\begin{columns}
+\begin{column}{0.5\columnwidth}
+Text on the left.
+\end{column}
+\begin{column}{0.5\columnwidth}
+\begin{alertblock}{Right}
+Careful!
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+\end{verbatim}
+\section{Markdown, GFM, plain text and Org}
+\label{sec:org670b432}
+\subsection{Sample: a table and code everywhere}
+\label{sec:org957d6c4}
+\begin{itemize}
+\item[{$\boxtimes$}] done item
+\item[{$\square$}] open item
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{ll}
+Tool & Needs\\
+\hline
+md & nothing\\
+\end{tabular}
+\end{center}
+
+\begin{verbatim}
+print("hi")
+\end{verbatim}
+\subsection{Exercises: a table and code everywhere}
+\label{sec:org91befa8}
+\textbf{Try:} \texttt{<prefix>e s b m M} (plain Markdown).
+
+\textbf{Expect:} Markdown has no table syntax, so the table is written as HTML;
+the code block is indented by four spaces:
+
+\begin{verbatim}
+-   [X] done item
+-   [ ] open item
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+...
+    print("hi")
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s b m G} (GitHub flavoured Markdown).
+
+\textbf{Expect:} task-list items, a pipe table (not padded, which GitHub does
+not need) and a fenced block with the language:
+
+\begin{verbatim}
+- [x] done item
+- [ ] open item
+
+| Tool | Needs |
+|---|---|
+| md | nothing |
+
+```python
+print("hi")
+```
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s b t A} (ASCII).
+
+\textbf{Expect:}
+
+\begin{verbatim}
+- [X] done item
+- [ ] open item
+
+ Tool  Needs
+---------------
+ md    nothing
+
+,----
+| print("hi")
+`----
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s b t U} (UTF-8).
+
+\textbf{Expect:} the same drawn with Unicode characters:
+
+\begin{verbatim}
+• ☑ done item
+• ☐ open item
+
+━━━━━━━━━━━━━━━
+ Tool  Needs
+───────────────
+ md    nothing
+━━━━━━━━━━━━━━━
+
+┌────
+│ print("hi")
+└────
+\end{verbatim}
+
+\texttt{t L} (Latin-1) sits in between: Latin-1 characters where they exist,
+ASCII otherwise.
+
+\textbf{Try:} \texttt{<prefix>e s b O O} (Org back-end).
+
+\textbf{Expect:} the subtree comes back as Org, after macros, \texttt{\#+INCLUDE} and
+\texttt{noexport} have been processed (useful to see exactly what the other
+back-ends receive). Note the code indented by two spaces, like Emacs:
+
+\begin{verbatim}
+- [X] done item
+- [ ] open item
+
+| Tool | Needs   |
+|------+---------|
+| md   | nothing |
+
+#+begin_src python :exports code
+  print("hi")
+#+end_src
+\end{verbatim}
+\section{\#+INCLUDE: pulling in other files}
+\label{sec:org8c8ec95}
+\texttt{\#+INCLUDE: "file"} is replaced by the file's content on export (never in
+the buffer). Variants:
+\begin{itemize}
+\item \texttt{\#+INCLUDE: "notes.org"}: an Org file; its headings are adjusted to the
+current level (\texttt{:minlevel N} to choose).
+\item \texttt{\#+INCLUDE: "notes.org::*Heading"}: one subtree; \texttt{::\#custom-id} or
+\texttt{::name} also work; \texttt{:only-contents t} drops the heading line.
+\item \texttt{\#+INCLUDE: "init.lua" src lua}: as a source block; \texttt{example},
+\texttt{export html} also work.
+\item \texttt{:lines "5-10"} (or \texttt{"5-"}, \texttt{"-10"}) takes a line range (the end is
+exclusive, like Emacs: \texttt{"1-4"} is lines 1 to 3).
+\end{itemize}
+\subsection{Sample: include}
+\label{sec:org595b447}
+The first lines of the bundled init file:
+\begin{verbatim}
+-- Try org.nvim without touching your own config:
+--
+--   nvim -u examples/minimal_init.lua examples/tutorial.org
+\end{verbatim}
+And a section of the tutorial:
+Export options go in \texttt{\#+OPTIONS:} at the top of a file, for example
+\texttt{\#+OPTIONS: toc:2 num:nil \textasciicircum{}:\{\} todo:nil}. \texttt{\#+TITLE:}, \texttt{\#+AUTHOR:} and
+\subsection{Exercises: include}
+\label{sec:org7d98593}
+\textbf{Try:} \texttt{<prefix>e s b m M}.
+
+\textbf{Expect:} the three comment lines of \texttt{minimal\_init.lua} as a code block,
+followed by the first two lines of the tutorial's "Export settings"
+section:
+
+\begin{verbatim}
+The first lines of the bundled init file:
+
+    -- Try org.nvim without touching your own config:
+    --
+    --   nvim -u examples/minimal_init.lua examples/tutorial.org
+
+And a section of the tutorial:
+Export options go in `#+OPTIONS:` at the top of a file, for example
+`#+OPTIONS: toc:2 num:nil ^:{} todo:nil`. `#+TITLE:`, `#+AUTHOR:` and
+\end{verbatim}
+
+\texttt{\#+SETUPFILE: "other.org"} is related: it reads the settings keywords
+(\texttt{\#+OPTIONS}, \texttt{\#+MACRO}, \texttt{\#+TODO}, \ldots{}) of another file.
+\section{Source blocks and :exports}
+\label{sec:orgb998a8e}
+The \texttt{:exports} header argument decides what a code block contributes:
+\begin{center}
+\begin{tabular}{ll}
+\texttt{:exports} & Exported\\
+\hline
+\texttt{code} & the code only (default for most languages)\\
+\texttt{results} & the result only\\
+\texttt{both} & code, then result\\
+\texttt{none} & nothing\\
+\end{tabular}
+\end{center}
+
+With \texttt{babel.evaluate\_on\_export = true} (the default) blocks exporting
+\texttt{results} or \texttt{both} are \textbf{run again} during export, in a copy of the buffer
+(the buffer itself is not changed), after the usual "Evaluate?"
+confirmation. \texttt{:eval never-export} (or \texttt{no-export}) keeps the \texttt{\#+RESULTS:}
+already in the buffer instead. More in \href{17-babel.org}{17-babel.org}.
+\subsection{Sample: exports}
+\label{sec:org88af86c}
+\begin{verbatim}
+(+ 1 2)
+\end{verbatim}
+
+\begin{verbatim}
+(* 6 7)
+\end{verbatim}
+
+\begin{verbatim}
+(concat "org" "." "nvim")
+\end{verbatim}
+
+\begin{verbatim}
+(message "invisible")
+\end{verbatim}
+
+\begin{verbatim}
+(* 100 100)
+\end{verbatim}
+
+\phantomsection
+\label{org13650df}
+\begin{verbatim}
+stale value kept on export
+\end{verbatim}
+
+The answer is \texttt{(* 6 7)}.
+\subsection{Exercises: exports}
+\label{sec:orgebd05b4}
+\textbf{Try:} \texttt{<prefix>e s b t A}. You are asked "Evaluate this emacs-lisp code
+block on your system?" three times (the \texttt{results} block, the \texttt{both} block
+and the inline \texttt{src\_} call): answer \texttt{y} each time. (Emacs Lisp runs in
+\texttt{emacs -{}-{}batch} when Emacs is installed, otherwise on org.nvim's own Lisp
+interpreter, which handles these simple expressions.)
+
+\textbf{Expect:} code and results in the text back-end's boxes; the inline
+result is verbatim (\texttt{`42'}):
+
+\begin{verbatim}
+,----
+| (+ 1 2)
+`----
+
+,----
+| 42
+`----
+
+,----
+| (concat "org" "." "nvim")
+`----
+
+,----
+| org.nvim
+`----
+
+,----
+| stale value kept on export
+`----
+
+The answer is `42'.
+\end{verbatim}
+
+The \texttt{:exports none} block is absent, and the \texttt{never-export} block shows
+its old \texttt{\#+RESULTS:} instead of \texttt{10000}. The buffer is not modified: no
+\texttt{\#+RESULTS:} was added under the other blocks.
+
+\textbf{Try:} export again and answer \texttt{n} to every question: the \texttt{results}
+blocks then export nothing (they have no \texttt{\#+RESULTS:} in the buffer), the
+\texttt{both} block only its code, and the inline call is left empty.
+\section{Citations}
+\label{sec:org1f202bf}
+Citations are written \texttt{[cite:@key]} (styles: \texttt{[cite/t:@key]} text,
+\texttt{[cite/a:@key]} author, \texttt{[cite/na:@key]} no author, \ldots{}; prefixes and
+suffixes: \texttt{[cite:see @key p. 3]}). \texttt{\#+BIBLIOGRAPHY:} names a .bib or
+CSL-JSON file and \texttt{\#+PRINT\_BIBLIOGRAPHY:} prints the list. The "basic"
+processor works with every back-end; \LaTeX{} can use \texttt{natbib}, \texttt{biblatex} or
+\texttt{bibtex} with \texttt{\#+CITE\_EXPORT:}. CSL styles (citeproc) are not supported;
+for those, export to Org or Markdown and run \texttt{pandoc -{}-{}citeproc}.
+
+This file's header has \texttt{\#+BIBLIOGRAPHY: ../tests/fixtures/export/cite/refs.bib}
+(a test fixture of the repo).
+\subsection{Sample: citations}
+\label{sec:orgc16cabf}
+As shown before (Doe, John and Smith, Jane, 2020), and in a book (see Zed, Anna, 2019 p. 3).
+Alpha, Bob (2018) wrote a thesis.
+
+\noindent
+Alpha, Bob (2018). \emph{Thesis}, Univ.
+
+\noindent
+Doe, John and Smith, Jane (2020). \emph{On the {TeX}book and $\alpha$ \alpha{} things}, Journal of Tests.
+
+\noindent
+Zed, Anna (2019). \emph{A Book of Strings}, ACME Press.
+\subsection{Exercises: citations}
+\label{sec:orgcd7cf1d}
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:} author-year citations, and the bibliography sorted by author
+where \texttt{\#+PRINT\_BIBLIOGRAPHY:} is:
+
+\begin{verbatim}
+As shown before (Doe, John and Smith, Jane, 2020), and in a book (see
+Zed, Anna, 2019 p. 3).  Alpha, Bob (2018) wrote a thesis.
+
+Alpha, Bob (2018). /Thesis/, Univ.
+
+Doe, John and Smith, Jane (2020). /On the TeXbook and $\alpha$ alpha
+things/, Journal of Tests.
+
+Zed, Anna (2019). /A Book of Strings/, ACME Press.
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>e s b h H}: the same text in \texttt{<p>} elements, with the
+titles in \texttt{<i>} and the \texttt{\$\textbackslash{}alpha\$} of the .bib title as MathJax
+\texttt{\textbackslash{}(\textbackslash{}alpha\textbackslash{})}.
+
+\textbf{Try:} change \texttt{[cite:@doe2020]} to \texttt{[cite/na:@doe2020]} (no author):
+\texttt{As shown before (2020)}. And \texttt{[cite:see @zed2019 p. 3]} to
+\texttt{[cite/nb:@zed2019]} (numeric): \texttt{in a book (3)}, the entry's position in
+the bibliography.
+\section{Broken links}
+\label{sec:org1153bb5}
+A link that points nowhere (\texttt{[[*No such heading]]}) stops the export with
+an error by default: better than a silently dead link.
+\texttt{\#+OPTIONS: broken-links:mark} writes \texttt{[BROKEN LINK: ...]} instead, and
+\texttt{broken-links:t} drops the link. This file sets \texttt{broken-links:mark} at
+the top so that a whole-file export works despite the sample below.
+\subsection{Sample: broken links}
+\label{sec:org8d32f2f}
+This points to {[}BROKEN LINK: *A heading that does not exist].
+\subsection{Exercises: broken links}
+\label{sec:orgc78895d}
+\textbf{Try:} \texttt{<prefix>e s b t A}.
+
+\textbf{Expect:} \texttt{This points to [BROKEN LINK: *A heading that does not exist].}
+
+\textbf{Try:} change \texttt{broken-links:mark} to \texttt{broken-links:nil} in
+\texttt{EXPORT\_OPTIONS} and export again. No buffer opens; instead:
+
+\begin{verbatim}
+Export failed: Org export aborted.  Unable to resolve link: "*A heading that does not exist"
+See export.with_broken_links (org-export-with-broken-links)
+\end{verbatim}
+
+\textbf{Try:} \texttt{broken-links:t}: the link simply disappears (\texttt{This points to .}).
+\section{iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)}
+\label{sec:org2989ed1}
+These write files; there is no buffer variant. If you try them here, the
+files land in \texttt{examples/} (delete them afterwards).
+
+\begin{itemize}
+\item iCalendar (\texttt{c f}): every entry with an active timestamp, SCHEDULED or
+DEADLINE becomes a VEVENT (and TODOs a VTODO with
+\texttt{export.icalendar.include\_todo}). \texttt{c a} writes one .ics per agenda file,
+\texttt{c c} combines them into \texttt{export.icalendar.combined\_agenda\_file}
+(\texttt{\textasciitilde{}/org.ics} by default, outside the repo).
+\item ODT (\texttt{o o}): a real OpenDocument file written in pure Lua; opens in
+LibreOffice, Word, Google Docs. \texttt{export.odt.preferred\_output\_format =
+  "docx"} converts it with LibreOffice.
+\item DOCX (\texttt{d d}) and other formats (\texttt{p}, then e.g. \texttt{rst}, \texttt{epub}, \texttt{typst}):
+pandoc converts the Org back-end's output. The file is always named
+after the Org file (\texttt{examples/19-export.docx}), even in a subtree with
+\texttt{EXPORT\_FILE\_NAME}.
+\item Texinfo (\texttt{i t}) writes a .texi manual; \texttt{i i} also runs \texttt{makeinfo}.
+\end{itemize}
+\subsection{Sample: calendar entries}
+\label{sec:orga453975}
+\subsubsection{Team meeting}
+\label{sec:orgab4119f}
+\textit{<2026-10-07 Wed 10:00-11:00>}
+\subsubsection{Submit the report}
+\label{sec:orgfca1736}
+\subsection{Exercises: calendar entries}
+\label{sec:org3682312}
+\textbf{Try (writes examples/19-export.ics):} \texttt{<prefix>e c f}. The dispatcher's
+iCalendar entries always export the \textbf{whole file}, so the three
+"Evaluate?" questions of the \texttt{:exports} sample come up again: answer \texttt{n}.
+Open the file with \texttt{:e examples/19-export.ics}.
+
+\textbf{Expect:} among others
+
+\begin{verbatim}
+BEGIN:VEVENT
+DTSTART:20261007T100000
+DTEND:20261007T110000
+SUMMARY:Team meeting
+...
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20261015
+DTEND;VALUE=DATE:20261016
+SUMMARY:DL: Submit the report
+\end{verbatim}
+
+and an event for \texttt{<2026-10-05 Mon>} of the "Ship the release" sample. A
+TODO entry's deadline becomes a VTODO only with
+\texttt{export.icalendar.include\_todo}; that is why "Submit the report" has no
+TODO keyword. Afterwards: \texttt{:!rm examples/19-export.ics}.
+
+\textbf{Try (writes examples/19-export.odt):} \texttt{<prefix>e s o o}, open the file in
+LibreOffice (or \texttt{<prefix>e s o O} to open it right away), then delete it.
+\section{Publishing projects}
+\label{sec:org20a3d41}
+Publishing exports whole directories at once (a website, a set of PDFs):
+projects are set in your config under \texttt{export.publish.projects}, and only
+files changed since the last run are exported again. Dispatcher: \texttt{P f}
+(this file), \texttt{P p} (its project), \texttt{P x} (choose one), \texttt{P a} (all). The
+commands are \texttt{:Org publish}, \texttt{:Org publish NAME}, \texttt{:Org publish all
+force} (\texttt{force} re-exports even unchanged files).
+
+This is configuration, not something to run from here:
+
+\begin{verbatim}
+require("org").setup({
+  export = {
+    publish = {
+      projects = {
+        notes = {
+          base_directory = "~/org/site",   -- the .org sources
+          base_extension = "org",
+          publishing_directory = "~/public_html",
+          publishing_function = "html",    -- or "pdf", "md", "org", ...
+          recursive = true,
+          exclude = "^drafts/",            -- Vim regex, relative path
+          auto_sitemap = true,             -- writes sitemap.org + .html
+          sitemap_title = "My notes",
+          with_toc = false,                -- any export option
+          html_postamble = false,
+        },
+        static = {
+          base_directory = "~/org/site",
+          base_extension = "css\\|png\\|jpg",
+          publishing_directory = "~/public_html",
+          recursive = true,
+          publishing_function = "attachment", -- copy as is
+        },
+        site = { components = { "notes", "static" } },
+      },
+    },
+  },
+})
+\end{verbatim}
+
+Then \texttt{:Org publish site} builds both. The timestamps of published files
+are kept in \texttt{export.publish.timestamp\_directory}.
+
+\textbf{Try:} \texttt{<prefix>e P x}: with the bundled init no project is configured, so
+the prompt offers nothing to choose; press \texttt{<Esc>}.
+\section{Configuring defaults}
+\label{sec:org79b7c23}
+Every \texttt{\#+OPTIONS} key has a config default under \texttt{export}, named after the
+Emacs variable: \texttt{with\_toc}, \texttt{with\_section\_numbers}, \texttt{headline\_levels},
+\texttt{with\_tags}, \texttt{with\_todo\_keywords}, \texttt{with\_priority}, \texttt{with\_drawers},
+\texttt{with\_properties}, \texttt{with\_broken\_links}, \texttt{select\_tags}, \texttt{exclude\_tags},
+\texttt{author}, \texttt{email}, \ldots{} and per back-end tables (\texttt{export.html},
+\texttt{export.latex}, \texttt{export.md}, \texttt{export.ascii}, \texttt{export.odt}, \ldots{}).
+
+\begin{verbatim}
+require("org").setup({
+  export = {
+    output_dir = "~/exports",       -- instead of next to the source file
+    open_after_export = false,      -- open every exported file
+    with_toc = false,
+    with_section_numbers = false,
+    author = "Ada Lovelace",
+    global_macros = { year = function() return os.date("%Y") end },
+    html = { doctype = "html5", html5_fancy = true },
+    ascii = { charset = "utf-8", text_width = 80 },
+    md = { headline_style = "atx" },
+  },
+})
+\end{verbatim}
+
+Filters and hooks (\texttt{export.filters}, \texttt{export.hooks}) run Lua functions on
+the text or the lines before parsing: see \texttt{:h org-export}.
+\section{Further reading}
+\label{sec:orgf7db64b}
+\begin{itemize}
+\item \texttt{:h org-export} (dispatcher, command and Lua API)
+\item \texttt{:h org-export-settings} (keywords, \texttt{\#+OPTIONS}, macros, \texttt{\#+INCLUDE})
+\item \texttt{:h org-export-backends}, \texttt{:h org-export-ascii}, \texttt{:h org-export-beamer},
+\texttt{:h org-export-odt}, \texttt{:h org-export-texinfo}, \texttt{:h org-export-icalendar}
+\item \texttt{:h org-export-cite} (citations), \texttt{:h org-publish}
+\item \texttt{:h org-export-unsupported} (what needs Emacs)
+\item Related example files: \href{17-babel.org}{17-babel.org} (code
+blocks), \href{14-footnotes.org}{14-footnotes.org},
+\href{13-links.org}{13-links.org} (link types),
+\href{21-images-latex.org}{21-images-latex.org} (images and \LaTeX{}
+fragments), and the overview in \href{00-index.org}{00-index.org}.
+\end{itemize}

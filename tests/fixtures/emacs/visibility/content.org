@@ -1,0 +1,16 @@
+#+STARTUP: content
+Intro text
+* A
+a body
+:LOGBOOK:
+- note
+:END:
+** B
+b body
+*** C
+c body
+** D
+
+
+* E
+e

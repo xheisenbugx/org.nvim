@@ -288,6 +288,156 @@ end
 
 local files = _G.arg and #_G.arg > 0 and _G.arg or vim.fn.glob(root .. "/tests/spec/**/*_spec.lua", false, true)
 local progress = vim.env.ORG_TEST_PROGRESS
+
+--- Run each spec file in its own Neovim, `jobs` at a time, and report the
+--- totals like a serial run. Every worker gets a fresh XDG_DATA_HOME, so
+--- workers don't share the ID database or clock state, and no state leaks
+--- from one file into the next.
+local function run_parallel(jobs)
+  local timeout = (tonumber(vim.env.ORG_TEST_TIMEOUT) or 600) * 1000
+  local uv = vim.uv
+  -- the biggest files first, so a slow one doesn't start last
+  local queue = vim.deepcopy(files)
+  local size = {}
+  for _, f in ipairs(queue) do
+    local st = uv.fs_stat(f)
+    size[f] = st and st.size or 0
+  end
+  table.sort(queue, function(a, b)
+    return size[a] > size[b]
+  end)
+  local running, finished, outputs = {}, 0, {}
+  local start = uv.hrtime()
+  local function launch(f)
+    local data = vim.fn.tempname()
+    vim.fn.mkdir(data, "p")
+    if progress and progress ~= "" then
+      io.stderr:write("== " .. vim.fn.fnamemodify(f, ":t") .. "\n")
+      io.stderr:flush()
+    end
+    local job = {
+      file = f,
+      data = data,
+      started = uv.hrtime(),
+    }
+    job.proc = vim.system({
+      vim.v.progpath,
+      "--headless",
+      "-u",
+      root .. "/tests/minimal_init.lua",
+      "-l",
+      root .. "/tests/run.lua",
+      f,
+    }, {
+      text = true,
+      env = {
+        XDG_DATA_HOME = data,
+        ORG_TEST_WORKER = "1",
+        ORG_TEST_JOBS = "1",
+        ORG_TEST_PROGRESS = "",
+        ORG_TEST_RESULT = data .. "/result.json",
+      },
+    }, function(res)
+      job.res = res
+    end)
+    running[#running + 1] = job
+  end
+  local function collect(job)
+    local res = job.res
+    local entry = { file = job.file, out = (res.stdout or "") .. "\n" .. (res.stderr or "") }
+    local f = io.open(job.data .. "/result.json", "rb")
+    if f then
+      local ok, r = pcall(vim.json.decode, f:read("*a"))
+      f:close()
+      if ok and type(r) == "table" then
+        entry.result = r
+      end
+    end
+    local crashed = job.timed_out or res.code ~= 0 or (res.signal or 0) ~= 0
+    if not entry.result or (crashed and entry.result.failed == 0) then
+      entry.crash = job.timed_out and string.format("timed out after %d s", timeout / 1000)
+        or ((res.signal or 0) ~= 0 and ("killed by signal " .. res.signal))
+        or (res.code ~= 0 and ("exited with code " .. tostring(res.code)))
+        or "exited without results"
+    end
+    outputs[#outputs + 1] = entry
+    vim.fn.delete(job.data, "rf")
+  end
+  local n = math.min(jobs, #queue)
+  while #queue > 0 or #running > 0 do
+    while #running < n and #queue > 0 do
+      launch(table.remove(queue, 1))
+    end
+    vim.wait(50, function()
+      for _, job in ipairs(running) do
+        if job.res then
+          return true
+        end
+      end
+      return false
+    end, 10)
+    for i = #running, 1, -1 do
+      local job = running[i]
+      if not job.res and (uv.hrtime() - job.started) / 1e6 > timeout then
+        job.timed_out = true
+        job.proc:kill(9)
+        job.proc:wait(1000)
+        job.res = job.res or { code = -1, stdout = "", stderr = "" }
+      end
+      if job.res then
+        table.remove(running, i)
+        finished = finished + 1
+        collect(job)
+      end
+    end
+  end
+  table.sort(outputs, function(a, b)
+    return a.file < b.file
+  end)
+  local passed, failed, skips = 0, 0, {}
+  for _, e in ipairs(outputs) do
+    local r = e.result or { passed = 0, failed = 0, errors = {}, skipped = {} }
+    passed = passed + (r.passed or 0)
+    failed = failed + (r.failed or 0)
+    for _, err in ipairs(r.errors or {}) do
+      io.stdout:write("FAIL: " .. err.name .. "\n    " .. tostring(err.err):gsub("\n", "\n    ") .. "\n")
+    end
+    for _, sk in ipairs(r.skipped or {}) do
+      skips[#skips + 1] = sk
+    end
+    if e.crash then
+      failed = failed + 1
+      io.stdout:write("FAIL: " .. vim.fn.fnamemodify(e.file, ":.") .. ": " .. e.crash .. "\n")
+      local tail = vim.trim(e.out):sub(-2000)
+      if tail ~= "" then
+        io.stdout:write("    " .. tail:gsub("\n", "\n    ") .. "\n")
+      end
+    end
+  end
+  for _, sk in ipairs(skips) do
+    io.stdout:write("SKIP: " .. sk .. "\n")
+  end
+  io.stdout:write(
+    string.format(
+      "\n%d passed, %d failed%s\n",
+      passed,
+      failed,
+      #skips > 0 and string.format(", %d skipped", #skips) or ""
+    )
+  )
+  io.stderr:write(string.format("%d files, %d jobs, %.1f s\n", #files, n, (uv.hrtime() - start) / 1e9))
+  vim.cmd(failed > 0 and "cquit 1" or "qall!")
+end
+
+-- ORG_TEST_JOBS=1 runs every file in this Neovim, one after another
+local jobs = tonumber(vim.env.ORG_TEST_JOBS or "")
+  or (vim.uv.available_parallelism and vim.uv.available_parallelism())
+  or 1
+if jobs > 1 and #files > 1 and vim.env.ORG_TEST_WORKER ~= "1" then
+  run_parallel(jobs)
+  return
+end
+
 for _, f in ipairs(files) do
   if progress and progress ~= "" then
     -- which file a hanging run is in
@@ -301,6 +451,25 @@ for _, f in ipairs(files) do
     table.insert(results.errors, { name = "load " .. f, err = err })
   end
   restore(state)
+end
+
+if vim.env.ORG_TEST_RESULT then
+  -- a parallel run's worker: the totals for the parent, which can't read
+  -- them reliably from stdout (messages may share the summary's line)
+  local errors = {}
+  for _, e in ipairs(results.errors) do
+    errors[#errors + 1] = { name = e.name, err = tostring(e.err) }
+  end
+  local f = io.open(vim.env.ORG_TEST_RESULT, "wb")
+  if f then
+    f:write(vim.json.encode({
+      passed = results.passed,
+      failed = results.failed,
+      errors = errors,
+      skipped = results.skipped,
+    }))
+    f:close()
+  end
 end
 
 for _, e in ipairs(results.errors) do

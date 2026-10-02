@@ -605,7 +605,7 @@ local function guess_polyglossia_language(header, info)
   end
   local langs = {}
   local seen = {}
-  local list = vim.split((options:gsub("AUTO", language)), ",[ \t]*")
+  local list = vim.split((options:gsub("AUTO", require("org.utils").gsub_escape(language))), ",[ \t]*")
   for i = #list, 1, -1 do
     if not seen[list[i]] then
       seen[list[i]] = true
@@ -2475,17 +2475,29 @@ function M.compile(texfile, on_done)
     end
     return pdf, not ok and tostring(err) or nil
   end
+  -- one pass, with a function: a `%` in a file name is neither a capture
+  -- of the replacement nor a spec of a later substitution
+  local spec = {
+    latex = shell_quote(compiler),
+    bibtex = shell_quote(bib),
+    bib = shell_quote(bib),
+    F = shell_quote(vim.fn.fnamemodify(texfile, ":p")),
+    f = shell_quote(vim.fn.fnamemodify(texfile, ":t")),
+    b = shell_quote(base),
+    o = shell_quote(dir),
+    O = shell_quote(out),
+  }
   local cmds = {}
   for _, c in ipairs(process) do
-    local s = c:gsub("%%latex", shell_quote(compiler))
-      :gsub("%%bibtex", shell_quote(bib))
-      :gsub("%%bib", shell_quote(bib))
-      :gsub("%%F", shell_quote(vim.fn.fnamemodify(texfile, ":p")))
-      :gsub("%%f", shell_quote(vim.fn.fnamemodify(texfile, ":t")))
-      :gsub("%%b", shell_quote(base))
-      :gsub("%%o", shell_quote(dir))
-      :gsub("%%O", shell_quote(out))
-    cmds[#cmds + 1] = s
+    cmds[#cmds + 1] = c:gsub("%%(%a+)", function(w)
+      for _, k in ipairs({ "latex", "bibtex", "bib" }) do
+        if w:sub(1, #k) == k then
+          return spec[k] .. w:sub(#k + 1)
+        end
+      end
+      local k = w:sub(1, 1)
+      return spec[k] and spec[k] .. w:sub(2)
+    end)
   end
   local mtime_before = vim.fn.getftime(out)
   local log = {}

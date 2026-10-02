@@ -769,13 +769,18 @@ function M.compile(file, on_done)
     end
     return finish()
   end
+  -- one pass, with a function: a `%` in a file name is neither a capture
+  -- of the replacement nor a spec of a later substitution
+  local spec = {
+    F = shell_quote(full),
+    f = shell_quote(vim.fn.fnamemodify(full, ":t")),
+    b = shell_quote(base),
+    o = shell_quote(dir),
+    O = shell_quote(out),
+  }
   local cmds = {}
   for _, c in ipairs(process) do
-    cmds[#cmds + 1] = c:gsub("%%F", shell_quote(full))
-      :gsub("%%f", shell_quote(vim.fn.fnamemodify(full, ":t")))
-      :gsub("%%b", shell_quote(base))
-      :gsub("%%o", shell_quote(dir))
-      :gsub("%%O", shell_quote(out))
+    cmds[#cmds + 1] = c:gsub("%%([FfboO])", spec)
   end
   if not on_done then
     for _, c in ipairs(cmds) do

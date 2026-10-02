@@ -44,14 +44,36 @@ end
 M.buf_lines = buf_lines
 M.get_file = get_file
 
+-- parse_blocks of the last buffer asked about, keyed by its changedtick:
+-- inserting a result changes the tick, so positions are never stale.
+-- Callers must treat the blocks as read-only (at_block hands out copies).
+local blocks_cache
+
+--- The lines and parsed blocks of `bufnr` (a buffer or a list of lines).
+---@return string[] lines, table[] blocks
+local function buffer_blocks(bufnr)
+  if type(bufnr) ~= "number" then
+    return bufnr, blocks_mod.parse_blocks(bufnr)
+  end
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  -- the bodies depend on src_preserve_indentation too
+  local preserve = require("org.config").opts.src_preserve_indentation
+  local c = blocks_cache
+  if c and c.bufnr == bufnr and c.tick == tick and c.preserve == preserve then
+    return c.lines, c.list
+  end
+  local lines = buf_lines(bufnr)
+  local list = blocks_mod.parse_blocks(lines)
+  blocks_cache = { bufnr = bufnr, tick = tick, preserve = preserve, lines = lines, list = list }
+  return lines, list
+end
+M._buffer_blocks = buffer_blocks
+
 --- Block containing `lnum` (begin line .. end line, the #+NAME/#+HEADER
 --- lines above it, or its #+RESULTS), or a #+CALL line. Returns nil otherwise.
 function M.at_block(bufnr, lnum)
   bufnr = resolve_buf(bufnr)
-  local lines = buf_lines(bufnr)
-  local line = lines[lnum] or ""
-  -- quick reject: must be inside something that looks like a block
-  local list = blocks_mod.parse_blocks(lines)
+  local lines, list = buffer_blocks(bufnr)
   for _, b in ipairs(list) do
     local top = b.start
     local k = b.start - 1
@@ -59,18 +81,17 @@ function M.at_block(bufnr, lnum)
       top = k
       k = k - 1
     end
-    if lnum >= top and lnum <= b.finish then
-      b.file = get_file(bufnr)
-      b.args = M.block_args(b, b.file, bufnr)
-      return b
-    end
-    if b.results and lnum >= b.results.start and lnum <= b.results.finish and not b.call then
+    if
+      (lnum >= top and lnum <= b.finish)
+      or (b.results and lnum >= b.results.start and lnum <= b.results.finish and not b.call)
+    then
+      -- a copy: the cached block stays untouched
+      b = vim.deepcopy(b)
       b.file = get_file(bufnr)
       b.args = M.block_args(b, b.file, bufnr)
       return b
     end
   end
-  local _ = line
   return nil
 end
 
@@ -102,8 +123,7 @@ end
 --- Merged header args for a block (resolving #+CALL targets).
 function M.block_args(b, file, bufnr)
   if b.call then
-    local lines = buf_lines(bufnr)
-    local target = M.find_named_block(lines, b.target)
+    local target = M.find_named_block(bufnr, b.target)
     if not target then
       return nil
     end
@@ -118,10 +138,13 @@ function M.block_args(b, file, bufnr)
   return blocks_mod.header_args(b, file)
 end
 
-function M.find_named_block(lines, name)
-  for _, b in ipairs(blocks_mod.parse_blocks(lines)) do
+--- The src block named `name` in `lines_or_buf` (a list of lines or a
+--- buffer), or in the Library of Babel.
+function M.find_named_block(lines_or_buf, name)
+  local _, list = buffer_blocks(lines_or_buf)
+  for _, b in ipairs(list) do
     if not b.call and b.name == name then
-      return b
+      return type(lines_or_buf) == "number" and vim.deepcopy(b) or b
     end
   end
   if M.library[name] then
@@ -304,9 +327,9 @@ local function noweb_ctx(bufnr)
   if c and c.bufnr == bufnr and c.tick == tick then
     return c.ctx
   end
-  local lines = buf_lines(bufnr)
+  local lines, all = buffer_blocks(bufnr)
   local file = get_file(bufnr)
-  local ctx = { lines = lines, all = blocks_mod.parse_blocks(lines), file = file, args = {} }
+  local ctx = { lines = lines, all = all, file = file, args = {} }
   function ctx.header_args(b)
     local a = ctx.args[b]
     if not a then
@@ -1822,9 +1845,9 @@ end
 --- after the block when missing), replacing, appending to or prepending
 --- to the previous result.
 local function insert_results(bufnr, start, result, args, hash, lang, ctx)
-  local lines = buf_lines(bufnr)
+  local lines, list = buffer_blocks(bufnr)
   local b
-  for _, x in ipairs(blocks_mod.parse_blocks(lines)) do
+  for _, x in ipairs(list) do
     if x.start == start then
       b = x
     end
@@ -1974,8 +1997,8 @@ local function find_async_block(bufnr, uuid)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return nil
   end
-  local lines = buf_lines(bufnr)
-  for _, x in ipairs(blocks_mod.parse_blocks(lines)) do
+  local lines, list = buffer_blocks(bufnr)
+  for _, x in ipairs(list) do
     if x.results then
       for i = x.results.start, x.results.finish or x.results.start do
         if lines[i] and lines[i]:find(uuid, 1, true) then
@@ -2425,10 +2448,10 @@ end
 --- src blocks, #+CALL lines, inline src blocks and inline calls, in order
 --- (org-babel-map-executables).
 local function executables(bufnr, s, e)
-  local lines = buf_lines(bufnr)
+  local lines, list = buffer_blocks(bufnr)
   local jobs = {}
   local covered = {}
-  for _, b in ipairs(blocks_mod.parse_blocks(lines)) do
+  for _, b in ipairs(list) do
     if b.start >= s and b.finish <= e then
       jobs[#jobs + 1] = { line = b.start, col = 0 }
     end
@@ -2579,7 +2602,7 @@ end
 --- Remove every result in the buffer.
 function M.remove_all_results(bufnr)
   bufnr = resolve_buf(bufnr)
-  local list = blocks_mod.parse_blocks(buf_lines(bufnr))
+  local _, list = buffer_blocks(bufnr)
   local n = 0
   for i = #list, 1, -1 do
     local b = list[i]

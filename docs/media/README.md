@@ -4,6 +4,14 @@ The GIFs and screenshots in the main README are recorded with
 [VHS](https://github.com/charmbracelet/vhs), so they can be re-recorded
 whenever the UI changes.
 
+The recorded files aren't committed here: they live on the orphan
+[`media`](https://github.com/xheisenbugx/org.nvim/tree/media) branch, and
+the README links to them there
+(`https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/<name>`),
+so installing the plugin doesn't download them. This directory keeps what
+produces them: the tapes, the demo configs and the kitty recorder. The
+GIFs and PNGs they write into `docs/media` are ignored by git.
+
 - `tapes/*.tape`: one script per demo. `common.tape` holds the shared
   size, font and theme.
 - `demo/init.lua`: the config the tapes start Neovim with. It copies
@@ -24,7 +32,13 @@ repository root:
 ```sh
 make media                          # every tape, in parallel
 vhs docs/media/tapes/agenda.tape    # a single one
+make publish-media                  # commit them to the media branch and push
 ```
+
+`make publish-media` copies every GIF and PNG in `docs/media` to the
+`media` branch (in a temporary worktree), commits the ones that changed
+and pushes the branch. A new demo needs its README link written as
+`https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/<name>.gif`.
 
 Some tapes set extras in the environment (see the top of
 `demo/init.lua`): `DEMO_SNACKS=1` uses snacks.nvim's picker and notifier

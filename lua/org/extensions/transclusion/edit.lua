@@ -260,9 +260,7 @@ function M.write(b, sync)
       e.src_modified = vim.bo[sb].modified
     end
     -- The source's own inserted transclusions are taken out meanwhile:
-    -- its lines are then the ones `first` and `last` count, and the
-    -- write (in BufWriteCmd, where autocommands don't nest) leaves them
-    -- out of the file.
+    -- its lines are then the ones `first` and `last` count.
     local t = package.loaded["org.extensions.transclusion"]
     local without = t and t.without_inserted or function(_, fn)
       return fn()
@@ -270,13 +268,14 @@ function M.write(b, sync)
     local wrote = false
     local ok, err = pcall(without, sb, function()
       replace_lines(sb, first - 1, vim.list_slice(lines, first, last), new)
-      if not sync and not e.src_modified and vim.api.nvim_buf_get_name(sb) ~= "" then
-        vim.api.nvim_buf_call(sb, function()
-          vim.cmd("silent keepalt write")
-        end)
-        wrote = true
-      end
     end)
+    if ok and not sync and not e.src_modified and vim.api.nvim_buf_get_name(sb) ~= "" then
+      -- This runs in BufWriteCmd, where autocommands don't nest: the
+      -- write hooks (inserted text left out, crypt) run through
+      -- save_buffer.
+      ok, err = utils.save_buffer(sb)
+      wrote = ok
+    end
     if not ok then
       utils.error("transclusion: cannot write the source: " .. tostring(err))
       return false

@@ -558,21 +558,23 @@ function M.decrypt_entries(bufnr)
   return map_matching(bufnr, M.decrypt_entry)
 end
 
---- BufWritePre handler: encrypt matching entries when
---- `crypt.encrypt_on_save` is on. Returns 0 when encryption failed, so the
---- autocmd throws and the clear text is not written.
+--- Pre-write hook (org-crypt-use-before-save-magic): encrypt matching
+--- entries when `crypt.encrypt_on_save` is on. A failed encryption vetoes
+--- the write, so the clear text is never written.
 ---@param bufnr integer
----@return integer
+---@return boolean ok, string|nil err
 function M.before_save(bufnr)
   if not cfg().encrypt_on_save then
-    return 1
+    return true
   end
   local ok, res = pcall(M.encrypt_entries, bufnr)
   if not ok then
     utils.error("org-crypt: " .. tostring(res))
-    return 0
   end
-  return res and 1 or 0
+  if not (ok and res) then
+    return false, "org-crypt: encryption failed, buffer not written"
+  end
+  return true
 end
 
 --- Decrypt the entry at the cursor when it is encrypted: run by `reveal`
@@ -583,20 +585,20 @@ function M.reveal_hook()
   end
 end
 
---- Per-buffer setup: the before-save encryption
---- (org-crypt-use-before-save-magic, enabled by `crypt.encrypt_on_save`).
----@param bufnr integer
-function M.attach(bufnr)
-  vim.api.nvim_create_autocmd("BufWritePre", {
-    buffer = bufnr,
-    group = vim.api.nvim_create_augroup("org.crypt." .. bufnr, { clear = true }),
-    -- A Vimscript exception (unlike a Lua error) aborts the write.
-    command = string.format(
-      [[if !v:lua.require'org.crypt'.before_save(%d) | throw "%s" | endif]],
-      bufnr,
-      "org-crypt: encryption failed, buffer not written"
-    ),
-  })
-end
+-- Encrypt before every write of an org buffer, `:w` and org's own saves
+-- (`utils.save_buffer`) alike. Like Emacs, the buffer stays encrypted
+-- after the write.
+require("org.write_hooks").register("crypt", {
+  order = 50,
+  filetype = "org",
+  pre = function(bufnr)
+    return M.before_save(bufnr)
+  end,
+})
+
+--- Per-buffer setup. The before-save encryption is a write hook,
+--- registered when this module loads, so nothing is left to do here.
+---@param _ integer
+function M.attach(_) end
 
 return M
