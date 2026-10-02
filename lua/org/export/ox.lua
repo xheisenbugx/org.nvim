@@ -2740,21 +2740,52 @@ function M.get_ordinal(el, info, types, predicate)
     return M.get_footnote_number(el, info)
   end
   local want = { [t] = true }
+  local key = { t }
   for _, x in ipairs(types or {}) do
     want[x] = true
+    key[#key + 1] = x
   end
-  local counter = 0
-  return element.map(info.parse_tree, want, function(x)
-    if x == el then
-      if not predicate or predicate(x, info) then
-        return counter + 1
+  -- one walk numbers every element of these types for this predicate:
+  -- mapping the tree for each table or figure is quadratic
+  local tree = info.parse_tree
+  local cache = info.ordinal_cache
+  if not cache or cache.tree ~= tree or cache.ignore ~= info.ignore then
+    cache = { tree = tree, ignore = info.ignore, by_pred = setmetatable({}, { __mode = "k" }) }
+    info.ordinal_cache = cache
+  end
+  local pkey = predicate or cache
+  key = table.concat(key, "\0")
+  local by_key = cache.by_pred[pkey]
+  if not by_key then
+    -- a predicate seen once may be a closure made for this call: walk
+    -- up to the element only, and number everything when it comes back
+    cache.by_pred[pkey] = {}
+    local counter = 0
+    return element.map(tree, want, function(x)
+      if x == el then
+        if not predicate or predicate(x, info) then
+          return counter + 1
+        end
+        return nil
       end
-      return nil
-    end
-    if not predicate or predicate(x, info) then
-      counter = counter + 1
-    end
-  end, { ignore = info.ignore, first_match = true })
+      if not predicate or predicate(x, info) then
+        counter = counter + 1
+      end
+    end, { ignore = info.ignore, first_match = true })
+  end
+  local ordinals = by_key[key]
+  if not ordinals then
+    ordinals = {}
+    local counter = 0
+    element.map(tree, want, function(x)
+      if not predicate or predicate(x, info) then
+        counter = counter + 1
+        ordinals[x] = counter
+      end
+    end, { ignore = info.ignore })
+    cache.by_pred[pkey][key] = ordinals
+  end
+  return ordinals[el]
 end
 
 ---------------------------------------------------------------------------
@@ -3571,9 +3602,7 @@ function M.selected_trees(data, info)
           selected[h] = true
         end)
       elseif t == "headline" then
-        local g2 = vim.list_extend(vim.deepcopy(genealogy), { d })
-        -- (deepcopy of nodes is expensive; use shallow copy)
-        g2 = {}
+        local g2 = {}
         for _, x in ipairs(genealogy) do
           g2[#g2 + 1] = x
         end
