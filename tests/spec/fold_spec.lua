@@ -152,3 +152,54 @@ describe("fold: cycle_include_plain_lists = true", function()
     eq(1, vim.fn.foldclosed(1))
   end)
 end)
+
+describe("fold: closed headlines", function()
+  local function screen_row(row)
+    local s = {}
+    for c = 1, vim.o.columns do
+      s[#s + 1] = vim.fn.screenstring(row, c)
+    end
+    return (table.concat(s):gsub("%s+$", ""))
+  end
+  -- redraw, then once more after the ellipsis marks are moved
+  local function draw()
+    vim.cmd("redraw!")
+    vim.wait(20)
+    vim.cmd("redraw!")
+  end
+
+  -- Emacs keeps a folded heading's faces: folding only hides the text after it
+  it("keeps the highlighting of a folded heading and ends it with the ellipsis", function()
+    local buf = org_buffer({ "* TODO Task [[https://x][link]] :tag:", "body", "* Next", "next body" }, { 1, 0 })
+    fold.setup_buffer(buf)
+    eq("", vim.wo.foldtext)
+    fold.overview()
+    draw()
+    eq(1, vim.fn.foldclosed(1))
+    -- the link is concealed as when the fold is open
+    eq("* TODO Task link :tag:...", screen_row(1))
+    eq("* Next...", screen_row(2))
+    -- the TODO keyword and the title don't share one highlight
+    ok(vim.fn.screenattr(1, 3) ~= vim.fn.screenattr(1, 8))
+    vim.cmd("normal! ggzo")
+    draw()
+    eq("* TODO Task link :tag:", screen_row(1))
+    eq("body", screen_row(2))
+  end)
+
+  it("puts the ellipsis only in the window where the fold is closed", function()
+    local buf = org_buffer({ "* A", "body" }, { 1, 0 })
+    fold.setup_buffer(buf)
+    vim.cmd("normal! zM")
+    vim.cmd("vsplit")
+    fold.setup_buffer(buf)
+    vim.cmd("normal! zR")
+    draw()
+    local width = vim.fn.winwidth(0)
+    -- the left window, with the fold open, has no ellipsis
+    eq("* A", (screen_row(1):sub(1, width):gsub("%s+$", "")))
+    -- the right one, with it closed, has it
+    ok(screen_row(1):find("│%* A%.%.%.$"), screen_row(1))
+    vim.cmd("close")
+  end)
+end)
