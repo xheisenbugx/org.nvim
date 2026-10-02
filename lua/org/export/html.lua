@@ -1380,7 +1380,7 @@ function M.latex_image(frag, process, info)
   local hash = require("org.babel.sha1").hex(table.concat({ process, info.latex_header or "", frag }, "\0"))
   local ext = spec.image_output_type or "png"
   local linkfile = fmt("%s_%s.%s", prefix, hash, ext)
-  local movefile = imgdir:match("^/") and linkfile or (cache_dir .. "/" .. linkfile)
+  local movefile = require("org.utils").is_absolute(imgdir) and linkfile or (cache_dir .. "/" .. linkfile)
   if not vim.uv.fs_stat(movefile) then
     local made = odt.latex_to_image(frag, process, info)
     if not made then

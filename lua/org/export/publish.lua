@@ -114,7 +114,7 @@ end
 --- cache keys and project lookups agree whatever the spelling.
 local function expand(path, base)
   path = vim.fn.expand(path)
-  if not path:match("^/") and base then
+  if not utils.is_absolute(path) and base then
     path = base:gsub("/$", "") .. "/" .. path
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
@@ -1240,7 +1240,7 @@ end
 --- (org-publish-file-relative-name).
 function M.file_relative_name(filename, info)
   local base = info and info.base_directory
-  if base and (filename:match("^/") or filename:match("^~")) then
+  if base and (utils.is_absolute(filename) or filename:match("^~")) then
     local abs = expand(filename)
     base = as_dir(expand(base))
     if abs:sub(1, #base) == base then
@@ -1288,7 +1288,7 @@ end
 --- reference the target file uses (or will use) for it; else
 --- "MissingReference".
 function M.resolve_external_link(search, file, info)
-  if info and info.input_file and not (file:match("^/") or file:match("^~")) then
+  if info and info.input_file and not (utils.is_absolute(file) or file:match("^~")) then
     file = expand(file, vim.fn.fnamemodify(info.input_file, ":p:h"))
   else
     file = expand(file)

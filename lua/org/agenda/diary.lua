@@ -482,7 +482,7 @@ local function list_entries(path, day, ctx, out, main)
     local dir = vim.fs.dirname(ctx.main)
     for inc in f.text:gmatch('%f[^\n%z]#include "([^"]*)"') do
       local file = vim.fs.normalize(vim.fn.expand(inc))
-      if not file:match("^/") then
+      if not require("org.utils").is_absolute(file) then
         file = vim.fs.normalize(dir .. "/" .. file)
       end
       if vim.fn.filereadable(file) == 0 then

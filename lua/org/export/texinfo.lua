@@ -1060,7 +1060,7 @@ local function inline_image(link, info)
   local short = ox.get_caption(parent, true)
   local path = link.path
   local filename
-  if path:match("^/") or path:match("^~") then
+  if require("org.utils").is_absolute(path) or path:match("^~") then
     filename = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
   else
     filename = vim.fs.normalize(path):gsub("^%./", "")

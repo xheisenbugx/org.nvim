@@ -199,7 +199,7 @@ function M.install_at(root, where, o)
       return false, "git rev-parse failed"
     end
     attr = vim.fn.fnamemodify(root .. "/" .. p, ":p")
-    if p:sub(1, 1) == "/" then
+    if utils().is_absolute(p) then
       attr = p
     end
     vim.fn.mkdir(vim.fn.fnamemodify(attr, ":h"), "p")
@@ -238,7 +238,7 @@ function M.uninstall_at(root, o)
   local files = { root .. "/.gitattributes" }
   local ok, p = git({ "rev-parse", "--git-path", "info/attributes" }, root)
   if ok then
-    files[#files + 1] = p:sub(1, 1) == "/" and p or (root .. "/" .. p)
+    files[#files + 1] = utils().is_absolute(p) and p or (root .. "/" .. p)
   end
   local removed = 0
   for _, f in ipairs(files) do

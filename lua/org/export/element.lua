@@ -1980,7 +1980,7 @@ end
 function P:make_link(raw, format, desc_text, e, s)
   local ltype, path
   local explicit = false
-  if raw:match("^/") or raw:match("^~") or raw:match("^%.%.?/") then
+  if require("org.utils").is_absolute(raw) or raw:match("^~") or raw:match("^%.%.?/") then
     ltype, path = "file", raw
   else
     local t, p2 = self:link_type_of(raw)
