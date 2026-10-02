@@ -32,3 +32,26 @@ describe("parser edge cases", function()
     eq(6, hl.timestamps[1].line)
   end)
 end)
+
+describe("element motion on an inline task END line", function()
+  with_config({ inlinetask_min_level = 4 })
+  local lines = { "* A", "text", "**** Inline", "body", "**** END", "more", "* B" }
+
+  it("moves forward past the inline task", function()
+    org_buffer(lines, { 5, 0 })
+    require("org.element").forward()
+    eq(6, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("moves backward to the inline task", function()
+    org_buffer(lines, { 5, 0 })
+    require("org.element").backward()
+    eq(3, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("moves up to the enclosing headline", function()
+    org_buffer(lines, { 5, 0 })
+    require("org.element").up()
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+end)

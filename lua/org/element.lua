@@ -385,6 +385,19 @@ local function on_headline(lnum)
   return line and parser.headline_level(line) ~= nil
 end
 
+--- The headline on line `lnum` of a headline-like line, or the inline task
+--- whose END line it is (the parse has no headline there).
+---@return org.Headline|nil
+local function entry_on(bufnr, lnum)
+  if not on_headline(lnum) then
+    return nil
+  end
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  if hl and (hl.line == lnum or (hl.inlinetask and hl.end_line == lnum)) then
+    return hl
+  end
+end
+
 --- Siblings of an element (the list it is part of).
 local function siblings(el, bufnr)
   if el.parent then
@@ -398,9 +411,8 @@ function M.forward()
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = cursor()[1]
   local nlines = vim.api.nvim_buf_line_count(0)
-  if on_headline(lnum) then
-    local file = files.get_buffer(bufnr)
-    local hl = file:headline_on(lnum)
+  local hl = entry_on(bufnr, lnum)
+  if hl then
     if hl.end_line + 1 > nlines then
       utils.warn("Cannot move further down")
       return
@@ -443,9 +455,12 @@ function M.backward()
     utils.warn("Cannot move further up")
     return
   end
-  if on_headline(lnum) then
+  local hl = entry_on(bufnr, lnum)
+  if hl and hl.line ~= lnum then
+    -- an inline task's END line: to the inline task
+    return goto_line(hl.line)
+  elseif hl then
     local file = files.get_buffer(bufnr)
-    local hl = file:headline_on(lnum)
     local sibs = hl.parent and hl.parent.children or file.children
     for i, s in ipairs(sibs) do
       if s.line == hl.line and sibs[i - 1] then
@@ -494,13 +509,13 @@ function M.up()
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = cursor()[1]
   local file = files.get_buffer(bufnr)
-  if on_headline(lnum) then
-    local hl = file:headline_on(lnum)
-    if not hl.parent then
+  local entry = entry_on(bufnr, lnum)
+  if entry then
+    if not entry.parent then
       utils.warn("No surrounding element")
       return
     end
-    return goto_line(hl.parent.line)
+    return goto_line(entry.parent.line)
   end
   local el = M.at(bufnr, lnum)
   local p = el and el.parent
@@ -584,12 +599,13 @@ function M.mark()
     if nxt > vim.api.nvim_buf_line_count(0) then
       return select_lines(s, e)
     end
-    local el = on_headline(nxt) and { last = files.get_buffer(bufnr):headline_on(nxt).end_line } or M.at(bufnr, nxt)
+    local hl = entry_on(bufnr, nxt)
+    local el = hl and { last = hl.end_line } or M.at(bufnr, nxt)
     return select_lines(s, el and el.last or nxt)
   end
   local lnum = cursor()[1]
-  if on_headline(lnum) then
-    local hl = files.get_buffer(bufnr):headline_on(lnum)
+  local hl = entry_on(bufnr, lnum)
+  if hl then
     return select_lines(hl.line, hl.end_line)
   end
   local el = M.at(bufnr, lnum)
