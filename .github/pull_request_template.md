@@ -4,6 +4,11 @@
 
 <!-- What this changes, and the issue it fixes (Fixes #123) -->
 
+## In plain words
+
+<!-- For someone who doesn't code: what was wrong or missing, what changes
+for them, and whether they need to do anything. No code or jargon. -->
+
 ## How it was tested
 
 <!-- The specs you added or ran, and anything checked by hand -->

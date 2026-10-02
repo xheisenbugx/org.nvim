@@ -121,3 +121,8 @@ turned off, or the run will hang.
 - No new hard dependencies. Optional integrations (blink.cmp, lualine, …)
   must load only when the user has them installed.
 - Say in the PR description how the change was tested.
+- Every PR description has an "In plain words" section: a few sentences
+  for a reader who doesn't code, saying what was wrong or missing, what
+  changes for them, and what they need to do (often nothing). No code,
+  file names or jargon there; the technical detail goes in the other
+  sections.

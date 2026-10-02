@@ -204,6 +204,10 @@ the fix.
   `docs: …`.
 - Describe how you tested the change. For UI changes, a screenshot or
   short recording helps a lot.
+- Add an "In plain words" section to the description: a few sentences,
+  without code or jargon, that anyone using org.nvim can follow. Say what
+  was wrong or missing, what changes for them, and whether they need to do
+  anything.
 - Keep org.nvim dependency-free. Optional integrations such as blink.cmp or
   lualine are fine, as long as they're loaded only when the user has them.
 
