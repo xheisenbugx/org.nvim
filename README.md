@@ -37,17 +37,19 @@ isn't a syntax file with a few keymaps on top. It reimplements Org's
 behaviour: the agenda, capture templates, repeaters, clock tables, table
 formulas, Babel and export.
 
-- 🪶 **No dependencies.** It's about 165k lines of Lua and needs no
+- 🪶 **No dependencies.** It's about 170k lines of Lua and needs no
   tree-sitter parser, external binary or companion plugin.
 - 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
   so you can edit a file in Emacs today and in Neovim tomorrow.
 - ⌨️ **Keys that fit Vim.** Context-aware keys fall back to normal Vim
   behaviour when they don't apply (`>>` still indents, `<C-a>` still
-  increments). Press `g?` anywhere to see what's available.
+  increments). Press `g?` in an org or agenda buffer to see what's
+  available.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
   source, `vim.ui.select` pickers and a lualine clock, and it works with
   any other setup too.
-- ✅ **Tested.** The headless test suite has 3,500+ tests across 186 specs.
+- ✅ **Tested.** The headless test suite runs 4,800+ tests from 240+ spec
+  files.
 
 ---
 
@@ -79,7 +81,7 @@ org.nvim exists because I wanted something those projects don't aim for:
 **On AI:** org.nvim is written with AI assistance
 ([Claude Code](https://claude.com/claude-code)). To keep that honest, its
 behaviour is checked against the Emacs Org source rather than guessed,
-every feature comes with headless tests (`make test`, 3,500+ of them), and
+every feature comes with headless tests (`make test`, 4,800+ of them), and
 I review and use every change myself. Bug reports are very welcome,
 especially where it doesn't match Emacs.
 
@@ -94,7 +96,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim) / LazyVim:
 return {
   "xheisenbugx/org.nvim",
   main = "org",
-  lazy = false, -- startup cost is tiny: only :Org and a few global keymaps
+  lazy = false, -- startup cost is small: heavy modules load on first use
   opts = {
     org_directory = "~/org",
     agenda_files = { "~/org/**/*.org" },
@@ -124,7 +126,11 @@ you should expect.
 
 Everything below was recorded in a plain Neovim with only org.nvim
 installed. The tapes that produce these GIFs live in
-[`docs/media`](docs/media), so they can be re-recorded after every change.
+[`docs/media/tapes`](docs/media/tapes), so they can be re-recorded after
+every change. They use [`docs/media/demo/init.lua`](docs/media/demo/init.lua),
+which changes a few defaults: it logs `CLOSED:` on DONE, opens the agenda
+on the day, offers every top-level heading of the agenda files as a refile
+target, and puts the clock in the statusline.
 In the newer demos, the box in the bottom-right corner shows the key being
 pressed.
 
@@ -139,7 +145,7 @@ demote it, or cut, paste and sort it.
 
 ### Structure editing
 
-`M-RET` adds a heading (or an item, or a table row) at the right level,
+`M-RET` adds a heading (or an item) at the right level,
 and `<leader>oit` adds a TODO heading. `M-h` / `M-l` promote and demote.
 `<leader>ohs` sorts the children (alphabetically, by TODO state, priority,
 date and more), and `<leader>ohn` narrows to a subtree so you can edit it
@@ -150,19 +156,20 @@ on its own.
 ### TODOs, checklists and priorities
 
 Ticking a checkbox updates the `[2/4]` and `[50%]` cookies of its parents.
-Marking a task DONE logs a `CLOSED:` timestamp and updates its parent's
-cookie. Set the state with `cit` or with the fast-selection menu
-(`<leader>oS`), and the priority with `<leader>o,`.
+Marking a task DONE updates its parent's cookie and, with
+`log_done = "time"` (or `#+STARTUP: logdone`), logs a `CLOSED:` timestamp.
+Set the state with `cit` or with the fast-selection menu (`<leader>oS`), and the
+priority with `<leader>o,`.
 
 ![Ticking checkboxes, marking a task DONE and giving another one priority A](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/todo.gif)
 
 ### Plain lists
 
-`S-Right` / `S-Left` on an item cycles the bullet style of the whole list:
-`-`, `+`, `1.` and `1)`. `M-RET` adds an item and `M-S-RET` adds a
-checkbox item. `TAB` on a new empty item indents it. `M-Up` / `M-Down` move
-an item with its children, and numbered lists are renumbered as you go.
-`<leader>o-` turns plain lines into a list.
+`S-Right` / `S-Left` on an item cycles the bullet style of its list: `-`,
+`+`, `*` (in indented lists), `1.` and `1)`. `M-RET` adds an item and
+`M-S-RET` adds a checkbox item. `TAB` on a new empty item indents it.
+`M-Up` / `M-Down` move an item with its children, and numbered lists are
+renumbered as you go. `<leader>o-` turns plain lines into a list.
 
 ![Cycling bullet styles, adding and indenting items, moving a numbered item, turning lines into a list and adding a checkbox](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lists.gif)
 
@@ -193,10 +200,12 @@ on a date opens the agenda for that day.
 
 ### A real agenda
 
-`<leader>oa` → `a`. The day view has a time grid, a current-time line,
-deadline countdowns, overdue items and a habit consistency graph, the
-same as in Emacs. From the agenda you can change states, reschedule, clock
-in, refile, filter and run bulk actions. `vw` switches to the week.
+`<leader>oa` → `a` opens the week, or the day with
+`agenda = { span = "day" }`. The day view has a time grid, a current-time line, deadline
+countdowns, overdue items and a habit consistency graph, the same as in
+Emacs. From the agenda you can change states, reschedule, clock in,
+refile, filter and run bulk actions. `vd` / `vw` switch between day and
+week.
 
 ![The agenda day view: marking a task DONE, then switching to the week view](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/agenda.gif)
 
@@ -223,8 +232,10 @@ headline, an outline path or a date tree.
 
 ### Refile and archive
 
-`<leader>or` moves a subtree under any heading in your agenda files (here
-labelled with the file name). `<leader>o$` archives a finished subtree to
+`<leader>or` moves a subtree under another heading: by default a
+top-level heading of the current file, or any heading in your agenda files
+with `refile = { max_level = N }` (here labelled with the file name,
+`use_outline_path = "file"`). `<leader>o$` archives a finished subtree to
 `<file>_archive` and keeps its context in `ARCHIVE_*` properties.
 
 ![Refiling an inbox task into work.org/Projects and archiving a DONE task](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/refile.gif)
@@ -258,10 +269,10 @@ output back into the file:
 ![Running Python, shell and Lua blocks and inserting their results](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/babel.gif)
 
 Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
-supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
-`src_lang{…}` blocks and tangling. Nothing blocks the editor while code
-runs; `:session` keeps a live REPL between blocks (`C-c C-v C-z` opens it
-so you can type into it), and
+supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`,
+inline `src_lang{…}` blocks and tangling. Nothing blocks the editor while
+code runs (except Lua, which runs inside Neovim); `:session` keeps a live
+REPL between blocks (`C-c C-v C-z` opens it so you can type into it), and
 `:session :async` writes a placeholder result right away, as in Emacs.
 
 `<leader>o'` opens a block in its own buffer with the language's filetype,
@@ -272,24 +283,26 @@ so it gets that language's highlighting, indentation and filetype plugins.
 
 ### Clocking, clock tables and column view
 
-`<leader>oxi` clocks in, and the statusline shows the running total
-against the effort estimate. `<leader>oxr` inserts a clock table that
-matches Emacs's output. `<leader>oC` opens column view, drawn over
-the headlines like Emacs, which sums efforts and clocked time up the tree.
+`<leader>oxi` clocks in, and [`require("org").statusline()`](#statusline)
+shows the running total against the effort estimate. `<leader>oxr` inserts
+a clock table that matches Emacs's output. `<leader>oC` opens column view,
+drawn over the headlines like Emacs, which sums efforts and clocked time
+up the tree.
 
 ![Clocking in, inserting a clock table, then opening column view](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/clock.gif)
 
 ### Images and LaTeX, right in your notes
 
-`<leader>oxv` (`C-c C-x C-v`) shows image links as images in place of
-the link, like Emacs, and `<leader>oxl` (`C-c C-x C-l`) renders LaTeX fragments. On Neovim
-0.13+ they're drawn by the built-in `vim.ui.img` in any terminal with the
-Kitty graphics protocol (kitty, Ghostty, WezTerm). They follow scrolling,
-folds and splits, and the link text comes back on the cursor line so you
-can edit it. On older Neovim, or inside tmux, org.nvim uses
-[snacks.nvim](https://github.com/folke/snacks.nvim)'s image module or
-[image.nvim](https://github.com/3rd/image.nvim) instead. `#+STARTUP:
-linkpreviews` and `latexpreview` turn them on when a file opens.
+`<leader>oxv` (`C-c C-x C-v`) shows image links as images in place of the
+link, like Emacs, and `<leader>oxl` (`C-c C-x C-l`) renders LaTeX
+fragments. On Neovim 0.13+ they're drawn by the built-in `vim.ui.img` in
+any terminal with the Kitty graphics protocol (kitty, Ghostty, WezTerm).
+They follow scrolling, folds and splits, and the link text comes back on
+the cursor line so you can edit it. On older Neovim, or inside tmux,
+org.nvim uses [snacks.nvim](https://github.com/folke/snacks.nvim)'s image
+module or [image.nvim](https://github.com/3rd/image.nvim) instead.
+`#+STARTUP: linkpreviews` and `latexpreview` turn them on when a file
+opens.
 
 ![Previewing the images of an entry and then the whole buffer, scrolling and folding with them](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/images.gif)
 
@@ -317,11 +330,11 @@ between them. `:checkhealth org` shows what it found, and
 | Inside **tmux** | snacks.nvim | tmux drops `vim.ui.img`'s images. Add `set -g allow-passthrough on` and install snacks.nvim, or run Neovim outside tmux |
 | Inside zellij | nothing | zellij doesn't pass images through |
 | Over SSH | `vim.ui.img` or snacks.nvim | Images and LaTeX tools must be on the machine running Neovim |
-| Terminal.app, iTerm2, Alacritty | image.nvim at best | No Kitty graphics protocol |
+| Terminal.app, iTerm2, Alacritty, Windows Terminal, GNU screen | image.nvim at best | No Kitty graphics protocol |
 
 With snacks.nvim or image.nvim, `:align` / `org-image-align` are ignored,
-and snacks.nvim draws an image at the start of the line when the link has
-text around it.
+and when the link has text around it, snacks.nvim draws the image at the
+start of the next line and puts an icon at the link.
 
 </details>
 
@@ -333,7 +346,8 @@ buffer you browse and jump from. With `goto_interface =
 "outline-path-completion"` (shown here) it's a picker instead, and a count
 switches to the other interface for one jump. `<leader>og` jumps to any
 heading of your agenda files. The pickers use `vim.ui.select`, so they get
-your picker: snacks.nvim here, or Telescope or fzf-lua.
+your picker: snacks.nvim here, or Telescope / fzf-lua once they're set up
+as the `vim.ui.select` provider.
 
 ![Fuzzy-finding a heading in the file, then with the Emacs key](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/goto-buffer.gif)
 
@@ -358,7 +372,7 @@ when it runs out:
 With `notifications.enabled` (or `:Org notifications_start`), org.nvim
 checks your agenda for timed entries and reminds you before they start,
 by default 12, 9, 6, 3 and 0 minutes before, through `vim.notify` and the
-system notifier (`osascript` or `notify-send`).
+system notifier (`osascript`, `notify-send`, or PowerShell on Windows).
 
 ![Reminders for a scheduled call and a deadline, then the same entries in the agenda](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/reminders.gif)
 
@@ -405,10 +419,11 @@ a tag or property match, or deadlines. The matches are highlighted, and
 
 ### Export
 
-`<leader>oe` opens the export dispatcher. The HTML, LaTeX, Beamer,
-Markdown, ASCII, Org, iCalendar, ODT and Texinfo back-ends are ports of
-Emacs's, and pandoc handles DOCX, EPUB and more. You can export to a buffer to
-check the result:
+`<leader>oe` opens the export dispatcher. The HTML, LaTeX, Beamer, KOMA
+letter, man page, Markdown, ASCII, Org, iCalendar, ODT and Texinfo
+back-ends are ports of Emacs's, there's a GitHub-flavoured Markdown
+back-end, and pandoc handles DOCX, EPUB and more. You can export to a
+buffer to check the result:
 
 ![Exporting an Org file to a Markdown buffer](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/export-md.gif)
 
@@ -440,10 +455,10 @@ searches it, and `{` / `}` jump between sections:
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history with default and interrupted tasks, Emacs's clock resolution (keep, subtract, got-back) for dangling clocks and idle time, auto clock-out, effort estimates with an overrun alert, a statusline component, `clocktable` blocks matching Emacs output (`:step`, `:formula`, `:sort`, `:lang`…), agenda clock check, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, column shrinking, row/column/cell editing with formula fixing, copy-down, CSV/TSV import and export, `#+TBLFM` formulas with a Calc-compatible evaluator, a formula editor and debugger, radio tables, orgtbl-mode (including the unicode and table.el translators) and plots (including radar); Calc symbolic algebra (`simplify`, `deriv`, `integ`, `solve`), vectors and matrices, modulo forms, complex numbers, HMS forms, error forms, intervals and units; table.el grid tables (`C-c ~`, `C-c '`, export) |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
-| 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
+| 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, GitHub-flavoured Markdown, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
 | 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
-| 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, completion, `:checkhealth org` |
+| 🎁 | **And more** | Column view, `org-indent` mode, speed keys, footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, BibTeX links (`ol-bibtex`), `org-ctags`, the Org/table/agenda menus and org-mouse, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
@@ -520,7 +535,11 @@ return {
 Add the plugin to your `'runtimepath'` and call:
 
 ```lua
-require("org").setup({ org_directory = "~/org" })
+require("org").setup({
+  org_directory = "~/org",
+  agenda_files = { "~/org/**/*.org" },
+  default_notes_file = "~/org/refile.org",
+})
 ```
 
 ### Local development checkout
@@ -529,7 +548,7 @@ Point lazy.nvim at the directory instead of a GitHub repo:
 
 ```lua
 {
-  dir = "~/Workspace/orgmode",
+  dir = "~/path/to/org.nvim",
   name = "org.nvim",
   main = "org",
   lazy = false,
@@ -550,7 +569,8 @@ Restart Neovim (or run `:Lazy reload org.nvim`) and check the result with
 ## Quick start
 
 1. `mkdir ~/org` and open `~/org/todo.org`.
-2. Type `* TODO Buy milk` and press `<leader>os` to schedule it for today.
+2. Type `* TODO Buy milk`, press `<Esc>`, then `<leader>os` and `<CR>` to
+   schedule it for today.
 3. `<leader>oa` → `a` opens the weekly agenda. `t` changes the state of the
    entry under the cursor, and `<CR>` jumps to it.
 4. `<leader>oc` → `t` captures a new task from anywhere. Finish with
@@ -572,7 +592,7 @@ they fall back to the normal Vim behaviour (`>>` still indents plain text,
 Coming from Emacs? The standard Org keys work out of the box, on top of
 the Vim-style ones: `C-c C-t`, `C-RET` / `C-S-RET`, `C-c C-s` / `C-c C-d`,
 `C-c .`, `C-c C-q`, `C-c C-w`, `C-c C-x C-i` / `C-c C-x C-o`, `C-c C-l`,
-`C-c C-e`, `C-c '`, `C-c C-v e`, `C-c =`, `C-c -`, `C-c ^` and about 90 more.
+`C-c C-e`, `C-c '`, `C-c C-v e`, `C-c =`, `C-c -`, `C-c ^` and about 150 more.
 Context-sensitive keys behave as in Emacs (`C-c -` adds an hline in a table,
 cycles a bullet on an item and toggles an item elsewhere). Use a count in
 place of `C-u`: `4<C-c>.` inserts a timestamp with the time.
@@ -611,12 +631,13 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>*` / `<prefix>-` | Toggle heading / list item |
 | `cit` / `ciT` / `<prefix>S` | Next / previous / select TODO state |
 | `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; next/previous allowed property value; cycle bullet *(ctx)* |
-| `<S-Up>` `<S-Down>`, `<C-a>` `<C-x>` | Priority or timestamp part up/down; previous/next list item *(ctx)* |
+| `<S-Up>` `<S-Down>` | Priority or timestamp part up/down; previous/next list item; move table field *(ctx)* |
+| `<C-a>` `<C-x>` | Timestamp part or priority cookie up/down; numbers elsewhere *(ctx)* |
 | `<prefix>,` `t` `p` `P` | Priority / tags (Visual: add/remove a tag on each headline; count: realign all) / set property / delete property |
 | `<prefix>s` `d` `i.` `i!` | Schedule / deadline / active / inactive timestamp |
-| `<C-Space>`, `<prefix>#` | Toggle checkbox (Visual: every item; count 4: remove, 16: `[-]`) / update statistics cookies |
+| `<C-Space>`, `<prefix>#` | Toggle checkbox (Visual: every item; count 4: add/remove the box, 16: `[-]`) / update statistics cookies |
 | `<prefix>xi` `xo` `xq` `xj` | Clock in (count: pick from history) / out / cancel / goto |
-| `<prefix>xe` `xE` `xm` `xz` | Set effort / next allowed effort / change clocked effort / resolve dangling clocks |
+| `<prefix>xe` `xE` `xm` `xz` | Set effort / next allowed effort / change clocked effort / resolve open clocks |
 | `<prefix>xr` `xd` `xu` `xU` `C` | Insert clocktable / show clock sums / update dblock(s) / column view |
 | `<prefix>li` `ls` `lt` `ln` `lp` `lI` | Insert / store link, toggle link display, next/prev link, create ID |
 | `<prefix>lL` `lA` `lg` `ly` | Insert last / all stored links, go to ID, copy ID |
@@ -649,12 +670,15 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<S-Right>` / `<S-Left>` / `>` | date +1 / −1 / prompt | `e` / `<C-c><C-x>p` | effort / property |
 | `I` `O` `X` `J` | clock in / out / cancel / goto | `R` / `$` / `a` | refile / archive / archive with confirmation |
 | `<C-c><C-x>A` / `<C-c><C-x>a` | archive sibling / ARCHIVE tag | `<C-k>` / `<C-c><C-o>` | delete entry / open link |
-| `z` | add note | `c` | capture (at the date at point) |
+| `z` | add note | `K` / `c` | capture (at the date at point) / jump to a date from the calendar |
 | `l` `vL` / `C` | log mode (all) / clock report | `E` / `vG` | entry text / time grid |
-| `va` / `vA` / `v[` | archived trees / archive files / inactive timestamps | `/` `<` `=` `_` `^` `\|` | filter tag / category / regexp / effort / top headline / clear |
+| `va` / `vA` / `v[` | archived trees / archive files / inactive timestamps | `/` `\` `<` `=` `_` `^` `\|` | filter / filter tag / category / regexp / effort / top headline / clear |
 | `[` `]` `{` `}` | add +word / -word / +{re} / -{re} to the query | `n` / `p`, `<C-c><C-n/p>` | next / previous item, date line |
 | `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `<M-m>` `*` `<M-*>` `%` | toggle / mark all / toggle all / mark regexp |
-| `<C-x><C-s>` / `<C-x><C-w>` | save org buffers / export agenda | `q` / `x` | quit / quit and wipe |
+| `<C-x><C-s>` / `<C-x><C-w>` | save org buffers / export agenda | `q` / `Q` / `x` | quit / quit and wipe / exit (also closes files the agenda opened) |
+
+More agenda keys (habits, diary, follow mode, clock check, block
+navigation…): `g?` in the agenda or `:h org-agenda-keys`.
 
 </details>
 
@@ -663,7 +687,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 
 | Key | Capture | Edit src (`C-c '`) |
 | --- | --- | --- |
-| `<C-c><C-c>`, `<prefix>w`, `:w` | finalize | — |
+| `<C-c><C-c>`, `<prefix>w`, `:w` | finalize | — (`<C-c><C-c>`, `<prefix>e`: send to the block's `:session`) |
 | `<C-c>'`, `<prefix>'` | — | save and exit (`:w` writes back) |
 | `<C-c><C-k>`, `<prefix>k` | abort | abort |
 | `<C-c><C-w>`, `<prefix>r` | refile | — |
@@ -859,7 +883,7 @@ Emacs itself) was checked against org.nvim:
 
 | Lens | Parity | What it counts |
 | --- | --- | --- |
-| **Overall** | `▰▰▰▰▰▰▰▰▰▰` **99.9%** | Every command and option that can exist outside Emacs (1,805 of 1,932) |
+| **Overall** | `▰▰▰▰▰▰▰▰▰▰` **99.9%** | The 1,805 commands and options (of 1,932) that can exist outside Emacs; Emacs internals are left out |
 | **Strict** | `▰▰▰▰▰▰▰▰▰▰` **98.6%** | Also counts the 24 that need Emacs itself (Gnus, BBDB, eww, TRAMP, CDLaTeX...) |
 
 Before this round, the same measurement gave 76.6% overall and 74.3%
@@ -932,9 +956,11 @@ The main differences:
   diary file is read by the agenda, and `i` adds entries to it.
 - **Display:** image and LaTeX previews replace the link, but a terminal
   line can't grow, so a tall image continues in virtual lines under it,
-  and they need a terminal image backend; hiding body text between
-  visible headlines and drawing multi-line fragments in place need
-  Neovim 0.11 (`conceal_lines`).
+  and they need a terminal image backend. Multi-line fragments are drawn
+  in place by hiding their other lines (with image.nvim they stay under
+  the line). In indent mode, wrapped rows don't get the virtual
+  indentation, and emphasis doesn't nest inside the same emphasis or
+  inside verbatim.
 - **Point vs cursor:** Emacs acts between characters, Normal mode on a
   character, so commands that insert "at point" act at the end of the line
   in Normal mode (at the cursor in Insert mode).
@@ -998,7 +1024,8 @@ its options may still change):
   handlers and a Graphviz node graph, over a JSON index that updates
   incrementally. Its keys live under `<prefix>m` (`<prefix>mf` finds a
   node, `<prefix>mi` inserts one, `<prefix>ml` toggles the backlinks
-  window, `<prefix>md…` the dailies) (`:h org-extensions-roam`).
+  window, `<prefix>mj` captures to today's daily note and `<prefix>md…`
+  goes to the dailies) (`:h org-extensions-roam`).
 
   ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/roam.gif)
 
@@ -1166,7 +1193,7 @@ its options may still change):
 
 ---
 
-## 🗺️ Roadmap
+## 🧭 Roadmap
 
 The [parity inventory](#-parity-with-emacs-org) leaves only two options
 partial (`calc_default_modes` and Common Lisp's evaluator, which is `sbcl`
@@ -1194,7 +1221,8 @@ screen; ol-bibtex; Org-aware `=` indentation and `gq` filling; the agenda's
 remote undo, hour and minute date shifts and `i` diary entries;
 alphabetical list bullets; the org-goto outline browser; the Org, table and
 agenda menus and org-mouse; clipboard image paste; org-ctags. In all, 163
-commands and 329 options that were missing or partial now work like Emacs.
+commands and 329 options that were missing, partial or thought to need
+Emacs now work like Emacs.
 Since then, the [extensions](#-extensions) `present`, `ql`, `roam` and
 `super_agenda` have landed.
 Sixteen more followed: `lsp`, `kanban`, `timeline`, `heatmap`,
@@ -1221,7 +1249,7 @@ suite, so it's easy to get started:
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # run all specs headlessly
 make test SPEC=tests/spec/agenda_spec.lua # one spec
-make lint                                 # stylua --check
+make lint                                 # stylua --check + source lint rules
 ```
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) explains how the code is organised
