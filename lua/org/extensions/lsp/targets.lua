@@ -111,11 +111,11 @@ function M.index(file)
   end
   local skip = ignored(file)
   for lnum, line in ipairs(file.lines) do
-    local name = line:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+(.-)[ \t]*$")
+    -- the value's column: the name may also spell the keyword (#+name: name)
+    local s, name = line:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+()(.-)[ \t]*$")
     if name and name ~= "" then
       local k = M.key(name)
       if not idx.names[k] then
-        local s = line:find(name, 1, true)
         idx.names[k] = { lnum = lnum, s = s, e = s + #name - 1, text = name }
       end
     elseif not skip[lnum] and line:find("<<", 1, true) then
@@ -749,9 +749,8 @@ function M.subject_at(doc, lnum, col)
     local r = radio.target
     return { kind = "radio", path = doc.path, lnum = r.lnum, s = r.s, e = r.e, name = r.text }
   end
-  local name = line:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+(.-)[ \t]*$")
+  local s, name = line:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+()(.-)[ \t]*$")
   if name and name ~= "" then
-    local s = line:find(name, 1, true)
     return { kind = "name", path = doc.path, lnum = lnum, s = s, e = s + #name - 1, name = name }
   end
   local hl = doc.file:headline_at(lnum)
