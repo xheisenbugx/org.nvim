@@ -3148,7 +3148,10 @@ relative to the database with `id.locations_file_relative`
 it from the agenda files, their archive files (`id.search_archives`,
 default true), `id.extra_files`, the loaded org buffers and the files
 already known; an ID that is not where the database says triggers the same
-scan. Refiled and archived entries are recorded at their new place.
+scan. The database also records what each file held when it was last
+scanned (a `" org.nvim-scan"` member in JSON, a `; org.nvim-scan:`
+comment in Emacs's format, which Emacs ignores), so a rebuild reads again
+only the files whose modification time or size changed. Refiled and archived entries are recorded at their new place.
 New IDs follow `id.method` (org-id-method): "uuid" (default), "ts" (a time
 stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).

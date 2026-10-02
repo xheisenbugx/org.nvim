@@ -242,6 +242,148 @@ describe("roam lookup after one file changes", function()
   end)
 end)
 
+describe("incremental ID scan", function()
+  local id = require("org.id")
+  local config = require("org.config")
+  local utils = require("org.utils")
+  local files = require("org.files")
+  local dir, get
+  before_each(function()
+    dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    dir = utils.realpath(dir)
+    get = files.get
+    vim.cmd("enew!")
+    vim.cmd("silent! %bwipeout!")
+  end)
+  after_each(function()
+    files.get = get
+    config.setup({})
+    id._reset()
+    vim.fn.delete(dir, "rf")
+  end)
+
+  local function setup(db)
+    config.setup({
+      org_directory = dir,
+      agenda_files = { dir .. "/*.org" },
+      id = { locations_file = db or (dir .. "/ids.json") },
+    })
+    id._reset()
+  end
+
+  -- the files parsed during `fn`
+  local function parsed(fn)
+    local out = {}
+    files.get = function(p)
+      out[#out + 1] = vim.fs.basename(p)
+      return get(p)
+    end
+    fn()
+    files.get = get
+    table.sort(out)
+    return out
+  end
+
+  local function entry(id_)
+    return { "* H", ":PROPERTIES:", ":ID: " .. id_, ":END:" }
+  end
+
+  local function bump(path)
+    local st = vim.uv.fs_stat(path)
+    vim.uv.fs_utime(path, st.atime.sec, st.mtime.sec + 5)
+  end
+
+  it("reads again only the files that changed, also in a new session", function()
+    local a, b = dir .. "/a.org", dir .. "/b.org"
+    utils.writefile(a, entry("a1"))
+    utils.writefile(b, entry("b1"))
+    utils.writefile(dir .. "/a.org_archive", entry("old"))
+    setup()
+    local n
+    eq(
+      { "a.org", "a.org_archive", "b.org" },
+      parsed(function()
+        n = id.update_locations()
+      end)
+    )
+    eq(3, n)
+    -- a new session: the scan comes from the database
+    id._reset()
+    files.invalidate()
+    eq(
+      {},
+      parsed(function()
+        n = id.update_locations()
+      end)
+    )
+    eq(3, n)
+    eq(b, utils.read_json(dir .. "/ids.json").b1)
+    -- a changed file (same size, other mtime) is read again
+    utils.writefile(b, entry("b2"))
+    bump(b)
+    id._reset()
+    files.invalidate()
+    eq(
+      { "b.org" },
+      parsed(function()
+        n = id.update_locations()
+      end)
+    )
+    local map = utils.read_json(dir .. "/ids.json")
+    eq(b, map.b2)
+    eq(nil, map.b1)
+    -- a deleted file drops its ids
+    vim.fn.delete(a)
+    eq(2, id.update_locations())
+    eq(nil, utils.read_json(dir .. "/ids.json").a1)
+  end)
+
+  it("reads a loaded buffer, with its unsaved changes", function()
+    local a = dir .. "/a.org"
+    utils.writefile(a, entry("a1"))
+    setup()
+    eq(1, id.update_locations())
+    vim.cmd("edit " .. a)
+    vim.api.nvim_buf_set_lines(0, 2, 3, false, { ":ID: unsaved" })
+    eq(1, id.update_locations())
+    eq({ "unsaved" }, id.known_ids())
+    vim.cmd("edit! " .. a)
+    vim.cmd("silent! %bwipeout!")
+    eq(1, id.update_locations())
+    eq({ "a1" }, id.known_ids())
+  end)
+
+  it("keeps the database readable as a plain map and in Emacs's format", function()
+    local a = dir .. "/a.org"
+    utils.writefile(a, entry("a1"))
+    -- a database written before the scan was stored
+    utils.write_json(dir .. "/ids.json", { a1 = a })
+    setup()
+    eq({ "a1" }, id.known_ids())
+    id.update_locations()
+    id._reset()
+    eq({ "a1" }, id.known_ids())
+    -- Emacs's format: the scan is a comment, which its reader skips
+    local db = dir .. "/.org-id-locations"
+    utils.writefile(db, { "", '(("' .. a .. '" "a1"))' })
+    setup(db)
+    id.update_locations()
+    local text = table.concat(utils.readfile(db), "\n")
+    ok(text:find("\n; org.nvim-scan: ", 1, true), text)
+    eq({ a1 = a }, id.parse_emacs_locations(text, dir))
+    id._reset()
+    files.invalidate()
+    eq(
+      {},
+      parsed(function()
+        id.update_locations()
+      end)
+    )
+    eq({ "a1" }, id.known_ids())
+  end)
+end)
+
 describe("open clock cache", function()
   local clock = require("org.clock")
   local date = require("org.date")
