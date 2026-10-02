@@ -496,19 +496,47 @@ function M.open_buffer_window(buf, mode, opts)
   opts = opts or {}
   mode = mode or require("org.config").opts.win_split_mode or "float"
   if mode == "float" then
-    local width = math.floor(vim.o.columns * (opts.width or 0.8))
-    local height = math.floor(vim.o.lines * (opts.height or 0.7))
-    return vim.api.nvim_open_win(buf, true, {
-      relative = "editor",
-      width = width,
-      height = height,
-      row = math.floor((vim.o.lines - height) / 2) - 1,
-      col = math.floor((vim.o.columns - width) / 2),
-      border = require("org.config").opts.win_border or "rounded",
-      title = opts.title and (" " .. opts.title .. " ") or nil,
-      title_pos = opts.title and "center" or nil,
-      zindex = 50,
+    -- the size and position follow the editor: computed again on VimResized
+    -- (as the extension views do), so the float stays centred and on screen
+    local function geometry()
+      local width = math.max(math.min(math.floor(vim.o.columns * (opts.width or 0.8)), vim.o.columns - 2), 1)
+      local height = math.max(math.min(math.floor(vim.o.lines * (opts.height or 0.7)), vim.o.lines - 4), 1)
+      return {
+        relative = "editor",
+        width = width,
+        height = height,
+        row = math.max(math.floor((vim.o.lines - height) / 2) - 1, 0),
+        col = math.max(math.floor((vim.o.columns - width) / 2), 0),
+      }
+    end
+    local cfg = geometry()
+    cfg.border = require("org.config").opts.win_border or "rounded"
+    cfg.title = opts.title and (" " .. opts.title .. " ") or nil
+    cfg.title_pos = opts.title and "center" or nil
+    cfg.zindex = 50
+    local win = vim.api.nvim_open_win(buf, true, cfg)
+    local group = vim.api.nvim_create_augroup("org.ui.float." .. win, { clear = true })
+    vim.api.nvim_create_autocmd("VimResized", {
+      group = group,
+      callback = function()
+        if not vim.api.nvim_win_is_valid(win) then
+          pcall(vim.api.nvim_del_augroup_by_id, group)
+          return
+        end
+        pcall(vim.api.nvim_win_set_config, win, geometry())
+      end,
     })
+    vim.api.nvim_create_autocmd("WinClosed", {
+      group = group,
+      pattern = tostring(win),
+      once = true,
+      callback = function()
+        vim.schedule(function()
+          pcall(vim.api.nvim_del_augroup_by_id, group)
+        end)
+      end,
+    })
+    return win
   elseif mode == "split" then
     vim.cmd("botright split")
   elseif mode == "vsplit" then
