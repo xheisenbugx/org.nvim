@@ -1,0 +1,3549 @@
+<div id="table-of-contents-1" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents-1" role="doc-toc">
+<ul>
+<li><a href="#org15303e2">1. How to use this file</a>
+<ul>
+<li><a href="#org42f874c">1.1. Where does the output go?</a></li>
+<li><a href="#org38bae4b">1.2. Why the samples are subtrees</a></li>
+<li><a href="#orgefbd59a">1.3. Keys in this file</a></li>
+</ul>
+</li>
+<li><a href="#org6d2fcfd">2. The export dispatcher</a>
+<ul>
+<li><a href="#org203ff68">2.1. Sample: first export</a>
+<ul>
+<li><a href="#orgd42c180">2.1.1. A child heading</a></li>
+</ul>
+</li>
+<li><a href="#org90eb13a">2.2. Exercises: first export</a></li>
+<li><a href="#orgbdd1cd6">2.3. Visible only</a></li>
+<li><a href="#org80a4529">2.4. Sample: visible only</a>
+<ul>
+<li><a href="#org3ec8003">2.4.1. Section one</a></li>
+<li><a href="#org302e170">2.4.2. Section two</a></li>
+</ul>
+</li>
+<li><a href="#org73cb48e">2.5. Exercises: visible only</a></li>
+<li><a href="#org8f24d88">2.6. Async</a></li>
+<li><a href="#orgd39765f">2.7. The settings template (<code>#</code>)</a>
+<ul>
+<li><a href="#orgfe04580">2.7.1. Scratch heading for the template</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#org4ee7b52">3. Back-ends and the tools they need</a></li>
+<li><a href="#org9c43852">4. Document keywords: title, author, date, &hellip;</a>
+<ul>
+<li><a href="#orgd279195">4.1. Sample: title block</a></li>
+<li><a href="#orgd5de3e7">4.2. Exercises: title block</a></li>
+<li><a href="#orgf5f9677">4.3. Sample: another language</a>
+<ul>
+<li><a href="#orgc0c2d3a">4.3.1. Première partie</a></li>
+</ul>
+</li>
+<li><a href="#orgd782e4f">4.4. Exercises: another language</a></li>
+</ul>
+</li>
+<li><a href="#orgb9b8308">5. #+OPTIONS: the export switches</a>
+<ul>
+<li><a href="#org439ff3f">5.1. Sample: toc, num and H</a>
+<ul>
+<li><a href="#org3c0e124">5.1.1. Chapter</a></li>
+<li><a href="#org6f725ab">5.1.2. Another chapter</a></li>
+</ul>
+</li>
+<li><a href="#org0075a55">5.2. Exercises: toc, num and H</a></li>
+<li><a href="#org8f07deb">5.3. Sample: sub- and superscripts</a></li>
+<li><a href="#org28721b7">5.4. Exercises: sub- and superscripts</a></li>
+<li><a href="#org652c872">5.5. Sample: tags, TODO keywords and priorities</a>
+<ul>
+<li><a href="#orgaa3a7e6">5.5.1. <span class="todo TODO">TODO</span> Write the report&nbsp;&nbsp;&nbsp<span class="tag"><span class="work">work</span></span></a></li>
+<li><a href="#orgb6fc2e2">5.5.2. <span class="done DONE">DONE</span> Book the room&nbsp;&nbsp;&nbsp<span class="tag"><span class="office">office</span></span></a></li>
+<li><a href="#org7586be0">5.5.3. <span class="todo NEXT">NEXT</span> Plan the offsite <code>[1/2]</code></a></li>
+</ul>
+</li>
+<li><a href="#org7dd00ed">5.6. Exercises: tags, TODO keywords and priorities</a></li>
+<li><a href="#orgab33211">5.7. Sample: drawers, planning, clocks and timestamps</a>
+<ul>
+<li><a href="#org4b1d8d6">5.7.1. <span class="done DONE">DONE</span> Ship the release</a></li>
+</ul>
+</li>
+<li><a href="#org063e364">5.8. Exercises: drawers, planning, clocks and timestamps</a></li>
+<li><a href="#orgcf0df04">5.9. Sample: line breaks, quotes, special strings</a></li>
+<li><a href="#orgf3826f5">5.10. Exercises: line breaks, quotes, special strings</a></li>
+<li><a href="#org15298e3">5.11. Sample: what to leave out entirely</a></li>
+<li><a href="#org305e714">5.12. Exercises: what to leave out entirely</a></li>
+</ul>
+</li>
+<li><a href="#orgce08296">6. Choosing what is exported</a>
+<ul>
+<li><a href="#org331091e">6.1. Tags: noexport and export</a></li>
+<li><a href="#org1af4fa9">6.2. Sample: noexport</a>
+<ul>
+<li><a href="#org4787c0a">6.2.1. Kept</a></li>
+<li><a href="#org6f52acd">6.2.2. Also kept</a></li>
+</ul>
+</li>
+<li><a href="#org8407224">6.3. Exercises: noexport</a></li>
+<li><a href="#org58c3b7f">6.4. Sample: select tags</a>
+<ul>
+<li><a href="#org0288272">6.4.1. Chosen&nbsp;&nbsp;&nbsp<span class="tag"><span class="keep">keep</span></span></a></li>
+<li><a href="#orgc8654cb">6.4.2. Not chosen</a></li>
+<li><a href="#org05b67b0">6.4.3. Chosen but secret&nbsp;&nbsp;&nbsp<span class="tag"><span class="keep">keep</span>&nbsp;<span class="secret">secret</span></span></a></li>
+</ul>
+</li>
+<li><a href="#orge7575d4">6.5. Exercises: select tags</a></li>
+<li><a href="#orgd7ba314">6.6. Sample: COMMENT headings, comment lines and blocks</a>
+<ul>
+<li><a href="#org61274c1">6.6.1. Finished part</a></li>
+</ul>
+</li>
+<li><a href="#org92ca345">6.7. Exercises: COMMENT headings, comment lines and blocks</a></li>
+<li><a href="#org2f1a4d1">6.8. Sample: archived trees</a>
+<ul>
+<li><a href="#org13ee02c">6.8.1. Current work</a></li>
+<li><a href="#org9d95138">6.8.2. Old project&nbsp;&nbsp;&nbsp<span class="tag"><span class="ARCHIVE">ARCHIVE</span></span></a></li>
+</ul>
+</li>
+<li><a href="#orga155296">6.9. Exercises: archived trees</a></li>
+</ul>
+</li>
+<li><a href="#orgfb87ab7">7. Subtree properties (EXPORT<sub>*</sub>)</a>
+<ul>
+<li><a href="#org4373b75">7.1. Sample: a subtree is its own document</a></li>
+<li><a href="#org4bff50b">7.2. Exercises: a subtree is its own document</a></li>
+</ul>
+</li>
+<li><a href="#org6f030dd">8. Table of contents</a>
+<ul>
+<li><a href="#org908c9ee">8.1. Sample: tables of contents</a>
+<ul>
+<li><a href="#org254b633">Preface</a></li>
+<li><a href="#orgde4cbdf">8.1.1. Setup</a></li>
+</ul>
+</li>
+<li><a href="#orgb161ddd">8.2. Exercises: tables of contents</a></li>
+</ul>
+</li>
+<li><a href="#org53d342f">9. Captions, names and cross-references</a>
+<ul>
+<li><a href="#orgb02189e">9.1. Sample: cross-references</a>
+<ul>
+<li><a href="#data">9.1.1. Data</a></li>
+<li><a href="#org2c62ff8">9.1.2. Discussion</a></li>
+</ul>
+</li>
+<li><a href="#orgb25e94c">9.2. Exercises: cross-references</a></li>
+</ul>
+</li>
+<li><a href="#org6669e35">10. Footnotes in export</a>
+<ul>
+<li><a href="#org2a5f35e">10.1. Sample: footnotes</a></li>
+<li><a href="#orgb33855c">10.2. Exercises: footnotes</a></li>
+</ul>
+</li>
+<li><a href="#orge018dd6">11. Macros</a>
+<ul>
+<li><a href="#orgc0a76d1">11.1. Sample: macros</a>
+<ul>
+<li><a href="#orgf4ea8d8">11.1.1. Owned part</a></li>
+</ul>
+</li>
+<li><a href="#orge7af779">11.2. Exercises: macros</a></li>
+</ul>
+</li>
+<li><a href="#orgcf84e55">12. Raw output for one back-end</a>
+<ul>
+<li><a href="#orge157646">12.1. Sample: snippets and export blocks</a></li>
+<li><a href="#org2d447e2">12.2. Exercises: snippets and export blocks</a></li>
+</ul>
+</li>
+<li><a href="#org254f1b8">13. HTML specifics: #+ATTR<sub>HTML</sub> and #+HTML<sub>HEAD</sub></a>
+<ul>
+<li><a href="#orgbd9c273">13.1. Sample: HTML attributes</a></li>
+<li><a href="#org96aa1f2">13.2. Exercises: HTML attributes</a></li>
+</ul>
+</li>
+<li><a href="#orgc1855ad">14. LaTeX and PDF specifics</a>
+<ul>
+<li><a href="#org13650df">14.1. Sample: LaTeX attributes</a></li>
+<li><a href="#orgc16cabf">14.2. Exercises: LaTeX attributes</a></li>
+</ul>
+</li>
+<li><a href="#org42d1764">15. Beamer slides</a>
+<ul>
+<li><a href="#orgc6ed6d3">15.1. Sample: slides</a>
+<ul>
+<li><a href="#org8b4ae79">15.1.1. First slide</a></li>
+<li><a href="#org8d32f2f">15.1.2. Two columns</a></li>
+</ul>
+</li>
+<li><a href="#org6c19a37">15.2. Exercises: slides</a></li>
+</ul>
+</li>
+<li><a href="#org2580b9d">16. Markdown, GFM, plain text and Org</a>
+<ul>
+<li><a href="#orgc2b38a0">16.1. Sample: a table and code everywhere</a></li>
+<li><a href="#orga1bac53">16.2. Exercises: a table and code everywhere</a></li>
+</ul>
+</li>
+<li><a href="#orga657571">17. #+INCLUDE: pulling in other files</a>
+<ul>
+<li><a href="#orgf7b6e2d">17.1. Sample: include</a></li>
+<li><a href="#orgbb3e03c">17.2. Exercises: include</a></li>
+</ul>
+</li>
+<li><a href="#org5f1eceb">18. Source blocks and :exports</a>
+<ul>
+<li><a href="#org4371cd3">18.1. Sample: exports</a></li>
+<li><a href="#orgde53b9c">18.2. Exercises: exports</a></li>
+</ul>
+</li>
+<li><a href="#org5b7a29e">19. Citations</a>
+<ul>
+<li><a href="#orgeb4a2da">19.1. Sample: citations</a></li>
+<li><a href="#orgf7db64b">19.2. Exercises: citations</a></li>
+</ul>
+</li>
+<li><a href="#org617150d">20. Broken links</a>
+<ul>
+<li><a href="#orgb9faf03">20.1. Sample: broken links</a></li>
+<li><a href="#org72f1af6">20.2. Exercises: broken links</a></li>
+</ul>
+</li>
+<li><a href="#org4554367">21. iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)</a>
+<ul>
+<li><a href="#org11739dd">21.1. Sample: calendar entries</a>
+<ul>
+<li><a href="#org77b5df6">21.1.1. Team meeting</a></li>
+<li><a href="#org195a8e5">21.1.2. Submit the report</a></li>
+</ul>
+</li>
+<li><a href="#org537a46d">21.2. Exercises: calendar entries</a></li>
+</ul>
+</li>
+<li><a href="#org0acc137">22. Publishing projects</a></li>
+<li><a href="#org0373b60">23. Configuring defaults</a></li>
+<li><a href="#orge3c0000">24. Further reading</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org15303e2" class="outline-2">
+<h2 id="org15303e2"><span class="section-number-2">1.</span> How to use this file</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Export turns an Org file (or one subtree of it) into another format: HTML,
+LaTeX/PDF, Beamer slides, Markdown, plain text, ODT, iCalendar, Texinfo,
+Org, or anything pandoc can write. This file walks through the dispatcher,
+every back-end, the export settings and the markup that only matters on
+export, with sample subtrees you export yourself and compare with the
+output quoted here.
+</p>
+
+<ul class="org-ul">
+<li>The file opens folded (<code>#+STARTUP: overview</code>). <code>&lt;Tab&gt;</code> on a heading opens
+it, <code>&lt;S-Tab&gt;</code> cycles the whole buffer.</li>
+<li><code>u</code> undoes anything; <code>git checkout examples/19-export.org</code> restores the
+file.</li>
+<li><code>g?</code> lists every key of the current buffer. <code>&lt;prefix&gt;</code> is <code>&lt;leader&gt;o</code>
+(with the bundled init, <code>&lt;Space&gt;o</code>). Emacs keys work too: <code>C-c C-e</code> is the
+dispatcher.</li>
+<li>Lines starting with <b>Try:</b> are exercises, <b>Expect:</b> says what you should
+see. Lines starting with =# = (hash, space) are comments: they explain
+the examples and are never exported.</li>
+</ul>
+
+<p>
+Start Neovim from the repo root with the bundled init, which keeps your own
+config and notes out of the way:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/19-export.org
+</code></pre>
+</div>
+
+<p>
+(<code>examples/minimal_init.lua</code> sets the agenda files to <code>examples/*.org</code>, puts
+captures in a scratch directory under <code>stdpath("state")</code> and defines a few
+capture templates and agenda commands; none of that matters for export.)
+</p>
+</div>
+<div id="outline-container-org42f874c" class="outline-3">
+<h3 id="org42f874c"><span class="section-number-3">1.1.</span> Where does the output go?</h3>
+<div class="outline-text-3" id="text-1-1">
+<ul class="org-ul">
+<li><b>To a buffer</b> (the capital-letter keys: <code>h H</code>, <code>m M</code>, <code>t A</code>, <code>t U</code>,
+<code>l L</code>, <code>l B</code>, <code>O O</code>, <code>m G</code>): the result opens in a vertical split, in a
+scratch buffer named like "Org HTML Export #12". Nothing is written to
+disk; close it with <code>:q</code>. <b>All exercises in this file use these keys.</b></li>
+<li><b>To a file</b> (lower-case keys: <code>h h</code>, <code>m m</code>, <code>t a</code>, <code>l l</code>, <code>o o</code>, &hellip;):
+the file is written <b>next to this one, inside the repo</b>
+(<code>examples/19-export.html</code> and friends, or <code>#+EXPORT_FILE_NAME</code>). Only a
+few exercises do that and they say so; delete the files afterwards
+(<code>git status</code> shows them as untracked) or set <code>export.output_dir</code> in
+your config to send them elsewhere.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org38bae4b" class="outline-3">
+<h3 id="org38bae4b"><span class="section-number-3">1.2.</span> Why the samples are subtrees</h3>
+<div class="outline-text-3" id="text-1-2">
+<p>
+Almost every exercise exports <b>one subtree</b>: put the cursor anywhere inside
+a heading called "Sample: &hellip;" and press <code>&lt;prefix&gt;e s</code> first (<code>s</code> toggles
+"export scope = subtree"), then the back-end keys. A subtree export:
+</p>
+<ul class="org-ul">
+<li>uses only the body of that heading: its children become the top-level
+sections of the output, and the heading itself is not a section;</li>
+<li>reads <code>EXPORT_*</code> properties from the heading's <code>:PROPERTIES:</code> drawer
+(<code>EXPORT_TITLE</code>, <code>EXPORT_OPTIONS</code>, &hellip;). They override the <code>#+...</code>
+keywords of the file, so every sample carries its own settings.</li>
+</ul>
+
+<p>
+<b>Important:</b> <code>#+TITLE:</code>, <code>#+OPTIONS:</code>, <code>#+HTML_HEAD:</code> and the other
+settings keywords apply to the <b>whole file</b>, wherever they are written,
+even when you export only a subtree. That is why this file shows
+file-level keywords inside <code>#+begin_src org</code> blocks (those are just code)
+and uses <code>EXPORT_*</code> properties for the samples. The only live settings
+keywords are the few at the top of this file and the <code>#+MACRO:</code> lines of
+the macros sample.
+</p>
+
+<p>
+Each "Sample: &hellip;" heading is followed by an "Exercises: &hellip;" heading with
+the <b>Try:</b> / <b>Expect:</b> steps. Keep the cursor <b>inside the sample</b> when you
+export: with the cursor in the Exercises heading you would export the
+exercise text instead.
+</p>
+</div>
+</div>
+<div id="outline-container-orgefbd59a" class="outline-3">
+<h3 id="orgefbd59a"><span class="section-number-3">1.3.</span> Keys in this file</h3>
+<div class="outline-text-3" id="text-1-3">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Keys</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;e</code> (<code>C-c C-e</code>)</td>
+<td class="org-left">open the export dispatcher</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>s</code> <code>b</code> <code>v</code> <code>a</code></td>
+<td class="org-left">toggles: subtree, body only, visible, async</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>h H</code> / <code>m M</code> / <code>m G</code></td>
+<td class="org-left">HTML / Markdown / GFM to a buffer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>t A</code> / <code>t U</code> / <code>t L</code></td>
+<td class="org-left">ASCII / UTF-8 / Latin-1 text to a buffer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>l L</code> / <code>l B</code> / <code>O O</code></td>
+<td class="org-left">LaTeX / Beamer / Org to a buffer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#</code></td>
+<td class="org-left">insert the export settings template</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;Esc&gt;</code></td>
+<td class="org-left">close the dispatcher</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org export ...</code></td>
+<td class="org-left">exports without the menu (see below)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;Tab&gt;</code>, <code>&lt;S-Tab&gt;</code></td>
+<td class="org-left">fold / unfold (matters for <code>v</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;'</code> (<code>C-c '</code>)</td>
+<td class="org-left">edit a source or export block in a split</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="outline-container-org6d2fcfd" class="outline-2">
+<h2 id="org6d2fcfd"><span class="section-number-2">2.</span> The export dispatcher</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+<code>&lt;prefix&gt;e</code> (Emacs <code>C-c C-e</code>) opens a small menu. Each line shows a key in
+brackets; press the key, no <code>&lt;CR&gt;</code> needed. Keys with <code>…</code> open a sub-menu.
+</p>
+
+<p>
+The first four lines are <b>toggles</b>. Pressing one redraws the menu with the
+new value, so you can combine them before choosing a format:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Toggle</th>
+<th scope="col" class="org-left">Effect when on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>b</code></td>
+<td class="org-left">body only</td>
+<td class="org-left">no preamble: no <code>&lt;html&gt;=/=&lt;head&gt;</code>, no</td>
+</tr>
+
+<tr>
+<td class="org-left">&nbsp;</td>
+<td class="org-left">&nbsp;</td>
+<td class="org-left"><code>\documentclass</code>, no title block</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>s</code></td>
+<td class="org-left">export scope</td>
+<td class="org-left">"subtree": only the subtree at the cursor</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>v</code></td>
+<td class="org-left">visible only</td>
+<td class="org-left">skip what is folded right now</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>a</code></td>
+<td class="org-left">async (PDF)</td>
+<td class="org-left">compile PDFs in the background (see below)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Then one line per back-end (<code>h</code> HTML, <code>l</code> LaTeX/Beamer/PDF, <code>m</code> Markdown,
+<code>t</code> plain text, <code>O</code> Org, <code>o</code> ODT, <code>d</code> DOCX, <code>i</code> Texinfo, <code>c</code> iCalendar,
+<code>P</code> publish, <code>p</code> any pandoc format) and <code>#</code> (insert the settings template).
+The toggles are reset every time you open the dispatcher.
+</p>
+
+<p>
+The same exports without the menu, as an Ex command (the words after the
+format are optional and can be in any order):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-vim"><code>:Org export html subtree buffer      " like &lt;prefix&gt;e s h H
+:Org export md subtree body buffer   " subtree, body only, to a buffer
+:Org export ascii visible buffer     " only what is unfolded
+:Org export latex                    " whole file to examples/19-export.tex
+:Org export pdf async open           " compile in the background, then open
+:Org export                          " no format: opens the dispatcher
+</code></pre>
+</div>
+
+<p>
+And from Lua (handy for mappings and scripts): <code>to_string</code> returns the text
+and writes nothing, <code>export</code> behaves like the dispatcher.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>local exp = require("org.export")
+local md = exp.to_string("md", { body_only = true })  -- whole buffer
+local line = vim.api.nvim_win_get_cursor(0)[1]
+local txt = exp.to_string("ascii", { subtree_line = line })
+exp.export("html", { subtree = true, to_buffer = true })
+exp.export("md", { output = "/tmp/notes.md" })   -- choose the file
+</code></pre>
+</div>
+</div>
+<div id="outline-container-org203ff68" class="outline-3">
+<h3 id="org203ff68"><span class="section-number-3">2.1.</span> Sample: first export</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+Hello from a <b>subtree</b>. It has <i>emphasis</i>, <code>verbatim</code> and a <a href="https://neovim.io">link</a>.
+</p>
+</div>
+<div id="outline-container-orgd42c180" class="outline-4">
+<h4 id="orgd42c180"><span class="section-number-4">2.1.1.</span> A child heading</h4>
+<div class="outline-text-4" id="text-2-1-1">
+<p>
+Children of the sample become the top-level headings of the output.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org90eb13a" class="outline-3">
+<h3 id="org90eb13a"><span class="section-number-3">2.2.</span> Exercises: first export</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+<b>Try:</b> put the cursor on the line "Hello from a subtree" in the sample
+above. Press <code>&lt;prefix&gt;e</code>, then <code>s</code> (the menu now says "export scope =
+subtree"), then <code>m</code>, then <code>M</code>.
+</p>
+
+<p>
+<b>Expect:</b> a vertical split with a Markdown buffer. Its whole content is:
+</p>
+
+<pre class="example" id="orgd81a00d">
+Hello from a **subtree**. It has *emphasis*, `verbatim` and a [link](https://neovim.io).
+
+
+# A child heading
+
+Children of the sample become the top-level headings of the output.
+</pre>
+
+<p>
+The comment line (<code># This is the body ...</code>) is not there, and Markdown has
+no title block, so <code>EXPORT_TITLE</code> and <code>EXPORT_AUTHOR</code> are not visible.
+Close the split with <code>:q</code>.
+</p>
+
+<p>
+<b>Try:</b> same subtree, <code>&lt;prefix&gt;e s t A</code> (plain ASCII to a buffer).
+</p>
+
+<p>
+<b>Expect:</b> now the title and author are centered at the top, and the link
+target is listed as a note after the paragraph:
+</p>
+
+<pre class="example" id="orgbc77e6e">
+                           _________________
+
+                            MY FIRST EXPORT
+
+                                  Ada
+                           _________________
+
+
+Hello from a *subtree*. It has /emphasis/, `verbatim' and a [link].
+
+
+[link] &lt;https://neovim.io&gt;
+
+
+A child heading
+===============
+
+  Children of the sample become the top-level headings of the output.
+</pre>
+
+<p>
+<b>Try:</b> same subtree, <code>&lt;prefix&gt;e s b h H</code> (subtree, <b>body only</b>, HTML).
+</p>
+
+<p>
+<b>Expect:</b> no <code>&lt;!DOCTYPE&gt;</code>, <code>&lt;head&gt;</code> or title, just the body:
+</p>
+
+<pre class="example" id="orge5cb850">
+&lt;p&gt;
+Hello from a &lt;b&gt;subtree&lt;/b&gt;. It has &lt;i&gt;emphasis&lt;/i&gt;, &lt;code&gt;verbatim&lt;/code&gt; and a &lt;a href="https://neovim.io"&gt;link&lt;/a&gt;.
+&lt;/p&gt;
+&lt;div id="outline-container-org6793350" class="outline-2"&gt;
+&lt;h2 id="org6793350"&gt;A child heading&lt;/h2&gt;
+</pre>
+
+<p>
+(The <code>org6793350</code> ids are computed from the content, so they are the same
+on every export and change only when you edit the text.)
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e h H</code> <b>without</b> <code>s</code>: the whole file is exported. Search
+the HTML buffer for <code>My first export</code> with <code>/</code>: it is not found, because
+<code>EXPORT_TITLE</code> only applies to subtree exports; the <code>&lt;title&gt;</code> is now
+"Export: hands-on examples", from the <code>#+TITLE:</code> line at the top.
+</p>
+
+<p>
+<b>Try:</b> <code>:Org export md subtree buffer</code> with the cursor in the sample: the
+same Markdown buffer as the first exercise, without the menu.
+</p>
+</div>
+</div>
+<div id="outline-container-orgbdd1cd6" class="outline-3">
+<h3 id="orgbdd1cd6"><span class="section-number-3">2.3.</span> Visible only</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+With <code>v</code> on, whatever is folded at that moment is left out: fold a
+subtree with <code>&lt;Tab&gt;</code> and its body disappears from the output (its heading
+line is visible, so it stays). Useful to export "just the outline" or to
+hide parts temporarily.
+</p>
+
+<p>
+Combined with <code>s</code>, only the visible part of the subtree is exported; if
+the subtree's own heading is folded, its body is empty (Emacs does the
+same).
+</p>
+</div>
+</div>
+<div id="outline-container-org80a4529" class="outline-3">
+<h3 id="org80a4529"><span class="section-number-3">2.4.</span> Sample: visible only</h3>
+<div class="outline-text-3" id="text-2-4">
+<p>
+The intro paragraph is always visible.
+</p>
+</div>
+<div id="outline-container-org3ec8003" class="outline-4">
+<h4 id="org3ec8003"><span class="section-number-4">2.4.1.</span> Section one</h4>
+<div class="outline-text-4" id="text-2-4-1">
+<p>
+Text of section one.
+</p>
+</div>
+</div>
+<div id="outline-container-org302e170" class="outline-4">
+<h4 id="org302e170"><span class="section-number-4">2.4.2.</span> Section two</h4>
+<div class="outline-text-4" id="text-2-4-2">
+<p>
+Text of section two.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org73cb48e" class="outline-3">
+<h3 id="org73cb48e"><span class="section-number-3">2.5.</span> Exercises: visible only</h3>
+<div class="outline-text-3" id="text-2-5">
+<p>
+<b>Try:</b> open the sample above so you see both sections, then fold "Section
+one" with <code>&lt;Tab&gt;</code> on its heading. Press <code>&lt;prefix&gt;e v t A</code> (no <code>s</code>: the
+whole file, visible parts only). In the output, search with
+<code>/The intro paragraph</code>.
+</p>
+
+<p>
+<b>Expect:</b> the fold state of the whole file decides. Around the search hit
+you find (section numbers depend on what else is open):
+</p>
+
+<pre class="example" id="orgfee8a47">
+  The intro paragraph is always visible.
+
+
+2.4.1 Section one
+-----------------
+
+
+2.4.2 Section two
+-----------------
+
+  Text of section two.
+</pre>
+
+<p>
+"Text of section one." is missing because it was folded.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;S-Tab&gt;</code> until the buffer shows only the top-level headings
+(OVERVIEW), then <code>&lt;prefix&gt;e v t A</code> again: the output is little more than
+the table of contents and the numbered top-level headings.
+</p>
+</div>
+</div>
+<div id="outline-container-org8f24d88" class="outline-3">
+<h3 id="org8f24d88"><span class="section-number-3">2.6.</span> Async</h3>
+<div class="outline-text-3" id="text-2-6">
+<p>
+<code>a</code> only concerns PDF: with it on, LaTeX compilation (<code>l p</code>, <code>l P</code>) runs in
+the background and a message says when the PDF is ready, so you can keep
+editing. With the default config it already does
+(<code>export.latex.async_compile = true</code>); <code>a</code> matters when you set that to
+<code>false</code>. The other formats are fast and always synchronous.
+<code>:Org export pdf async</code> is the command form.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd39765f" class="outline-3">
+<h3 id="orgd39765f"><span class="section-number-3">2.7.</span> The settings template (<code>#</code>)</h3>
+<div class="outline-text-3" id="text-2-7">
+<p>
+<code>&lt;prefix&gt;e #</code> asks for an option category (<code>default</code>, <code>html</code>, <code>latex</code>,
+<code>md</code>, &hellip;; <code>&lt;Tab&gt;</code> completes) and inserts every option with its current
+value:
+</p>
+<ul class="org-ul">
+<li>without <code>s</code>: <code>#+options:</code> lines and <code>#+title:</code>, <code>#+author:</code>, <code>#+date:</code>,
+<code>#+email:</code>, <code>#+language:</code>, <code>#+select_tags:</code> &hellip; keywords <b>at the cursor</b>;</li>
+<li>with <code>s</code>: <code>EXPORT_OPTIONS</code>, <code>EXPORT_TITLE</code>, <code>EXPORT_AUTHOR</code>, &hellip; properties
+in the drawer of the current heading.</li>
+</ul>
+</div>
+<div id="outline-container-orgfe04580" class="outline-4">
+<h4 id="orgfe04580"><span class="section-number-4">2.7.1.</span> Scratch heading for the template</h4>
+<div class="outline-text-4" id="text-2-7-1">
+<p>
+<b>Try:</b> put the cursor on the heading above, press <code>&lt;prefix&gt;e s #</code> and
+accept <code>default</code> with <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> a <code>:PROPERTIES:</code> drawer appears under "Scratch heading for the
+template". The values are the <b>defaults</b> (from your config), not what
+this file sets:
+</p>
+
+<pre class="example" id="orgb0f1a4e">
+:PROPERTIES:
+:EXPORT_OPTIONS: ':nil *:t -:t ::t &lt;:t H:3 \n:nil ^:t arch:headline author:t ...
+:EXPORT_TITLE: 19-export
+:EXPORT_DATE: &lt;2026-09-28 Mon&gt;
+:EXPORT_AUTHOR: (your name)
+:EXPORT_EMAIL:
+:EXPORT_LANGUAGE: en
+:EXPORT_SELECT_TAGS: export
+:EXPORT_EXCLUDE_TAGS: noexport
+:EXPORT_CREATOR: Neovim 0.x.y (org.nvim, Org mode 9.8 compatible)
+:EXPORT_CITE_EXPORT:
+:END:
+</pre>
+
+<p>
+(the date is the day you do it). Delete what you don't need and edit the
+rest; press <code>u</code> to take it all out again.
+</p>
+
+<p>
+<b>Try:</b> on the empty line below, <code>&lt;prefix&gt;e #</code> (no <code>s</code>) and <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> five <code>#+options:</code> lines, then <code>#+title: 19-export</code>, <code>#+date:
+&lt;...&gt;</code>, <code>#+author: ...</code>, <code>#+email:</code>, <code>#+language: en</code>, <code>#+select_tags:
+export</code>, <code>#+exclude_tags: noexport</code>, <code>#+creator: ...</code> and <code>#+cite_export:</code>,
+inserted at the cursor. Press <code>u</code>: left in place they would change every
+export of this file!
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-org4ee7b52" class="outline-2">
+<h2 id="org4ee7b52"><span class="section-number-2">3.</span> Back-ends and the tools they need</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Everything marked "none" is pure Lua and works out of the box. The <code>o</code>
+keys (<code>h o</code>, <code>m o</code>, <code>l o</code>, &hellip;) also open the file with your system's
+viewer. <code>p</code> asks for a pandoc format name (<code>rst</code>, <code>epub</code>, <code>typst</code>,
+<code>mediawiki</code>, <code>asciidoc</code>, &hellip;). PDF uses <code>export.latex.compiler</code>
+(<code>pdflatex</code> by default) through <code>latexmk</code> when it is installed. ODT is
+zipped in Lua; LibreOffice is only needed to convert it further (see
+<code>export.odt.preferred_output_format</code>).
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Back-end</th>
+<th scope="col" class="org-left">Keys (buffer / file)</th>
+<th scope="col" class="org-left">External tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">HTML</td>
+<td class="org-left"><code>h H</code> / <code>h h</code>, <code>h o</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">Markdown</td>
+<td class="org-left"><code>m M</code> / <code>m m</code>, <code>m o</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">GitHub Markdown</td>
+<td class="org-left"><code>m G</code> / <code>m g</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">ASCII</td>
+<td class="org-left"><code>t A</code> / <code>t a</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">Latin-1</td>
+<td class="org-left"><code>t L</code> / <code>t l</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">UTF-8</td>
+<td class="org-left"><code>t U</code> / <code>t u</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">Org</td>
+<td class="org-left"><code>O O</code> / <code>O o</code>, <code>O v</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">LaTeX</td>
+<td class="org-left"><code>l L</code> / <code>l l</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">PDF</td>
+<td class="org-left">- / <code>l p</code>, <code>l o</code></td>
+<td class="org-left">latexmk or pdflatex</td>
+</tr>
+
+<tr>
+<td class="org-left">Beamer</td>
+<td class="org-left"><code>l B</code> / <code>l b</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">Beamer PDF</td>
+<td class="org-left">- / <code>l P</code>, <code>l O</code></td>
+<td class="org-left">latexmk or pdflatex</td>
+</tr>
+
+<tr>
+<td class="org-left">ODT</td>
+<td class="org-left">- / <code>o o</code>, <code>o O</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">DOCX</td>
+<td class="org-left">- / <code>d d</code>, <code>d o</code></td>
+<td class="org-left">pandoc</td>
+</tr>
+
+<tr>
+<td class="org-left">other formats</td>
+<td class="org-left">- / <code>p</code> + format name</td>
+<td class="org-left">pandoc</td>
+</tr>
+
+<tr>
+<td class="org-left">Texinfo</td>
+<td class="org-left">- / <code>i t</code></td>
+<td class="org-left">none</td>
+</tr>
+
+<tr>
+<td class="org-left">Info</td>
+<td class="org-left">- / <code>i i</code>, <code>i o</code></td>
+<td class="org-left">makeinfo</td>
+</tr>
+
+<tr>
+<td class="org-left">iCalendar</td>
+<td class="org-left">- / <code>c f</code>, <code>c a</code>, <code>c c</code></td>
+<td class="org-left">none</td>
+</tr>
+</tbody>
+</table>
+
+<ul class="org-ul">
+<li>ODT, DOCX, pandoc formats, Texinfo, PDF and iCalendar are always written
+to <b>files</b> (there is no buffer variant). Only try them if you are happy
+to get <code>examples/19-export.odt</code> etc. in the repo (delete them after).</li>
+<li><code>:checkhealth org</code> reports which of the optional tools are installed.</li>
+<li>Pandoc exports first run the Org back-end (macros, <code>#+INCLUDE</code>,
+<code>noexport</code> are handled by org.nvim), then pipe the result to pandoc.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org9c43852" class="outline-2">
+<h2 id="org9c43852"><span class="section-number-2">4.</span> Document keywords: title, author, date, &hellip;</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+These keywords fill the title block (HTML <code>&lt;title&gt;</code> and <code>&lt;h1&gt;</code>, LaTeX
+<code>\title{}</code>, the centered banner of the text export, ODT metadata):
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Keyword</th>
+<th scope="col" class="org-left">Meaning</th>
+<th scope="col" class="org-left">Property</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>#+TITLE:</code></td>
+<td class="org-left">document title</td>
+<td class="org-left"><code>EXPORT_TITLE</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+SUBTITLE:</code></td>
+<td class="org-left">subtitle (HTML, LaTeX, text)</td>
+<td class="org-left"><code>..._SUBTITLE</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+AUTHOR:</code></td>
+<td class="org-left">author; default: your name</td>
+<td class="org-left"><code>EXPORT_AUTHOR</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+EMAIL:</code></td>
+<td class="org-left">shown only with <code>email:t</code></td>
+<td class="org-left"><code>EXPORT_EMAIL</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+DATE:</code></td>
+<td class="org-left">any text or a timestamp</td>
+<td class="org-left"><code>EXPORT_DATE</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+LANGUAGE:</code></td>
+<td class="org-left">translates generated words</td>
+<td class="org-left"><code>..._LANGUAGE</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+CREATOR:</code></td>
+<td class="org-left">shown only with <code>creator:t</code></td>
+<td class="org-left"><code>..._CREATOR</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+KEYWORDS:</code></td>
+<td class="org-left">HTML/ODT metadata</td>
+<td class="org-left"><code>..._KEYWORDS</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+DESCRIPTION:</code></td>
+<td class="org-left">HTML/ODT metadata</td>
+<td class="org-left"><code>..._DESCRIPTION</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+EXPORT_FILE_NAME:</code></td>
+<td class="org-left">output file name (no extension)</td>
+<td class="org-left"><code>..._FILE_NAME</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+(<code>..._X</code> stands for <code>EXPORT_X</code>.) <code>#+LANGUAGE:</code> translates the words the
+exporter writes itself: "Table of Contents", "Footnotes", "Figure", &hellip;
+In a file they look like this (an example only, not live settings):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-org"><code>#+TITLE: Quarterly report
+#+SUBTITLE: Third quarter 2026
+#+AUTHOR: Ada Lovelace
+#+EMAIL: ada@example.org
+#+DATE: &lt;2026-10-01 Thu&gt;
+#+LANGUAGE: en
+#+OPTIONS: email:t toc:nil
+#+EXPORT_FILE_NAME: q3-report
+</code></pre>
+</div>
+</div>
+<div id="outline-container-orgd279195" class="outline-3">
+<h3 id="orgd279195"><span class="section-number-3">4.1.</span> Sample: title block</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+Revenue went up.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd5de3e7" class="outline-3">
+<h3 id="orgd5de3e7"><span class="section-number-3">4.2.</span> Exercises: title block</h3>
+<div class="outline-text-3" id="text-4-2">
+<p>
+<b>Try:</b> cursor on "Revenue went up.", <code>&lt;prefix&gt;e s t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> a banner with the title, the subtitle, the author, the e-mail
+(because of <code>email:t</code>) and the date:
+</p>
+
+<pre class="example" id="org5befec0">
+                          ____________________
+
+                            QUARTERLY REPORT
+                           Third quarter 2026
+
+                              Ada Lovelace
+                            ada@example.org
+                          ____________________
+
+
+                            &lt;2026-10-01 Thu&gt;
+
+
+Revenue went up.
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s h H</code> and look at the top of the HTML buffer.
+</p>
+
+<p>
+<b>Expect:</b> the title in <code>&lt;head&gt;</code>, and as the first heading with the
+subtitle under it:
+</p>
+
+<pre class="example" id="orgef0656a">
+&lt;title&gt;Quarterly report&lt;/title&gt;
+&lt;meta name="author" content="Ada Lovelace" /&gt;
+...
+&lt;h1 class="title"&gt;Quarterly report
+&lt;br /&gt;
+&lt;span class="subtitle"&gt;Third quarter 2026&lt;/span&gt;
+&lt;/h1&gt;
+</pre>
+
+<p>
+and at the end a postamble with the date, author, e-mail link and the
+creation time of the export (<code>timestamp:t</code>):
+</p>
+
+<pre class="example" id="org8dacc29">
+&lt;div id="postamble" class="status"&gt;
+&lt;p class="date"&gt;Date: 2026-10-01 Thu 00:00&lt;/p&gt;
+&lt;p class="author"&gt;Author: Ada Lovelace&lt;/p&gt;
+&lt;p class="email"&gt;Email: &lt;a href="mailto:ada@example.org"&gt;ada@example.org&lt;/a&gt;&lt;/p&gt;
+&lt;p class="date"&gt;Created: 2026-09-28 Mon 15:13&lt;/p&gt;
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s l L</code> (LaTeX to a buffer).
+</p>
+
+<p>
+<b>Expect:</b> the e-mail becomes a <code>\thanks</code>, the subtitle a second title line:
+</p>
+
+<pre class="example" id="org925a93b">
+\author{Ada Lovelace\thanks{ada@example.org}}
+\date{\textit{&lt;2026-10-01 Thu&gt;}}
+\title{Quarterly report\\\medskip
+\large Third quarter 2026}
+</pre>
+
+<p>
+<b>Try:</b> change <code>email:t</code> to <code>email:nil</code> in <code>EXPORT_OPTIONS</code> and export as
+ASCII again: the <code>ada@example.org</code> line disappears. With <code>date:nil</code> the
+date goes, with <code>author:nil</code> the author.
+</p>
+</div>
+</div>
+<div id="outline-container-orgf5f9677" class="outline-3">
+<h3 id="orgf5f9677"><span class="section-number-3">4.3.</span> Sample: another language</h3>
+<div class="outline-text-3" id="text-4-3">
+<p>
+Voir la note<sup><a id="fnr.fr" class="footref" href="#fn.fr" role="doc-backlink">1</a></sup>.
+</p>
+</div>
+<div id="outline-container-orgc0c2d3a" class="outline-4">
+<h4 id="orgc0c2d3a"><span class="section-number-4">4.3.1.</span> Première partie</h4>
+<div class="outline-text-4" id="text-4-3-1">
+<p>
+Du texte.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd782e4f" class="outline-3">
+<h3 id="orgd782e4f"><span class="section-number-3">4.4.</span> Exercises: another language</h3>
+<div class="outline-text-3" id="text-4-4">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s t U</code> (UTF-8 text to a buffer).
+</p>
+
+<p>
+<b>Expect:</b> the words the exporter generates are in French:
+</p>
+
+<pre class="example" id="org6123cb4">
+Table des matières
+──────────────────
+
+1. Première partie
+
+
+Voir la note[1].
+
+
+1 Première partie
+═════════════════
+
+  Du texte.
+
+
+
+Notes de bas de page
+────────────────────
+
+[1] Une note de bas de page.
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s t A</code> (plain ASCII): the table of contents is now
+titled <code>Sommaire</code>, the ASCII-only form of the French dictionary.
+</p>
+
+<p>
+<b>Try:</b> change <code>fr</code> to <code>de</code> and export again: <code>Inhaltsverzeichnis</code> and
+<code>Fußnoten</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgb9b8308" class="outline-2">
+<h2 id="orgb9b8308"><span class="section-number-2">5.</span> #+OPTIONS: the export switches</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+<code>#+OPTIONS:</code> takes <code>key:value</code> pairs separated by spaces; in a subtree the
+same pairs go in <code>EXPORT_OPTIONS</code>. Several <code>#+OPTIONS:</code> lines add up. Values
+are Emacs Lisp: <code>t</code> (yes), <code>nil</code> (no), numbers, strings, lists like
+<code>("TODO" "NEXT")</code>. The defaults come from the <code>export</code> table of your
+config (<code>with_toc</code>, <code>headline_levels</code>, &hellip;).
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Option</th>
+<th scope="col" class="org-left">Default</th>
+<th scope="col" class="org-left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>toc:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">table of contents; a number = its depth</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>num:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">section numbers; a number = how deep</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>H:</code></td>
+<td class="org-left"><code>3</code></td>
+<td class="org-left">deeper headings become list items</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>^:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left"><code>a_b</code>, <code>a^b</code>; <code>{}</code> only <code>a_{b}</code>; <code>nil</code> off</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>*:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">emphasis (<code>*bold*</code>, <code>/italic/</code>, &hellip;)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>tags:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">headline tags; <code>not-in-toc</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>todo:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">TODO keywords</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>pri:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">priority cookies <code>[#A]</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>tasks:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">TODO entries: <code>nil</code>, <code>todo</code>, <code>done</code>, list</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>stat:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">statistics cookies <code>[1/3]</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>prop:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">property drawers; <code>t</code> or a list of names</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>d:</code></td>
+<td class="org-left">see below</td>
+<td class="org-left">drawers: <code>t</code>, <code>nil</code>, list, <code>(not ...)</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>p:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">SCHEDULED, DEADLINE and CLOSED lines</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>c:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">CLOCK lines</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">paragraphs made only of timestamps</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>timestamp:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">creation time (HTML postamble)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>f:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">footnotes</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\n:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">keep every line break</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>':</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">smart quotes</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>-:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left"><code>--</code>, <code>---</code>, <code>...</code> as dashes and ellipsis</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>e:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">entities like <code>\alpha</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>tex:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">LaTeX fragments; <code>verbatim</code>, <code>nil</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\vert:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">tables (the key is a pipe character)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>::</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">fixed-width lines (<code>: text</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>arch:</code></td>
+<td class="org-left"><code>headline</code></td>
+<td class="org-left">archived trees: <code>t</code>, <code>nil</code>, <code>headline</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>inline:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">inline tasks</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>title:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">the title</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>author:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">the author</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>date:</code></td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">the date</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>email:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">the e-mail</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>creator:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left">the creator string</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>broken-links:</code></td>
+<td class="org-left"><code>nil</code></td>
+<td class="org-left"><code>nil</code> error, <code>t</code> drop, <code>mark</code> mark</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+The default of <code>d:</code> is <code>(not "LOGBOOK")</code>: every drawer but LOGBOOK. In
+the table the pipe key is shown as <code>\vert:</code> because a bare <code>|</code> would
+split the cell; in <code>#+OPTIONS:</code> you write <code>|:nil</code>.
+</p>
+</div>
+<div id="outline-container-org439ff3f" class="outline-3">
+<h3 id="org439ff3f"><span class="section-number-3">5.1.</span> Sample: toc, num and H</h3>
+<div class="outline-text-3" id="text-5-1">
+<p>
+Intro.
+</p>
+</div>
+<div id="outline-container-org3c0e124" class="outline-4">
+<h4 id="org3c0e124"><span class="section-number-4">5.1.1.</span> Chapter</h4>
+<div class="outline-text-4" id="text-5-1-1">
+</div>
+<ol class="org-ol">
+<li><a id="org6063be0"></a>Section<br />
+<ol class="org-ol">
+<li><a id="orgfd896ea"></a>Too deep to be a section<br />
+<div class="outline-text-6" id="text-5-1-1-1-1">
+<p>
+This one becomes a list item.
+</p>
+</div>
+</li>
+</ol>
+</li>
+</ol>
+</div>
+<div id="outline-container-org6f725ab" class="outline-4">
+<h4 id="org6f725ab"><span class="section-number-4">5.1.2.</span> Another chapter</h4>
+<div class="outline-text-4" id="text-5-1-2">
+<p>
+Text.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org0075a55" class="outline-3">
+<h3 id="org0075a55"><span class="section-number-3">5.2.</span> Exercises: toc, num and H</h3>
+<div class="outline-text-3" id="text-5-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> a table of contents with two levels, numbered sections, and the
+third level turned into a list item (a <code>*</code> bullet) under 1.1:
+</p>
+
+<pre class="example" id="org1040116">
+Table of Contents
+_________________
+
+1. Chapter
+.. 1. Section
+2. Another chapter
+
+
+Intro.
+
+
+1 Chapter
+=========
+
+1.1 Section
+~~~~~~~~~~~
+
+* 1.1.1 Too deep to be a section
+
+  This one becomes a list item.
+
+
+2 Another chapter
+=================
+
+  Text.
+</pre>
+
+<p>
+<b>Try:</b> change <code>EXPORT_OPTIONS</code> to <code>toc:nil num:1 H:2 title:nil author:nil</code>
+and export again: no table of contents, and only the first level is
+numbered: <code>1 Chapter</code>, then <code>Section</code> without a number, then
+<code>* Too deep to be a section</code>, then <code>2 Another chapter</code>.
+</p>
+
+<p>
+<b>Try:</b> <code>H:3</code> instead of <code>H:2</code>: "Too deep to be a section" is a real
+(sub-sub)section again, underlined with dashes.
+</p>
+</div>
+</div>
+<div id="outline-container-org8f07deb" class="outline-3">
+<h3 id="org8f07deb"><span class="section-number-3">5.3.</span> Sample: sub- and superscripts</h3>
+<div class="outline-text-3" id="text-5-3">
+<p>
+file<sub>name</sub> and x<sup>2</sup> stay as they are, but H<sub>2</sub>O and E = mc<sup>2</sup> are converted.
+</p>
+</div>
+</div>
+<div id="outline-container-org28721b7" class="outline-3">
+<h3 id="org28721b7"><span class="section-number-3">5.4.</span> Exercises: sub- and superscripts</h3>
+<div class="outline-text-3" id="text-5-4">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code> (body only, Markdown).
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+
+<pre class="example" id="org297da5f">
+file\_name and x^2 stay as they are, but H&lt;sub&gt;2&lt;/sub&gt;O and E = mc&lt;sup&gt;2&lt;/sup&gt; are converted.
+</pre>
+
+<p>
+<b>Try:</b> change <code>^:{}</code> to <code>^:t</code> and export again: <code>file_name</code> becomes
+<code>file&lt;sub&gt;name&lt;/sub&gt;</code> and <code>x^2</code> becomes <code>x&lt;sup&gt;2&lt;/sup&gt;</code> too. With <code>^:nil</code> nothing is converted. <code>^:{}</code> is
+the usual choice for documents full of snake<sub>case</sub> names.
+</p>
+</div>
+</div>
+<div id="outline-container-org652c872" class="outline-3">
+<h3 id="org652c872"><span class="section-number-3">5.5.</span> Sample: tags, TODO keywords and priorities</h3>
+<div class="outline-text-3" id="text-5-5">
+</div>
+<div id="outline-container-orgaa3a7e6" class="outline-4">
+<h4 id="orgaa3a7e6"><span class="section-number-4">5.5.1.</span> <span class="todo TODO">TODO</span> Write the report&nbsp;&nbsp;&nbsp<span class="tag"><span class="work">work</span></span></h4>
+</div>
+<div id="outline-container-orgb6fc2e2" class="outline-4">
+<h4 id="orgb6fc2e2"><span class="section-number-4">5.5.2.</span> <span class="done DONE">DONE</span> Book the room&nbsp;&nbsp;&nbsp<span class="tag"><span class="office">office</span></span></h4>
+</div>
+<div id="outline-container-org7586be0" class="outline-4">
+<h4 id="org7586be0"><span class="section-number-4">5.5.3.</span> <span class="todo NEXT">NEXT</span> Plan the offsite <code>[1/2]</code></h4>
+<div class="outline-text-4" id="text-5-5-3">
+<ul class="org-ul">
+<li class="on"><code>[X]</code> pick a date</li>
+<li class="off"><code>[&nbsp;]</code> pick a place</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org7dd00ed" class="outline-3">
+<h3 id="org7dd00ed"><span class="section-number-3">5.6.</span> Exercises: tags, TODO keywords and priorities</h3>
+<div class="outline-text-3" id="text-5-6">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b> keywords, priorities, cookies and tags are all there (the
+statistics cookie is wrapped in <code>&lt;code&gt;</code>, like Emacs does):
+</p>
+
+<pre class="example" id="org05944c1">
+# TODO [#A] Write the report     :work:
+
+
+# DONE Book the room     :office:
+
+
+# NEXT [#C] Plan the offsite &lt;code&gt;[1/2]&lt;/code&gt;
+
+-   [X] pick a date
+-   [ ] pick a place
+</pre>
+
+<p>
+<b>Try:</b> set <code>EXPORT_OPTIONS</code> to <code>toc:nil num:nil title:nil author:nil
+tags:nil todo:nil pri:nil stat:nil</code> (one line) and export again: the
+headings become plain <code># Write the report</code>, <code># Book the room</code> and
+<code># Plan the offsite</code>; the checklist stays.
+</p>
+
+<p>
+<b>Try:</b> replace <code>tags:t todo:t pri:t</code> by <code>tasks:todo</code>: only the not-done
+entries are exported (<code># TODO Write the report     :work:</code> and
+<code># NEXT Plan the offsite &lt;code&gt;[1/2]&lt;/code&gt;</code>; the priority is gone too
+because <code>pri:</code> is <code>nil</code> by default). <code>tasks:done</code> keeps only "Book the
+room", <code>tasks:("NEXT")</code> only "Plan the offsite", <code>tasks:nil</code> drops all
+three.
+</p>
+</div>
+</div>
+<div id="outline-container-orgab33211" class="outline-3">
+<h3 id="orgab33211"><span class="section-number-3">5.7.</span> Sample: drawers, planning, clocks and timestamps</h3>
+<div class="outline-text-3" id="text-5-7">
+</div>
+<div id="outline-container-org4b1d8d6" class="outline-4">
+<h4 id="org4b1d8d6"><span class="section-number-4">5.7.1.</span> <span class="done DONE">DONE</span> Ship the release</h4>
+<div class="outline-text-4" id="text-5-7-1">
+<p>
+Remember to tag the commit.
+</p>
+<p>
+<span class="timestamp-wrapper"><span class="timestamp">&lt;2026-10-05 Mon&gt;</span></span>
+</p>
+
+<p>
+The release went out on time.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org063e364" class="outline-3">
+<h3 id="org063e364"><span class="section-number-3">5.8.</span> Exercises: drawers, planning, clocks and timestamps</h3>
+<div class="outline-text-3" id="text-5-8">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> by default only the heading, the NOTES drawer (every drawer but
+LOGBOOK is exported), the lone timestamp and the paragraph:
+</p>
+
+<pre class="example" id="org6d62026">
+DONE Ship the release
+=====================
+
+  Remember to tag the commit.
+  &lt;2026-10-05 Mon&gt;
+
+  The release went out on time.
+</pre>
+
+<p>
+<b>Try:</b> one at a time, add these to <code>EXPORT_OPTIONS</code> and export again
+(each adds or removes lines between the underline and "Remember to tag"):
+</p>
+<ul class="org-ul">
+<li><code>p:t</code> adds <code>CLOSED: [2026-09-25 Fri 17:02]  SCHEDULED: &lt;2026-09-24 Thu&gt;</code>;</li>
+<li><code>prop:t</code> adds <code>VERSION: 2.1</code> and <code>OWNER: Ada</code>; <code>prop:("OWNER")</code> only
+<code>OWNER: Ada</code>;</li>
+<li><code>c:t</code> alone changes nothing: the clock line is inside LOGBOOK, which is
+still excluded. <code>c:t d:t</code> (all drawers) shows
+<code>CLOCK: [2026-09-24 Thu 09:00]--[2026-09-24 Thu 11:30]  =&gt;  2:30</code>;</li>
+<li><code>d:nil</code> removes "Remember to tag the commit." (no drawers at all);
+<code>d:("NOTES")</code> exports only the NOTES drawer (same output as now);</li>
+<li><code>&lt;:nil</code> removes <code>&lt;2026-10-05 Mon&gt;</code>, the paragraph made only of a
+timestamp (an empty line is left in its place).</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgcf0df04" class="outline-3">
+<h3 id="orgcf0df04"><span class="section-number-3">5.9.</span> Sample: line breaks, quotes, special strings</h3>
+<div class="outline-text-3" id="text-5-9">
+<p>
+Roses are red,
+violets are blue.
+"Quoted" text &ndash; with an en dash &mdash; and an em dash&hellip;
+</p>
+</div>
+</div>
+<div id="outline-container-orgf3826f5" class="outline-3">
+<h3 id="orgf3826f5"><span class="section-number-3">5.10.</span> Exercises: line breaks, quotes, special strings</h3>
+<div class="outline-text-3" id="text-5-10">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b h H</code>.
+</p>
+
+<p>
+<b>Expect:</b> each line ends with <code>&lt;br /&gt;</code> (from <code>\n:t</code>), the quotes become
+curly (<code>':t</code>) and the dashes and dots entities (<code>-:t</code>):
+</p>
+
+<pre class="example" id="org85dfe2e">
+&lt;p&gt;
+Roses are red,&lt;br /&gt;
+violets are blue.&lt;br /&gt;
+&amp;ldquo;Quoted&amp;rdquo; text &amp;ndash; with an en dash &amp;mdash; and an em dash&amp;hellip;&lt;br /&gt;
+&lt;/p&gt;
+</pre>
+
+<p>
+<b>Try:</b> set <code>EXPORT_OPTIONS</code> to <code>toc:nil title:nil author:nil \n:nil ':nil
+-:nil</code> and export again: the three lines come back as typed, with
+straight quotes, <code>--</code>, <code>---</code> and <code>...</code>, and no <code>&lt;br /&gt;</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-org15298e3" class="outline-3">
+<h3 id="org15298e3"><span class="section-number-3">5.11.</span> Sample: what to leave out entirely</h3>
+<div class="outline-text-3" id="text-5-11">
+<p>
+A <b>bold</b> claim&alpha; with a footnote<sup><a id="fnr.omit" class="footref" href="#fn.omit" role="doc-backlink">2</a></sup>.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<tbody>
+<tr>
+<td class="org-left">a table</td>
+<td class="org-left">is dropped</td>
+</tr>
+</tbody>
+</table>
+
+<pre class="example">
+fixed-width lines are dropped too
+</pre>
+</div>
+</div>
+<div id="outline-container-org305e714" class="outline-3">
+<h3 id="org305e714"><span class="section-number-3">5.12.</span> Exercises: what to leave out entirely</h3>
+<div class="outline-text-3" id="text-5-12">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b> only one line: the asterisks stay literal (<code>*:nil</code>), <code>\alpha</code>
+stays as typed (<code>e:nil</code>), no footnote, no table, no fixed-width line.
+Markdown escapes the characters that would otherwise be markup, so you see
+backslashes:
+</p>
+
+<pre class="example" id="orgb2d4fbd">
+A \*bold\* claim\\alpha with a footnote.
+</pre>
+
+<p>
+<b>Try:</b> remove <code>*:nil e:nil</code> and export again. Now the emphasis is
+converted and the entity is written as HTML:
+</p>
+
+<pre class="example" id="orgc673174">
+A **bold** claim&amp;alpha; with a footnote.
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-orgce08296" class="outline-2">
+<h2 id="orgce08296"><span class="section-number-2">6.</span> Choosing what is exported</h2>
+<div class="outline-text-2" id="text-6">
+</div>
+<div id="outline-container-org331091e" class="outline-3">
+<h3 id="org331091e"><span class="section-number-3">6.1.</span> Tags: noexport and export</h3>
+<div class="outline-text-3" id="text-6-1">
+<ul class="org-ul">
+<li>A heading tagged <code>:noexport:</code> is removed with its whole subtree.</li>
+<li>If <b>any</b> heading carries an <code>:export:</code> tag, <b>only</b> the tagged subtrees
+are exported (in a whole-file export the text before the first heading
+is kept too).</li>
+<li><code>#+EXCLUDE_TAGS:</code> / <code>#+SELECT_TAGS:</code> (or the <code>EXPORT_EXCLUDE_TAGS</code> /
+<code>EXPORT_SELECT_TAGS</code> properties) replace those tag lists. Tags are
+inherited: a child of a <code>:noexport:</code> heading goes too.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org1af4fa9" class="outline-3">
+<h3 id="org1af4fa9"><span class="section-number-3">6.2.</span> Sample: noexport</h3>
+<div class="outline-text-3" id="text-6-2">
+</div>
+<div id="outline-container-org4787c0a" class="outline-4">
+<h4 id="org4787c0a"><span class="section-number-4">6.2.1.</span> Kept</h4>
+<div class="outline-text-4" id="text-6-2-1">
+<p>
+Public text.
+</p>
+</div>
+</div>
+<div id="outline-container-org6f52acd" class="outline-4">
+<h4 id="org6f52acd"><span class="section-number-4">6.2.2.</span> Also kept</h4>
+<div class="outline-text-4" id="text-6-2-2">
+<p>
+More public text.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org8407224" class="outline-3">
+<h3 id="org8407224"><span class="section-number-3">6.3.</span> Exercises: noexport</h3>
+<div class="outline-text-3" id="text-6-3">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b> two headings only, "Kept" and "Also kept"; no "Private text":
+</p>
+
+<pre class="example" id="org9320ec8">
+# Kept
+
+Public text.
+
+
+# Also kept
+
+More public text.
+</pre>
+</div>
+</div>
+<div id="outline-container-org58c3b7f" class="outline-3">
+<h3 id="org58c3b7f"><span class="section-number-3">6.4.</span> Sample: select tags</h3>
+<div class="outline-text-3" id="text-6-4">
+<p>
+Intro text of the sample.
+</p>
+</div>
+<div id="outline-container-org0288272" class="outline-4">
+<h4 id="org0288272"><span class="section-number-4">6.4.1.</span> Chosen&nbsp;&nbsp;&nbsp<span class="tag"><span class="keep">keep</span></span></h4>
+<div class="outline-text-4" id="text-6-4-1">
+<p>
+In.
+</p>
+</div>
+</div>
+<div id="outline-container-orgc8654cb" class="outline-4">
+<h4 id="orgc8654cb"><span class="section-number-4">6.4.2.</span> Not chosen</h4>
+<div class="outline-text-4" id="text-6-4-2">
+<p>
+Out: no keep tag, and another heading has one.
+</p>
+</div>
+</div>
+<div id="outline-container-org05b67b0" class="outline-4">
+<h4 id="org05b67b0"><span class="section-number-4">6.4.3.</span> Chosen but secret&nbsp;&nbsp;&nbsp<span class="tag"><span class="keep">keep</span>&nbsp;<span class="secret">secret</span></span></h4>
+<div class="outline-text-4" id="text-6-4-3">
+<p>
+Out: exclude tags win.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orge7575d4" class="outline-3">
+<h3 id="orge7575d4"><span class="section-number-3">6.5.</span> Exercises: select tags</h3>
+<div class="outline-text-3" id="text-6-5">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b> only the heading "Chosen". Even the intro text is dropped: in a
+subtree export it belongs to the sample heading, which is not selected
+(Emacs does the same).
+</p>
+
+<pre class="example" id="org19028c7">
+# Chosen
+
+In.
+</pre>
+
+<p>
+<b>Try:</b> remove the <code>keep</code> tag from <b>both</b> "Chosen" headings (edit the
+lines, or <code>&lt;prefix&gt;t</code> on each heading and delete <code>keep</code> from the prompt).
+Now no heading is selected, so the select tags do not apply at all:
+</p>
+
+<pre class="example" id="org4536659">
+Intro text of the sample.
+
+
+# Chosen
+
+In.
+
+
+# Not chosen
+
+Out: no keep tag, and another heading has one.
+</pre>
+
+<p>
+"Chosen but secret" is still excluded by its <code>secret</code> tag. Press <code>u</code> to
+restore the tags.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd7ba314" class="outline-3">
+<h3 id="orgd7ba314"><span class="section-number-3">6.6.</span> Sample: COMMENT headings, comment lines and blocks</h3>
+<div class="outline-text-3" id="text-6-6">
+<p>
+Visible paragraph.
+</p>
+</div>
+<div id="outline-container-org61274c1" class="outline-4">
+<h4 id="org61274c1"><span class="section-number-4">6.6.1.</span> Finished part</h4>
+<div class="outline-text-4" id="text-6-6-1">
+<p>
+Done.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org92ca345" class="outline-3">
+<h3 id="org92ca345"><span class="section-number-3">6.7.</span> Exercises: COMMENT headings, comment lines and blocks</h3>
+<div class="outline-text-3" id="text-6-7">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+
+<pre class="example" id="org58060d5">
+Visible paragraph.
+
+
+# Finished part
+
+Done.
+</pre>
+
+<p>
+<b>Try:</b> put the cursor on the "COMMENT Work in progress" heading and press
+<code>&lt;prefix&gt;hC</code> (toggle COMMENT, Emacs <code>C-c ;</code>): the word COMMENT goes away.
+Export again: "Work in progress" and its text are now exported between
+"Visible paragraph." and "Finished part". Press <code>&lt;prefix&gt;hC</code> again to put
+it back.
+</p>
+</div>
+</div>
+<div id="outline-container-org2f1a4d1" class="outline-3">
+<h3 id="org2f1a4d1"><span class="section-number-3">6.8.</span> Sample: archived trees</h3>
+<div class="outline-text-3" id="text-6-8">
+</div>
+<div id="outline-container-org13ee02c" class="outline-4">
+<h4 id="org13ee02c"><span class="section-number-4">6.8.1.</span> Current work</h4>
+<div class="outline-text-4" id="text-6-8-1">
+<p>
+Live.
+</p>
+</div>
+</div>
+<div id="outline-container-org9d95138" class="outline-4">
+<h4 id="org9d95138"><span class="section-number-4">6.8.2.</span> Old project&nbsp;&nbsp;&nbsp<span class="tag"><span class="ARCHIVE">ARCHIVE</span></span></h4>
+</div>
+</div>
+<div id="outline-container-orga155296" class="outline-3">
+<h3 id="orga155296"><span class="section-number-3">6.9.</span> Exercises: archived trees</h3>
+<div class="outline-text-3" id="text-6-9">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b> "Old project" appears as a heading, but "Old details." is gone
+(<code>arch:headline</code>, the default):
+</p>
+
+<pre class="example" id="org610520a">
+# Current work
+
+Live.
+
+
+# Old project
+</pre>
+
+<p>
+<b>Try:</b> add <code>arch:t</code> to <code>EXPORT_OPTIONS</code>: "Old details." comes back. With
+<code>arch:nil</code> the "Old project" heading goes too.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgfb87ab7" class="outline-2">
+<h2 id="orgfb87ab7"><span class="section-number-2">7.</span> Subtree properties (EXPORT<sub>*</sub>)</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+When you export a subtree, every export keyword can be set in its drawer as
+<code>EXPORT_&lt;KEYWORD&gt;</code>: <code>EXPORT_TITLE</code>, <code>EXPORT_AUTHOR</code>, <code>EXPORT_DATE</code>,
+<code>EXPORT_EMAIL</code>, <code>EXPORT_OPTIONS</code>, <code>EXPORT_FILE_NAME</code>, <code>EXPORT_LANGUAGE</code>,
+<code>EXPORT_SELECT_TAGS</code>, <code>EXPORT_EXCLUDE_TAGS</code>, and the back-end ones
+(<code>EXPORT_HTML_HEAD</code>, <code>EXPORT_LATEX_CLASS</code>, <code>EXPORT_LATEX_HEADER</code>, &hellip;).
+</p>
+<ul class="org-ul">
+<li><code>EXPORT_OPTIONS</code> is merged with <code>#+OPTIONS</code>: keys it names win, others
+keep the file value.</li>
+<li>Without <code>EXPORT_TITLE</code>, a subtree export is titled after the heading.</li>
+<li>These properties are ignored when the whole file is exported.</li>
+</ul>
+</div>
+<div id="outline-container-org4373b75" class="outline-3">
+<h3 id="org4373b75"><span class="section-number-3">7.1.</span> Sample: a subtree is its own document</h3>
+<div class="outline-text-3" id="text-7-1">
+<p>
+A standalone page made from one heading.
+</p>
+</div>
+</div>
+<div id="outline-container-org4bff50b" class="outline-3">
+<h3 id="org4bff50b"><span class="section-number-3">7.2.</span> Exercises: a subtree is its own document</h3>
+<div class="outline-text-3" id="text-7-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s h H</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>&lt;title&gt;Sample: a subtree is its own document&lt;/title&gt;</code>, the meta
+line from <code>EXPORT_HTML_HEAD</code> inside <code>&lt;head&gt;</code>, and "Author: Grace" in the
+postamble.
+</p>
+
+<p>
+<b>Try (writes a file outside the repo):</b> <code>&lt;prefix&gt;e s m m</code>. Because of
+<code>EXPORT_FILE_NAME</code>, the message says <code>Exported to /tmp/org-nvim-sample.md</code>
+(the extension is added for you). A relative name would be relative to
+this file, i.e. inside <code>examples/</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org6f030dd" class="outline-2">
+<h2 id="org6f030dd"><span class="section-number-2">8.</span> Table of contents</h2>
+<div class="outline-text-2" id="text-8">
+<ul class="org-ul">
+<li><code>toc:t</code> / <code>toc:nil</code> / <code>toc:2</code> in <code>#+OPTIONS:</code> control the table at the
+top.</li>
+<li><code>#+TOC: headlines 2</code> puts a table of contents <b>where the keyword is</b>;
+add <code>local</code> for only the headings below the current one. <code>#+TOC: tables</code>
+and <code>#+TOC: listings</code> list the captioned tables and source blocks.</li>
+<li>A heading with <code>:UNNUMBERED: t</code> has no number; <code>:UNNUMBERED: notoc</code> also
+keeps it out of the table of contents.</li>
+</ul>
+</div>
+<div id="outline-container-org908c9ee" class="outline-3">
+<h3 id="org908c9ee"><span class="section-number-3">8.1.</span> Sample: tables of contents</h3>
+<div class="outline-text-3" id="text-8-1">
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org15303e2">1. How to use this file</a></li>
+<li><a href="#org6d2fcfd">2. The export dispatcher</a></li>
+<li><a href="#org4ee7b52">3. Back-ends and the tools they need</a></li>
+<li><a href="#org9c43852">4. Document keywords: title, author, date, &hellip;</a></li>
+<li><a href="#orgb9b8308">5. #+OPTIONS: the export switches</a></li>
+<li><a href="#orgce08296">6. Choosing what is exported</a></li>
+<li><a href="#orgfb87ab7">7. Subtree properties (EXPORT<sub>*</sub>)</a></li>
+<li><a href="#org6f030dd">8. Table of contents</a></li>
+<li><a href="#org53d342f">9. Captions, names and cross-references</a></li>
+<li><a href="#org6669e35">10. Footnotes in export</a></li>
+<li><a href="#orge018dd6">11. Macros</a></li>
+<li><a href="#orgcf84e55">12. Raw output for one back-end</a></li>
+<li><a href="#org254f1b8">13. HTML specifics: #+ATTR<sub>HTML</sub> and #+HTML<sub>HEAD</sub></a></li>
+<li><a href="#orgc1855ad">14. LaTeX and PDF specifics</a></li>
+<li><a href="#org42d1764">15. Beamer slides</a></li>
+<li><a href="#org2580b9d">16. Markdown, GFM, plain text and Org</a></li>
+<li><a href="#orga657571">17. #+INCLUDE: pulling in other files</a></li>
+<li><a href="#org5f1eceb">18. Source blocks and :exports</a></li>
+<li><a href="#org5b7a29e">19. Citations</a></li>
+<li><a href="#org617150d">20. Broken links</a></li>
+<li><a href="#org4554367">21. iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)</a></li>
+<li><a href="#org0acc137">22. Publishing projects</a></li>
+<li><a href="#org0373b60">23. Configuring defaults</a></li>
+<li><a href="#orge3c0000">24. Further reading</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org254b633" class="outline-4">
+<h4 id="org254b633">Preface</h4>
+<div class="outline-text-4" id="text-org254b633">
+<p>
+No number here.
+</p>
+</div>
+</div>
+<div id="outline-container-orgde4cbdf" class="outline-4">
+<h4 id="orgde4cbdf"><span class="section-number-4">8.1.1.</span> Setup</h4>
+<div class="outline-text-4" id="text-8-1-1">
+</div>
+<ol class="org-ol">
+<li><a id="org8185bc2"></a>Install<br /></li>
+<li><a id="orgce04e31"></a>Configure<br /></li>
+</ol>
+</div>
+<div id="outline-container-org8228d88" class="outline-4">
+<h4 id="org8228d88">Colophon</h4>
+<div class="outline-text-4" id="text-org8228d88">
+<p>
+Not in the table of contents.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgb161ddd" class="outline-3">
+<h3 id="orgb161ddd"><span class="section-number-3">8.2.</span> Exercises: tables of contents</h3>
+<div class="outline-text-3" id="text-8-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> a first list with the level-1 headings (<code>Preface</code> without a
+number, <code>1. Setup</code>, no Colophon), then under "1 Setup" a local list with
+only its children:
+</p>
+
+<pre class="example" id="orgceb5939">
+Table of Contents
+_________________
+
+Preface
+1. Setup
+
+
+Preface
+=======
+
+  No number here.
+
+
+1 Setup
+=======
+
+  .. 1. Install
+  .. 2. Configure
+
+
+1.1 Install
+~~~~~~~~~~~
+
+
+1.2 Configure
+~~~~~~~~~~~~~
+
+
+Colophon
+========
+
+  Not in the table of contents.
+</pre>
+
+<p>
+<b>Try:</b> change <code>#+TOC: headlines 1</code> to <code>#+TOC: headlines 2</code>: the first list
+now also shows <code>.. 1. Install</code> and <code>.. 2. Configure</code> under <code>1. Setup</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org53d342f" class="outline-2">
+<h2 id="org53d342f"><span class="section-number-2">9.</span> Captions, names and cross-references</h2>
+<div class="outline-text-2" id="text-9">
+<ul class="org-ul">
+<li><code>#+CAPTION:</code> before a table, image or source block gives it a caption;
+exported it is numbered: "Table 1:", "Figure 1:", "Listing 1:".</li>
+<li><code>#+NAME:</code> gives it a name; <code>[[name]]</code> links to it and is replaced by its
+number on export.</li>
+<li><code>[[*Heading]]</code> links to a heading (by its text), <code>[[#my-id]]</code> to a
+heading with <code>:CUSTOM_ID: my-id</code>, <code>&lt;&lt;target&gt;&gt;</code> is an anchor you link to
+with <code>[[target]]</code>, and <code>&lt;&lt;&lt;radio target&gt;&gt;&gt;</code> turns every occurrence of
+the words into a link.</li>
+<li>A link with a description shows the description; without one, a link to
+a numbered heading shows the section number, a link to a named table
+its table number.</li>
+</ul>
+</div>
+<div id="outline-container-orgb02189e" class="outline-3">
+<h3 id="orgb02189e"><span class="section-number-3">9.1.</span> Sample: cross-references</h3>
+<div class="outline-text-3" id="text-9-1">
+</div>
+<div id="outline-container-data" class="outline-4">
+<h4 id="data"><span class="section-number-4">9.1.1.</span> Data</h4>
+<div class="outline-text-4" id="text-data">
+<table id="orgc802a7d" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+<caption class="t-above"><span class="table-number">Table 1:</span> Monthly sales</caption>
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Month</th>
+<th scope="col" class="org-right">Units</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">Oct</td>
+<td class="org-right">12</td>
+</tr>
+
+<tr>
+<td class="org-left">Nov</td>
+<td class="org-right">17</td>
+</tr>
+</tbody>
+</table>
+
+<div class="org-src-container">
+<label class="org-src-name"><span class="listing-number">Listing 1: </span>Doubling a number</label><pre class="src src-lua" id="org5d404f1"><code>return 2 * 21
+</code></pre>
+</div>
+
+<p>
+The procedure:
+</p>
+<ol class="org-ol">
+<li>Collect the numbers.</li>
+<li><a id="org0a8f5bc"></a>Check the totals.</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-org2c62ff8" class="outline-4">
+<h4 id="org2c62ff8"><span class="section-number-4">9.1.2.</span> Discussion</h4>
+<div class="outline-text-4" id="text-9-1-2">
+<p>
+See table <a href="#orgc802a7d">1</a>, listing <a href="#org5d404f1">1</a> and section <a href="#data">9.1.1</a>. The
+same section by id: <a href="#data">the data section</a>. Never skip step <a href="#org0a8f5bc">2</a>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgb25e94c" class="outline-3">
+<h3 id="orgb25e94c"><span class="section-number-3">9.2.</span> Exercises: cross-references</h3>
+<div class="outline-text-3" id="text-9-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b h H</code> and look for "Discussion".
+</p>
+
+<p>
+<b>Expect:</b> the captions are numbered, the named elements and the target get
+ids, and the links point to them. The heading with a <code>CUSTOM_ID</code> uses it
+as its id (<code>data</code>); the other ids look like <code>org</code> plus 7 hex digits:
+</p>
+
+<pre class="example" id="org4607254">
+&lt;h2 id="data"&gt;&lt;span class="section-number-2"&gt;1.&lt;/span&gt; Data&lt;/h2&gt;
+&lt;table id="orgc141a8c" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides"&gt;
+&lt;caption class="t-above"&gt;&lt;span class="table-number"&gt;Table 1:&lt;/span&gt; Monthly sales&lt;/caption&gt;
+...
+&lt;label class="org-src-name"&gt;&lt;span class="listing-number"&gt;Listing 1: &lt;/span&gt;Doubling a number&lt;/label&gt;&lt;pre class="src src-lua" id="org608ce3d"&gt;&lt;code&gt;return 2 * 21
+...
+&lt;li&gt;&lt;a id="org7457e97"&gt;&lt;/a&gt;Check the totals.&lt;/li&gt;
+...
+See table &lt;a href="#orgc141a8c"&gt;1&lt;/a&gt;, listing &lt;a href="#org608ce3d"&gt;1&lt;/a&gt; and section &lt;a href="#data"&gt;1&lt;/a&gt;. The
+same section by id: &lt;a href="#data"&gt;the data section&lt;/a&gt;. Never skip step &lt;a href="#org7457e97"&gt;2&lt;/a&gt;.
+</pre>
+
+<p>
+A link to a <code>&lt;&lt;target&gt;&gt;</code> without a description shows the number of what
+holds the target: here the list item, so "step 2".
+</p>
+
+<p>
+(The generated ids are computed from the content, so they stay the same
+from one export to the next.)
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>: in plain text the references are just the
+numbers, and the table and the listing get their captions below them:
+</p>
+
+<pre class="example" id="org93312df">
+   Month  Units
+  --------------
+   Oct       12
+   Nov       17
+  Table 1: Monthly sales
+
+  ,----
+  | return 2 * 21
+  `----
+  Listing 1: Doubling a number
+...
+  See table 1, listing 1 and section 1. The same section by id: [the
+  data section]. Never skip step 2.
+
+
+[the data section] See section 1
+</pre>
+
+<p>
+(The last line is the plain-text version of a described link: a note
+after the section.)
+</p>
+
+<p>
+<b>Try:</b> in the Discussion paragraph, replace <code>[[*Data]]</code> by <code>[[*Dataa]]</code> and
+export again: the link no longer resolves. Thanks to <code>broken-links:mark</code> at
+the top of this file you get <code>[BROKEN LINK: *Dataa]</code> instead of an error
+(see "Broken links" below). Press <code>u</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org6669e35" class="outline-2">
+<h2 id="org6669e35"><span class="section-number-2">10.</span> Footnotes in export</h2>
+<div class="outline-text-2" id="text-10">
+<p>
+Footnotes are numbered in order of first reference and collected at the
+end of the document (HTML: a "Footnotes" section; LaTeX: real
+<code>\footnote{}</code>; Markdown: a "Footnotes" section with links; text: a
+"Footnotes" section). Named <code>[fn:name]</code>, anonymous inline <code>[fn::text]</code> and
+named inline <code>[fn:name:text]</code> footnotes all work. <code>f:nil</code> drops them.
+</p>
+</div>
+<div id="outline-container-org2a5f35e" class="outline-3">
+<h3 id="org2a5f35e"><span class="section-number-3">10.1.</span> Sample: footnotes</h3>
+<div class="outline-text-3" id="text-10-1">
+<p>
+A named note<sup><a id="fnr.sample" class="footref" href="#fn.sample" role="doc-backlink">3</a></sup>, an inline one<sup><a id="fnr.4" class="footref" href="#fn.4" role="doc-backlink">4</a></sup> and the
+named note again<sup><a id="fnr.sample.3" class="footref" href="#fn.sample" role="doc-backlink">3</a></sup>.
+</p>
+</div>
+</div>
+<div id="outline-container-orgb33855c" class="outline-3">
+<h3 id="orgb33855c"><span class="section-number-3">10.2.</span> Exercises: footnotes</h3>
+<div class="outline-text-3" id="text-10-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> references become <code>[1]</code> and <code>[2]</code> (the second use of <code>sample</code>
+is <code>[1]</code> again), with a footnotes section at the end:
+</p>
+
+<pre class="example" id="org5739b0a">
+A named note[1], an inline one[2] and the named note again[1].
+...
+Footnotes
+_________
+
+[1] The definition of the named note.
+
+[2] Defined right here.
+</pre>
+
+<p>
+More on footnotes: <a href="14-footnotes.html">14-footnotes.org</a>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orge018dd6" class="outline-2">
+<h2 id="orge018dd6"><span class="section-number-2">11.</span> Macros</h2>
+<div class="outline-text-2" id="text-11">
+<p>
+<code>#+MACRO: name replacement text</code> defines a macro; <code>{{{name}}}</code> uses it.
+<code>$1</code>, <code>$2</code> &hellip; are the arguments (separated by commas; <code>\,</code> is a literal
+comma). Macros are expanded on export only, anywhere in the text.
+</p>
+
+<p>
+Built-in macros:
+</p>
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Macro</th>
+<th scope="col" class="org-left">Expands to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>{{{title}}}</code></td>
+<td class="org-left">the document title</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{author}}}</code> <code>{{{email}}}</code></td>
+<td class="org-left">author, e-mail</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{date}}}</code>, <code>{{{date(%Y)}}}</code></td>
+<td class="org-left">the <code>#+DATE</code> (formatted if a timestamp)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{time(%H:%M)}}}</code></td>
+<td class="org-left">the time of the export</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{modification-time(%F)}}}</code></td>
+<td class="org-left">the file's modification time</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{input-file}}}</code></td>
+<td class="org-left">the file name</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{keyword(NAME)}}}</code></td>
+<td class="org-left">the value of <code>#+NAME:</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{property(NAME)}}}</code></td>
+<td class="org-left">a property of the current heading</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{n}}}</code>, <code>{{{n(name)}}}</code></td>
+<td class="org-left">a counter (per name), <code>n(name,-)</code> repeats</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{results(x)}}}</code></td>
+<td class="org-left">how inline babel results are wrapped</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Your config can define global ones: <code>export = { global_macros = { ... } }</code>
+(strings, or Lua functions receiving the arguments).
+</p>
+</div>
+<div id="outline-container-orgc0a76d1" class="outline-3">
+<h3 id="orgc0a76d1"><span class="section-number-3">11.1.</span> Sample: macros</h3>
+<div class="outline-text-3" id="text-11-1">
+<p>
+Hello, world!  two before one.
+This is "Export: hands-on examples" by org.nvim examples, exported from 19-export.org.
+Step 1, step 2, step 3; again step 3.
+Press <kbd>C-c C-e</kbd>.
+</p>
+</div>
+<div id="outline-container-orgf4ea8d8" class="outline-4">
+<h4 id="orgf4ea8d8"><span class="section-number-4">11.1.1.</span> Owned part</h4>
+<div class="outline-text-4" id="text-11-1-1">
+<p>
+This part is owned by Charles.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orge7af779" class="outline-3">
+<h3 id="orge7af779"><span class="section-number-3">11.2.</span> Exercises: macros</h3>
+<div class="outline-text-3" id="text-11-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+
+<pre class="example" id="orgf623a11">
+Hello, world!  two before one.  This is "Export: hands-on examples" by
+org.nvim examples, exported from 19-export.org.  Step 1, step 2, step 3;
+again step 3.  Press .
+
+
+Owned part
+==========
+
+  This part is owned by Charles.
+</pre>
+
+<p>
+Things to notice:
+</p>
+<ul class="org-ul">
+<li><code>{{{title}}}</code> and <code>{{{author}}}</code> are the file's <code>#+TITLE:</code> and
+<code>#+AUTHOR:</code>, not the sample's <code>EXPORT_TITLE</code> (Emacs does the same).</li>
+<li>The <code>kbd</code> macro produced nothing in plain text: it expands to an HTML
+export snippet (next section). With <code>&lt;prefix&gt;e s b h H</code> the line reads
+<code>Press &lt;kbd&gt;C-c C-e&lt;/kbd&gt;.</code></li>
+<li><code>{{{property(OWNER)}}}</code> reads the heading it is written under. Text
+right under the exported heading reads that heading's own drawer: in the
+sample, <code>{{{property(EXPORT_TITLE)}}}</code> would give <code>Macro demo</code>.</li>
+</ul>
+
+<p>
+<b>Try:</b> add a line <code>{{{greet(Neovim\, again)}}}</code> to the sample and export:
+<code>Hello, Neovim, again!</code> (the escaped comma is not an argument separator).
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgcf84e55" class="outline-2">
+<h2 id="orgcf84e55"><span class="section-number-2">12.</span> Raw output for one back-end</h2>
+<div class="outline-text-2" id="text-12">
+<p>
+Sometimes you want to write HTML or LaTeX directly. Three ways, all passed
+through untouched to <b>their</b> back-end and dropped by all others:
+</p>
+<ul class="org-ul">
+<li>export snippets inside a paragraph: <code>@@html:&lt;mark&gt;@@text@@html:&lt;/mark&gt;@@</code>,
+<code>@@latex:\newpage@@</code>, <code>@@md:...@@</code>, <code>@@ascii:...@@</code>;</li>
+<li>one-line keywords: <code>#+HTML: ...</code>, <code>#+LATEX: ...</code>, <code>#+ASCII: ...</code>,
+<code>#+MD: ...</code>, <code>#+ODT: ...</code>, <code>#+BEAMER: ...</code>, <code>#+TEXINFO: ...</code>;</li>
+<li>export blocks: <code>#+begin_export html</code> &hellip; <code>#+end_export</code> (also <code>latex</code>,
+<code>md</code>, <code>ascii</code>, <code>odt</code>, &hellip;). Insert one with <code>&lt;prefix&gt;ib</code> (Emacs
+<code>C-c C-,</code>) then <code>h</code> (html), <code>l</code> (latex), <code>a</code> (ascii) or <code>E</code> (asks for
+the back-end); edit its content in a split with <code>&lt;prefix&gt;'</code>.</li>
+</ul>
+</div>
+<div id="outline-container-orge157646" class="outline-3">
+<h3 id="orge157646"><span class="section-number-3">12.1.</span> Sample: snippets and export blocks</h3>
+<div class="outline-text-3" id="text-12-1">
+<p>
+This word is <mark>highlighted</mark> in HTML, emphasized in LaTeX.
+</p>
+<hr class="fancy" />
+<div class="note">Only in HTML.</div>
+<p>
+The end.
+</p>
+</div>
+</div>
+<div id="outline-container-org2d447e2" class="outline-3">
+<h3 id="org2d447e2"><span class="section-number-3">12.2.</span> Exercises: snippets and export blocks</h3>
+<div class="outline-text-3" id="text-12-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b h H</code>.
+</p>
+
+<p>
+<b>Expect:</b> the HTML parts only:
+</p>
+
+<pre class="example" id="orgb83085a">
+&lt;p&gt;
+This word is &lt;mark&gt;highlighted&lt;/mark&gt; in HTML, emphasized in LaTeX.
+&lt;/p&gt;
+&lt;hr class="fancy" /&gt;
+&lt;div class="note"&gt;Only in HTML.&lt;/div&gt;
+&lt;p&gt;
+The end.
+&lt;/p&gt;
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> no markup at all, and the <code>ascii</code> block:
+</p>
+
+<pre class="example" id="org0b20321">
+This word is highlighted in HTML, emphasized in LaTeX.
+Only in plain text.
+The end.
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b l L</code>.
+</p>
+
+<p>
+<b>Expect:</b> the LaTeX parts:
+</p>
+
+<pre class="example" id="org3855050">
+This word is highlighted in HTML, \emph{emphasized} in LaTeX.
+\newpage
+\begin{center}Only in \LaTeX.\end{center}
+The end.
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org254f1b8" class="outline-2">
+<h2 id="org254f1b8"><span class="section-number-2">13.</span> HTML specifics: #+ATTR<sub>HTML</sub> and #+HTML<sub>HEAD</sub></h2>
+<div class="outline-text-2" id="text-13">
+<ul class="org-ul">
+<li><code>#+ATTR_HTML: :class wide :style color: red</code> before a table, image,
+link-only paragraph, list or block adds those HTML attributes. For a
+link, the attributes go to the <code>&lt;a&gt;</code> (or <code>&lt;img&gt;</code>) element.</li>
+<li><code>#+HTML_HEAD:</code> and <code>#+HTML_HEAD_EXTRA:</code> add lines to <code>&lt;head&gt;</code> (CSS,
+meta tags); in a subtree use <code>EXPORT_HTML_HEAD</code>.</li>
+<li><code>#+HTML_DOCTYPE: html5</code> and <code>#+OPTIONS: html5-fancy:t</code> give HTML5
+elements (<code>&lt;section&gt;</code>, <code>&lt;figure&gt;</code>, &hellip;). <code>html-postamble:nil</code> removes
+the footer, <code>html-style:nil</code> the default CSS.</li>
+<li><code>#+HTML_LINK_HOME:</code> / <code>#+HTML_LINK_UP:</code> add navigation links,
+<code>#+HTML_CONTAINER:</code> changes the <code>div</code> around sections.</li>
+</ul>
+
+<p>
+A file set up for HTML (example, not live):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-org"><code>#+TITLE: Team page
+#+HTML_DOCTYPE: html5
+#+OPTIONS: html5-fancy:t html-postamble:nil toc:nil
+#+HTML_HEAD: &lt;link rel="stylesheet" href="style.css" /&gt;
+#+HTML_HEAD_EXTRA: &lt;meta name="theme-color" content="#336699" /&gt;
+</code></pre>
+</div>
+</div>
+<div id="outline-container-orgbd9c273" class="outline-3">
+<h3 id="orgbd9c273"><span class="section-number-3">13.1.</span> Sample: HTML attributes</h3>
+<div class="outline-text-3" id="text-13-1">
+<table id="team" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides" class="wide">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Name</th>
+<th scope="col" class="org-left">Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">Ada</td>
+<td class="org-left">analyst</td>
+</tr>
+</tbody>
+</table>
+
+<p target="_blank" title="Neovim home page">
+<a href="https://neovim.io" target="_blank" title="Neovim home page">Neovim</a>
+</p>
+
+<ul class="org-ul checklist">
+<li>one</li>
+<li>two</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org96aa1f2" class="outline-3">
+<h3 id="org96aa1f2"><span class="section-number-3">13.2.</span> Exercises: HTML attributes</h3>
+<div class="outline-text-3" id="text-13-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s h H</code>.
+</p>
+
+<p>
+<b>Expect:</b> the style line at the end of <code>&lt;head&gt;</code>, and in the body:
+</p>
+
+<pre class="example" id="orgc998d61">
+&lt;style&gt;.wide { width: 100%; }&lt;/style&gt;
+&lt;/head&gt;
+...
+&lt;table id="team" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides" class="wide"&gt;
+...
+&lt;p target="_blank" title="Neovim home page"&gt;
+&lt;a href="https://neovim.io" target="_blank" title="Neovim home page"&gt;Neovim&lt;/a&gt;
+&lt;/p&gt;
+
+&lt;ul class="org-ul checklist"&gt;
+</pre>
+
+<p>
+The <code>:id</code> replaced the generated table id, the <code>:class</code> was added to the
+default attributes (for lists, to the <code>org-ul</code> class). For a paragraph
+holding only a link, the attributes land on both the <code>&lt;p&gt;</code> and the <code>&lt;a&gt;</code>,
+exactly like Emacs. The page ends right after the content: no postamble
+(<code>html-postamble:nil</code>).
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgc1855ad" class="outline-2">
+<h2 id="orgc1855ad"><span class="section-number-2">14.</span> LaTeX and PDF specifics</h2>
+<div class="outline-text-2" id="text-14">
+<ul class="org-ul">
+<li><code>#+LATEX_CLASS: article</code> (default), <code>report</code>, <code>book</code>, <code>beamer</code> &hellip; from
+<code>export.latex.classes</code>; <code>#+LATEX_CLASS_OPTIONS: [a4paper,11pt]</code>.</li>
+<li><code>#+LATEX_HEADER: \usepackage{xcolor}</code> adds preamble lines
+(<code>EXPORT_LATEX_HEADER</code> in a subtree); <code>#+LATEX_HEADER_EXTRA:</code> too.</li>
+<li><code>#+ATTR_LATEX:</code> before a table: <code>:environment longtable</code>, <code>:align
+  l|r</code>, <code>:booktabs t</code>, <code>:float nil</code>, <code>:placement [H]</code>, <code>:caption</code>; before
+an image: <code>:width 0.5\textwidth</code>; before a list, <code>:options</code>.</li>
+<li>LaTeX fragments (<code>$E=mc^2$</code>, <code>\(...\)</code>, <code>\begin{equation}</code>) pass through
+to LaTeX; HTML shows them with MathJax.</li>
+<li>PDF (<code>l p</code>) writes the .tex file next to this one and runs <code>latexmk</code>
+(or <code>pdflatex</code> three times). Without a TeX installation you get an error
+message and only the .tex file.</li>
+</ul>
+</div>
+<div id="outline-container-org13650df" class="outline-3">
+<h3 id="org13650df"><span class="section-number-3">14.1.</span> Sample: LaTeX attributes</h3>
+<div class="outline-text-3" id="text-14-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+<caption class="t-above"><span class="table-number">Table 2:</span> Results</caption>
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Test</th>
+<th scope="col" class="org-right">Score</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">A</td>
+<td class="org-right">91</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Inline math \(a^2 + b^2 = c^2\) and a display:
+</p>
+\begin{equation}
+e^{i\pi} + 1 = 0
+\end{equation}
+</div>
+</div>
+<div id="outline-container-orgc16cabf" class="outline-3">
+<h3 id="orgc16cabf"><span class="section-number-3">14.2.</span> Exercises: LaTeX attributes</h3>
+<div class="outline-text-3" id="text-14-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s l L</code>.
+</p>
+
+<p>
+<b>Expect:</b> the class, its options and the extra package in the preamble:
+</p>
+
+<pre class="example" id="org88af86c">
+\documentclass[a4paper]{report}
+...
+\usepackage{booktabs}
+</pre>
+
+<p>
+and in the body a <code>table</code> float with <code>[h]</code>, the <code>lr</code> column spec and
+booktabs rules:
+</p>
+
+<pre class="example" id="orgebd05b4">
+\begin{table}[h]
+\caption{Results}
+\centering
+\begin{tabular}{lr}
+\toprule
+Test &amp; Score\\
+\midrule
+A &amp; 91\\
+\bottomrule
+\end{tabular}
+\end{table}
+</pre>
+
+<p>
+The math is copied as it is. With the <code>report</code> class, level-1 headings
+would be <code>\chapter</code> instead of <code>\section</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org42d1764" class="outline-2">
+<h2 id="org42d1764"><span class="section-number-2">15.</span> Beamer slides</h2>
+<div class="outline-text-2" id="text-15">
+<p>
+Beamer is LaTeX for presentations. By default level-1 headings are frames
+(slides); <code>H:2</code> makes level 2 the frames and level 1 sections. Properties
+refine it: <code>BEAMER_env</code> (<code>block</code>, <code>alertblock</code>, <code>example</code>, <code>columns</code>,
+<code>column</code>, <code>note</code>, <code>ignoreheading</code>, &hellip;), <code>BEAMER_col</code> (column width),
+<code>BEAMER_act</code> (overlay like <code>&lt;2-&gt;</code>), <code>BEAMER_opt</code> (frame options).
+<code>#+BEAMER_THEME:</code> (<code>EXPORT_BEAMER_THEME</code>) picks the theme. <code>l B</code> exports
+to a buffer; <code>l P</code> makes a PDF (needs LaTeX).
+</p>
+</div>
+<div id="outline-container-orgc6ed6d3" class="outline-3">
+<h3 id="orgc6ed6d3"><span class="section-number-3">15.1.</span> Sample: slides</h3>
+<div class="outline-text-3" id="text-15-1">
+</div>
+<div id="outline-container-org8b4ae79" class="outline-4">
+<h4 id="org8b4ae79"><span class="section-number-4">15.1.1.</span> First slide</h4>
+<div class="outline-text-4" id="text-15-1-1">
+<ul class="org-ul">
+<li>point one</li>
+<li>point two</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org8d32f2f" class="outline-4">
+<h4 id="org8d32f2f"><span class="section-number-4">15.1.2.</span> Two columns</h4>
+<div class="outline-text-4" id="text-15-1-2">
+</div>
+<ol class="org-ol">
+<li><a id="orgcd7cf1d"></a>Left<br />
+<div class="outline-text-5" id="text-15-1-2-1">
+<p>
+Text on the left.
+</p>
+</div>
+</li>
+<li><a id="org1f202bf"></a>Right<br />
+<div class="outline-text-5" id="text-15-1-2-2">
+<p>
+Careful!
+</p>
+</div>
+</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-org6c19a37" class="outline-3">
+<h3 id="org6c19a37"><span class="section-number-3">15.2.</span> Exercises: slides</h3>
+<div class="outline-text-3" id="text-15-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s l B</code>.
+</p>
+
+<p>
+<b>Expect:</b> a Beamer document with the theme, a title frame, then one frame
+per level-1 heading of the sample:
+</p>
+
+<pre class="example" id="orgc78895d">
+\documentclass[presentation]{beamer}
+...
+\usetheme{Madrid}
+\author{Ada}
+\date{\today}
+\title{A tiny talk}
+...
+\maketitle
+\begin{frame}[label={sec:orgcc50823}]{First slide}
+\begin{itemize}
+\item point one
+\item point two
+\end{itemize}
+\end{frame}
+\begin{frame}[label={sec:orgcd668b6}]{Two columns}
+\begin{columns}
+\begin{column}{0.5\columnwidth}
+Text on the left.
+\end{column}
+\begin{column}{0.5\columnwidth}
+\begin{alertblock}{Right}
+Careful!
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org2580b9d" class="outline-2">
+<h2 id="org2580b9d"><span class="section-number-2">16.</span> Markdown, GFM, plain text and Org</h2>
+<div class="outline-text-2" id="text-16">
+</div>
+<div id="outline-container-orgc2b38a0" class="outline-3">
+<h3 id="orgc2b38a0"><span class="section-number-3">16.1.</span> Sample: a table and code everywhere</h3>
+<div class="outline-text-3" id="text-16-1">
+<ul class="org-ul">
+<li class="on"><code>[X]</code> done item</li>
+<li class="off"><code>[&nbsp;]</code> open item</li>
+</ul>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Tool</th>
+<th scope="col" class="org-left">Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">md</td>
+<td class="org-left">nothing</td>
+</tr>
+</tbody>
+</table>
+
+<div class="org-src-container">
+<pre class="src src-python"><code>print("hi")
+</code></pre>
+</div>
+</div>
+</div>
+<div id="outline-container-orga1bac53" class="outline-3">
+<h3 id="orga1bac53"><span class="section-number-3">16.2.</span> Exercises: a table and code everywhere</h3>
+<div class="outline-text-3" id="text-16-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code> (plain Markdown).
+</p>
+
+<p>
+<b>Expect:</b> Markdown has no table syntax, so the table is written as HTML;
+the code block is indented by four spaces:
+</p>
+
+<pre class="example" id="org9c874f8">
+-   [X] done item
+-   [ ] open item
+
+&lt;table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides"&gt;
+...
+    print("hi")
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m G</code> (GitHub flavoured Markdown).
+</p>
+
+<p>
+<b>Expect:</b> task-list items, a pipe table (not padded, which GitHub does
+not need) and a fenced block with the language:
+</p>
+
+<pre class="example" id="orgf845f73">
+- [x] done item
+- [ ] open item
+
+| Tool | Needs |
+|---|---|
+| md | nothing |
+
+```python
+print("hi")
+```
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code> (ASCII).
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+
+<pre class="example" id="orgf1076b8">
+- [X] done item
+- [ ] open item
+
+ Tool  Needs
+---------------
+ md    nothing
+
+,----
+| print("hi")
+`----
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t U</code> (UTF-8).
+</p>
+
+<p>
+<b>Expect:</b> the same drawn with Unicode characters:
+</p>
+
+<pre class="example" id="org980c34d">
+• ☑ done item
+• ☐ open item
+
+━━━━━━━━━━━━━━━
+ Tool  Needs
+───────────────
+ md    nothing
+━━━━━━━━━━━━━━━
+
+┌────
+│ print("hi")
+└────
+</pre>
+
+<p>
+<code>t L</code> (Latin-1) sits in between: Latin-1 characters where they exist,
+ASCII otherwise.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b O O</code> (Org back-end).
+</p>
+
+<p>
+<b>Expect:</b> the subtree comes back as Org, after macros, <code>#+INCLUDE</code> and
+<code>noexport</code> have been processed (useful to see exactly what the other
+back-ends receive). Note the code indented by two spaces, like Emacs:
+</p>
+
+<pre class="example" id="org7fb324d">
+- [X] done item
+- [ ] open item
+
+| Tool | Needs   |
+|------+---------|
+| md   | nothing |
+
+#+begin_src python :exports code
+  print("hi")
+#+end_src
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-orga657571" class="outline-2">
+<h2 id="orga657571"><span class="section-number-2">17.</span> #+INCLUDE: pulling in other files</h2>
+<div class="outline-text-2" id="text-17">
+<p>
+<code>#+INCLUDE: "file"</code> is replaced by the file's content on export (never in
+the buffer). Variants:
+</p>
+<ul class="org-ul">
+<li><code>#+INCLUDE: "notes.org"</code>: an Org file; its headings are adjusted to the
+current level (<code>:minlevel N</code> to choose).</li>
+<li><code>#+INCLUDE: "notes.org::*Heading"</code>: one subtree; <code>::#custom-id</code> or
+<code>::name</code> also work; <code>:only-contents t</code> drops the heading line.</li>
+<li><code>#+INCLUDE: "init.lua" src lua</code>: as a source block; <code>example</code>,
+<code>export html</code> also work.</li>
+<li><code>:lines "5-10"</code> (or <code>"5-"</code>, <code>"-10"</code>) takes a line range (the end is
+exclusive, like Emacs: <code>"1-4"</code> is lines 1 to 3).</li>
+</ul>
+</div>
+<div id="outline-container-orgf7b6e2d" class="outline-3">
+<h3 id="orgf7b6e2d"><span class="section-number-3">17.1.</span> Sample: include</h3>
+<div class="outline-text-3" id="text-17-1">
+<p>
+The first lines of the bundled init file:
+</p>
+<div class="org-src-container">
+<pre class="src src-lua"><code>-- Try org.nvim without touching your own config:
+--
+--   nvim -u examples/minimal_init.lua examples/tutorial.org
+</code></pre>
+</div>
+<p>
+And a section of the tutorial:
+Export options go in <code>#+OPTIONS:</code> at the top of a file, for example
+<code>#+OPTIONS: toc:2 num:nil ^:{} todo:nil</code>. <code>#+TITLE:</code>, <code>#+AUTHOR:</code> and
+</p>
+</div>
+</div>
+<div id="outline-container-orgbb3e03c" class="outline-3">
+<h3 id="orgbb3e03c"><span class="section-number-3">17.2.</span> Exercises: include</h3>
+<div class="outline-text-3" id="text-17-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b m M</code>.
+</p>
+
+<p>
+<b>Expect:</b> the three comment lines of <code>minimal_init.lua</code> as a code block,
+followed by the first two lines of the tutorial's "Export settings"
+section:
+</p>
+
+<pre class="example" id="org2d522f4">
+The first lines of the bundled init file:
+
+    -- Try org.nvim without touching your own config:
+    --
+    --   nvim -u examples/minimal_init.lua examples/tutorial.org
+
+And a section of the tutorial:
+Export options go in `#+OPTIONS:` at the top of a file, for example
+`#+OPTIONS: toc:2 num:nil ^:{} todo:nil`. `#+TITLE:`, `#+AUTHOR:` and
+</pre>
+
+<p>
+<code>#+SETUPFILE: "other.org"</code> is related: it reads the settings keywords
+(<code>#+OPTIONS</code>, <code>#+MACRO</code>, <code>#+TODO</code>, &hellip;) of another file.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org5f1eceb" class="outline-2">
+<h2 id="org5f1eceb"><span class="section-number-2">18.</span> Source blocks and :exports</h2>
+<div class="outline-text-2" id="text-18">
+<p>
+The <code>:exports</code> header argument decides what a code block contributes:
+</p>
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left"><code>:exports</code></th>
+<th scope="col" class="org-left">Exported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>code</code></td>
+<td class="org-left">the code only (default for most languages)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>results</code></td>
+<td class="org-left">the result only</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>both</code></td>
+<td class="org-left">code, then result</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>none</code></td>
+<td class="org-left">nothing</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+With <code>babel.evaluate_on_export = true</code> (the default) blocks exporting
+<code>results</code> or <code>both</code> are <b>run again</b> during export, in a copy of the buffer
+(the buffer itself is not changed), after the usual "Evaluate?"
+confirmation. <code>:eval never-export</code> (or <code>no-export</code>) keeps the <code>#+RESULTS:</code>
+already in the buffer instead. More in <a href="17-babel.html">17-babel.org</a>.
+</p>
+</div>
+<div id="outline-container-org4371cd3" class="outline-3">
+<h3 id="org4371cd3"><span class="section-number-3">18.1.</span> Sample: exports</h3>
+<div class="outline-text-3" id="text-18-1">
+<div class="org-src-container">
+<pre class="src src-emacs-lisp"><code>(+ 1 2)
+</code></pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-emacs-lisp"><code>(* 6 7)
+</code></pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-emacs-lisp"><code>(concat "org" "." "nvim")
+</code></pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-emacs-lisp"><code>(message "invisible")
+</code></pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-emacs-lisp"><code>(* 100 100)
+</code></pre>
+</div>
+
+<pre class="example">
+stale value kept on export
+</pre>
+
+<p>
+The answer is <code class="src src-emacs-lisp">(* 6 7)</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-orgde53b9c" class="outline-3">
+<h3 id="orgde53b9c"><span class="section-number-3">18.2.</span> Exercises: exports</h3>
+<div class="outline-text-3" id="text-18-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>. You are asked "Evaluate this emacs-lisp code
+block on your system?" three times (the <code>results</code> block, the <code>both</code> block
+and the inline <code>src_</code> call): answer <code>y</code> each time. (Emacs Lisp runs in
+<code>emacs --batch</code> when Emacs is installed, otherwise on org.nvim's own Lisp
+interpreter, which handles these simple expressions.)
+</p>
+
+<p>
+<b>Expect:</b> code and results in the text back-end's boxes; the inline
+result is verbatim (<code>`42'</code>):
+</p>
+
+<pre class="example" id="org522a514">
+,----
+| (+ 1 2)
+`----
+
+,----
+| 42
+`----
+
+,----
+| (concat "org" "." "nvim")
+`----
+
+,----
+| org.nvim
+`----
+
+,----
+| stale value kept on export
+`----
+
+The answer is `42'.
+</pre>
+
+<p>
+The <code>:exports none</code> block is absent, and the <code>never-export</code> block shows
+its old <code>#+RESULTS:</code> instead of <code>10000</code>. The buffer is not modified: no
+<code>#+RESULTS:</code> was added under the other blocks.
+</p>
+
+<p>
+<b>Try:</b> export again and answer <code>n</code> to every question: the <code>results</code>
+blocks then export nothing (they have no <code>#+RESULTS:</code> in the buffer), the
+<code>both</code> block only its code, and the inline call is left empty.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org5b7a29e" class="outline-2">
+<h2 id="org5b7a29e"><span class="section-number-2">19.</span> Citations</h2>
+<div class="outline-text-2" id="text-19">
+<p>
+Citations are written <code>[cite:@key]</code> (styles: <code>[cite/t:@key]</code> text,
+<code>[cite/a:@key]</code> author, <code>[cite/na:@key]</code> no author, &hellip;; prefixes and
+suffixes: <code>[cite:see @key p. 3]</code>). <code>#+BIBLIOGRAPHY:</code> names a .bib or
+CSL-JSON file and <code>#+PRINT_BIBLIOGRAPHY:</code> prints the list. The "basic"
+processor works with every back-end; LaTeX can use <code>natbib</code>, <code>biblatex</code> or
+<code>bibtex</code> with <code>#+CITE_EXPORT:</code>. CSL styles (citeproc) are not supported;
+for those, export to Org or Markdown and run <code>pandoc --citeproc</code>.
+</p>
+
+<p>
+This file's header has <code>#+BIBLIOGRAPHY: ../tests/fixtures/export/cite/refs.bib</code>
+(a test fixture of the repo).
+</p>
+</div>
+<div id="outline-container-orgeb4a2da" class="outline-3">
+<h3 id="orgeb4a2da"><span class="section-number-3">19.1.</span> Sample: citations</h3>
+<div class="outline-text-3" id="text-19-1">
+<p>
+As shown before (Doe, John and Smith, Jane, 2020), and in a book (see Zed, Anna, 2019 p. 3).
+Alpha, Bob (2018) wrote a thesis.
+</p>
+
+<p>
+Alpha, Bob (2018). <i>Thesis</i>, Univ.</p>
+
+<p>
+Doe, John and Smith, Jane (2020). <i>On the TeXbook and \(\alpha\) &alpha; things</i>, Journal of Tests.</p>
+
+<p>
+Zed, Anna (2019). <i>A Book of Strings</i>, ACME Press.</p>
+</div>
+</div>
+<div id="outline-container-orgf7db64b" class="outline-3">
+<h3 id="orgf7db64b"><span class="section-number-3">19.2.</span> Exercises: citations</h3>
+<div class="outline-text-3" id="text-19-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> author-year citations, and the bibliography sorted by author
+where <code>#+PRINT_BIBLIOGRAPHY:</code> is:
+</p>
+
+<pre class="example" id="org4ed04ec">
+As shown before (Doe, John and Smith, Jane, 2020), and in a book (see
+Zed, Anna, 2019 p. 3).  Alpha, Bob (2018) wrote a thesis.
+
+Alpha, Bob (2018). /Thesis/, Univ.
+
+Doe, John and Smith, Jane (2020). /On the TeXbook and $\alpha$ alpha
+things/, Journal of Tests.
+
+Zed, Anna (2019). /A Book of Strings/, ACME Press.
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b h H</code>: the same text in <code>&lt;p&gt;</code> elements, with the
+titles in <code>&lt;i&gt;</code> and the <code>$\alpha$</code> of the .bib title as MathJax
+<code>\(\alpha\)</code>.
+</p>
+
+<p>
+<b>Try:</b> change <code>[cite:@doe2020]</code> to <code>[cite/na:@doe2020]</code> (no author):
+<code>As shown before (2020)</code>. And <code>[cite:see @zed2019 p. 3]</code> to
+<code>[cite/nb:@zed2019]</code> (numeric): <code>in a book (3)</code>, the entry's position in
+the bibliography.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org617150d" class="outline-2">
+<h2 id="org617150d"><span class="section-number-2">20.</span> Broken links</h2>
+<div class="outline-text-2" id="text-20">
+<p>
+A link that points nowhere (<code>[[*No such heading]]</code>) stops the export with
+an error by default: better than a silently dead link.
+<code>#+OPTIONS: broken-links:mark</code> writes <code>[BROKEN LINK: ...]</code> instead, and
+<code>broken-links:t</code> drops the link. This file sets <code>broken-links:mark</code> at
+the top so that a whole-file export works despite the sample below.
+</p>
+</div>
+<div id="outline-container-orgb9faf03" class="outline-3">
+<h3 id="orgb9faf03"><span class="section-number-3">20.1.</span> Sample: broken links</h3>
+<div class="outline-text-3" id="text-20-1">
+<p>
+This points to [BROKEN LINK: *A heading that does not exist].
+</p>
+</div>
+</div>
+<div id="outline-container-org72f1af6" class="outline-3">
+<h3 id="org72f1af6"><span class="section-number-3">20.2.</span> Exercises: broken links</h3>
+<div class="outline-text-3" id="text-20-2">
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e s b t A</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>This points to [BROKEN LINK: *A heading that does not exist].</code>
+</p>
+
+<p>
+<b>Try:</b> change <code>broken-links:mark</code> to <code>broken-links:nil</code> in
+<code>EXPORT_OPTIONS</code> and export again. No buffer opens; instead:
+</p>
+
+<pre class="example" id="org7dad821">
+Export failed: Org export aborted.  Unable to resolve link: "*A heading that does not exist"
+See export.with_broken_links (org-export-with-broken-links)
+</pre>
+
+<p>
+<b>Try:</b> <code>broken-links:t</code>: the link simply disappears (<code>This points to .</code>).
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org4554367" class="outline-2">
+<h2 id="org4554367"><span class="section-number-2">21.</span> iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)</h2>
+<div class="outline-text-2" id="text-21">
+<p>
+These write files; there is no buffer variant. If you try them here, the
+files land in <code>examples/</code> (delete them afterwards).
+</p>
+
+<ul class="org-ul">
+<li>iCalendar (<code>c f</code>): every entry with an active timestamp, SCHEDULED or
+DEADLINE becomes a VEVENT (and TODOs a VTODO with
+<code>export.icalendar.include_todo</code>). <code>c a</code> writes one .ics per agenda file,
+<code>c c</code> combines them into <code>export.icalendar.combined_agenda_file</code>
+(<code>~/org.ics</code> by default, outside the repo).</li>
+<li>ODT (<code>o o</code>): a real OpenDocument file written in pure Lua; opens in
+LibreOffice, Word, Google Docs. <code>export.odt.preferred_output_format =
+  "docx"</code> converts it with LibreOffice.</li>
+<li>DOCX (<code>d d</code>) and other formats (<code>p</code>, then e.g. <code>rst</code>, <code>epub</code>, <code>typst</code>):
+pandoc converts the Org back-end's output. The file is always named
+after the Org file (<code>examples/19-export.docx</code>), even in a subtree with
+<code>EXPORT_FILE_NAME</code>.</li>
+<li>Texinfo (<code>i t</code>) writes a .texi manual; <code>i i</code> also runs <code>makeinfo</code>.</li>
+</ul>
+</div>
+<div id="outline-container-org11739dd" class="outline-3">
+<h3 id="org11739dd"><span class="section-number-3">21.1.</span> Sample: calendar entries</h3>
+<div class="outline-text-3" id="text-21-1">
+</div>
+<div id="outline-container-org77b5df6" class="outline-4">
+<h4 id="org77b5df6"><span class="section-number-4">21.1.1.</span> Team meeting</h4>
+<div class="outline-text-4" id="text-21-1-1">
+<p>
+<span class="timestamp-wrapper"><span class="timestamp">&lt;2026-10-07 Wed 10:00-11:00&gt;</span></span>
+</p>
+</div>
+</div>
+<div id="outline-container-org195a8e5" class="outline-4">
+<h4 id="org195a8e5"><span class="section-number-4">21.1.2.</span> Submit the report</h4>
+<div class="outline-text-4" id="text-21-1-2">
+</div>
+</div>
+</div>
+<div id="outline-container-org537a46d" class="outline-3">
+<h3 id="org537a46d"><span class="section-number-3">21.2.</span> Exercises: calendar entries</h3>
+<div class="outline-text-3" id="text-21-2">
+<p>
+<b>Try (writes examples/19-export.ics):</b> <code>&lt;prefix&gt;e c f</code>. The dispatcher's
+iCalendar entries always export the <b>whole file</b>, so the three
+"Evaluate?" questions of the <code>:exports</code> sample come up again: answer <code>n</code>.
+Open the file with <code>:e examples/19-export.ics</code>.
+</p>
+
+<p>
+<b>Expect:</b> among others
+</p>
+
+<pre class="example" id="org3a82934">
+BEGIN:VEVENT
+DTSTART:20261007T100000
+DTEND:20261007T110000
+SUMMARY:Team meeting
+...
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20261015
+DTEND;VALUE=DATE:20261016
+SUMMARY:DL: Submit the report
+</pre>
+
+<p>
+and an event for <code>&lt;2026-10-05 Mon&gt;</code> of the "Ship the release" sample. A
+TODO entry's deadline becomes a VTODO only with
+<code>export.icalendar.include_todo</code>; that is why "Submit the report" has no
+TODO keyword. Afterwards: <code>:!rm examples/19-export.ics</code>.
+</p>
+
+<p>
+<b>Try (writes examples/19-export.odt):</b> <code>&lt;prefix&gt;e s o o</code>, open the file in
+LibreOffice (or <code>&lt;prefix&gt;e s o O</code> to open it right away), then delete it.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org0acc137" class="outline-2">
+<h2 id="org0acc137"><span class="section-number-2">22.</span> Publishing projects</h2>
+<div class="outline-text-2" id="text-22">
+<p>
+Publishing exports whole directories at once (a website, a set of PDFs):
+projects are set in your config under <code>export.publish.projects</code>, and only
+files changed since the last run are exported again. Dispatcher: <code>P f</code>
+(this file), <code>P p</code> (its project), <code>P x</code> (choose one), <code>P a</code> (all). The
+commands are <code>:Org publish</code>, <code>:Org publish NAME</code>, <code>:Org publish all
+force</code> (<code>force</code> re-exports even unchanged files).
+</p>
+
+<p>
+This is configuration, not something to run from here:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  export = {
+    publish = {
+      projects = {
+        notes = {
+          base_directory = "~/org/site",   -- the .org sources
+          base_extension = "org",
+          publishing_directory = "~/public_html",
+          publishing_function = "html",    -- or "pdf", "md", "org", ...
+          recursive = true,
+          exclude = "^drafts/",            -- Vim regex, relative path
+          auto_sitemap = true,             -- writes sitemap.org + .html
+          sitemap_title = "My notes",
+          with_toc = false,                -- any export option
+          html_postamble = false,
+        },
+        static = {
+          base_directory = "~/org/site",
+          base_extension = "css\\|png\\|jpg",
+          publishing_directory = "~/public_html",
+          recursive = true,
+          publishing_function = "attachment", -- copy as is
+        },
+        site = { components = { "notes", "static" } },
+      },
+    },
+  },
+})
+</code></pre>
+</div>
+
+<p>
+Then <code>:Org publish site</code> builds both. The timestamps of published files
+are kept in <code>export.publish.timestamp_directory</code>.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;e P x</code>: with the bundled init no project is configured, so
+the prompt offers nothing to choose; press <code>&lt;Esc&gt;</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-org0373b60" class="outline-2">
+<h2 id="org0373b60"><span class="section-number-2">23.</span> Configuring defaults</h2>
+<div class="outline-text-2" id="text-23">
+<p>
+Every <code>#+OPTIONS</code> key has a config default under <code>export</code>, named after the
+Emacs variable: <code>with_toc</code>, <code>with_section_numbers</code>, <code>headline_levels</code>,
+<code>with_tags</code>, <code>with_todo_keywords</code>, <code>with_priority</code>, <code>with_drawers</code>,
+<code>with_properties</code>, <code>with_broken_links</code>, <code>select_tags</code>, <code>exclude_tags</code>,
+<code>author</code>, <code>email</code>, &hellip; and per back-end tables (<code>export.html</code>,
+<code>export.latex</code>, <code>export.md</code>, <code>export.ascii</code>, <code>export.odt</code>, &hellip;).
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  export = {
+    output_dir = "~/exports",       -- instead of next to the source file
+    open_after_export = false,      -- open every exported file
+    with_toc = false,
+    with_section_numbers = false,
+    author = "Ada Lovelace",
+    global_macros = { year = function() return os.date("%Y") end },
+    html = { doctype = "html5", html5_fancy = true },
+    ascii = { charset = "utf-8", text_width = 80 },
+    md = { headline_style = "atx" },
+  },
+})
+</code></pre>
+</div>
+
+<p>
+Filters and hooks (<code>export.filters</code>, <code>export.hooks</code>) run Lua functions on
+the text or the lines before parsing: see <code>:h org-export</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-orge3c0000" class="outline-2">
+<h2 id="orge3c0000"><span class="section-number-2">24.</span> Further reading</h2>
+<div class="outline-text-2" id="text-24">
+<ul class="org-ul">
+<li><code>:h org-export</code> (dispatcher, command and Lua API)</li>
+<li><code>:h org-export-settings</code> (keywords, <code>#+OPTIONS</code>, macros, <code>#+INCLUDE</code>)</li>
+<li><code>:h org-export-backends</code>, <code>:h org-export-ascii</code>, <code>:h org-export-beamer</code>,
+<code>:h org-export-odt</code>, <code>:h org-export-texinfo</code>, <code>:h org-export-icalendar</code></li>
+<li><code>:h org-export-cite</code> (citations), <code>:h org-publish</code></li>
+<li><code>:h org-export-unsupported</code> (what needs Emacs)</li>
+<li>Related example files: <a href="17-babel.html">17-babel.org</a> (code
+blocks), <a href="14-footnotes.html">14-footnotes.org</a>,
+<a href="13-links.html">13-links.org</a> (link types),
+<a href="21-images-latex.html">21-images-latex.org</a> (images and LaTeX
+fragments), and the overview in <a href="00-index.html">00-index.org</a>.</li>
+</ul>
+</div>
+</div>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+
+<div class="footdef"><sup><a id="fn.fr" class="footnum" href="#fnr.fr" role="doc-backlink">1</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+Une note de bas de page.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.omit" class="footnum" href="#fnr.omit" role="doc-backlink">2</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+Not exported with f:nil.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.sample" class="footnum" href="#fnr.sample" role="doc-backlink">3</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+The definition of the named note.
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.4" class="footnum" href="#fnr.4" role="doc-backlink">4</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">Defined right here.</p></div></div>
+
+
+</div>
+</div>

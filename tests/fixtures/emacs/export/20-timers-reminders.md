@@ -1,0 +1,674 @@
+
+# Table of Contents
+
+1.  [How to use this file](#org6f3b54d)
+    1.  [Keys in this file](#orgd82a681)
+2.  [See the timer in the statusline](#org6852f3b)
+3.  [The relative timer](#org1a9b2bc)
+    1.  [Starting from an offset](#org1183b91)
+4.  [Timer lists for meeting notes](#org2ee9fa0)
+    1.  [A meeting to take notes in](#org897f433)
+        1.  [Weekly sync](#org42f874c)
+    2.  [Numbered timer lists and long notes](#org4f0e106)
+    3.  [Not a timer list](#orgd2d6e17)
+    4.  [Shifting timer values](#org4f04a7e)
+5.  [The countdown timer](#org90eb13a)
+        1.  [A quick countdown to see the end](#orgd54f3f3)
+        2.  [Write the abstract](#orge5cb850)
+        3.  [A pomodoro with a count](#org2339d7e)
+6.  [Hooks and options](#org8f24d88)
+    1.  [Your own keys](#org73cb48e)
+7.  [Appointment reminders](#org25f39bf)
+    1.  [Turning them on](#orgb72b707)
+    2.  [Test it now](#orgffc7ee1)
+        1.  [Test the reminders](#orgb6725e2)
+        2.  [Coffee with Sam](#org14f7a8f)
+8.  [Further reading](#orgf5f9677)
+
+
+
+<a id="org6f3b54d"></a>
+
+# How to use this file
+
+org.nvim has two kinds of timers, and it can remind you of appointments:
+
+-   A **relative timer** counts up from zero (or from any offset). Insert its
+    value into the text to timestamp notes relative to the start of a
+    meeting, a talk or a recording: `- 0:04:40 :: roadmap discussion`.
+-   A **countdown timer** counts down from N minutes and notifies you at the
+    end: a pomodoro, a time box for a task (it can use the task's `Effort`).
+-   **Appointment reminders** watch the timed entries of your agenda files and
+    notify you a few minutes before each one starts.
+
+Only one timer (relative or countdown) runs at a time. Both are different
+from *clocking*, which records time spent on tasks in the file: see
+[08-clocking.org](08-clocking.md).
+
+-   The file starts folded (`#+STARTUP: overview`). Put the cursor on a
+    heading and press `<Tab>` to open it, `<S-Tab>` to cycle the whole file.
+-   Lines starting with **Try:** are exercises, **Expect:** says what you should
+    see afterwards. Lines starting with `#` are comments about the example
+    next to them.
+-   Nothing breaks if you make a mess: `u` undoes, and
+    `git checkout examples/20-timers-reminders.org` restores the file.
+-   `<prefix>` means `<leader>o`. `g?` lists every key of the buffer.
+-   A *count* is a number typed before a key: `4<C-c><C-x>0` means press `4`,
+    then `<C-c><C-x>0`. Counts stand in for Emacs's `C-u` (`4`) and
+    `C-u C-u` (`16`).
+
+Start Neovim from the repository root with the bundled init file, so the
+agenda (and the reminders) see these files and your own notes are
+untouched:
+
+    nvim -u examples/minimal_init.lua examples/20-timers-reminders.org
+
+`examples/minimal_init.lua` sets `agenda_files` to `examples/*.org` (plus a
+scratch directory under `stdpath("state")` for captures) and adds a few
+capture templates and custom agenda commands. It does not turn the
+reminders on: you start them with a command below.
+
+Timer values change every second, so the **Expect:** lines below show the
+*shape* of the result (`0:00:07` means "whatever the timer shows").
+
+
+<a id="orgd82a681"></a>
+
+## Keys in this file
+
+The timers have Emacs keys and `:Org` commands, but no `<prefix>` keys by
+default (see "Your own keys" at the end to add some).
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Emacs key</th>
+<th scope="col" class="org-left">Command</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;0</code></td>
+<td class="org-left"><code>:Org timer_start</code></td>
+<td class="org-left">start (or restart) the relative timer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;.</code></td>
+<td class="org-left"><code>:Org timer_insert</code></td>
+<td class="org-left">insert the timer value</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;-</code></td>
+<td class="org-left"><code>:Org timer_item</code></td>
+<td class="org-left">insert a <code>- 0:01:23 ::</code> item</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;,</code></td>
+<td class="org-left"><code>:Org timer_pause</code></td>
+<td class="org-left">pause / continue either timer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;_</code></td>
+<td class="org-left"><code>:Org timer_stop</code></td>
+<td class="org-left">stop either timer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;;</code></td>
+<td class="org-left"><code>:Org timer_countdown N</code></td>
+<td class="org-left">start a countdown of N minutes</td>
+</tr>
+
+<tr>
+<td class="org-left">(none)</td>
+<td class="org-left"><code>:Org timer_remaining</code></td>
+<td class="org-left">show the time left of the countdown</td>
+</tr>
+
+<tr>
+<td class="org-left">(none)</td>
+<td class="org-left"><code>:Org notifications_start</code></td>
+<td class="org-left">start appointment reminders</td>
+</tr>
+
+<tr>
+<td class="org-left">(none)</td>
+<td class="org-left"><code>:Org notifications_stop</code></td>
+<td class="org-left">stop them</td>
+</tr>
+</tbody>
+</table>
+
+
+<a id="org6852f3b"></a>
+
+# See the timer in the statusline
+
+`require("org").statusline()` returns the running clock and timer as a
+string: `⏲ 0:12:34` for the timer, with `(paused)` appended while it is
+paused, and an empty string when nothing runs. Put it in your statusline
+to see the timer tick. For this session only:
+
+    :set laststatus=2
+    :let &statusline = "%f %= %{v:lua.require'org'.statusline()} "
+
+With lualine, in your config:
+
+    require("lualine").setup({
+      sections = {
+        lualine_x = { function() return require("org").statusline() end },
+      },
+    })
+
+**Try:** run the two `:` commands above (type them on the command line).
+
+**Expect:** the right side of the statusline is empty for now. It shows the
+timer once you start one in the next section.
+
+
+<a id="org1a9b2bc"></a>
+
+# The relative timer
+
+`<C-c><C-x>0` (`:Org timer_start`) starts a timer at `0:00:00` and says
+`Timer start time set to 15:19:42, current value is 0:00:00`.
+`<C-c><C-x>.` (`:Org timer_insert`) inserts the current value *after* the
+cursor, followed by a space (the `timer.format` option, `"%s "`); if no timer
+runs yet, it starts one first.
+
+`<C-c><C-x>,` pauses the timer (`Timer paused at 0:01:07`) and continues it
+(`Timer continues at 0:01:07`): paused time doesn't count.
+`<C-c><C-x>_` stops it (`Timer stopped`); another stop says
+`No running timer`.
+
+Scratch area (the empty lines are where you insert):
+
+**Try:** put the cursor on the empty line under "Line 1" and press
+`<C-c><C-x>.`.
+
+**Expect:** the message `Timer start time set to HH:MM:SS, current value is
+0:00:00`, the line now reads `0:00:00` (plus a trailing space), and the
+statusline shows `⏲ 0:00:01`, `⏲ 0:00:02`, &hellip;
+
+**Try:** wait a few seconds, then on the empty line under "Line 2" press
+`<C-c><C-x>.` again.
+
+**Expect:** a larger value there, e.g. `0:00:09`: the timer kept running.
+
+**Try:** press `<C-c><C-x>,`, wait five seconds, press `<C-c><C-x>,` again.
+
+**Expect:** `Timer paused at 0:00:14`, the statusline shows
+`⏲ 0:00:14 (paused)` and doesn't move; then `Timer continues at 0:00:14`
+and it counts on from there.
+
+**Try:** press `<C-c><C-x>_`, then `<C-c><C-x>_` once more.
+
+**Expect:** `Timer stopped`, the statusline part disappears; then
+`No running timer`.
+
+
+<a id="org1183b91"></a>
+
+## Starting from an offset
+
+A count on `<C-c><C-x>0` asks `Restart timer with offset [0:12:00]:`. The
+default in brackets is the first timer value on the current line (or
+`0:00:00`), so you can continue timing a recording from where your notes
+left off. Type an offset or press `<CR>` for the default:
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">You type</th>
+<th scope="col" class="org-left">The timer starts at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;CR&gt;</code></td>
+<td class="org-left">the value on the line</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>1:00:00</code></td>
+<td class="org-left"><code>1:00:00</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>1:30</code></td>
+<td class="org-left"><code>0:01:30</code> (M:SS)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>90</code></td>
+<td class="org-left"><code>0:01:30</code> (seconds)</td>
+</tr>
+</tbody>
+</table>
+
+`:Org timer_start 1:30` does the same without the prompt.
+
+A count on `<C-c><C-x>.` (e.g. `4<C-c><C-x>.`) restarts the timer at zero
+before inserting.
+
+-   **0:05:10:** intro music
+-   **0:12:00:** first question
+
+**Try:** put the cursor on the "first question" line, press `4<C-c><C-x>0`
+and `<CR>`.
+
+**Expect:** `Timer start time set to ..., current value is 0:12:00`, and the
+statusline counts on from `⏲ 0:12:00`. Press `<C-c><C-x>_` to stop it.
+
+**Try:** run `:Org timer_start 90`.
+
+**Expect:** `... current value is 0:01:30`. Stop it with `:Org timer_stop`.
+
+
+<a id="org2ee9fa0"></a>
+
+# Timer lists for meeting notes
+
+`<C-c><C-x>-` (`:Org timer_item`) inserts a description item whose term is
+the timer value, `- 0:02:15 ::`, and leaves you in Insert mode to type the
+note. It starts the timer if none runs (a count restarts it).
+
+-   On a line of plain text, it turns the line into the first item:
+    `Introductions` becomes `- 0:00:00 :: Introductions`.
+-   On an item of a timer list, the new item goes below the current one
+    (and below its continuation lines), with the same bullet; in a numbered
+    list the number goes up (`1.` → `2.`).
+-   In a list that is not a timer list (`- apples`), it refuses with
+    `This is not a timer list`.
+
+In a timer list, `<M-CR>` does the same as `<C-c><C-x>-` (like Emacs): it
+inserts the next item with the current timer value.
+
+
+<a id="org897f433"></a>
+
+## A meeting to take notes in
+
+
+<a id="org42f874c"></a>
+
+### Weekly sync
+
+Introductions
+
+**Try:** put the cursor on "Introductions" and press `<C-c><C-x>-`. Press
+`<Esc>`.
+
+**Expect:** the line becomes `- 0:00:00 :: Introductions` and the timer runs
+(`⏲ 0:00:03` in the statusline).
+
+**Try:** wait a bit, press `<C-c><C-x>-` again, type `roadmap discussion`
+and `<Esc>`. Repeat with `action items`.
+
+**Expect:** two new items right below the first one, e.g.
+`- 0:00:41 :: roadmap discussion` and `- 0:01:12 :: action items`.
+
+**Try:** press `<C-c><C-x>_` to stop the timer at the end of the meeting.
+
+
+<a id="org4f0e106"></a>
+
+## Numbered timer lists and long notes
+
+1.  0:00:10 :: welcome
+2.  0:03:25 :: demo of the new importer;
+    it failed on the second file, retried with &ndash;force
+3.  0:09:50 :: questions
+
+**Try:** put the cursor on item 2 (either of its lines) and press
+`<C-c><C-x>-`, then `<Esc>`.
+
+**Expect:** a new item `3. 0:00:00 ::` right after the continuation line
+of item 2, before the old item 3, which is now a second `3.`. Press
+`<C-c><C-c>` on any item of the list: the numbers are repaired and the last
+item becomes `4. 0:09:50 :: questions` (see [03-lists.org](03-lists.md)).
+Press `<C-c><C-x>_` to stop the timer.
+
+
+<a id="orgd2d6e17"></a>
+
+## Not a timer list
+
+-   apples
+-   pears
+
+**Try:** put the cursor on "apples" and press `<C-c><C-x>-`.
+
+**Expect:** the error `This is not a timer list`, and nothing changes.
+
+
+<a id="org4f04a7e"></a>
+
+## Shifting timer values
+
+Recorded something, but started the timer late? `16<C-c><C-x>0` (or
+`16<C-c><C-x>.`) asks
+`Enter time difference like "-1:08:26".  Default is first time to zero:`
+and adds that difference to every timer value (`H:MM:SS`) on the current
+line. Press `<CR>` without typing to shift so that the first value becomes
+`0:00:00`. (In Emacs this works on the region; in org.nvim the keys work on
+the current line.)
+
+-   **0:05:10:** talk starts
+-   **0:07:00:** first slide
+
+**Try:** on "talk starts" press `16<C-c><C-x>0`, then `<CR>`.
+
+**Expect:** `- 0:00:00 :: talk starts` (shifted by -0:05:10).
+
+**Try:** on "first slide" press `16<C-c><C-x>0`, type `-0:05:10` and `<CR>`.
+
+**Expect:** `- 0:01:50 :: first slide`.
+
+
+<a id="org90eb13a"></a>
+
+# The countdown timer
+
+`<C-c><C-x>;` (`:Org timer_countdown`) starts a countdown. How long:
+
+1.  `:Org timer_countdown 25` → 25 minutes. The argument is minutes, or
+    `H:MM:SS` / `M:SS`: `:Org timer_countdown 0:00:30` is 30 seconds,
+    `:Org timer_countdown 1:30` is 1 minute 30.
+2.  a count, `25<C-c><C-x>;` → 25 minutes (Emacs's `C-u` for "the default
+    timer" has no count form here: a count is always minutes);
+3.  otherwise the `Effort` of the entry at the cursor (`0:25` → 25 minutes);
+4.  otherwise a prompt `How much time left? (minutes or h:mm:ss)`,
+    pre-filled with `timer.default_timer` when you set it (e.g. `"25"`).
+
+While it runs, the statusline shows the time *left* (`⏲ 0:24:59`),
+`:Org timer_remaining` says `24 minute(s) 12 seconds left before next time
+out`, `<C-c><C-x>,` pauses and continues it, `<C-c><C-x>_` cancels it, and
+`<C-c><C-x>.` inserts the remaining time. At zero you get a notification
+`<title>: time out`, where the title is the headline of the entry the
+cursor was in when you started (the file name before the first headline),
+with the
+`clock.sound` and `clock.notification_handler` options of clocking.
+
+Starting a countdown while the relative timer runs is refused
+(`Relative timer is running.  Stop first`), and the other way round
+(`Countdown timer is running.  Cancel first`). Starting a second countdown
+asks `Replace current timer?`.
+
+
+<a id="orgd54f3f3"></a>
+
+### A quick countdown to see the end
+
+**Try:** run `:Org timer_countdown 0:00:20` and wait 20 seconds.
+
+**Expect:** the statusline counts down from `⏲ 0:00:20`; at zero a warning
+notification `A quick countdown to see the end: time out` appears (the
+entry the cursor is in), and the timer is gone from the statusline.
+
+
+<a id="orge5cb850"></a>
+
+### TODO Write the abstract
+
+**Try:** with the cursor on this headline, press `<C-c><C-x>;`.
+
+**Expect:** no prompt; the statusline shows `⏲ 0:25:00` counting down.
+
+**Try:** run `:Org timer_remaining`.
+
+**Expect:** `24 minute(s) 48 seconds left before next time out` (or similar).
+
+**Try:** press `<C-c><C-x>0`.
+
+**Expect:** `Countdown timer is running.  Cancel first`: no relative timer
+while a countdown runs.
+
+**Try:** press `<C-c><C-x>,` twice, then `<C-c><C-x>_`.
+
+**Expect:** `Timer paused at 0:24:30`, `Timer continues at 0:24:30`, then
+`Timer stopped`.
+
+
+<a id="org2339d7e"></a>
+
+### A pomodoro with a count
+
+**Try:** press `3<C-c><C-x>;` anywhere.
+
+**Expect:** a 3-minute countdown (`⏲ 0:03:00`). Stop it with
+`<C-c><C-x>_` or let it run out.
+
+
+<a id="org8f24d88"></a>
+
+# Hooks and options
+
+Timer events are `User` autocommands, handy for your own integrations:
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Pattern</th>
+<th scope="col" class="org-left">When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>OrgTimerStart</code></td>
+<td class="org-left">the relative timer (re)starts</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerSet</code></td>
+<td class="org-left">a countdown starts (<code>data.seconds</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerPause</code></td>
+<td class="org-left">either timer pauses</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerContinue</code></td>
+<td class="org-left">it continues</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerStop</code></td>
+<td class="org-left">it is stopped</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerDone</code></td>
+<td class="org-left">a countdown reached zero (<code>data.title</code>)</td>
+</tr>
+</tbody>
+</table>
+
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgTimerDone",
+      callback = function(ev)
+        vim.notify("Take a break! (" .. (ev.data.title or "timer") .. ")")
+      end,
+    })
+
+Options (in `require("org").setup({ ... })`):
+
+    timer = {
+      format = "%s ",        -- how timer_insert writes the value
+      default_timer = "25",  -- suggested length of a countdown ("0" = none)
+    },
+    clock = {
+      sound = true,          -- countdown end: terminal bell, or a sound file
+      notification_handler = nil, -- function(msg) or a program name
+    },
+
+
+<a id="org73cb48e"></a>
+
+## Your own keys
+
+The timer actions can be mapped like any other action, in the
+`mappings.org` section of the setup:
+
+    mappings = {
+      org = {
+        timer_start = "<prefix>m0",
+        timer_insert = "<prefix>m.",
+        timer_item = "<prefix>m-",
+        timer_pause = "<prefix>m,",
+        timer_stop = "<prefix>m_",
+        timer_countdown = "<prefix>m;",
+      },
+    },
+
+
+<a id="org25f39bf"></a>
+
+# Appointment reminders
+
+Reminders watch the entries of your agenda files that have a *time* today
+or tomorrow:
+
+-   a SCHEDULED or DEADLINE date with a time
+    (`SCHEDULED: <... 16:00>`),
+-   or a plain active timestamp with a time or time range in the entry
+    (`<... 16:10-16:25>`).
+
+Entries without a time, DONE entries and inactive timestamps are ignored.
+
+At each of `notifications.reminder_time` minutes before the start (by
+default 12, 9, 6, 3 and 0) you get one notification, a warning in Neovim:
+
+    TODO Call the bank
+    Scheduled at 16:00 (in 12 min) — timers
+
+The first line is the TODO keyword and title, the second says what kind
+of time it is (`Scheduled`, `Deadline` or `Appointment` for a plain
+timestamp), the time, how far off (`now` at 0) and the category. With
+`system_notification` (on by default) a desktop notification is shown too
+(`osascript` on macOS, `notify-send` on Linux).
+
+The check runs once a minute (`check_interval`, in seconds). If Neovim
+was not running at a reminder time, the next check sends only the
+nearest one that was missed (at 15:57 for a 16:00 entry you get "in 3 min",
+once). Changes are picked up right away, even unsaved ones.
+
+
+<a id="orgb72b707"></a>
+
+## Turning them on
+
+-   For this session: `:Org notifications_start` (and
+    `:Org notifications_stop`). The first check is one second later.
+-   Always: in the setup,
+
+    require("org").setup({
+      notifications = {
+        enabled = true,                  -- start when org.nvim loads
+        reminder_time = { 15, 5, 0 },    -- minutes before the start
+        check_interval = 60,             -- seconds between checks
+        system_notification = true,      -- also osascript / notify-send
+        -- deliver them yourself instead (n.title, n.body, n.item, n.minutes):
+        notifier = function(n)
+          vim.notify(n.body, vim.log.levels.INFO, { title = n.title })
+        end,
+      },
+    })
+
+
+<a id="orgffc7ee1"></a>
+
+## Test it now
+
+To see a reminder you need a timed entry a few minutes from now, in an
+agenda file. This file is one (via `examples/minimal_init.lua`).
+
+
+<a id="orgb6725e2"></a>
+
+### TODO Test the reminders
+
+**Try:**
+
+1.  Look at the time (`:echo strftime("%H:%M")`), say it is 15:32.
+2.  Put the cursor on the headline "Test the reminders" and press
+    `<prefix>s`, then `i`, type a time 10 minutes from now (`15:42`) and
+    press `<CR>`. (`+10m` would mean ten *months*: `m` is months in the
+    date prompt; type the time itself.)
+3.  Run `:Org notifications_start`.
+
+**Expect:** the line `SCHEDULED: 2026-09-28 Mon 15:42` (with `<>`, and your
+date and time) under the headline, and about a second after step 3 a
+notification
+
+    TODO Test the reminders
+    Scheduled at 15:42 (in 10 min) — timers
+
+then "in 9 min", "in 6 min", "in 3 min" and "now" at those minutes. The
+first one comes right away because 10 minutes is already inside the
+12-minute reminder.
+
+**Try:** mark the task DONE (`<C-c><C-t>` then `d`).
+
+**Expect:** no more reminders for it: DONE entries are skipped.
+
+
+<a id="org14f7a8f"></a>
+
+### Coffee with Sam
+
+**Try:** add a plain appointment: on the empty line below, press
+`16<prefix>i.` (it inserts now), then put the cursor on the minutes and
+press `<S-Up>` a few times to move it 5 to 10 minutes ahead (each press
+rounds up to the next multiple of 5).
+
+**Expect:** reminders titled `Coffee with Sam` with `Appointment at HH:MM`.
+Run `:Org notifications_stop` when you are done, and `u` (or `git
+checkout`) to remove the test entries.
+
+
+<a id="orgf5f9677"></a>
+
+# Further reading
+
+-   `:h org-timers` and `:h org-notifications`: every timer command and the
+    reminders.
+-   `:h org-api`: `require("org").statusline()`.
+-   `:h org-config`: the `timer` and `notifications` options, `clock.sound`
+    and `clock.notification_handler`.
+-   `:h org-differences`: the countdown count vs. Emacs's `C-u`.
+-   The other example files: [07-dates.org](07-dates.md) (timestamps
+    with times and the date prompt), [08-clocking.org](08-clocking.md)
+    (clocking time on tasks) and [09-agenda.org](09-agenda.md) (the
+    agenda that the reminders read).
+

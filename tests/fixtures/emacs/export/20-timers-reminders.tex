@@ -1,0 +1,482 @@
+\section{How to use this file}
+\label{sec:orgd82a681}
+org.nvim has two kinds of timers, and it can remind you of appointments:
+
+\begin{itemize}
+\item A \textbf{relative timer} counts up from zero (or from any offset). Insert its
+value into the text to timestamp notes relative to the start of a
+meeting, a talk or a recording: \texttt{- 0:04:40 :: roadmap discussion}.
+\item A \textbf{countdown timer} counts down from N minutes and notifies you at the
+end: a pomodoro, a time box for a task (it can use the task's \texttt{Effort}).
+\item \textbf{Appointment reminders} watch the timed entries of your agenda files and
+notify you a few minutes before each one starts.
+\end{itemize}
+
+Only one timer (relative or countdown) runs at a time. Both are different
+from \emph{clocking}, which records time spent on tasks in the file: see
+\href{08-clocking.org}{08-clocking.org}.
+
+\begin{itemize}
+\item The file starts folded (\texttt{\#+STARTUP: overview}). Put the cursor on a
+heading and press \texttt{<Tab>} to open it, \texttt{<S-Tab>} to cycle the whole file.
+\item Lines starting with \textbf{Try:} are exercises, \textbf{Expect:} says what you should
+see afterwards. Lines starting with \texttt{\#} are comments about the example
+next to them.
+\item Nothing breaks if you make a mess: \texttt{u} undoes, and
+\texttt{git checkout examples/20-timers-reminders.org} restores the file.
+\item \texttt{<prefix>} means \texttt{<leader>o}. \texttt{g?} lists every key of the buffer.
+\item A \emph{count} is a number typed before a key: \texttt{4<C-c><C-x>0} means press \texttt{4},
+then \texttt{<C-c><C-x>0}. Counts stand in for Emacs's \texttt{C-u} (\texttt{4}) and
+\texttt{C-u C-u} (\texttt{16}).
+\end{itemize}
+
+Start Neovim from the repository root with the bundled init file, so the
+agenda (and the reminders) see these files and your own notes are
+untouched:
+
+\begin{verbatim}
+nvim -u examples/minimal_init.lua examples/20-timers-reminders.org
+\end{verbatim}
+
+\texttt{examples/minimal\_init.lua} sets \texttt{agenda\_files} to \texttt{examples/*.org} (plus a
+scratch directory under \texttt{stdpath("state")} for captures) and adds a few
+capture templates and custom agenda commands. It does not turn the
+reminders on: you start them with a command below.
+
+Timer values change every second, so the \textbf{Expect:} lines below show the
+\emph{shape} of the result (\texttt{0:00:07} means "whatever the timer shows").
+\subsection{Keys in this file}
+\label{sec:org215ba45}
+The timers have Emacs keys and \texttt{:Org} commands, but no \texttt{<prefix>} keys by
+default (see "Your own keys" at the end to add some).
+
+\begin{center}
+\begin{tabular}{lll}
+Emacs key & Command & What it does\\
+\hline
+\texttt{<C-c><C-x>0} & \texttt{:Org timer\_start} & start (or restart) the relative timer\\
+\texttt{<C-c><C-x>.} & \texttt{:Org timer\_insert} & insert the timer value\\
+\texttt{<C-c><C-x>-} & \texttt{:Org timer\_item} & insert a \texttt{- 0:01:23 ::} item\\
+\texttt{<C-c><C-x>,} & \texttt{:Org timer\_pause} & pause / continue either timer\\
+\texttt{<C-c><C-x>\_} & \texttt{:Org timer\_stop} & stop either timer\\
+\texttt{<C-c><C-x>;} & \texttt{:Org timer\_countdown N} & start a countdown of N minutes\\
+(none) & \texttt{:Org timer\_remaining} & show the time left of the countdown\\
+(none) & \texttt{:Org notifications\_start} & start appointment reminders\\
+(none) & \texttt{:Org notifications\_stop} & stop them\\
+\end{tabular}
+\end{center}
+\section{See the timer in the statusline}
+\label{sec:orge87d85b}
+\texttt{require("org").statusline()} returns the running clock and timer as a
+string: \texttt{⏲ 0:12:34} for the timer, with \texttt{(paused)} appended while it is
+paused, and an empty string when nothing runs. Put it in your statusline
+to see the timer tick. For this session only:
+
+\begin{verbatim}
+:set laststatus=2
+:let &statusline = "%f %= %{v:lua.require'org'.statusline()} "
+\end{verbatim}
+
+With lualine, in your config:
+
+\begin{verbatim}
+require("lualine").setup({
+  sections = {
+    lualine_x = { function() return require("org").statusline() end },
+  },
+})
+\end{verbatim}
+
+\textbf{Try:} run the two \texttt{:} commands above (type them on the command line).
+
+\textbf{Expect:} the right side of the statusline is empty for now. It shows the
+timer once you start one in the next section.
+\section{The relative timer}
+\label{sec:orgbdb4163}
+\texttt{<C-c><C-x>0} (\texttt{:Org timer\_start}) starts a timer at \texttt{0:00:00} and says
+\texttt{Timer start time set to 15:19:42, current value is 0:00:00}.
+\texttt{<C-c><C-x>.} (\texttt{:Org timer\_insert}) inserts the current value \emph{after} the
+cursor, followed by a space (the \texttt{timer.format} option, \texttt{"\%s "}); if no timer
+runs yet, it starts one first.
+
+\texttt{<C-c><C-x>,} pauses the timer (\texttt{Timer paused at 0:01:07}) and continues it
+(\texttt{Timer continues at 0:01:07}): paused time doesn't count.
+\texttt{<C-c><C-x>\_} stops it (\texttt{Timer stopped}); another stop says
+\texttt{No running timer}.
+
+Scratch area (the empty lines are where you insert):
+
+
+\textbf{Try:} put the cursor on the empty line under "Line 1" and press
+\texttt{<C-c><C-x>.}.
+
+\textbf{Expect:} the message \texttt{Timer start time set to HH:MM:SS, current value is
+0:00:00}, the line now reads \texttt{0:00:00} (plus a trailing space), and the
+statusline shows \texttt{⏲ 0:00:01}, \texttt{⏲ 0:00:02}, \ldots{}
+
+\textbf{Try:} wait a few seconds, then on the empty line under "Line 2" press
+\texttt{<C-c><C-x>.} again.
+
+\textbf{Expect:} a larger value there, e.g. \texttt{0:00:09}: the timer kept running.
+
+\textbf{Try:} press \texttt{<C-c><C-x>,}, wait five seconds, press \texttt{<C-c><C-x>,} again.
+
+\textbf{Expect:} \texttt{Timer paused at 0:00:14}, the statusline shows
+\texttt{⏲ 0:00:14 (paused)} and doesn't move; then \texttt{Timer continues at 0:00:14}
+and it counts on from there.
+
+\textbf{Try:} press \texttt{<C-c><C-x>\_}, then \texttt{<C-c><C-x>\_} once more.
+
+\textbf{Expect:} \texttt{Timer stopped}, the statusline part disappears; then
+\texttt{No running timer}.
+\subsection{Starting from an offset}
+\label{sec:org99371d7}
+A count on \texttt{<C-c><C-x>0} asks \texttt{Restart timer with offset [0:12:00]:}. The
+default in brackets is the first timer value on the current line (or
+\texttt{0:00:00}), so you can continue timing a recording from where your notes
+left off. Type an offset or press \texttt{<CR>} for the default:
+
+\begin{center}
+\begin{tabular}{ll}
+You type & The timer starts at\\
+\hline
+\texttt{<CR>} & the value on the line\\
+\texttt{1:00:00} & \texttt{1:00:00}\\
+\texttt{1:30} & \texttt{0:01:30} (M:SS)\\
+\texttt{90} & \texttt{0:01:30} (seconds)\\
+\end{tabular}
+\end{center}
+
+\texttt{:Org timer\_start 1:30} does the same without the prompt.
+
+A count on \texttt{<C-c><C-x>.} (e.g. \texttt{4<C-c><C-x>.}) restarts the timer at zero
+before inserting.
+
+\begin{description}
+\item[{0:05:10}] intro music
+\item[{0:12:00}] first question
+\end{description}
+
+\textbf{Try:} put the cursor on the "first question" line, press \texttt{4<C-c><C-x>0}
+and \texttt{<CR>}.
+
+\textbf{Expect:} \texttt{Timer start time set to ..., current value is 0:12:00}, and the
+statusline counts on from \texttt{⏲ 0:12:00}. Press \texttt{<C-c><C-x>\_} to stop it.
+
+\textbf{Try:} run \texttt{:Org timer\_start 90}.
+
+\textbf{Expect:} \texttt{... current value is 0:01:30}. Stop it with \texttt{:Org timer\_stop}.
+\section{Timer lists for meeting notes}
+\label{sec:org4f0e106}
+\texttt{<C-c><C-x>-} (\texttt{:Org timer\_item}) inserts a description item whose term is
+the timer value, \texttt{- 0:02:15 ::}, and leaves you in Insert mode to type the
+note. It starts the timer if none runs (a count restarts it).
+
+\begin{itemize}
+\item On a line of plain text, it turns the line into the first item:
+\texttt{Introductions} becomes \texttt{- 0:00:00 :: Introductions}.
+\item On an item of a timer list, the new item goes below the current one
+(and below its continuation lines), with the same bullet; in a numbered
+list the number goes up (\texttt{1.} → \texttt{2.}).
+\item In a list that is not a timer list (\texttt{- apples}), it refuses with
+\texttt{This is not a timer list}.
+\end{itemize}
+
+In a timer list, \texttt{<M-CR>} does the same as \texttt{<C-c><C-x>-} (like Emacs): it
+inserts the next item with the current timer value.
+\subsection{A meeting to take notes in}
+\label{sec:orgffe733b}
+\subsubsection{Weekly sync}
+\label{sec:org5570f68}
+Introductions
+
+\textbf{Try:} put the cursor on "Introductions" and press \texttt{<C-c><C-x>-}. Press
+\texttt{<Esc>}.
+
+\textbf{Expect:} the line becomes \texttt{- 0:00:00 :: Introductions} and the timer runs
+(\texttt{⏲ 0:00:03} in the statusline).
+
+\textbf{Try:} wait a bit, press \texttt{<C-c><C-x>-} again, type \texttt{roadmap discussion}
+and \texttt{<Esc>}. Repeat with \texttt{action items}.
+
+\textbf{Expect:} two new items right below the first one, e.g.
+\texttt{- 0:00:41 :: roadmap discussion} and \texttt{- 0:01:12 :: action items}.
+
+\textbf{Try:} press \texttt{<C-c><C-x>\_} to stop the timer at the end of the meeting.
+\subsection{Numbered timer lists and long notes}
+\label{sec:org42f874c}
+\begin{enumerate}
+\item 0:00:10 :: welcome
+\item 0:03:25 :: demo of the new importer;
+it failed on the second file, retried with --force
+\item 0:09:50 :: questions
+\end{enumerate}
+
+\textbf{Try:} put the cursor on item 2 (either of its lines) and press
+\texttt{<C-c><C-x>-}, then \texttt{<Esc>}.
+
+\textbf{Expect:} a new item \texttt{3. 0:00:00 ::} right after the continuation line
+of item 2, before the old item 3, which is now a second \texttt{3.}. Press
+\texttt{<C-c><C-c>} on any item of the list: the numbers are repaired and the last
+item becomes \texttt{4. 0:09:50 :: questions} (see \href{03-lists.org}{03-lists.org}).
+Press \texttt{<C-c><C-x>\_} to stop the timer.
+\subsection{Not a timer list}
+\label{sec:org897f433}
+\begin{itemize}
+\item apples
+\item pears
+\end{itemize}
+
+\textbf{Try:} put the cursor on "apples" and press \texttt{<C-c><C-x>-}.
+
+\textbf{Expect:} the error \texttt{This is not a timer list}, and nothing changes.
+\subsection{Shifting timer values}
+\label{sec:org8fc251a}
+Recorded something, but started the timer late? \texttt{16<C-c><C-x>0} (or
+\texttt{16<C-c><C-x>.}) asks
+\texttt{Enter time difference like "-1:08:26".  Default is first time to zero:}
+and adds that difference to every timer value (\texttt{H:MM:SS}) on the current
+line. Press \texttt{<CR>} without typing to shift so that the first value becomes
+\texttt{0:00:00}. (In Emacs this works on the region; in org.nvim the keys work on
+the current line.)
+
+\begin{description}
+\item[{0:05:10}] talk starts
+\item[{0:07:00}] first slide
+\end{description}
+
+\textbf{Try:} on "talk starts" press \texttt{16<C-c><C-x>0}, then \texttt{<CR>}.
+
+\textbf{Expect:} \texttt{- 0:00:00 :: talk starts} (shifted by -0:05:10).
+
+\textbf{Try:} on "first slide" press \texttt{16<C-c><C-x>0}, type \texttt{-0:05:10} and \texttt{<CR>}.
+
+\textbf{Expect:} \texttt{- 0:01:50 :: first slide}.
+\section{The countdown timer}
+\label{sec:orgd54f3f3}
+\texttt{<C-c><C-x>;} (\texttt{:Org timer\_countdown}) starts a countdown. How long:
+
+\begin{enumerate}
+\item \texttt{:Org timer\_countdown 25} → 25 minutes. The argument is minutes, or
+\texttt{H:MM:SS} / \texttt{M:SS}: \texttt{:Org timer\_countdown 0:00:30} is 30 seconds,
+\texttt{:Org timer\_countdown 1:30} is 1 minute 30.
+\item a count, \texttt{25<C-c><C-x>;} → 25 minutes (Emacs's \texttt{C-u} for "the default
+timer" has no count form here: a count is always minutes);
+\item otherwise the \texttt{Effort} of the entry at the cursor (\texttt{0:25} → 25 minutes);
+\item otherwise a prompt \texttt{How much time left? (minutes or h:mm:ss)},
+pre-filled with \texttt{timer.default\_timer} when you set it (e.g. \texttt{"25"}).
+\end{enumerate}
+
+While it runs, the statusline shows the time \emph{left} (\texttt{⏲ 0:24:59}),
+\texttt{:Org timer\_remaining} says \texttt{24 minute(s) 12 seconds left before next time
+out}, \texttt{<C-c><C-x>,} pauses and continues it, \texttt{<C-c><C-x>\_} cancels it, and
+\texttt{<C-c><C-x>.} inserts the remaining time. At zero you get a notification
+\texttt{<title>: time out}, where the title is the headline of the entry the
+cursor was in when you started (the file name before the first headline),
+with the
+\texttt{clock.sound} and \texttt{clock.notification\_handler} options of clocking.
+
+Starting a countdown while the relative timer runs is refused
+(\texttt{Relative timer is running.  Stop first}), and the other way round
+(\texttt{Countdown timer is running.  Cancel first}). Starting a second countdown
+asks \texttt{Replace current timer?}.
+\subsubsection{A quick countdown to see the end}
+\label{sec:orgd81a00d}
+\textbf{Try:} run \texttt{:Org timer\_countdown 0:00:20} and wait 20 seconds.
+
+\textbf{Expect:} the statusline counts down from \texttt{⏲ 0:00:20}; at zero a warning
+notification \texttt{A quick countdown to see the end: time out} appears (the
+entry the cursor is in), and the timer is gone from the statusline.
+\subsubsection{{\bfseries\sffamily TODO} Write the abstract}
+\label{sec:orgc8c3ec6}
+\textbf{Try:} with the cursor on this headline, press \texttt{<C-c><C-x>;}.
+
+\textbf{Expect:} no prompt; the statusline shows \texttt{⏲ 0:25:00} counting down.
+
+\textbf{Try:} run \texttt{:Org timer\_remaining}.
+
+\textbf{Expect:} \texttt{24 minute(s) 48 seconds left before next time out} (or similar).
+
+\textbf{Try:} press \texttt{<C-c><C-x>0}.
+
+\textbf{Expect:} \texttt{Countdown timer is running.  Cancel first}: no relative timer
+while a countdown runs.
+
+\textbf{Try:} press \texttt{<C-c><C-x>,} twice, then \texttt{<C-c><C-x>\_}.
+
+\textbf{Expect:} \texttt{Timer paused at 0:24:30}, \texttt{Timer continues at 0:24:30}, then
+\texttt{Timer stopped}.
+\subsubsection{A pomodoro with a count}
+\label{sec:orgbc77e6e}
+\textbf{Try:} press \texttt{3<C-c><C-x>;} anywhere.
+
+\textbf{Expect:} a 3-minute countdown (\texttt{⏲ 0:03:00}). Stop it with
+\texttt{<C-c><C-x>\_} or let it run out.
+\section{Hooks and options}
+\label{sec:org3ec8003}
+Timer events are \texttt{User} autocommands, handy for your own integrations:
+
+\begin{center}
+\begin{tabular}{ll}
+Pattern & When\\
+\hline
+\texttt{OrgTimerStart} & the relative timer (re)starts\\
+\texttt{OrgTimerSet} & a countdown starts (\texttt{data.seconds})\\
+\texttt{OrgTimerPause} & either timer pauses\\
+\texttt{OrgTimerContinue} & it continues\\
+\texttt{OrgTimerStop} & it is stopped\\
+\texttt{OrgTimerDone} & a countdown reached zero (\texttt{data.title})\\
+\end{tabular}
+\end{center}
+
+\begin{verbatim}
+vim.api.nvim_create_autocmd("User", {
+  pattern = "OrgTimerDone",
+  callback = function(ev)
+    vim.notify("Take a break! (" .. (ev.data.title or "timer") .. ")")
+  end,
+})
+\end{verbatim}
+
+Options (in \texttt{require("org").setup(\{ ... \})}):
+
+\begin{verbatim}
+timer = {
+  format = "%s ",        -- how timer_insert writes the value
+  default_timer = "25",  -- suggested length of a countdown ("0" = none)
+},
+clock = {
+  sound = true,          -- countdown end: terminal bell, or a sound file
+  notification_handler = nil, -- function(msg) or a program name
+},
+\end{verbatim}
+\subsection{Your own keys}
+\label{sec:orgbdd1cd6}
+The timer actions can be mapped like any other action, in the
+\texttt{mappings.org} section of the setup:
+
+\begin{verbatim}
+mappings = {
+  org = {
+    timer_start = "<prefix>m0",
+    timer_insert = "<prefix>m.",
+    timer_item = "<prefix>m-",
+    timer_pause = "<prefix>m,",
+    timer_stop = "<prefix>m_",
+    timer_countdown = "<prefix>m;",
+  },
+},
+\end{verbatim}
+\section{Appointment reminders}
+\label{sec:org1709cfb}
+Reminders watch the entries of your agenda files that have a \emph{time} today
+or tomorrow:
+
+\begin{itemize}
+\item a SCHEDULED or DEADLINE date with a time
+(\texttt{SCHEDULED: <... 16:00>}),
+\item or a plain active timestamp with a time or time range in the entry
+(\texttt{<... 16:10-16:25>}).
+\end{itemize}
+
+Entries without a time, DONE entries and inactive timestamps are ignored.
+
+At each of \texttt{notifications.reminder\_time} minutes before the start (by
+default 12, 9, 6, 3 and 0) you get one notification, a warning in Neovim:
+
+\begin{verbatim}
+TODO Call the bank
+Scheduled at 16:00 (in 12 min) — timers
+\end{verbatim}
+
+The first line is the TODO keyword and title, the second says what kind
+of time it is (\texttt{Scheduled}, \texttt{Deadline} or \texttt{Appointment} for a plain
+timestamp), the time, how far off (\texttt{now} at 0) and the category. With
+\texttt{system\_notification} (on by default) a desktop notification is shown too
+(\texttt{osascript} on macOS, \texttt{notify-send} on Linux).
+
+The check runs once a minute (\texttt{check\_interval}, in seconds). If Neovim
+was not running at a reminder time, the next check sends only the
+nearest one that was missed (at 15:57 for a 16:00 entry you get "in 3 min",
+once). Changes are picked up right away, even unsaved ones.
+\subsection{Turning them on}
+\label{sec:org1fec826}
+\begin{itemize}
+\item For this session: \texttt{:Org notifications\_start} (and
+\texttt{:Org notifications\_stop}). The first check is one second later.
+\item Always: in the setup,
+\end{itemize}
+
+\begin{verbatim}
+require("org").setup({
+  notifications = {
+    enabled = true,                  -- start when org.nvim loads
+    reminder_time = { 15, 5, 0 },    -- minutes before the start
+    check_interval = 60,             -- seconds between checks
+    system_notification = true,      -- also osascript / notify-send
+    -- deliver them yourself instead (n.title, n.body, n.item, n.minutes):
+    notifier = function(n)
+      vim.notify(n.body, vim.log.levels.INFO, { title = n.title })
+    end,
+  },
+})
+\end{verbatim}
+\subsection{Test it now}
+\label{sec:orgb0f1a4e}
+To see a reminder you need a timed entry a few minutes from now, in an
+agenda file. This file is one (via \texttt{examples/minimal\_init.lua}).
+\subsubsection{{\bfseries\sffamily TODO} Test the reminders}
+\label{sec:org99af24e}
+
+\textbf{Try:}
+\begin{enumerate}
+\item Look at the time (\texttt{:echo strftime("\%H:\%M")}), say it is 15:32.
+\item Put the cursor on the headline "Test the reminders" and press
+\texttt{<prefix>s}, then \texttt{i}, type a time 10 minutes from now (\texttt{15:42}) and
+press \texttt{<CR>}. (\texttt{+10m} would mean ten \emph{months}: \texttt{m} is months in the
+date prompt; type the time itself.)
+\item Run \texttt{:Org notifications\_start}.
+\end{enumerate}
+
+\textbf{Expect:} the line \texttt{SCHEDULED: 2026-09-28 Mon 15:42} (with \texttt{<>}, and your
+date and time) under the headline, and about a second after step 3 a
+notification
+
+\begin{verbatim}
+TODO Test the reminders
+Scheduled at 15:42 (in 10 min) — timers
+\end{verbatim}
+
+then "in 9 min", "in 6 min", "in 3 min" and "now" at those minutes. The
+first one comes right away because 10 minutes is already inside the
+12-minute reminder.
+
+\textbf{Try:} mark the task DONE (\texttt{<C-c><C-t>} then \texttt{d}).
+
+\textbf{Expect:} no more reminders for it: DONE entries are skipped.
+\subsubsection{Coffee with Sam}
+\label{sec:org9b58fed}
+
+\textbf{Try:} add a plain appointment: on the empty line below, press
+\texttt{16<prefix>i.} (it inserts now), then put the cursor on the minutes and
+press \texttt{<S-Up>} a few times to move it 5 to 10 minutes ahead (each press
+rounds up to the next multiple of 5).
+
+
+\textbf{Expect:} reminders titled \texttt{Coffee with Sam} with \texttt{Appointment at HH:MM}.
+Run \texttt{:Org notifications\_stop} when you are done, and \texttt{u} (or \texttt{git
+checkout}) to remove the test entries.
+\section{Further reading}
+\label{sec:orga5fd821}
+\begin{itemize}
+\item \texttt{:h org-timers} and \texttt{:h org-notifications}: every timer command and the
+reminders.
+\item \texttt{:h org-api}: \texttt{require("org").statusline()}.
+\item \texttt{:h org-config}: the \texttt{timer} and \texttt{notifications} options, \texttt{clock.sound}
+and \texttt{clock.notification\_handler}.
+\item \texttt{:h org-differences}: the countdown count vs. Emacs's \texttt{C-u}.
+\item The other example files: \href{07-dates.org}{07-dates.org} (timestamps
+with times and the date prompt), \href{08-clocking.org}{08-clocking.org}
+(clocking time on tasks) and \href{09-agenda.org}{09-agenda.org} (the
+agenda that the reminders read).
+\end{itemize}

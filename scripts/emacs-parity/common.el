@@ -11,8 +11,10 @@
 (require 'cl-lib)
 (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
           ((symbol-function 'char-displayable-p) (lambda (&rest _) t)))
-  (dolist (lib '(org org-agenda org-clock org-lint ox ox-ascii ox-html ox-latex ox-md))
+  (dolist (lib '(org org-agenda org-clock org-inlinetask org-lint ox ox-ascii ox-html ox-latex ox-md))
     (require lib)))
+;; org.nvim always knows inline tasks: so does Emacs once org-inlinetask
+;; is loaded (above).
 ;; Help strings ("Press ‘C-u r’ ...") with curved quotes, as in a GUI.
 (setq text-quoting-style 'curve)
 (require 'subr-x)

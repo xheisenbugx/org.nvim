@@ -92,7 +92,14 @@ end
 --   emacs = { { pattern, replacement }, ... }  gsub on each Emacs line
 --   both = { { pattern, replacement }, ... }  gsub on the lines of both sides
 --   drop = { pattern, ... }  lines dropped on both sides
+--   ids = pattern  generated ids, renamed on each side to ID1, ID2, ... in
+--     order of first appearance (links between them still have to agree)
 M.NORMALISE = {
+  export = {
+    -- ids Org makes up for headlines, footnotes, tables, ... are random
+    -- (org-export-new-reference); org.nvim makes up others
+    ids = "org%x%x%x%x%x%x%x",
+  },
   agenda = {
     emacs = {
       -- the hint lines name the key that edits the query: Vim's count
@@ -135,7 +142,17 @@ function M.normalise(area, emacs, ours)
   end
   local function rewrite(lines, sets)
     local out = {}
+    local ids, n = {}, 0
     for _, l in ipairs(lines) do
+      if rules.ids then
+        l = l:gsub(rules.ids, function(id)
+          if not ids[id] then
+            n = n + 1
+            ids[id] = "ID" .. n
+          end
+          return ids[id]
+        end)
+      end
       for _, set in ipairs(sets) do
         for _, r in ipairs(set) do
           l = l:gsub(r[1], r[2])
