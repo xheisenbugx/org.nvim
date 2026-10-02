@@ -703,9 +703,12 @@ describe("links parity", function()
       links.open("shell:printf 'a\\nb' &")
       local out3 = vim.fn.bufnr("*Org Shell Output*<3>")
       ok(vim.fn.bufwinid(out3) ~= -1)
+      -- the output can arrive in chunks ("a\n" then "b"), so wait for the
+      -- process to finish rather than for two lines
       vim.wait(5000, function()
-        return #vim.api.nvim_buf_get_lines(out3, 0, -1, false) == 2
+        return messages[#messages] == "Shell command finished"
       end)
+      eq("Shell command finished", messages[#messages])
       eq({ "a", "b" }, vim.api.nvim_buf_get_lines(out3, 0, -1, false))
       for _, b in ipairs({ out, out2, out3 }) do
         vim.api.nvim_buf_delete(b, { force = true })
