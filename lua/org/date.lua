@@ -254,12 +254,6 @@ end
 --- changed.
 ---@param tz string?
 function M.set_tz(tz)
-  if tz == nil and vim.fn.has("win32") == 1 then
-    -- Windows' C runtime keeps its own copy of a removed TZ: empty is the
-    -- system's zone there
-    vim.env.TZ = ""
-    vim.fn.strftime("%Z", 0)
-  end
   vim.env.TZ = tz
   vim.fn.strftime("%Z", 0)
 end

@@ -66,7 +66,11 @@ describe("agenda diary file", function()
   local saved_today, saved_today_days, saved_now
   before_each(function()
     saved_tz = vim.env.TZ
-    date.set_tz(tz("America/New_York"))
+    -- Emacs's agendas were made in New York (Windows can't switch zones:
+    -- the specs that depend on it are skipped there)
+    if vim.fn.has("win32") == 0 then
+      date.set_tz("America/New_York")
+    end
     solar.reset()
     saved_today, saved_today_days, saved_now = date.today, date.today_days, date.now
     local T = date.days_from_civil(2026, 9, 27)
@@ -163,6 +167,7 @@ describe("agenda diary file", function()
   end)
 
   it("reads included files and the entries of other calendars", function()
+    skip_on_windows("needs New York time, and the Windows C runtime reads TZ once per process")
     write("inc1", { "9/29 Included entry", "%%(diary-date 10 1 t) Included sexp", '#include "inc2"' })
     write("inc2", { "Wednesday Nested include" })
     local path = write("diary2", {
