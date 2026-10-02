@@ -837,6 +837,12 @@ end
 ---@return boolean ok, string? err
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    -- the write below skips BufWritePre, so crypt.encrypt_on_save is run
+    -- here: entries are encrypted, or nothing is written
+    local crypt = package.loaded["org.crypt"]
+    if crypt and vim.bo[bufnr].filetype == "org" and crypt.before_save(bufnr) == 0 then
+      return false, "org-crypt: encryption failed, buffer not written"
+    end
     local ok, err
     local write = function()
       vim.api.nvim_buf_call(bufnr, function()

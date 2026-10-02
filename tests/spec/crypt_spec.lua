@@ -348,6 +348,31 @@ describe("crypt", function()
     vim.fn.delete(path)
   end)
 
+  it("encrypts before org itself saves the buffer (agenda edits, refile, ...)", function()
+    local utils = require("org.utils")
+    local path = vim.fn.tempname() .. ".org"
+    local buf = org_buffer({ "* Plain", "* S :crypt:", "hidden" }, { 1, 0 })
+    vim.api.nvim_buf_set_name(buf, path)
+    require("org.buffer").attach(buf)
+    config.opts.crypt.encrypt_on_save = true
+    eq(true, (utils.save_buffer(buf)))
+    local disk = vim.fn.readfile(path)
+    ok(not table.concat(disk, "\n"):find("hidden", 1, true), table.concat(disk, "\n"))
+    eq("-----BEGIN PGP MESSAGE-----", disk[3])
+    -- a failed encryption fails the save, nothing is written
+    crypt.decrypt_entries()
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, { "hidden 2" })
+    passphrase = nil
+    local notify = vim.notify
+    vim.notify = function() end
+    local saved = utils.save_buffer(buf)
+    vim.notify = notify
+    eq(false, saved)
+    eq(disk, vim.fn.readfile(path))
+    vim.bo[buf].modified = false
+    vim.fn.delete(path)
+  end)
+
   if have_key then
     it("encrypts for the CRYPTKEY property when crypt.key is a string", function()
       config.opts.crypt.key = ""
