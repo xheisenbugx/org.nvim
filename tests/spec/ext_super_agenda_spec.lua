@@ -335,9 +335,9 @@ describe("super_agenda extension", function()
   describe("faces, transformers and folding", function()
     local function extmarks_on(lnum)
       local out = {}
-      local ns = vim.api.nvim_get_namespaces()["org.agenda"]
-      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, ns, { lnum - 1, 0 }, { lnum - 1, -1 }, { details = true })) do
-        out[#out + 1] = { col = m[3], end_col = m[4].end_col, group = m[4].hl_group, priority = m[4].priority }
+      local st = require("org.agenda.view").state_of(vim.api.nvim_get_current_buf())
+      for _, h in ipairs(st.line_parts[lnum] or {}) do
+        out[#out + 1] = { col = h[1], end_col = h[2], group = h[3], priority = h[4] or 110 }
       end
       return out
     end
@@ -536,9 +536,11 @@ describe("super_agenda extension", function()
       local view = require("org.agenda.view")
       local buf = vim.api.nvim_get_current_buf()
       local found = false
-      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, { details = true })) do
-        if m[4].hl_group == "ErrorMsg" then
-          found = true
+      for _, parts in pairs(view.state_of(buf).line_parts) do
+        for _, h in ipairs(parts) do
+          if h[3] == "ErrorMsg" then
+            found = true
+          end
         end
       end
       ok(found)

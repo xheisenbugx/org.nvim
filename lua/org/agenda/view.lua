@@ -61,6 +61,67 @@ local states = {} -- agenda bufnr -> state
 local S = new_state()
 M.state = S
 
+--- The state of agenda buffer `buf` (nil when it is none).
+---@param buf integer
+---@return table|nil
+function M.state_of(buf)
+  return states[buf]
+end
+
+-- Highlights are drawn for the visible lines only, from `line_parts` (byte
+-- ranges { start_col, end_col, group, priority? } per line) of the
+-- buffer's state: writing an extmark for every range of a large agenda
+-- costs more than building it. The few line highlights (`line_hl_groups`,
+-- line -> group) are extmarks, as an ephemeral one has no line_hl_group.
+local set_extmark = vim.api.nvim_buf_set_extmark
+local ns_line = vim.api.nvim_create_namespace("org.agenda.line")
+
+--- Set the line highlight of line `l` of `buf` to `group` (nil: none).
+local function set_line_hl(buf, l, group)
+  vim.api.nvim_buf_clear_namespace(buf, ns_line, l - 1, l)
+  if group then
+    pcall(set_extmark, buf, ns_line, l - 1, 0, { line_hl_group = group, priority = 90 })
+  end
+end
+
+local function draw_hls(buf, row, st)
+  local parts = st.line_parts[row + 1]
+  if parts then
+    for _, h in ipairs(parts) do
+      pcall(set_extmark, buf, ns, row, h[1], {
+        end_col = h[2],
+        hl_group = h[3],
+        priority = h[4] or 110,
+        ephemeral = true,
+      })
+    end
+  end
+end
+
+vim.api.nvim_set_decoration_provider(ns, {
+  on_win = function(_, _, buf)
+    return states[buf] ~= nil
+  end,
+  on_line = function(_, _, buf, row)
+    local st = states[buf]
+    if st then
+      draw_hls(buf, row, st)
+    end
+  end,
+})
+
+--- Redraw lines `first`..`last` (1-based) of agenda buffer `buf` after
+--- their highlight data changed.
+local ns_touch = vim.api.nvim_create_namespace("org.agenda.touch")
+local function redraw_lines(buf, first, last)
+  -- adding and removing a highlight marks its lines for redraw
+  -- (nvim__redraw with a range is experimental, and asserts without a UI)
+  local ok, id = pcall(set_extmark, buf, ns_touch, first - 1, 0, { end_row = last, hl_group = "Normal" })
+  if ok then
+    pcall(vim.api.nvim_buf_del_extmark, buf, ns_touch, id)
+  end
+end
+
 --- Make `state` the current agenda state.
 local function use(state)
   S = state
@@ -593,22 +654,23 @@ function M.refresh()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, b.lines)
   vim.bo[buf].modifiable = false
   vim.bo[buf].modified = false
-  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   vim.api.nvim_buf_clear_namespace(buf, ns_newtime, 0, -1)
-  S.line_parts = {}
+  -- drawn by the decoration provider
+  local parts = {}
   for _, h in ipairs(b.hls) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, ns, h[1], h[2], {
-      end_col = h[3],
-      hl_group = h[4],
-      priority = h[5] or 110,
-    })
-    local l = S.line_parts[h[1] + 1] or {}
+    local row = h[1] + 1
+    local l = parts[row]
+    if not l then
+      l = {}
+      parts[row] = l
+    end
     l[#l + 1] = { h[2], h[3], h[4], h[5] }
-    S.line_parts[h[1] + 1] = l
   end
+  S.line_parts = parts
   S.line_hl_groups = b.line_hls
+  vim.api.nvim_buf_clear_namespace(buf, ns_line, 0, -1)
   for lnum, group in pairs(b.line_hls) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, ns, lnum - 1, 0, { line_hl_group = group, priority = 90 })
+    set_line_hl(buf, lnum, group)
   end
   M.render_marks()
   update_winbar()
@@ -1529,6 +1591,7 @@ end
 --- Drop line `l` of the agenda buffer and of the line maps.
 local function delete_line(l)
   local buf = S.buf
+  vim.api.nvim_buf_clear_namespace(buf, ns_line, l - 1, l)
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, l - 1, l, false, {})
   vim.bo[buf].modifiable = false
@@ -1561,19 +1624,8 @@ end
 
 --- Draw the highlights of line `l` from `S.line_parts` / `S.line_hl_groups`.
 local function draw_line(l)
-  local buf = S.buf
-  vim.api.nvim_buf_clear_namespace(buf, ns, l - 1, l)
-  for _, h in ipairs(S.line_parts[l] or {}) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, h[1], {
-      end_col = h[2],
-      hl_group = h[3],
-      priority = h[4] or 110,
-    })
-  end
-  local lh = S.line_hl_groups[l]
-  if lh then
-    pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, 0, { line_hl_group = lh, priority = 90 })
-  end
+  set_line_hl(S.buf, l, S.line_hl_groups[l])
+  redraw_lines(S.buf, l, l)
 end
 
 --- Replace line `l` with `text` and its highlights.
@@ -3035,19 +3087,10 @@ function M.drag_line(dir)
   end
   local lh = S.line_hl_groups or {}
   lh[lnum], lh[other] = lh[other], lh[lnum]
-  for _, l in ipairs({ lnum, other }) do
-    vim.api.nvim_buf_clear_namespace(S.buf, ns, l - 1, l)
-    for _, h in ipairs(S.line_parts[l] or {}) do
-      pcall(vim.api.nvim_buf_set_extmark, S.buf, ns, l - 1, h[1], {
-        end_col = h[2],
-        hl_group = h[3],
-        priority = h[4] or 110,
-      })
-    end
-    if lh[l] then
-      pcall(vim.api.nvim_buf_set_extmark, S.buf, ns, l - 1, 0, { line_hl_group = lh[l], priority = 90 })
-    end
-  end
+  S.line_hl_groups = lh
+  set_line_hl(S.buf, lnum, lh[lnum])
+  set_line_hl(S.buf, other, lh[other])
+  redraw_lines(S.buf, math.min(lnum, other), math.max(lnum, other))
   M.render_marks()
   vim.api.nvim_win_set_cursor(0, { other, 0 })
 end

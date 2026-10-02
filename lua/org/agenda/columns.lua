@@ -148,11 +148,11 @@ function M.apply()
     for l in pairs(S.day_lines or {}) do
       structural[l] = true
     end
-    local ans = vim.api.nvim_create_namespace("org.agenda")
-    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ans, 0, -1, { details = true })) do
-      local g = m[4].hl_group
-      if g == "OrgAgendaHeader" and m[3] == 0 then
-        structural[m[2] + 1] = true
+    for l, parts in pairs(S.line_parts or {}) do
+      for _, h in ipairs(parts) do
+        if h[3] == "OrgAgendaHeader" and h[1] == 0 then
+          structural[l] = true
+        end
       end
     end
     local pending = {}

@@ -459,14 +459,8 @@ describe("agenda config", function()
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
     clock.clock_in()
     require("org.agenda").open_agenda({ span = "day" })
-    local ns = vim.api.nvim_create_namespace("org.agenda")
     local function line_hl(l)
-      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, ns, { l - 1, 0 }, { l - 1, -1 }, { details = true })) do
-        if m[4].line_hl_group == "OrgAgendaClocking" then
-          return true
-        end
-      end
-      return false
+      return require("org.agenda.view").state.line_hl_groups[l] == "OrgAgendaClocking"
     end
     ok(line_hl(line_of("Clocked task")), "clocked entry not highlighted")
     ok(not line_hl(line_of("Other task")), "other entry highlighted")
