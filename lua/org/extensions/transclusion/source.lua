@@ -22,6 +22,7 @@ local M = {}
 ---@field first integer first source line (in the source without transclusions)
 ---@field last integer last source line
 ---@field raw string[] the source lines first..last
+---@field tail string|nil the rest of line `last` after `raw` (a thing at point ends inside it)
 ---@field lines string[] the formatted text to show
 ---@field lang string|nil language of text sources
 ---@field label string where the text comes from, for display
@@ -44,6 +45,9 @@ local bufread = {} -- buf -> { tick, lines, map }
 local parsed = {} -- key -> org.File
 local resolved = {} -- keyword key -> { res, sig }
 local resolved_n = 0
+-- path -> real path (or false); symbolic links rarely change, and this
+-- is asked for every source of every drawing pass
+local reals = {}
 
 -- A drawing pass asks for the same buffers and files many times (200
 -- keywords into 50 files): `frame` memoizes buffer lookups and file stats
@@ -98,10 +102,6 @@ local function mtime(path)
   end
   return m or nil
 end
-
--- path -> real path (or false); symbolic links rarely change, and this
--- is asked for every source of every drawing pass
-local reals = {}
 
 local function real(path)
   local r = reals[path]
@@ -1040,6 +1040,8 @@ resolve = function(spec, ctx)
     res.first, res.last = first, last
     res.raw = vim.list_slice(lines, first, last)
     if cut and #res.raw > 0 then
+      -- the rest of the line isn't transcluded, but stays in the source
+      res.tail = res.raw[#res.raw]:sub(cut + 1)
       res.raw[#res.raw] = res.raw[#res.raw]:sub(1, cut)
     end
     res.lines = format_text(res.raw, spec, ctx)
