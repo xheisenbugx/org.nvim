@@ -868,6 +868,9 @@ function evaluate(m, rhs, flags, r, c, ctx, trace)
     elseif elisp.is_cons(v) then
       trace.result = elisp.to_string(v)
       return "#ERROR", "the Lisp formula returned a list"
+    elseif v == nil or v == false then
+      -- Emacs inserts the result with (format "%s" ...): nil is "nil"
+      ev = "nil"
     else
       local n = elisp.tonumber(v)
       ev = n and n2s(n, elisp.is_float(v)) or elisp.to_string(v)
