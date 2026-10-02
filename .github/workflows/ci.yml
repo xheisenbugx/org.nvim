@@ -74,6 +74,10 @@ jobs:
         shell: bash
         run: |
           d=$(mktemp -d)
+          # GnuPG for Windows before Git's /usr/bin gpg
+          for g in "/c/Program Files/GnuPG/bin" "/c/Program Files (x86)/GnuPG/bin"; do
+            if [ -x "$g/gpg.exe" ]; then PATH="$g:$PATH"; fi
+          done
           ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:
