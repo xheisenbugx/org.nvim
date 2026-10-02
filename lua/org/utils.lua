@@ -845,34 +845,31 @@ end
 --- Write a buffer silently if it has changes. Returns false and a one-line
 --- error when the write fails: moving data must never continue after a
 --- failed destination save, so callers check the result.
+---
+--- The write skips autocommands (user formatters and the like don't run on
+--- org's background saves), but the `org.write_hooks` pre/post hooks run
+--- exactly as they do for `:w` (crypt's encrypt_on_save, transclusion,
+--- ...). A hook that vetoes makes this return false and its message.
 ---@return boolean ok, string? err
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
-    -- the write below skips BufWritePre, so crypt.encrypt_on_save is run
-    -- here: entries are encrypted, or nothing is written
-    local crypt = package.loaded["org.crypt"]
-    if crypt and vim.bo[bufnr].filetype == "org" and crypt.before_save(bufnr) == 0 then
-      return false, "org-crypt: encryption failed, buffer not written"
+    local hooks = require("org.write_hooks")
+    local hok, herr, run = hooks.run_pre(bufnr, "save_buffer")
+    if not hok then
+      return false, herr
     end
     local ok, err
-    local write = function()
-      vim.api.nvim_buf_call(bufnr, function()
-        ok, err = pcall(vim.cmd, "silent noautocmd keepalt write")
-      end)
+    vim.api.nvim_buf_call(bufnr, function()
+      ok, err = pcall(vim.cmd, "silent noautocmd keepalt write")
+    end)
+    if ok then
+      require("org.files").invalidate(vim.api.nvim_buf_get_name(bufnr))
     end
-    -- text the transclusion extension inserted must not reach the file,
-    -- and this write skips its BufWritePre
-    local transclusion = package.loaded["org.extensions.transclusion"]
-    if transclusion and transclusion.without_inserted then
-      transclusion.without_inserted(bufnr, write)
-    else
-      write()
-    end
+    hooks.run_post(run, ok)
     if not ok then
       err = tostring(err)
       return false, err:match("E%d+:[^\n]*") or err:match("^[^\n]*")
     end
-    require("org.files").invalidate(vim.api.nvim_buf_get_name(bufnr))
   end
   return true
 end

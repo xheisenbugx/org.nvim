@@ -1976,14 +1976,28 @@ function M.setup()
       end
     end),
   })
-  -- A whole write (BufWritePre) or a partial one, or an append (:w >>),
-  -- which Vim reports with the '[ and '] marks
-  api.nvim_create_autocmd("BufWritePre", {
-    group = augroup,
-    callback = function(ev)
-      before_write(ev.buf)
+  -- A whole write is a write hook, so `:w` and org's own saves
+  -- (`utils.save_buffer`) both leave the inserted text out of the file.
+  -- It runs before the other hooks (crypt encrypts the file's text, not
+  -- the inserted one).
+  require("org.write_hooks").register("transclusion", {
+    order = 10,
+    pre = function(buf)
+      before_write(buf)
+    end,
+    post = function(buf, ctx)
+      after_write(buf)
+      local name = api.nvim_buf_get_name(buf)
+      if ctx.ok and name ~= "" then
+        local ok, err = pcall(M.refresh_dependents, vim.fs.normalize(name), buf)
+        if not ok then
+          report_once(err)
+        end
+      end
     end,
   })
+  -- A partial write or an append (:w >>), which Vim reports with the '[
+  -- and '] marks
   api.nvim_create_autocmd({ "FileWritePre", "FileAppendPre" }, {
     group = augroup,
     callback = function(ev)
@@ -1993,14 +2007,10 @@ function M.setup()
       end
     end,
   })
-  api.nvim_create_autocmd({ "BufWritePost", "FileWritePost", "FileAppendPost" }, {
+  api.nvim_create_autocmd({ "FileWritePost", "FileAppendPost" }, {
     group = augroup,
     callback = guard(function(ev)
       after_write(ev.buf)
-      local name = api.nvim_buf_get_name(ev.buf)
-      if ev.event == "BufWritePost" and name ~= "" then
-        M.refresh_dependents(vim.fs.normalize(name), ev.buf)
-      end
     end),
   })
   api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
@@ -2028,6 +2038,7 @@ end
 --- edit key given back.
 function M.teardown()
   api.nvim_clear_autocmds({ group = augroup })
+  require("org.write_hooks").unregister("transclusion")
   for buf in pairs(M.buffers) do
     if valid(buf) then
       pcall(M.remove_all, buf)

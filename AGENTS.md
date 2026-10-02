@@ -53,6 +53,10 @@ make format                                # stylua over the same paths
 - **Options live in `config.lua`.** A new option needs a default there, an
   entry under `:h org-config` in `doc/org.txt`, and a type in
   `lua/org/_meta/`.
+- **Org saves through `utils.save_buffer`.** It writes with `:noautocmd`,
+  so logic that must run around every write (`:w` or org's own saves)
+  registers a hook in `lua/org/write_hooks.lua`, not a
+  BufWritePre/BufWritePost autocommand. See CONTRIBUTING.md.
 - **Key conflicts matter.** Before adding a default key in `mappings.lua`,
   check it isn't a prefix of, or already taken by, another mapping.
 

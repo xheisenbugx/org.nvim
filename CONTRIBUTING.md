@@ -68,6 +68,37 @@ Some things to know before you start:
 - **Defaults live in one place.** Every option and its default is in
   [`lua/org/config.lua`](lua/org/config.lua). Add new options there and
   document them in `:h org-config`.
+- **Saving goes through `utils.save_buffer`, and write logic through
+  `org.write_hooks`.** Org writes the files it edits in the background
+  (refile, archive, capture, agenda edits, mobile, tangle, ...) with
+  `utils.save_buffer`, which uses `:noautocmd write`, so a `BufWritePre`
+  or `BufWritePost` autocommand never sees those saves. Code that must run
+  around every write, by `:w` or by org, registers a write hook instead:
+
+  ```lua
+  require("org.write_hooks").register("my-ext", {
+    order = 50,        -- pre hooks run lowest first, post hooks in reverse
+    filetype = "org",  -- optional filter
+    pre = function(bufnr, ctx)
+      -- change the buffer before it's written; keep what post needs in
+      -- ctx.state. Return false, "msg" (or throw) to veto: nothing is
+      -- written, :w fails and save_buffer returns false, "msg".
+    end,
+    post = function(bufnr, ctx)
+      -- ctx.ok: whether the file was written. Runs for every hook whose
+      -- pre ran, also after a veto or a failed write: restore the buffer
+      -- here (and its 'modified' flag).
+    end,
+  })
+  ```
+
+  `ctx.source` is `"write"` or `"save_buffer"`. Unregister in your
+  extension's `teardown` with `require("org.write_hooks").unregister("my-ext")`.
+  crypt (`encrypt_on_save`, order 50), transclusion (order 10) and roam
+  (order 20) are the built-in users. Don't write org buffers yourself with
+  `:write` from code: inside an autocommand or a `BufWriteCmd` the hooks
+  don't run; call `utils.save_buffer` (or `save_buffer_or_warn`) and check
+  its result.
 
 ## Adding a feature
 
