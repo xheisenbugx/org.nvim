@@ -490,6 +490,9 @@ local function no_objects(line)
   return key ~= nil and not key:upper():match("^CAPTION")
 end
 
+-- The closing line of a drawer, any case (org-element-drawer-parser).
+local DRAWER_END = "^%s*:[Ee][Nn][Dd]:%s*$"
+
 function parse_section(hl, lines, from, to, log_drawer)
   hl.planning = {}
   hl.properties = {}
@@ -537,12 +540,15 @@ function parse_section(hl, lines, from, to, log_drawer)
   -- rest of section: drawers, clocks, timestamps
   local in_drawer = nil
   local verbatim_end = 0
+  -- the first :END: line after the current one (false: none up to `to`),
+  -- found once for all the drawers before it
+  local next_end = 0
   while i <= to do
     local line = lines[i]
     if i <= verbatim_end then
       -- inside a src/example/export/comment block: no timestamps
     elseif in_drawer then
-      if line:match("^%s*:END:%s*$") then
+      if line:match(DRAWER_END) then
         in_drawer["end"] = i
         hl.drawers[#hl.drawers + 1] = in_drawer
         if in_drawer.name:upper() == log_drawer and not hl.logbook then
@@ -551,11 +557,22 @@ function parse_section(hl, lines, from, to, log_drawer)
         in_drawer = nil
       end
     else
-      local dname = line:match("^%s*:([%w_%-]+):%s*$")
+      local dname = line:match("^%s*:([%w_%-\128-\255]+):%s*$")
       local block_end = line:find("^%s*#%+") and M.verbatim_block_end(lines, i, to)
+      if dname and dname:upper() ~= "END" and next_end and next_end <= i then
+        next_end = false
+        for k = i + 1, to do
+          if lines[k]:match(DRAWER_END) then
+            next_end = k
+            break
+          end
+        end
+      end
       if block_end then
         verbatim_end = block_end
-      elseif dname and dname:upper() ~= "END" then
+      elseif dname and dname:upper() ~= "END" and next_end then
+        -- like org-element-drawer-parser, a drawer without an :END: line
+        -- in its section is a paragraph, whose timestamps count
         in_drawer = { name = dname, start = i }
       elseif not (line:find("^%s*[#:]") and no_objects(line)) then
         local is_clock = line:find("CLOCK:", 1, true) and line:match("^%s*CLOCK:")
