@@ -349,9 +349,38 @@ local function label_width(st)
   return math.max(8, math.min(st.opts.label_width or 34, math.floor(win_width(st) * 0.4)))
 end
 
+--- The drawing characters. The chart has one character per cell, so a
+--- glyph two cells wide (box drawing and blocks with 'ambiwidth' "double")
+--- falls back to ASCII there; the separators may be wider as long as they
+--- line up.
+local function glyphs()
+  local function pick(ch, alt)
+    return utils.width(ch) == 1 and ch or alt
+  end
+  return {
+    v = "│",
+    h = "─",
+    x = "┼",
+    bar = pick("█", "#"),
+    diamond = pick("◆", "*"),
+    trail = pick("┄", "."),
+    clock = pick("▒", ":"),
+  }
+end
+-- the characters of the current draw (set by M.draw)
+local G = glyphs()
+
+--- `ch` repeated over `cells` display cells; a cell it can't fill (it is
+--- two cells wide) is a space.
+local function fill(ch, cells)
+  local cw = math.max(1, utils.width(ch))
+  local n = math.max(0, math.floor(cells / cw))
+  return string.rep(ch, n) .. string.rep(" ", math.max(0, cells - n * cw))
+end
+
 --- Number of cells that fit in the chart area.
 local function cell_count(st)
-  local width = win_width(st) - label_width(st) - 3
+  local width = win_width(st) - label_width(st) - 2 - utils.width(G.v)
   return math.max(4, math.floor(width / zoom(st).width))
 end
 
@@ -508,16 +537,16 @@ local function draw_row(cv, st, row, n, today, bgs, last_day)
       local dsub = dl and (dl.min and math.min(2, math.floor(dl.min / 480)) or 1) or nil
       for p = 0, 2 do
         if dsub and p == dsub then
-          emit("◆", groups_of(bg, dl.hl))
+          emit(G.diamond, groups_of(bg, dl.hl))
         elseif dsub and (p > dsub or (sp and sp.start == day and not sp.start_min)) then
           -- after the deadline mark, or a bar that only is the deadline day
           emit(" ", groups_of(bg, nil))
         elseif sp and covers(sp, day, p) then
-          emit("█", bar_group(sp, bg, clk[i]))
+          emit(G.bar, bar_group(sp, bg, clk[i]))
         elseif trail[i] then
-          emit("┄", groups_of(bg, "OrgTimelineOverdue"))
+          emit(G.trail, groups_of(bg, "OrgTimelineOverdue"))
         elseif clk[i] then
-          emit("▒", groups_of(bg, "OrgTimelineClock"))
+          emit(G.clock, groups_of(bg, "OrgTimelineClock"))
         else
           emit(" ", groups_of(bg, nil))
         end
@@ -525,13 +554,13 @@ local function draw_row(cv, st, row, n, today, bgs, last_day)
     else
       local ch, g
       if dl then
-        ch, g = "◆", groups_of(bg, dl.hl)
+        ch, g = G.diamond, groups_of(bg, dl.hl)
       elseif sp then
-        ch, g = "█", bar_group(sp, bg, clk[i])
+        ch, g = G.bar, bar_group(sp, bg, clk[i])
       elseif trail[i] then
-        ch, g = "┄", groups_of(bg, "OrgTimelineOverdue")
+        ch, g = G.trail, groups_of(bg, "OrgTimelineOverdue")
       elseif clk[i] then
-        ch, g = "▒", groups_of(bg, "OrgTimelineClock")
+        ch, g = G.clock, groups_of(bg, "OrgTimelineClock")
       else
         ch, g = " ", groups_of(bg, nil)
       end
@@ -646,6 +675,7 @@ function M.draw(st)
     return
   end
   local o = st.opts
+  G = glyphs()
   local today = date.today_days()
   local n = cell_count(st)
   st.cells = n
@@ -690,7 +720,7 @@ function M.draw(st)
   for li, text in ipairs(ax) do
     cv:line()
     cv:put(string.rep(" ", lw + 1))
-    cv:put("│", "OrgTimelineSeparator")
+    cv:put(G.v, "OrgTimelineSeparator")
     local hl = li == 1 and "OrgTimelineMonth" or "OrgTimelineAxis"
     if today_pos and li > 1 then
       -- the today cell of the day rows stands out
@@ -703,9 +733,9 @@ function M.draw(st)
     end
   end
   cv:add({
-    { string.rep("─", lw + 1), "OrgTimelineSeparator" },
-    { "┼", "OrgTimelineSeparator" },
-    { string.rep("─", n * z.width), "OrgTimelineSeparator" },
+    { fill(G.h, lw + 1), "OrgTimelineSeparator" },
+    { G.x, "OrgTimelineSeparator" },
+    { fill(G.h, n * z.width), "OrgTimelineSeparator" },
   })
   -- the background of each cell: weekends (at day zoom) and today
   local bgs = {}
@@ -722,16 +752,26 @@ function M.draw(st)
     local lnum = cv:line()
     st.line_rows[lnum] = row
     cv:put(" ")
-    local used = 1
+    -- the label is `lw` cells: keyword and title cut to fit together
+    local room = lw
     if row.todo then
-      cv:put(row.todo, views.todo_group(row.todo, todo_cfg))
-      cv:put(" ")
-      used = used + utils.width(row.todo) + 1
+      local group = views.todo_group(row.todo, todo_cfg)
+      local kw_w = utils.width(row.todo)
+      if kw_w < room then
+        cv:put(row.todo, group)
+        cv:put(" ")
+        room = room - kw_w - 1
+      else
+        cv:put(views.fit(row.todo, room), group)
+        room = 0
+      end
     end
     local title_hl = row.ics and "OrgTimelineEvent"
       or (row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineTask"))
-    cv:put(views.fit(row.title, lw - used + 1), title_hl)
-    cv:put("│", "OrgTimelineSeparator")
+    if room > 0 then
+      cv:put(views.fit(row.title, room), title_hl)
+    end
+    cv:put(G.v, "OrgTimelineSeparator")
     draw_row(cv, st, row, n, today, bgs, last_day)
   end
   if #rows == 0 then

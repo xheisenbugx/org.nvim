@@ -343,11 +343,14 @@ function M.truncate(s, width)
   if M.width(s) <= width then
     return s
   end
-  local out = vim.fn.strcharpart(s, 0, width - 1)
-  while M.width(out) > width - 1 do
+  -- "…" is two cells wide with 'ambiwidth' "double"
+  local ell = M.width("…") <= math.max(width, 1) and "…" or ""
+  local room = width - M.width(ell)
+  local out = vim.fn.strcharpart(s, 0, math.max(0, room))
+  while out ~= "" and M.width(out) > room do
     out = vim.fn.strcharpart(out, 0, vim.fn.strchars(out) - 1)
   end
-  return out .. "…"
+  return out .. ell
 end
 
 --- Random v4 UUID.
