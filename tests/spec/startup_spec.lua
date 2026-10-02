@@ -125,7 +125,8 @@ describe("startup", function()
         mermaid = require("org.babel.ob").HANDLERS.mermaid == require("org.extensions.diagrams.render").mermaid,
       }
     ]])
-    eq(false, out.ql)
+    -- the ql source stays, and reports the extension as off
+    eq(true, out.ql)
     eq(false, out.grouper)
     eq(false, out.mermaid)
   end)

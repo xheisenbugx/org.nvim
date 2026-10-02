@@ -744,16 +744,8 @@ function M.teardown()
   lazy.if_loaded("org.agenda.view", "ql", function(view)
     view.refresh_hooks.ql = nil
   end)
-  lazy.if_loaded("org.agenda.render", "ql", function(render)
-    for _, name in ipairs({ "ql", "org-ql", "org_ql" }) do
-      if render.sources[name] == source then
-        render.sources[name] = nil
-      end
-    end
-  end)
-  -- the org-ql block stays registered once org.dblock has loaded; it
-  -- reports the extension as off
-  lazy.on_load("org.dblock", "ql", nil)
+  -- the agenda source and the org-ql block stay registered (pending hooks
+  -- included): they report the extension as off
   for buf, k in pairs(buf_keys) do
     if vim.api.nvim_buf_is_valid(buf) then
       vim.b[buf].org_ql_keys = nil
