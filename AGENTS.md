@@ -15,6 +15,10 @@ make format                                # stylua over the same paths
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
   real ID database or clock state. Run specs through `make`, not bare `nvim`.
+- With more than one spec file, each file runs in its own Neovim, one per
+  CPU (`ORG_TEST_JOBS=N` to change it, `ORG_TEST_JOBS=1` for one process),
+  and a file is failed after `ORG_TEST_TIMEOUT` seconds (600). A spec can't
+  rely on state left by an earlier file.
 - Run the specs for the area you touched while iterating, and the full suite
   before you finish.
 - Formatting follows `stylua.toml` (2-space indent, 120 columns, double
