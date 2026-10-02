@@ -69,6 +69,32 @@ describe("columns summaries", function()
     local fmt = "%25ITEM %TODO %Effort(Est){:} %N{+;%.1f}"
     eq(fmt, columns.format_string(columns.parse_format(fmt)))
   end)
+
+  it("parses formats like org-columns-compile-format", function()
+    eq({
+      { prop = "ITEM", title = "ITEM", width = 25 },
+      { prop = "TODO", title = "TODO" },
+      { prop = "DONE", title = "Done %", summary = "X%" },
+      { prop = "A", title = "A" },
+      { prop = "B", title = "B" },
+    }, columns.parse_format("%25ITEM%TODO %DONE(Done %){X%} %A() %B{ }"))
+  end)
+
+  it("ignores est+ values that are not a low-high range", function()
+    eq("2-4", columns.summarize("est+", { "1-2-3", "2-4" }))
+  end)
+end)
+
+describe("columns summaries with property inheritance", function()
+  with_config({ use_property_inheritance = true })
+
+  it("summarizes the children's own values, not inherited ones", function()
+    local buf = org_buffer({ "* A", ":PROPERTIES:", ":Effort: 1:00", ":END:", "** B", "** C" })
+    local file = require("org.files").get_buffer(buf)
+    local rows = columns.compute(file.children, columns.parse_format("%ITEM %Effort{:}"), { update = true })
+    eq({ "1:00", "1:00", "1:00" }, { rows[1].cells[2], rows[2].cells[2], rows[3].cells[2] })
+    eq(":Effort: 1:00", buf_lines(buf)[3])
+  end)
 end)
 
 describe("columnview dblock parameters", function()
