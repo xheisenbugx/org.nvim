@@ -23,6 +23,28 @@ describe("syntax", function()
     eq("OrgBlockDelimiter", syn(6, 1))
     ok(syn(7, 1):match("^lua"), "lua embedded: " .. syn(7, 1))
   end)
+
+  it("highlights description list terms after the bullet and checkbox", function()
+    org_buffer({
+      "- term :: description",
+      "- [ ] box term :: desc",
+      "   * star bullet :: x",
+      "1. numbered :: no term",
+      "- no space::here",
+      "- tricky :: one :: two",
+    })
+    eq("OrgListBullet", syn(1, 1))
+    eq("OrgListTerm", syn(1, 3))
+    eq("OrgListTerm", syn(1, 6))
+    eq("", syn(1, 11))
+    eq("OrgCheckbox", syn(2, 3))
+    eq("OrgListTerm", syn(2, 7))
+    eq("OrgListTerm", syn(3, 6))
+    ok(syn(4, 4) ~= "OrgListTerm")
+    ok(syn(5, 3) ~= "OrgListTerm")
+    eq("OrgListTerm", syn(6, 3))
+    ok(syn(6, 14) ~= "OrgListTerm")
+  end)
 end)
 
 describe("completion", function()
