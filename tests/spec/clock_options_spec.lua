@@ -164,16 +164,28 @@ describe("clock.x11idle_program_name (org-clock-x11idle-program-name)", function
   end)
 
   it("reads the idle time from the program on X11", function()
-    local dir = vim.fn.tempname()
-    vim.fn.mkdir(dir, "p")
-    set_clock({ x11idle_program_name = fake_exe(dir, "fake-idle", "echo 120000") })
-    local display, has = vim.env.DISPLAY, vim.fn.has
+    -- The program (any executable) is stubbed: spawning a freshly written script is slow on
+    -- macOS (the first exec of a new executable is assessed by the system,
+    -- one at a time), so under parallel test runs it hit the 2s timeout.
+    set_clock({ x11idle_program_name = vim.v.progpath })
+    local display, has, sys = vim.env.DISPLAY, vim.fn.has, vim.system
+    local ran
     vim.env.DISPLAY = ":0"
     vim.fn.has = function(f) -- as on Linux: macOS asks ioreg instead
       return f == "mac" and 0 or has(f)
     end
-    local idle = clock.user_idle_seconds(0)
-    vim.fn.has, vim.env.DISPLAY = has, display
+    vim.system = function(cmd)
+      ran = cmd
+      return {
+        wait = function()
+          return { code = 0, stdout = "120000\n" }
+        end,
+      }
+    end
+    local ok_, idle = pcall(clock.user_idle_seconds, 0)
+    vim.fn.has, vim.env.DISPLAY, vim.system = has, display, sys
+    ok(ok_, idle)
+    eq({ vim.v.progpath }, ran)
     eq(120, idle)
     config.setup({})
   end)
