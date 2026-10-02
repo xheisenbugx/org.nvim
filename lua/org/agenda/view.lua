@@ -470,6 +470,49 @@ M.todo_names = todo_names
 -- Rendering
 ---------------------------------------------------------------------------
 
+local ns_restrict = vim.api.nvim_create_namespace("org.agenda.restrict")
+
+--- The line range of a subtree restriction, following edits of its
+--- buffer like Emacs's org-agenda-restrict-begin/end markers: an extmark
+--- on the subtree's headline, whose subtree is taken from the current
+--- text.
+---@return integer[]|nil
+local function restrict_range()
+  local r = S.restrict
+  if not (r and r.range) then
+    return nil
+  end
+  local bufnr = r.bufnr
+  if not (bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)) then
+    return r.range
+  end
+  if not r.mark then
+    -- a copy: the restriction may be shared with the caller
+    r = vim.tbl_extend("force", {}, r)
+    S.restrict = r
+    r.mark = vim.api.nvim_buf_set_extmark(bufnr, ns_restrict, r.range[1] - 1, 0, {})
+    return r.range
+  end
+  local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_restrict, r.mark, {})
+  if pos[1] then
+    local hl = files.get_buffer(bufnr):headline_at(pos[1] + 1)
+    if hl and hl.line == pos[1] + 1 then
+      r.range = { hl.line, hl.end_line }
+    end
+  end
+  return r.range
+end
+
+--- Replace the restriction of the current agenda, dropping the extmark of
+--- the old one.
+local function set_restrict(r)
+  local old = S.restrict
+  if old and old.mark and old.bufnr and vim.api.nvim_buf_is_valid(old.bufnr) then
+    pcall(vim.api.nvim_buf_del_extmark, old.bufnr, ns_restrict, old.mark)
+  end
+  S.restrict = r
+end
+
 --- Compute the rendered view (without touching buffers).
 function M.build(width)
   local now = date.now()
@@ -492,7 +535,7 @@ function M.build(width)
     no_deadlines = S.no_deadlines,
     include_diary = S.include_diary,
     dim_blocked = S.dim_blocked,
-    restrict = S.restrict and { range = S.restrict.range } or nil,
+    restrict = S.restrict and { range = restrict_range() } or nil,
     filter = item_filter(),
     files_for = files_for,
     todo_names = todo_names(),
@@ -554,7 +597,7 @@ function M.refresh()
       priority = h[5] or 110,
     })
     local l = S.line_parts[h[1] + 1] or {}
-    l[#l + 1] = { h[2], h[3], h[4] }
+    l[#l + 1] = { h[2], h[3], h[4], h[5] }
     S.line_parts[h[1] + 1] = l
   end
   S.line_hl_groups = b.line_hls
@@ -943,7 +986,7 @@ function M.open(view, opts)
     elseif not acfg.persistent_filter then
       S.filters = empty_filters()
     end
-    S.restrict = opts.restrict
+    set_restrict(opts.restrict)
   end
   show_buffer()
   M.refresh()
@@ -1111,23 +1154,56 @@ function M.resolve_target(item)
     utils.error("Cannot find the file of this entry")
     return nil
   end
-  local lnum = item.lnum
-  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
-  if line ~= item.raw then
-    lnum = nil
-    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    for i, l in ipairs(lines) do
-      if l == item.raw then
-        lnum = i
-        break
-      end
-    end
-    if not lnum then
-      utils.warn("Entry has changed or moved; press r to refresh the agenda")
-      return nil
-    end
+  local lnum = M.locate_line(bufnr, item)
+  if not lnum then
+    utils.warn("Entry has changed or moved; press r to refresh the agenda")
+    return nil
   end
   return { bufnr = bufnr, lnum = lnum }
+end
+
+--- The current line of an item's entry in `bufnr` (Emacs keeps a marker):
+--- its line when the buffer is unchanged since the agenda was built, else
+--- the line with the same text, the n-th of n identical ones when it was
+--- the n-th before, otherwise the one nearest its old line.
+---@return integer|nil
+function M.locate_line(bufnr, item)
+  local lnum, raw = item.lnum, item.raw
+  local old = item.headline and item.headline.file
+  if old and files.cached_buffer(bufnr) == old then
+    return lnum
+  end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local found = {}
+  for i, l in ipairs(lines) do
+    if l == raw then
+      found[#found + 1] = i
+    end
+  end
+  if #found <= 1 then
+    return found[1]
+  end
+  if old and old.lines[lnum] == raw then
+    local k, total = 0, 0
+    for i, l in ipairs(old.lines) do
+      if l == raw then
+        total = total + 1
+        if i <= lnum then
+          k = total
+        end
+      end
+    end
+    if total == #found then
+      return found[k]
+    end
+  end
+  local best = found[1]
+  for _, i in ipairs(found) do
+    if math.abs(i - lnum) < math.abs(best - lnum) then
+      best = i
+    end
+  end
+  return best
 end
 
 local function other_window()
@@ -2582,10 +2658,19 @@ function M.drag_line(dir)
   vim.bo[S.buf].modifiable = false
   S.line_items[lnum], S.line_items[other] = S.line_items[other], S.line_items[lnum]
   S.line_parts[lnum], S.line_parts[other] = S.line_parts[other], S.line_parts[lnum]
+  local lh = S.line_hl_groups or {}
+  lh[lnum], lh[other] = lh[other], lh[lnum]
   for _, l in ipairs({ lnum, other }) do
     vim.api.nvim_buf_clear_namespace(S.buf, ns, l - 1, l)
     for _, h in ipairs(S.line_parts[l] or {}) do
-      pcall(vim.api.nvim_buf_set_extmark, S.buf, ns, l - 1, h[1], { end_col = h[2], hl_group = h[3], priority = 110 })
+      pcall(vim.api.nvim_buf_set_extmark, S.buf, ns, l - 1, h[1], {
+        end_col = h[2],
+        hl_group = h[3],
+        priority = h[4] or 110,
+      })
+    end
+    if lh[l] then
+      pcall(vim.api.nvim_buf_set_extmark, S.buf, ns, l - 1, 0, { line_hl_group = lh[l], priority = 90 })
     end
   end
   M.render_marks()
@@ -2955,8 +3040,10 @@ M.actions = {
   filter_category = function()
     local count = vim.v.count
     local f = S.filters
+    -- org-agenda-filtered-by-category: the newest category filter is a
+    -- "+" one; then the filter is removed, with or without a count
     local by_cat = #f.category > 0 and f.category[1]:sub(1, 1) == "+"
-    if by_cat and count == 0 then
+    if by_cat then
       f.category = {}
     else
       local item = M.item_at_cursor()
@@ -3299,12 +3386,12 @@ M.actions = {
     end
     local agenda = require("org.agenda")
     agenda.set_restriction_lock(target)
-    S.restrict = agenda.lock_restriction()
+    set_restrict(agenda.lock_restriction())
     M.redo()
   end,
   remove_restriction_lock = function()
     require("org.agenda").remove_restriction_lock()
-    S.restrict = nil
+    set_restrict(nil)
     M.redo()
   end,
   next_item = function()
