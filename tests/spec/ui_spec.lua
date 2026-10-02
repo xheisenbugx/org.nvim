@@ -45,6 +45,33 @@ describe("syntax", function()
     eq("OrgListTerm", syn(6, 3))
     ok(syn(6, 14) ~= "OrgListTerm")
   end)
+
+  -- #121: with the NFA engine orgListTerm's lazy .\{-} ran out of
+  -- 'maxmempattern' on a long paragraph line, and highlighting stopped there
+  it("highlights long paragraph lines within the default maxmempattern", function()
+    local mmp = vim.o.maxmempattern
+    vim.o.maxmempattern = 1000
+    local prose = string.rep("I would like the board to be set to a certain color for clients. ", 20)
+    org_buffer({
+      "* TODO Miro Color Tagging :blender:",
+      "",
+      prose,
+      "",
+      "- " .. prose .. ":: term",
+      "",
+      "** Prompt *bold*",
+    })
+    for _, l in ipairs({ 3, 5 }) do
+      for c = 1, #prose, 50 do
+        local ok_syn, err = pcall(vim.fn.synstack, l, c)
+        ok(ok_syn, ("line %d col %d: %s"):format(l, c, tostring(err)))
+      end
+    end
+    eq("OrgListTerm", syn(5, 3))
+    eq("OrgHeadlineLevel2", syn(7, 1))
+    eq("OrgBold", syn(7, 12))
+    vim.o.maxmempattern = mmp
+  end)
 end)
 
 describe("completion", function()
