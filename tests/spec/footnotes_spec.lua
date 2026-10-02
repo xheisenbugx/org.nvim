@@ -37,4 +37,24 @@ describe("footnotes", function()
     fn.new_footnote({ no_insert = true })
     eq({ "* A", "Hello[fn:2]", "* Footnotes", "", "[fn:2] ", "[fn:1] x", "", "* After" }, buf_lines())
   end)
+  -- Emacs collects footnotes from the parse tree: [fn:N] in a src block is
+  -- code. (Emacs's renumber still rewrites a `[fn:N]` line start inside a
+  -- block with a plain regexp; code is left alone here.)
+  it("leaves footnote-like text in src and example blocks alone", function()
+    local src = { "#+begin_src python", "x = a[fn:3]", "[fn:7] = 1", "#+end_src" }
+    local lines = { "Text[fn:7] here.", "" }
+    vim.list_extend(lines, src)
+    vim.list_extend(lines, { "", "[fn:7] Def seven." })
+    org_buffer(lines, { 1, 0 })
+    fn.renumber()
+    fn.sort()
+    local want = { "Text[fn:1] here.", "" }
+    vim.list_extend(want, src)
+    vim.list_extend(want, { "", "* Footnotes", "", "[fn:1] Def seven." })
+    eq(want, buf_lines())
+    eq({ "1" }, fn.all_labels())
+    org_buffer({ "#+BEGIN_EXAMPLE", "[fn:1] not a definition", "#+END_EXAMPLE", "Ref[fn:1]" }, { 4, 4 })
+    eq(1, #fn.collect_references(buf_lines()))
+    eq({}, fn.collect_definitions(buf_lines()))
+  end)
 end)
