@@ -1,4 +1,4 @@
-.PHONY: test lint format media
+.PHONY: test lint format media parity-fixtures
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -21,3 +21,8 @@ media:
 	@for t in docs/media/tapes/*.tape; do \
 	  case $$t in */common.tape) ;; *) vhs $$t & ;; esac; \
 	done; wait
+
+# Regenerate the Emacs Org 9.8.10 outputs the *_parity specs compare with
+# (needs Emacs; see scripts/emacs-parity/README.md). AREAS picks a subset.
+parity-fixtures:
+	scripts/emacs-parity/generate.sh $(AREAS)

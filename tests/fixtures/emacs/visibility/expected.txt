@@ -1,0 +1,674 @@
+=== content
+v #+STARTUP: content
+v Intro text
+v * A
+h a body
+h :LOGBOOK:
+h - note
+h :END:
+v ** B
+h b body
+v *** C
+h c body
+v ** D
+h 
+v 
+v * E
+h e
+=== content-tab1
+v #+STARTUP: content
+v Intro text
+v * A
+h a body
+h :LOGBOOK:
+h - note
+h :END:
+h ** B
+h b body
+h *** C
+h c body
+h ** D
+h 
+v 
+v * E
+h e
+=== content-tab2
+v #+STARTUP: content
+v Intro text
+v * A
+v a body
+v :LOGBOOK:
+h - note
+h :END:
+v ** B
+h b body
+h *** C
+h c body
+v ** D
+h 
+v 
+v * E
+h e
+=== content-tab3
+v #+STARTUP: content
+v Intro text
+v * A
+v a body
+v :LOGBOOK:
+h - note
+h :END:
+v ** B
+v b body
+v *** C
+v c body
+v ** D
+v 
+v 
+v * E
+h e
+=== content-tabB
+v #+STARTUP: content
+v Intro text
+v * A
+h a body
+h :LOGBOOK:
+h - note
+h :END:
+v ** B
+h b body
+h *** C
+h c body
+v ** D
+h 
+v 
+v * E
+h e
+=== content-tabB2
+v #+STARTUP: content
+v Intro text
+v * A
+h a body
+h :LOGBOOK:
+h - note
+h :END:
+v ** B
+v b body
+v *** C
+h c body
+v ** D
+h 
+v 
+v * E
+h e
+=== content-stab1
+v #+STARTUP: content
+v Intro text
+v * A
+h a body
+h :LOGBOOK:
+h - note
+h :END:
+h ** B
+h b body
+h *** C
+h c body
+h ** D
+h 
+v 
+v * E
+h e
+=== content-stab2
+v #+STARTUP: content
+v Intro text
+v * A
+h a body
+h :LOGBOOK:
+h - note
+h :END:
+v ** B
+h b body
+v *** C
+h c body
+v ** D
+h 
+v 
+v * E
+h e
+=== content-stab3
+v #+STARTUP: content
+v Intro text
+v * A
+v a body
+v :LOGBOOK:
+h - note
+h :END:
+v ** B
+v b body
+v *** C
+v c body
+v ** D
+v 
+v 
+v * E
+v e
+=== show2
+v #+STARTUP: show2levels
+v * A
+h a body
+v ** B
+h b body
+h *** C
+h c body
+h **** C4
+h x
+v ** D
+v * E
+=== show2-tab
+v #+STARTUP: show2levels
+v * A
+h a body
+v ** B
+v b body
+v *** C
+h c body
+h **** C4
+h x
+v ** D
+v * E
+=== show2-stab
+v #+STARTUP: show2levels
+v * A
+h a body
+h ** B
+h b body
+h *** C
+h c body
+h **** C4
+h x
+h ** D
+v * E
+=== visprops
+v #+STARTUP: overview
+v * A
+h :PROPERTIES:
+h :VISIBILITY: content
+h :END:
+h a body
+v ** B
+h b body
+v *** C
+h c
+v * F
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v f body
+v :LOGBOOK:
+h - x
+h :END:
+v ** G
+v g
+v * H
+h :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+h ** I
+=== visprops-tabA
+v #+STARTUP: overview
+v * A
+h :PROPERTIES:
+h :VISIBILITY: content
+h :END:
+h a body
+h ** B
+h b body
+h *** C
+h c
+v * F
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v f body
+v :LOGBOOK:
+h - x
+h :END:
+v ** G
+v g
+v * H
+h :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+h ** I
+=== visprops-tabA2
+v #+STARTUP: overview
+v * A
+v :PROPERTIES:
+h :VISIBILITY: content
+h :END:
+v a body
+v ** B
+h b body
+h *** C
+h c
+v * F
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v f body
+v :LOGBOOK:
+h - x
+h :END:
+v ** G
+v g
+v * H
+h :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+h ** I
+=== visprops-tabF
+v #+STARTUP: overview
+v * A
+h :PROPERTIES:
+h :VISIBILITY: content
+h :END:
+h a body
+v ** B
+h b body
+v *** C
+h c
+v * F
+h :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+h f body
+h :LOGBOOK:
+h - x
+h :END:
+h ** G
+h g
+v * H
+h :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+h ** I
+=== visprops-tabH
+v #+STARTUP: overview
+v * A
+h :PROPERTIES:
+h :VISIBILITY: content
+h :END:
+h a body
+v ** B
+h b body
+v *** C
+h c
+v * F
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v f body
+v :LOGBOOK:
+h - x
+h :END:
+v ** G
+v g
+v * H
+v :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+v ** I
+=== visprops-tabH2
+v #+STARTUP: overview
+v * A
+h :PROPERTIES:
+h :VISIBILITY: content
+h :END:
+h a body
+v ** B
+h b body
+v *** C
+h c
+v * F
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v f body
+v :LOGBOOK:
+h - x
+h :END:
+v ** G
+v g
+v * H
+v :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+v ** I
+=== showall
+v #+STARTUP: showall hideblocks
+v * A
+v :PROPERTIES:
+h :ID: 1
+h :END:
+v #+begin_src sh
+h ls
+h #+end_src
+v - item
+v   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+v b
+=== showall-tabB
+v #+STARTUP: showall hideblocks
+v * A
+v :PROPERTIES:
+h :ID: 1
+h :END:
+v #+begin_src sh
+h ls
+h #+end_src
+v - item
+v   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+h b
+=== showall-tabB2
+v #+STARTUP: showall hideblocks
+v * A
+v :PROPERTIES:
+h :ID: 1
+h :END:
+v #+begin_src sh
+h ls
+h #+end_src
+v - item
+v   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+v b
+=== showall-tabA
+v #+STARTUP: showall hideblocks
+v * A
+h :PROPERTIES:
+h :ID: 1
+h :END:
+h #+begin_src sh
+h ls
+h #+end_src
+h - item
+h   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+v b
+=== showall-tabA2
+v #+STARTUP: showall hideblocks
+v * A
+v :PROPERTIES:
+h :ID: 1
+h :END:
+v #+begin_src sh
+h ls
+h #+end_src
+v - item
+v   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+v b
+=== showall-drawer
+v #+STARTUP: showall hideblocks
+v * A
+v :PROPERTIES:
+v :ID: 1
+v :END:
+v #+begin_src sh
+h ls
+h #+end_src
+v - item
+v   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+v b
+=== showall-archive
+v #+STARTUP: showall hideblocks
+v * A
+v :PROPERTIES:
+h :ID: 1
+h :END:
+v #+begin_src sh
+h ls
+h #+end_src
+v - item
+v   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+v b
+=== showall-stab
+v #+STARTUP: showall hideblocks
+v * A
+h :PROPERTIES:
+h :ID: 1
+h :END:
+h #+begin_src sh
+h ls
+h #+end_src
+h - item
+h   more
+v * Old :ARCHIVE:
+h old
+h ** sub
+v * B
+h b
+=== sep
+v #+STARTUP: overview
+v * A
+h a
+h 
+v 
+v * B
+h b
+h 
+v * C
+h c
+=== sep-tab
+v #+STARTUP: overview
+v * A
+v a
+v 
+v 
+v * B
+h b
+h 
+v * C
+h c
+=== sep-tab2
+v #+STARTUP: overview
+v * A
+h a
+h 
+v 
+v * B
+h b
+h 
+v * C
+h c
+=== nested
+v #+STARTUP: content
+v * A
+h a
+v ** B
+h :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+h b
+h *** C
+h c
+v ** D
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v *** E
+v e
+=== nested-tab
+v #+STARTUP: content
+v * A
+h a
+v ** B
+v :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+v b
+v *** C
+h c
+v ** D
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v *** E
+v e
+=== nested-tab2
+v #+STARTUP: content
+v * A
+h a
+v ** B
+v :PROPERTIES:
+h :VISIBILITY: folded
+h :END:
+v b
+v *** C
+v c
+v ** D
+v :PROPERTIES:
+h :VISIBILITY: all
+h :END:
+v *** E
+v e
+=== skip
+v #+STARTUP: show3levels
+v * A
+v *** deep
+h x
+v ** B
+v *** C
+=== skip-tab
+v #+STARTUP: show3levels
+v * A
+h *** deep
+h x
+h ** B
+h *** C
+=== skip-tab2
+v #+STARTUP: show3levels
+v * A
+v *** deep
+h x
+v ** B
+h *** C
+=== everything
+v #+STARTUP: showeverything
+v * A
+v :PROPERTIES:
+v :X: 1
+v :END:
+v #+begin_example
+v ex
+v #+end_example
+v ** B
+v :LOGBOOK:
+v - l
+v :END:
+v b
+=== everything-stab
+v #+STARTUP: showeverything
+v * A
+h :PROPERTIES:
+h :X: 1
+h :END:
+h #+begin_example
+h ex
+h #+end_example
+h ** B
+h :LOGBOOK:
+h - l
+h :END:
+h b
+=== blocks
+v #+STARTUP: showall hidedrawers
+v * A
+v :PROPERTIES:
+h :X: 1
+h :END:
+v :NOTES:
+h some note
+h :END:
+v #+begin_quote
+v q
+v #+end_quote
+v ** B
+v text
+v #+begin_src lua
+v print(1)
+v #+end_src
+=== blocks-block
+v #+STARTUP: showall hidedrawers
+v * A
+v :PROPERTIES:
+h :X: 1
+h :END:
+v :NOTES:
+h some note
+h :END:
+v #+begin_quote
+h q
+h #+end_quote
+v ** B
+v text
+v #+begin_src lua
+v print(1)
+v #+end_src
+=== blocks-drawer
+v #+STARTUP: showall hidedrawers
+v * A
+v :PROPERTIES:
+h :X: 1
+h :END:
+v :NOTES:
+v some note
+v :END:
+v #+begin_quote
+v q
+v #+end_quote
+v ** B
+v text
+v #+begin_src lua
+v print(1)
+v #+end_src
+=== blocks-tabB
+v #+STARTUP: showall hidedrawers
+v * A
+v :PROPERTIES:
+h :X: 1
+h :END:
+v :NOTES:
+h some note
+h :END:
+v #+begin_quote
+v q
+v #+end_quote
+v ** B
+h text
+h #+begin_src lua
+h print(1)
+h #+end_src
