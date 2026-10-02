@@ -5864,6 +5864,8 @@ agenda ~
   restore_windows_after_quit false, sticky false, persistent_filter false,
   auto_exclude_function nil, persistent_marks false,
   bulk_custom_functions {}, compact_blocks false, log_mode_items,
+  log_mode_add_notes true, clock_consistency_checks { max_duration
+  "10:00", min_duration 0, max_gap "0:05", gap_ok_around { "4:00" } },
   habits { graph_column 40, preceding_days 21, following_days 7,
   show_habits, show_habits_only_for_today true, show_all_today,
   show_done_always_green, scheduled_past_days, today_glyph "!",
