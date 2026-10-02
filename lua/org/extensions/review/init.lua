@@ -301,11 +301,8 @@ local function progress(s)
 end
 
 local function key_hint(name)
-  local k = (opts().keys or {})[name]
-  if type(k) == "table" then
-    k = k[1]
-  end
-  return k or nil
+  local step_lhs = vim.tbl_keys((current() or {}).keys or {})
+  return require("org.extensions.views_util").key_hint(opts().keys or {}, name, { step = step_lhs })
 end
 
 -- key hints of the footer, the less useful ones dropped when too wide

@@ -102,6 +102,13 @@ describe("view keys", function()
     eq({ "q" }, views.lhs({ quit = "q", refresh = "q" }, "quit"))
     eq({}, views.lhs({ quit = false }, "quit"))
   end)
+
+  it("hints q/Esc when both quit", function()
+    eq("q/Esc", views.key_hint({ quit = { "<Esc>", "q" } }, "quit"))
+    eq("<Esc>", views.key_hint({ quit = { "<Esc>", "q" }, refresh = "q" }, "quit"))
+    eq("<CR>", views.key_hint({ jump = "<CR>" }, "jump"))
+    eq(nil, views.key_hint({ quit = false }, "quit"))
+  end)
 end)
 
 describe("agenda tag filter", function()

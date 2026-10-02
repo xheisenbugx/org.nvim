@@ -401,8 +401,7 @@ end
 local function hint(o)
   local k = o.keys or {}
   local function key(name)
-    local v = k[name]
-    return type(v) == "table" and v[1] or v
+    return require("org.extensions.views_util").key_hint(k, name)
   end
   local parts = {}
   for _, p in ipairs({

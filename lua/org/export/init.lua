@@ -669,7 +669,7 @@ function M.stack_show()
   end
   vim.wo[win].winbar = string.format("%-4s %-12s %-6s %s", "#", "Backend", "Age", "Source")
   M.stack_refresh()
-  utils.notify('Type "q" to quit, "g" to refresh')
+  utils.notify('Type "q" or <Esc> to quit, "g" to refresh')
   return buf
 end
 

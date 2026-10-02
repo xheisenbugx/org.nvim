@@ -23,5 +23,5 @@
 ---@field focus? boolean
 ---Symbols before sections and entries.
 ---@field icons? { clock?: string, next?: string, today?: string, habits?: string, inbox?: string, deadline?: string, scheduled?: string, event?: string }
----Keys in the sidebar (`false` removes one). (default: `{ jump = "<CR>", refresh = "r", close = "<Esc>" }`)
+---Keys in the sidebar (`false` removes one). (default: `{ jump = "<CR>", refresh = "r", close = { "<Esc>", "q" } }`)
 ---@field keys? { jump?: string|string[]|false, refresh?: string|string[]|false, close?: string|string[]|false }

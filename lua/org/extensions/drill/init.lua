@@ -379,15 +379,20 @@ local function close_window(s)
 end
 
 local function footer(s)
+  local quit = require("org.extensions.views_util").key_hint(
+    opts().keys or {},
+    "quit",
+    { grade = { "0", "1", "2", "3", "4", "5" } }
+  ) or "<Esc>"
   if s.finished then
-    return { "<Esc> close" }
+    return { quit .. " close" }
   end
   if not s.revealed then
-    return { "<Space> show answer   s skip   e edit   <Esc> quit" }
+    return { "<Space> show answer   s skip   e edit   " .. quit .. " quit" }
   end
   return {
     "0-2 failed   3 hard   4 good   5 easy",
-    "s skip   e edit   <Esc> quit",
+    "s skip   e edit   " .. quit .. " quit",
   }
 end
 

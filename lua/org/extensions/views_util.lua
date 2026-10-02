@@ -709,6 +709,20 @@ function M.lhs(keys, name, ...)
   end, lhs)
 end
 
+--- The hint for the keys bound to `name` (see `M.lhs`): "q/Esc" when both
+--- quit, else the key alone; nil when none is bound.
+---@param keys table<string, string|string[]|false>
+---@param name string
+---@param ... table<string, string|string[]|false> more key tables to check
+---@return string|nil
+function M.key_hint(keys, name, ...)
+  local lhs = M.lhs(keys, name, ...)
+  if vim.tbl_contains(lhs, "q") and vim.tbl_contains(lhs, "<Esc>") then
+    return "q/Esc"
+  end
+  return lhs[1]
+end
+
 --- Map buffer keys from a `keys` option (name -> lhs, list of lhs or
 --- false) to `handlers[name]`. Handlers run as org actions (in a
 --- coroutine, so they may prompt).
