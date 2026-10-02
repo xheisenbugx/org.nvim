@@ -272,7 +272,8 @@ function M.insert()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_get_current_line()
   local col = vim.api.nvim_win_get_cursor(0)[2]
-  local at = #line == 0 and 0 or col + 1
+  -- after the (possibly multibyte) character under the cursor
+  local at = #line == 0 and 0 or math.min(#line, col + 1 + vim.str_utf_end(line, col + 1))
   vim.api.nvim_buf_set_text(0, lnum - 1, at, lnum - 1, at, { text })
   vim.api.nvim_win_set_cursor(0, { lnum, math.max(at + #text - 1, 0) })
   return true
