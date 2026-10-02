@@ -642,7 +642,9 @@ Startup visibility comes from `#+STARTUP:` (`overview`, `content`,
 `showall`, `show2levels` … `show5levels`, `showeverything`, `nofold`),
 falling back to the `startup_folded` option. Drawers are then folded
 (`hidedrawers`, off with `nohidedrawers` or `hide_drawer_startup = false`)
-and so are blocks with `hideblocks` (or `hide_block_startup = true`).
+and so are blocks with `hideblocks` (or `hide_block_startup = true`);
+showing a subtree (<Tab>'s SUBTREE, a `VISIBILITY: all` property) leaves
+folded blocks folded, like Emacs.
 Except with `showeverything`, a `VISIBILITY` property (`folded`,
 `children`, `content`, `all`) then sets the visibility of its subtree.
 

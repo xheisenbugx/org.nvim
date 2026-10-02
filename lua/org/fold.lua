@@ -667,6 +667,42 @@ local function close_blocks(s, e)
   end
 end
 
+--- Open the folds of lines [s, e] except those of blocks and `#+RESULTS`,
+--- which keep their state: Emacs shows a subtree (org-fold-show-subtree,
+--- SUBTREE) by revealing its outline only, so `hideblocks` blocks stay
+--- folded.
+local function open_outline(s, e)
+  local keep = {}
+  for _, r in ipairs(regions(vim.api.nvim_get_current_buf(), s, e)) do
+    if r.kind == "block" or r.kind == "results" then
+      keep[r.start] = true
+    end
+  end
+  if next(keep) == nil then
+    pcall(vim.cmd, s .. "," .. e .. "foldopen!")
+    return
+  end
+  local l = s
+  while l <= e do
+    local fc = vim.fn.foldclosed(l)
+    if fc == -1 then
+      l = l + 1
+    elseif keep[fc] then
+      l = vim.fn.foldclosedend(l) + 1
+    else
+      -- one level at a time, so that a closed block inside stays closed
+      local tries = 0
+      while vim.fn.foldclosed(l) == fc and tries < 100 do
+        pcall(vim.cmd, l .. "foldopen")
+        tries = tries + 1
+      end
+      if vim.fn.foldclosed(l) == fc then
+        l = vim.fn.foldclosedend(l) + 1
+      end
+    end
+  end
+end
+
 --- Open the item folds in [s, e] (the text of an entry shows its lists).
 local function open_items(s, e)
   for _, r in ipairs(regions(vim.api.nvim_get_current_buf(), s, e)) do
@@ -916,7 +952,7 @@ local function show_ancestor_subtree(level)
     hl = hl.parent
   end
   show_heading_path(hl)
-  pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+  open_outline(hl.line, hl.end_line)
   M.unconceal(0, hl.line, hl.end_line)
   close_drawers(hl.line, hl.end_line)
   hide_archived(hl.line + 1, hl.end_line)
@@ -1040,7 +1076,7 @@ local function cycle_item(lnum, item)
   elseif (all_hidden_after(lnum, item.end_lnum) and not has_children) or last == "children" then
     local skipped = all_hidden_after(lnum, item.end_lnum) and not has_children
     hook("OrgCyclePre", "subtree")
-    pcall(vim.cmd, lnum .. "," .. item.end_lnum .. "foldopen!")
+    open_outline(lnum, item.end_lnum)
     M.unconceal(0, lnum + 1, item.end_lnum)
     close_drawers(lnum, item.end_lnum)
     vim.api.nvim_echo({ { skipped and "SUBTREE (NO CHILDREN)" or "SUBTREE" } }, false, {})
@@ -1208,7 +1244,7 @@ function M.cycle()
     if limit and hl.level >= limit then
       -- children deeper than cycle_max_level are text: all of it shows
       -- (like Emacs, where they are no headlines for org-fold-show-children)
-      pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+      open_outline(hl.line, hl.end_line)
       M.unconceal(0, hl.line + 1, hl.end_line)
       close_drawers(hl.line, hl.end_line)
     else
@@ -1243,7 +1279,7 @@ function M.cycle()
   if skipped or last == "children" then
     -- SUBTREE
     run_cycle_hook("OrgCyclePre", "subtree", lnum)
-    pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+    open_outline(hl.line, hl.end_line)
     M.unconceal(0, hl.line + 1, hl.end_line)
     close_drawers(hl.line, hl.end_line)
     refresh_ellipsis()
@@ -1499,7 +1535,7 @@ function M.reveal(arg)
   if arg == true or (type(arg) == "number" and arg >= 16) then
     local top = hl.parent or hl
     show_heading_path(top)
-    pcall(vim.cmd, top.line .. "," .. top.end_line .. "foldopen!")
+    open_outline(top.line, top.end_line)
     M.unconceal(0, top.line, top.end_line)
     close_drawers(top.line, top.end_line)
     refresh_ellipsis()
@@ -1598,7 +1634,7 @@ function M.apply_visibility_properties()
         end
         walk(hl)
       elseif state == "all" or state == "showall" then
-        pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+        open_outline(hl.line, hl.end_line)
         M.unconceal(0, hl.line, hl.end_line)
         close_drawers(hl.line, hl.end_line)
       end
