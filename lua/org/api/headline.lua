@@ -547,35 +547,44 @@ function Headline:set_tags(tags, opts)
   return res and self, err
 end
 
---- Add one tag to the own tags.
----@param tag string
----@param opts? { save?: boolean }
-function Headline:add_tag(tag, opts)
+--- Add a tag to or remove it from the own tags the headline has now (not
+--- the `tags` field, which may be older), like org-toggle-tag with `on`
+--- or `off`. No change when it already has or lacks the tag.
+local function toggle_tag(self, tag, on, opts)
   local ok, err = check_tags({ tag })
   if not ok then
     return nil, err
   end
-  local tags = vim.deepcopy(self.tags)
-  if not vim.tbl_contains(tags, tag) then
-    tags[#tags + 1] = tag
-  end
-  return self:set_tags(tags, opts)
+  local res
+  res, err = M.edit(self, opts, function(t, hl)
+    if vim.tbl_contains(hl.tags, tag) == on then
+      return true
+    end
+    local tags = vim.tbl_filter(function(x)
+      return x ~= tag
+    end, hl.tags)
+    if on then
+      tags[#tags + 1] = tag
+    end
+    return require("org.tags").set_tags(t, tags)
+  end)
+  return res and self, err
+end
+
+--- Add one tag to the own tags.
+---@param tag string
+---@param opts? { save?: boolean }
+---@return org.api.Headline|nil self, string|nil err
+function Headline:add_tag(tag, opts)
+  return toggle_tag(self, tag, true, opts)
 end
 
 --- Remove one tag from the own tags.
 ---@param tag string
 ---@param opts? { save?: boolean }
+---@return org.api.Headline|nil self, string|nil err
 function Headline:remove_tag(tag, opts)
-  local ok, err = check_tags({ tag })
-  if not ok then
-    return nil, err
-  end
-  return self:set_tags(
-    vim.tbl_filter(function(t)
-      return t ~= tag
-    end, self.tags),
-    opts
-  )
+  return toggle_tag(self, tag, false, opts)
 end
 
 --- Set the priority (`"A"`, `"10"`, a number), or remove it with nil.

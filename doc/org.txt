@@ -6713,12 +6713,15 @@ the fields and return the handle (or nil and an error):
     h:set_todo(state, [opts])     C-c C-t; nil removes the keyword.
                                   `opts.note` is the note the logging asks
                                   for, `opts.force` ignores blocking
-    h:set_tags(tags)              a list or ":a:b:"; also h:add_tag(tag),
-                                  h:remove_tag(tag). A tag is letters and
+    h:set_tags(tags)              a list or ":a:b:". A tag is letters and
                                   digits (of any script), `_`, `@`, `#`
                                   and `%` (org-tag-re); another name
                                   (`follow-up`) is an error, as org
                                   wouldn't read it back as a tag
+    h:add_tag(tag), h:remove_tag(tag)  add or remove one of the tags the
+                                  headline has now (also those added
+                                  after the handle was made), like
+                                  org-toggle-tag
     h:set_priority(p)             "A", "10" or a number; nil removes it.
                                   An error (also for nil) when
                                   `priority_enable_commands` is false

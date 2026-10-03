@@ -32,6 +32,11 @@ local function disk(path)
   return utils.readfile(path) or {}
 end
 
+--- A headline line with its tags aligned or not.
+local function squash(line)
+  return (line:gsub("%s+(:[^%s]+:)$", " %1"))
+end
+
 local WORK = {
   "* Projects",
   "** TODO Plan offsite :travel:",
@@ -63,6 +68,35 @@ describe("org.api handles", function()
   end
 
   describe("tags", function()
+    it("add_tag and remove_tag keep tags added since the handle was made", function()
+      local p = write(dir, "ids.org", {
+        "* TODO Plan offsite :travel:",
+        "  :PROPERTIES:",
+        "  :ID:       offsite",
+        "  :END:",
+      })
+      local h = api.find_by_id("offsite")
+      -- tags added in the file after the handle was made
+      local lines = disk(p)
+      lines[1] = "* TODO Plan offsite :travel:urgent:"
+      utils.writefile(p, lines)
+      ok(h:add_tag("b"))
+      eq({ "travel", "urgent", "b" }, h.tags)
+      eq("* TODO Plan offsite :travel:urgent:b:", squash(disk(p)[1]))
+      -- two handles of one entry
+      local h1, h2 = api.find_by_id("offsite"), api.find_by_id("offsite")
+      ok(h1:add_tag("c"))
+      ok(h2:add_tag("d"))
+      eq("* TODO Plan offsite :travel:urgent:b:c:d:", squash(disk(p)[1]))
+      ok(h1:remove_tag("b"))
+      ok(h2:remove_tag("travel"))
+      eq("* TODO Plan offsite :urgent:c:d:", squash(disk(p)[1]))
+      -- adding a tag it has, removing one it hasn't: no change
+      ok(h1:add_tag("c"))
+      ok(h1:remove_tag("nope"))
+      eq("* TODO Plan offsite :urgent:c:d:", squash(disk(p)[1]))
+    end)
+
     it("rejects tag names org can't read back", function()
       local h = head("Plan offsite")
       for _, bad in ipairs({ "follow-up", "two words", "", "a:b", "x.y", "a—b", "😀", "x\255" }) do
