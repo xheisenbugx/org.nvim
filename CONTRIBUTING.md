@@ -33,6 +33,7 @@ make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
 make typecheck                            # lua-language-server --check
 make coverage                             # specs with line coverage of lua/org
+make fuzz                                 # the fuzz specs with many more seeds
 git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
 
@@ -181,6 +182,53 @@ The checks that need fuller annotations than the code has today
 for Neovim 0.11) are hints: your editor shows them, the check ignores
 them. Fix what the check reports, usually the annotation, instead of
 silencing it.
+
+### Fuzzing
+
+The fuzz specs (`tests/spec/fuzz_*_spec.lua`) generate random Org text
+from numbered seeds (`tests/helpers/fuzz.lua`) and check what must hold for
+any input: the parser's outline invariants, the incremental fold levels,
+editing commands raising no Lua error and undoing cleanly, the structural
+merge keeping one-sided changes. `make test` runs a few fixed seeds of each.
+More seeds come from the environment:
+
+| Variable | Effect |
+| --- | --- |
+| `ORG_FUZZ_SEED=N` | only seed `N` (replays a failure) |
+| `ORG_FUZZ_ITERATIONS=N` | `N` seeds per spec instead of its default |
+| `ORG_FUZZ_SCALE=K` | `K` times each spec's default |
+| `ORG_FUZZ_START=S` | start at seed `S` instead of 1 |
+
+`make fuzz` runs the fuzz specs with `ORG_FUZZ_SCALE=40` from a random
+first seed (both can be set: `make fuzz ORG_FUZZ_SCALE=100
+ORG_FUZZ_START=1`). The Fuzz workflow runs it every night and from the
+Actions tab; when it fails, it opens an issue labelled `fuzz`, or comments
+on the open one, with the failures.
+
+A failure names its seed, the command that replays it, the generated
+input and, when shrinking found one, the minimal input that still fails
+the same way (for the editing commands also the minimal step: command,
+line and column):
+
+```
+seed 4711: element.at(3): attempt to index a nil value
+replay: ORG_FUZZ_SEED=4711 make test SPEC=tests/spec/fuzz_parser_spec.lua
+input = { ... }
+minimal input = {
+  "* a",
+  "#+begin_src",
+}
+```
+
+To turn it into a regression case:
+
+1. Replay the seed and check you get the same failure.
+2. Copy the minimal input into a new `it` of
+   `tests/spec/fuzz_regressions_spec.lua` that checks the expected behaviour
+   directly (what Emacs does with that text, or simply that no error is
+   raised), as the cases already there do. It should fail.
+3. Fix the bug; the new case and the replayed seed now pass. Commit the
+   case with the fix.
 
 ## Comparing with Emacs
 

@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -21,6 +21,16 @@ coverage:
 	s=$$?; rm -rf $$d; \
 	nvim --clean --headless -l scripts/coverage_report.lua coverage/counts coverage || s=1; \
 	exit $$s
+
+# The fuzz specs with many more seeds: ORG_FUZZ_SCALE (40) times their
+# defaults, or ORG_FUZZ_ITERATIONS each, from ORG_FUZZ_START (default: a
+# random seed). See "Fuzzing" in CONTRIBUTING.md.
+fuzz:
+	@scale=$${ORG_FUZZ_SCALE:-40}; \
+	start=$${ORG_FUZZ_START:-$$(( $$(od -An -N3 -tu4 /dev/urandom | tr -d ' ') + 1 ))}; \
+	echo "fuzz: ORG_FUZZ_SCALE=$$scale ORG_FUZZ_ITERATIONS=$$ORG_FUZZ_ITERATIONS ORG_FUZZ_START=$$start"; \
+	ORG_FUZZ_SCALE=$$scale ORG_FUZZ_START=$$start ORG_TEST_TIMEOUT=$${ORG_TEST_TIMEOUT:-3600} \
+	$(MAKE) --no-print-directory test SPEC="$$(echo tests/spec/fuzz_*_spec.lua)"
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:

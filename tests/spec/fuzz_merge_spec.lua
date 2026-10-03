@@ -12,7 +12,7 @@ describe("fuzz merge", function()
   it("keeps one-sided changes and raises no error", function()
     local failures = {}
     local function fail(seed, what, sides, res)
-      local t = { ("seed %d: %s"):format(seed, what) }
+      local t = { ("seed %d: %s"):format(seed, what), "replay: " .. fuzz.replay(seed) }
       for _, s in ipairs(sides) do
         t[#t + 1] = s[1] .. " = " .. fuzz.dump(s[2])
       end

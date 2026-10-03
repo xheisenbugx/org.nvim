@@ -79,16 +79,57 @@ describe("fuzz editing commands", function()
     end
   end)
 
+  --- Run the command `name` at (lnum, col) of `buf`. Returns why it
+  --- failed (a Lua error, or undo/redo that don't give the texts back), or
+  --- nil.
+  local function step(buf, name, lnum, col)
+    local before = buf_lines(buf)
+    vim.api.nvim_win_set_cursor(0, { lnum, col })
+    -- an undo step of its own
+    vim.bo[buf].undolevels = vim.bo[buf].undolevels
+    local seq = vim.fn.undotree(buf).seq_cur
+    errors = {}
+    local finished = utils.run(fn_of(name))
+    if not finished then
+      vim.wait(20)
+    end
+    if vim.api.nvim_get_current_buf() ~= buf then
+      vim.cmd("silent! only!")
+      vim.api.nvim_set_current_buf(buf)
+    end
+    vim.cmd("stopinsert")
+    if #errors > 0 then
+      return "raised: " .. errors[1]
+    end
+    local after = buf_lines(buf)
+    vim.bo[buf].undolevels = vim.bo[buf].undolevels
+    local seq_after = vim.fn.undotree(buf).seq_cur
+    if not vim.deep_equal(after, before) then
+      -- undo is per command: back to `before`
+      vim.cmd("silent undo " .. seq)
+      local undone = buf_lines(buf)
+      if not vim.deep_equal(undone, before) then
+        return "is not undone\ngot = " .. fuzz.dump(undone)
+      end
+      -- and on from the edited text, as a user would
+      vim.cmd("silent undo " .. seq_after)
+      if not vim.deep_equal(after, buf_lines(buf)) then
+        return "is not redone"
+      end
+    end
+  end
+
+  local function new_buffer(lines)
+    local buf = org_buffer(#lines > 0 and lines or { "" }, { 1, 0 })
+    vim.bo[buf].undolevels = 1000
+    return buf
+  end
+
   --- Run 15 random commands on the text of `seed`. Returns an error
   --- message, or nil.
   local function run_seed(seed)
     local rng = fuzz.rng(seed)
-    local lines = fuzz.doc(rng, { crlf = false })
-    if #lines == 0 then
-      lines = { "" }
-    end
-    local buf = org_buffer(lines, { 1, 0 })
-    vim.bo[buf].undolevels = 1000
+    local buf = new_buffer(fuzz.doc(rng, { crlf = false }))
     local hist = {}
     for _ = 1, 15 do
       local before = buf_lines(buf)
@@ -96,48 +137,24 @@ describe("fuzz editing commands", function()
       local col = rng:int(0, math.max(0, #before[lnum] - 1))
       local name = rng:pick(NAMES)
       hist[#hist + 1] = ("%s@%d:%d"):format(name, lnum, col)
-      local function fail(msg, extra)
-        return ("seed %d: %s %s\nsteps: %s\ninput = %s%s"):format(
+      local msg = step(buf, name, lnum, col)
+      if msg then
+        -- the smallest text on which the command fails the same way at
+        -- the same place of the same line
+        local kind = fuzz.kind(msg)
+        local small, at = fuzz.shrink(before, function(cand, k)
+          return fuzz.kind(step(new_buffer(cand), name, k, col) or "") == kind
+        end, lnum)
+        return fuzz.report(
           seed,
-          name,
-          msg,
-          table.concat(hist, " "),
-          fuzz.dump(before),
-          extra or ""
+          ("%s %s"):format(name, msg),
+          before,
+          small,
+          ("steps: %s%s"):format(
+            table.concat(hist, " "),
+            #small < #before and ("\nminimal step: %s@%d:%d"):format(name, at, col) or ""
+          )
         )
-      end
-      vim.api.nvim_win_set_cursor(0, { lnum, col })
-      -- an undo step of its own
-      vim.bo[buf].undolevels = vim.bo[buf].undolevels
-      local seq = vim.fn.undotree(buf).seq_cur
-      errors = {}
-      local finished = utils.run(fn_of(name))
-      if not finished then
-        vim.wait(20)
-      end
-      if vim.api.nvim_get_current_buf() ~= buf then
-        vim.cmd("silent! only!")
-        vim.api.nvim_set_current_buf(buf)
-      end
-      vim.cmd("stopinsert")
-      if #errors > 0 then
-        return fail("raised", "\n" .. errors[1])
-      end
-      local after = buf_lines(buf)
-      vim.bo[buf].undolevels = vim.bo[buf].undolevels
-      local seq_after = vim.fn.undotree(buf).seq_cur
-      if not vim.deep_equal(after, before) then
-        -- undo is per command: back to `before`
-        vim.cmd("silent undo " .. seq)
-        local undone = buf_lines(buf)
-        if not vim.deep_equal(undone, before) then
-          return fail("is not undone", "\ngot = " .. fuzz.dump(undone))
-        end
-        -- and on from the edited text, as a user would
-        vim.cmd("silent undo " .. seq_after)
-        if not vim.deep_equal(after, buf_lines(buf)) then
-          return fail("is not redone")
-        end
       end
     end
   end

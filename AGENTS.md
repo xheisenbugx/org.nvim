@@ -15,6 +15,7 @@ make format                                # stylua over the same paths
 make site                                  # docs website into site/ (scripts/site/build.lua)
 make typecheck                             # lua-language-server --check with .luarc.json
 make coverage                              # specs with line coverage; report in coverage/report.md
+make fuzz                                  # fuzz specs with 40x the seeds, random start
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
@@ -124,6 +125,11 @@ A rendering bug fix gets a snapshot case. When a snapshot changes on
 purpose, run `make snapshots` (`ORG_UPDATE_SNAPSHOTS=1`) and check the
 golden file diff; never edit golden files by hand, and don't rewrite them
 just to make a failing spec pass.
+
+Fuzz specs (`tests/spec/fuzz_*_spec.lua`) take their seeds from
+`tests/helpers/fuzz.lua`; a failure prints its seed, a `replay:` command and
+the minimal failing input, which goes into `fuzz_regressions_spec.lua` with
+the fix (CONTRIBUTING.md, "Fuzzing").
 
 Every bug fix and feature gets a spec. Tests run headless, so anything that
 prompts (`vim.fn.input`, `vim.ui.select`, confirms) has to be stubbed or
