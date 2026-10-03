@@ -470,14 +470,21 @@ function M.capture_template_items()
   return out
 end
 
---- Pick a capture template and capture with it.
+--- Pick a capture template and capture with it. From the agenda with
+--- `capture.use_agenda_date`, the capture takes the date at the cursor,
+--- like the capture menu (org-capture-use-agenda-date).
 function M.capture_template(opts)
+  -- the date now: the picker takes the focus
+  local copts = {}
+  if config.opts.capture.use_agenda_date and vim.bo.filetype == "orgagenda" then
+    copts.date = require("org.agenda.view").cursor_date()
+  end
   pick(opts, {
     title = "Capture template",
     items = M.capture_template_items(),
     preview = false,
     on_choice = function(items)
-      require("org.capture").capture(items[1].value)
+      require("org.capture").capture(items[1].value, copts)
     end,
   })
 end

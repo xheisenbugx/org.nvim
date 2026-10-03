@@ -5307,7 +5307,9 @@ back to "select" with a warning.
   pick_agenda_week       an entry of the agenda of the next 7 days
   pick_todo              an open TODO entry (the global TODO list)
   pick_agenda_file       an agenda file
-  pick_capture_template  a capture template, then capture with it
+  pick_capture_template  a capture template, then capture with it (from
+                         the agenda, at the date at the cursor with
+                         `capture.use_agenda_date`, as the capture menu)
 
 Multi-select: <Tab> in snacks.nvim, fzf-lua and telescope, <C-x> then
 <M-CR> in mini.pick. The actions have no default keys; bind them in any

@@ -323,6 +323,34 @@ describe("pickers", function()
       ok(buf_lines(buf)[2]:match("^%* Task%s+:home:x:y:$"), buf_lines(buf)[2])
     end)
 
+    it("captures with the agenda's date from the agenda (use_agenda_date)", function()
+      local date = require("org.date")
+      local tomorrow = date.today():add(1, "d")
+      write("c.org", { "* TODO Meeting", "  SCHEDULED: <" .. tomorrow:to_string({ brackets = false }) .. ">" })
+      local config = require("org.config")
+      stub(config.opts.capture, "templates", { t = { description = "Task", template = "* TODO %?" } })
+      stub(config.opts.capture, "use_agenda_date", true)
+      local captured
+      stub(require("org.capture"), "capture", function(tpl, o)
+        captured = { key = tpl.key, opts = o }
+      end)
+      stub(vim.ui, "select", function(items, _, cb)
+        cb(items[1])
+      end)
+      local view = require("org.agenda.view")
+      require("org.agenda").open_agenda({ span = 3, anchor = date.today_days() })
+      for l, it in pairs(view.state.line_items) do
+        if it.title:match("Meeting") then
+          vim.api.nvim_win_set_cursor(0, { l, 0 })
+        end
+      end
+      require("org.actions").run("pick_capture_template")
+      settle()
+      view.quit(true)
+      eq("t", captured.key)
+      eq(tomorrow:days(), captured.opts.date:days())
+    end)
+
     it("calls on_cancel when nothing is chosen", function()
       stub(vim.ui, "select", function(_, _, cb)
         cb(nil)
