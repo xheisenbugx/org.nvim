@@ -5279,9 +5279,10 @@ preview shows the entry in its file (in its buffer, unsaved changes and
 all, when the file is loaded). Confirming jumps there (and opens the folds
 around it). The `picker` option chooses the picker:
 
-  "auto"       LazyVim's `vim.g.lazyvim_picker` when it is installed, else
-               the first installed of the ones below, else "select"
-               (default)
+  "auto"       LazyVim's picker when it is installed (`vim.g.lazyvim_picker`,
+               or with its "auto" the picker extra enabled in
+               :LazyExtras), else the first installed of the ones below,
+               else "select" (default)
   "snacks"     snacks.nvim (`Snacks.picker`)
   "fzf-lua"    fzf-lua (`fzf_exec`, the builtin previewer)
   "telescope"  telescope.nvim
@@ -7994,9 +7995,9 @@ The `:Org` forms of these take the value as an argument, e.g.
 Choosing a node ~
 `picker` sets how nodes are chosen:
 
-  "auto"    snacks.nvim's picker when it is loaded and org's `picker`
-            option is "auto", else the picker of that option
-            (|org-pickers|) (default)
+  "auto"    the picker of org's `picker` option (|org-pickers|), whose
+            "auto" takes LazyVim's picker, else snacks.nvim's first
+            (default)
   "snacks"  fuzzy search; confirming a query that matches no node creates a
             node with that title (like completing-read in Emacs)
   "fzf-lua", "telescope", "mini"

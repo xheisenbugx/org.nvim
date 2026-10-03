@@ -20,9 +20,10 @@
 ---@field index_file? string
 ---Re-index a roam file when it is written (default: `true`).
 ---@field update_on_save? boolean
----How nodes are chosen: `"auto"` (default: snacks.nvim's picker when loaded,
----else org's `picker` option, `:h org-pickers`), `"snacks"`, `"fzf-lua"`,
----`"telescope"`, `"mini"`, `"select"` (vim.ui.select) or `"input"`.
+---How nodes are chosen: `"auto"` (default: org's `picker` option, whose
+---`"auto"` takes LazyVim's picker, else snacks.nvim's first,
+---`:h org-pickers`), `"snacks"`, `"fzf-lua"`, `"telescope"`, `"mini"`,
+---`"select"` (vim.ui.select) or `"input"`.
 ---@field picker? "auto"|"snacks"|"fzf-lua"|"telescope"|"mini"|"select"|"input"
 ---Order of node candidates: `"mtime"` (default), `"title"` or `"none"`.
 ---@field sort? "mtime"|"title"|"none"

@@ -120,9 +120,28 @@ end
 
 local warned = {}
 
+-- the backends of LazyVim's pickers
+local LAZYVIM = { snacks = "snacks", fzf = "fzf-lua", telescope = "telescope" }
+
+--- The backend of LazyVim's picker: `vim.g.lazyvim_picker` ("snacks",
+--- "fzf", "telescope"), or with "auto", LazyVim's default, the picker the
+--- extra enabled with :LazyExtras registered in `LazyVim.pick`.
+---@return string|nil
+local function lazyvim_picker()
+  local name = vim.g.lazyvim_picker
+  local lazyvim = rawget(_G, "LazyVim")
+  if (name == nil or name == "auto") and type(lazyvim) == "table" then
+    local ok, picker = pcall(function()
+      return lazyvim.pick.picker
+    end)
+    name = ok and type(picker) == "table" and picker.name or nil
+  end
+  return LAZYVIM[name or ""]
+end
+
 --- The backend used for the `picker` option (or `name`): "auto" takes
---- LazyVim's `vim.g.lazyvim_picker` when set and installed, else the first
---- installed of snacks.nvim, fzf-lua, telescope.nvim and mini.pick, else
+--- LazyVim's picker when it is installed, else the first installed of
+--- snacks.nvim, fzf-lua, telescope.nvim and mini.pick, else
 --- vim.ui.select. A backend that isn't installed falls back to
 --- vim.ui.select, with a warning.
 ---@param name? string
@@ -130,7 +149,7 @@ local warned = {}
 function M.backend(name)
   name = name or require("org.config").opts.picker or "auto"
   if name == "auto" then
-    local lazy = ({ snacks = "snacks", fzf = "fzf-lua", telescope = "telescope" })[vim.g.lazyvim_picker or ""]
+    local lazy = lazyvim_picker()
     if lazy and M.available(lazy) then
       return lazy
     end

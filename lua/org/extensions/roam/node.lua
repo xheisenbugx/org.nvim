@@ -130,14 +130,12 @@ end
 local GENERIC = { ["fzf-lua"] = true, telescope = true, mini = true }
 
 --- Which picker `read` uses: the `picker` option, with "auto" resolved to
---- the backend of org's own `picker` option (`:h org-pickers`).
+--- the backend of org's own `picker` option (`:h org-pickers`; its "auto"
+--- takes LazyVim's picker, else snacks.nvim first).
 ---@return "snacks"|"fzf-lua"|"telescope"|"mini"|"select"|"input"
 function M.picker()
   local p = ropts().picker or "auto"
   if p == "auto" then
-    if has_snacks_picker() and (require("org.config").opts.picker or "auto") == "auto" then
-      return "snacks"
-    end
     return require("org.pickers").backend()
   end
   if p == "snacks" then
