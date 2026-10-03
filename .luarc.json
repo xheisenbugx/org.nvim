@@ -4,7 +4,7 @@
   "runtime.path": ["lua/?.lua", "lua/?/init.lua", "?.lua", "?/init.lua"],
   "workspace.library": ["$VIMRUNTIME/lua", "${3rd}/luv/library"],
   "workspace.checkThirdParty": false,
-  "workspace.ignoreDir": [".git", ".claude", "docs", "examples", "site", "coverage"],
+  "workspace.ignoreDir": ["/.git", "/.claude", "/docs", "/examples", "/site", "/coverage"],
   "diagnostics.globals": [
     "vim",
     "Snacks",
