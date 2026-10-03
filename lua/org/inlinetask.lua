@@ -61,7 +61,7 @@ function M.insert()
   local s, e
   if mode == "v" or mode == "V" or mode == "\22" then
     s, _, e = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
   end
   local lnum = s or vim.api.nvim_win_get_cursor(0)[1]
   local task = M.task_at(bufnr, lnum)

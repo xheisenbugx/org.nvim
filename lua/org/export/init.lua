@@ -889,7 +889,7 @@ function M.convert_region(format, range)
       return false
     end
     srow, scol, erow, ecol, mode = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
   end
   if mode == "v" then
     local last = vim.api.nvim_buf_get_lines(bufnr, erow - 1, erow, false)[1] or ""

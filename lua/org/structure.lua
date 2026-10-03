@@ -75,12 +75,7 @@ local function current_headline()
   return hl, file
 end
 
-local function exit_visual()
-  local m = vim.fn.mode()
-  if m == "v" or m == "V" or m == "\22" then
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-  end
-end
+local exit_visual = utils.exit_visual
 
 local function in_visual()
   local m = vim.fn.mode()
@@ -2700,9 +2695,7 @@ end
 ---------------------------------------------------------------------------
 
 local function select_lines(s, e)
-  if in_visual() then
-    vim.cmd("normal! \27")
-  end
+  exit_visual()
   vim.api.nvim_win_set_cursor(0, { s, 0 })
   vim.cmd("normal! V")
   vim.api.nvim_win_set_cursor(0, { e, 0 })

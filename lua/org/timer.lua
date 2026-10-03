@@ -163,7 +163,7 @@ function M.change_times_in_region(delta, s, e)
       if s > e then
         s, e = e, s
       end
-      vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+      utils.exit_visual()
     else
       s = vim.api.nvim_win_get_cursor(0)[1]
       e = s

@@ -579,9 +579,7 @@ end
 
 --- Visually select lines [s, e].
 local function select_lines(s, e)
-  if vim.fn.mode():match("^[vV\22]") then
-    vim.cmd("normal! \27")
-  end
+  utils.exit_visual()
   vim.api.nvim_win_set_cursor(0, { s, 0 })
   vim.cmd("normal! V")
   vim.api.nvim_win_set_cursor(0, { e, 0 })
@@ -857,7 +855,7 @@ function M.toggle_fixed_width()
   end
   if mode:match("^[vV\22]") then
     local s, _, e = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
     while #lines > 1 and is_blank(lines[#lines]) do
       table.remove(lines)

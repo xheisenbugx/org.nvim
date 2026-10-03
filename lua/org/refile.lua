@@ -630,7 +630,7 @@ local function visual_lines()
     return nil
   end
   local s, _, e = utils.visual_range()
-  vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  utils.exit_visual()
   return { s, e }
 end
 

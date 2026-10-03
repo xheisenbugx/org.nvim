@@ -1365,7 +1365,7 @@ function M.toggle_checkbox()
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
     local s, _, e = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     if toggle_checkbox_range(bufnr, s, e, arg, false) == false then
       utils.warn("No item in region")
     end
@@ -2120,7 +2120,7 @@ function M.toggle_item()
   local region = mode == "v" or mode == "V" or mode == "\22"
   if region then
     s, _, e = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     while s < e and is_blank(get_lines(bufnr, s, s)[1]) do
       s = s + 1
     end

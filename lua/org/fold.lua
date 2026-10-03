@@ -2101,7 +2101,7 @@ function M.hide_drawer_all()
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
     s, _, e = require("org.utils").visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    require("org.utils").exit_visual()
   end
   close_drawers(s, e)
 end
@@ -2242,7 +2242,7 @@ function M.copy_visible()
   if mode == "v" or mode == "V" or mode == "\22" then
     local srow, _, erow = require("org.utils").visual_range()
     s, e = srow, erow
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    require("org.utils").exit_visual()
   end
   local out = {}
   local lnum = s

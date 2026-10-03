@@ -410,7 +410,7 @@ local function visual_region()
     return nil
   end
   local srow, scol, erow, ecol = utils.visual_range()
-  vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  utils.exit_visual()
   local line = vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or ""
   if mode == "V" then
     local first = vim.api.nvim_buf_get_lines(0, srow - 1, srow, false)[1] or ""
@@ -834,7 +834,7 @@ function M.refile()
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
     local s, _, e = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     range = { s, e }
   end
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
