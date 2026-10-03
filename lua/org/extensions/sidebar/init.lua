@@ -52,7 +52,7 @@ M.defaults = {
     event = "◇",
   },
   --- Keys in the sidebar.
-  keys = { jump = "<CR>", refresh = "r", close = "<Esc>" },
+  keys = { jump = "<CR>", refresh = "r", close = { "<Esc>", "q" } },
 }
 
 M.actions = {

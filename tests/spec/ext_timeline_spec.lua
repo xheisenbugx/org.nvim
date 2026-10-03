@@ -273,7 +273,7 @@ describe("timeline", function()
     end
     vim.api.nvim_feedkeys("-", "x", false)
     eq("week", timeline.ZOOMS[st.zoom].name)
-    eq("", vim.fn.maparg("q", "n"))
+    eq(1, vim.fn.maparg("q", "n", false, true).buffer)
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
     eq(nil, timeline.state)
   end)

@@ -2689,7 +2689,8 @@ end
 
 --- org-agenda-filter-by-tag with a key: a tag selection key, SPC (any tag),
 --- `?` (untagged), TAB (completion), `.` (tags of the entry at point), `\`
---- (off), RET (auto exclude), `+`/`-` (filter for/against), q (quit).
+--- (off), RET (auto exclude), `+`/`-` (filter for/against), q (quit,
+--- unless a tag uses q as its key).
 function M.filter_by_tag(count)
   local exclude = count == 1
   local accumulate = count == 2
@@ -2712,7 +2713,7 @@ function M.filter_by_tag(count)
       config.opts.agenda.auto_exclude_function and "[RET] " or ""
     )
     local ch = utils.getchar(prompt)
-    if not ch or ch == "q" then
+    if not ch or (ch == "q" and not keys.q) then
       return
     elseif ch == "-" then
       exclude = true

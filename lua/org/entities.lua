@@ -573,7 +573,9 @@ function M.help()
     vim.api.nvim_set_current_win(win)
   end
   vim.bo[buf].filetype = "org"
-  vim.keymap.set("n", "q", "<Cmd>close<CR>", { buffer = buf, nowait = true, desc = "Close" })
+  for _, lhs in ipairs({ "q", "<Esc>" }) do
+    vim.keymap.set("n", lhs, "<Cmd>close<CR>", { buffer = buf, nowait = true, desc = "Close" })
+  end
   return buf
 end
 
