@@ -268,6 +268,16 @@ local function as_list(v)
   return type(v) == "table" and v or { v }
 end
 
+--- `s` in lower case, letters beyond ASCII too (`ÉTÉ` → `été`).
+---@param s string
+---@return string
+local function lower(s)
+  if s:find("[\128-\255]") then
+    return vim.fn.tolower(s)
+  end
+  return s:lower()
+end
+
 --- Headlines matching every given condition of `query`, in file order.
 ---@param query? org.api.Query
 ---@return org.api.Headline[]|nil headlines, string|nil err
@@ -291,7 +301,7 @@ function M.headlines(query)
   end
   local tags = as_list(query.tags)
   local level = query.level
-  local title = query.title and query.title:lower()
+  local title = query.title and lower(query.title)
   local function keep(hl)
     if query.archived == false then
       local h = hl
@@ -319,7 +329,7 @@ function M.headlines(query)
     then
       return false
     end
-    if title and not hl.title:lower():find(title, 1, true) then
+    if title and not lower(hl.title):find(title, 1, true) then
       return false
     end
     if query.id and hl.properties.ID ~= query.id then

@@ -6651,7 +6651,7 @@ api.headlines([query])      Headlines matching every condition of `query`,
               true is set, false unset; inheritance follows
               `use_property_inheritance`
     level     a number, or `{ min = 2, max = 3 }`
-    title     text the title contains, ignoring case
+    title     text the title contains, ignoring case (`été` finds `ÉTÉ`)
     id        the ID property
     archived  false skips subtrees tagged ARCHIVE (default: included)
     filter    `function(h)` returning true to keep the handle
