@@ -11,7 +11,7 @@
 --- syntax, e.g. "+3d", "fri 14:00", "2026-10-01"; shown live in the
 --- calendar with `read_date_display_live`), `T` set/clear the time, `!`
 --- the agenda of the date, <CR> or a mouse click on a day select,
---- `x`/<Del> remove, q/<Esc> cancel. With `read_date_popup_calendar`
+--- `x`/<Del> remove, q/<Esc> cancel (<Esc> only when `q` is a calendar key). With `read_date_popup_calendar`
 --- off, only a "Date+time [default]: " prompt is shown.
 ---
 --- The float shows the month with ISO week numbers and the neighbouring
@@ -194,10 +194,12 @@ function M.render(sel, opts)
 
   -- key hints: keys highlighted, descriptions dimmed
   local cal = opts.calendar and M.calendar_keys() or {}
+  -- q cancels too, unless it is the calendar's agenda or diary key
+  local q_quits = cal.agenda ~= "q" and cal.diary ~= "q"
   local hints = {
     { { "hjkl", "day/week" }, { "HL", "month" }, { "JK", "year" } },
     { { ".", "today" }, { cal.diary == "i" and "t" or "i", "type" }, { "T", "time" } },
-    { { "⏎", "select" }, opts.allow_remove and { "x", "remove" } or nil, { "esc", "cancel" } },
+    { { "⏎", "select" }, opts.allow_remove and { "x", "remove" } or nil, { q_quits and "q/Esc" or "Esc", "cancel" } },
   }
   if cal.agenda or cal.diary then
     -- the Emacs calendar's Org keys (org--setup-calendar-bindings)
