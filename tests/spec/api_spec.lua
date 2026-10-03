@@ -1056,6 +1056,85 @@ describe("org.api", function()
     end)
   end)
 
+  describe("resolving links like following them", function()
+    local TARGETS = {
+      "#+TITLE: Targets",
+      "* Projects",
+      "  :PROPERTIES:",
+      "  :CUSTOM_ID: projects",
+      "  :ID:       proj-id",
+      "  :END:",
+      "** TODO Plan   offsite [1/2]",
+      "#+NAME: my table",
+      "| a | b |",
+      "Text with a <<dedicated target>> and a <<<Radio Word>>>.",
+      "#+begin_src sh",
+      "echo hi (ref:greet)",
+      "#+end_src",
+      "* Draft outline",
+    }
+    -- link, the line following it goes to (nil: not found)
+    local CASES = {
+      { "*projects", 2 },
+      { "*Plan offsite", 7 },
+      { "#PROJECTS", 2 },
+      { "my table", 8 },
+      { "MY   TABLE", 8 },
+      { "Dedicated  Target", 10 },
+      { "Radio Word", nil },
+      { "draft outline", 14 },
+      { "(greet)", 12 },
+      { "file:targets.org::*projects", 2 },
+      { "[[file:targets.org::my table][the table]]", 8 },
+      { "id:proj-id::plan offsite", 7 },
+      { "id:proj-id", 2 },
+      { "nothing like this", nil },
+    }
+
+    it("finds what following finds", function()
+      local p = write(dir, "targets.org", TARGETS)
+      config.opts.links.frame_setup = { file = "current" }
+      open_file(p)
+      local b = vim.api.nvim_get_current_buf()
+      local links = require("org.links")
+      local confirm = utils.confirm
+      -- a missing heading is not created
+      utils.confirm = function()
+        return false
+      end
+      local function follow(link)
+        vim.api.nvim_set_current_buf(b)
+        vim.api.nvim_win_set_cursor(0, { 1, 0 })
+        local l = links.parse_links(link, { bracket_only = true })[1]
+        local done, _, found = utils.noninteractive(links.open, l and l.target or link, { bufnr = b })
+        assert(done, found)
+        return found and vim.api.nvim_win_get_cursor(0)[1] or nil
+      end
+      local ok_, err = pcall(function()
+        for _, case in ipairs(CASES) do
+          local link, line = case[1], case[2]
+          eq(line, follow(link), "following " .. link)
+          local r = api.links.resolve(link, { bufnr = b })
+          eq(line, r.line, "resolving " .. link)
+          ok(same_file(p, r.file), link)
+        end
+      end)
+      utils.confirm = confirm
+      ok(ok_, err)
+      local r = api.links.resolve("*projects", { bufnr = b })
+      eq("Projects", r.headline.title)
+      eq("*projects", r.search)
+      eq("(greet)", api.links.resolve("(greet)", { bufnr = b }).search)
+      -- searches that do more than find a line
+      eq(nil, api.links.resolve("file:targets.org::/Projects/", { bufnr = b }).line)
+      write(dir, "refs.bib", { "@book{smith,", "  title = {Projects}", "}" })
+      r = api.links.resolve("file:refs.bib::Projects", { bufnr = b })
+      ok(same_file(dir .. "/refs.bib", r.file))
+      eq(nil, r.line)
+      vim.cmd("bwipeout!")
+    end)
+  end)
+
   describe("events", function()
     it("lists the events and adds and removes listeners", function()
       for _, name in ipairs({

@@ -76,12 +76,11 @@ end
 --- Call `fn(...)` without prompting (`utils.noninteractive`), then save
 --- the buffers it changed as |org-api-saving| says: a buffer is saved when
 --- it had no unsaved changes before (`opts.save` true: always, false:
---- never). Returns what `utils.noninteractive` returns: `ok, messages,
---- results...`, or false, the messages and an error (also when a save
---- failed).
+--- never). Returns whether it worked, the collected messages and fn's
+--- (first) result, or the error when it failed (also when a save failed).
 ---@param opts { save?: boolean }
 ---@param fn function
----@return boolean ok, table msgs, any ...
+---@return boolean ok, { msg: string, level: integer }[] msgs, any res
 local function change(opts, fn, ...)
   local before = {}
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -89,9 +88,9 @@ local function change(opts, fn, ...)
       before[b] = { tick = vim.api.nvim_buf_get_changedtick(b), modified = vim.bo[b].modified }
     end
   end
-  local res = { utils.noninteractive(fn, ...) }
-  if not res[1] then
-    return unpack(res, 1, table.maxn(res))
+  local ok, msgs, res = utils.noninteractive(fn, ...)
+  if not ok then
+    return false, msgs, res
   end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     local name = vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) or ""
@@ -104,12 +103,12 @@ local function change(opts, fn, ...)
       if save then
         local saved, err = utils.save_buffer(b)
         if not saved then
-          return false, res[2], "could not save " .. name .. ": " .. tostring(err)
+          return false, msgs, "could not save " .. name .. ": " .. tostring(err)
         end
       end
     end
   end
-  return unpack(res, 1, table.maxn(res))
+  return true, msgs, res
 end
 
 ---------------------------------------------------------------------------
@@ -567,17 +566,19 @@ end
 ---@field type string link type: file, id, http, https, custom-id, heading, fuzzy, coderef, ...
 ---@field path string the part after `type:` (the whole target for internal links)
 ---@field target string the target with link abbreviations expanded
----@field search string|nil the search option after `::`
+---@field search string|nil the search option after `::`; for internal links the search itself (`*Heading`, `#id`, `(ref)`, text)
 ---@field file string|nil the file it points to, when it points into a file
 ---@field line integer|nil the line it points to, when found
----@field headline org.api.Headline|nil the headline it points to, when found
+---@field headline org.api.Headline|nil the headline on that line, when it points to one
 ---@field url string|nil the address of a web or mail link
 
---- Find what a link points to without following it. `link` is a target or
---- a bracket link; internal links (`*Heading`, `#custom-id`, fuzzy text)
---- are looked up in `opts.bufnr` (default current). File searches find
---- a line number, `*heading`, `#custom-id`, `<<target>>` or a headline
---- title; regexp searches are not resolved.
+--- Find what a link points to without following it, the way following
+--- it finds it (`org.links`: the same reading of the target and the same
+--- search, ignoring case and blanks: `*Heading`, `#custom-id`, `(coderef)`,
+--- `<<target>>`, `#+NAME:`, headline titles, text). `link` is a target or
+--- a bracket link; internal links are looked up in `opts.bufnr` (default
+--- current). Not resolved: `/regexp/` searches, and what
+--- `links.search_functions`, org-ctags or a BibTeX file would answer.
 ---@param link string
 ---@param opts? { bufnr?: integer }
 ---@return org.api.ResolvedLink|nil resolved, string|nil err
@@ -585,59 +586,45 @@ function M.links.resolve(link, opts)
   opts = opts or {}
   local links = require("org.links")
   local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
-  local target = link:match("^%[%[(.-)%]%[.-%]%]$") or link:match("^%[%[(.-)%]%]$")
-  target = target and links.unescape(target) or link
-  local file = utils.is_org(bufnr) and files.get_buffer(bufnr) or nil
-  local expanded = links.expand_abbrev(target, file)
-  local l = links.classify({ target = expanded })
-  local out = { type = l.type, path = l.path, target = expanded }
-  local function locate(f, search)
-    if not f then
+  local target = link
+  if link:match("^%s*%[%[") then
+    local b = links.parse_links(vim.trim(link), { bracket_only = true })[1]
+    if b and b.start_col == 1 and b.end_col == #vim.trim(link) then
+      target = b.target
+    end
+  end
+  local l = links.read_target(target, bufnr)
+  local out = { type = l.type, path = l.path, target = l.target }
+  -- the line `search` finds in `src`, as following the link finds it (a
+  -- BibTeX file looks for the key's entry instead: not resolved)
+  local function locate(src, search, sopts, name)
+    if not src or (name or ""):match("%.bib$") then
       return
     end
-    out.file = f.filename
-    if not search or search == "" then
-      return
-    end
-    local hl
-    local n = tonumber(search)
-    if n then
-      out.line = n
-      return
-    elseif search:sub(1, 1) == "#" then
-      hl = f:find_by_custom_id(search:sub(2))
-    elseif search:sub(1, 1) == "*" then
-      hl = f:find_by_title(vim.trim(search:sub(2)))
-    elseif search:match("^/.*/$") or search:match("^%(.*%)$") then
-      return
-    else
-      for i, line in ipairs(f.lines) do
-        if line:find("<<" .. search .. ">>", 1, true) then
-          out.line = i
-          return
-        end
-      end
-      hl = f:find_by_title(search)
-    end
-    if hl then
-      out.line = hl.line
-      out.headline = H.new(hl)
+    local lnum = links.search_location(search, src, sopts)
+    if lnum then
+      local hl = src.file and src.file:headline_on(lnum)
+      out.line, out.headline = lnum, hl and H.new(hl) or nil
     end
   end
   local t = l.type
   if t == "id" then
-    local id, search = l.path:match("^(.-)::(.*)$")
-    id = id or l.path
-    out.search = search
-    local loc = require("org.id").find(id)
+    local loc, id, option = links.find_id_link(l.path)
+    out.search = option
     if not loc then
       return nil, "cannot find entry with ID " .. id
     end
-    local f = loc.bufnr and files.get_buffer(loc.bufnr) or files.get(loc.filename)
-    out.file = loc.filename
+    local src = links.search_source(loc.bufnr, loc.filename)
+    local f = src and src.file
     local hl = f and f:find_by_id(id)
-    out.line = hl and hl.line or loc.lnum
-    out.headline = hl and H.new(hl) or nil
+    out.file = f and f.filename or loc.filename
+    if option then
+      -- searched within the entry's subtree (org-id-open narrows to it)
+      locate(src, option, { range = hl and { hl.line, hl.end_line } or nil })
+    else
+      out.line = hl and hl.line or loc.lnum or 1
+      out.headline = hl and H.new(hl) or nil
+    end
   elseif t == "file" or t == "file+sys" or t == "file+emacs" or t == "attachment" then
     local path, search = l.path:match("^(.-)::(.*)$")
     path = path or l.path
@@ -645,20 +632,23 @@ function M.links.resolve(link, opts)
     local full
     if t == "attachment" then
       full = require("org.attach").resolve_attachment(path, { bufnr = bufnr })
-    else
-      full = links.resolve_path(path, bufnr)
     end
+    full = (t ~= "attachment" or full) and links.file_link_path(full or path, bufnr) or nil
     out.file = full and vim.fs.normalize(full) or nil
-    if out.file and search and utils.exists(out.file) and not utils.is_dir(out.file) then
-      locate(files.get(out.file), search)
+    if out.file and search and search ~= "" and utils.exists(out.file) and not utils.is_dir(out.file) then
+      if search:match("^%d+$") then
+        out.line = tonumber(search)
+      else
+        locate(links.search_source(nil, out.file), search, nil, out.file)
+      end
     end
   elseif t == "custom-id" or t == "heading" or t == "fuzzy" or t == "coderef" then
-    out.search = t == "custom-id" and ("#" .. l.path) or t == "heading" and ("*" .. l.path) or l.path
-    if t ~= "coderef" then
-      locate(file, out.search)
-    end
+    out.search = l.target
+    local name = vim.api.nvim_buf_get_name(bufnr)
+    out.file = name ~= "" and vim.fs.normalize(name) or nil
+    locate(links.search_source(bufnr), out.search, nil, vim.bo[bufnr].filetype == "bib" and ".bib" or name)
   elseif links.URL_SCHEMES[t] then
-    out.url = expanded
+    out.url = l.target
   end
   return out
 end

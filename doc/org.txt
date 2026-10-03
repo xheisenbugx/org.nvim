@@ -6816,10 +6816,15 @@ api.links.insert(link, [desc], [opts])  Insert at the cursor, or at
 api.links.resolve(link, [opts])  What a link (a target or `[[...]]`) points
                             to, without following it: `{ type, path,
                             target, search, file, line, headline, url }`.
-                            Internal links search `opts.bufnr` (default
-                            current); file searches find a line number,
-                            `*heading`, `#custom-id`, `<<target>>` or a
-                            headline title (not regexps).
+                            It finds what following the link finds (the
+                            searches of |org-links|, ignoring case and
+                            blanks: `*heading`, `#custom-id`, `(coderef)`,
+                            a line number, `<<target>>`, `#+NAME:`, a
+                            headline title, text). Internal links search
+                            `opts.bufnr` (default current). `headline` is
+                            set when the line is a headline. Not resolved:
+                            `/regexp/` searches, BibTeX keys and what
+                            `links.search_functions` or org-ctags answer.
 
 Clock ~
                                                            *org-api-clock*
