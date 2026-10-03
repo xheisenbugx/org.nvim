@@ -2468,7 +2468,8 @@ around each match follows |org-show-context-detail| (`occur-tree` and
 14. CAPTURE                                                      *org-capture*
 
 <prefix>c opens the template menu. `:Org capture KEY` selects a template
-directly. A count works like Emacs's prefix argument: `4<prefix>c` (C-u)
+directly. In Visual mode the selection becomes the template's `%i`, like
+the active region in Emacs. A count works like Emacs's prefix argument: `4<prefix>c` (C-u)
 jumps to a template's target, `16<prefix>c` (C-u C-u) to the last stored
 entry and `1<prefix>c` (C-1) asks for the date of a date tree entry.
 `:Org capture_here` (C-0 C-c c) inserts the template at the cursor: an

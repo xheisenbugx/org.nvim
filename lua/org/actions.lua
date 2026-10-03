@@ -42,8 +42,16 @@ group("Anywhere", {
     "prompt",
     desc = "Capture (count: 4 go to target, 16 last stored, 1 ask date)",
     global = true,
+    -- org-capture: the active region is %i
+    modes = { "n", "x" },
   },
-  capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
+  capture_here = {
+    "org.capture",
+    "prompt_here",
+    desc = "Capture at the cursor (C-0 C-c c)",
+    global = true,
+    modes = { "n", "x" },
+  },
   capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
   capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
   capture_string = { "org.capture", "capture_string", desc = "Capture a string typed at a prompt", global = true },
