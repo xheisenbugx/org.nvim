@@ -1360,9 +1360,9 @@ function M.cmd_capture(words, flags)
     end,
   })
   M.mark_messages()
-  local done, bufnr, line
+  local done, bufnr, line, stored
   local co = coroutine.create(function()
-    bufnr, line = capture.capture(tpl, { initial = text, answers = answers })
+    bufnr, line, stored = capture.capture(tpl, { initial = text, answers = answers })
     done = true
   end)
   local ok, e = coroutine.resume(co)
@@ -1377,6 +1377,14 @@ function M.cmd_capture(words, flags)
   M.check_prompted()
   if not done or not bufnr then
     M.fail_with_messages("capture failed")
+  end
+  -- a template's kill_buffer wipes the buffer the entry went to: it's
+  -- saved, so read it back from its file
+  if not (vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)) then
+    if not stored then
+      M.fail_with_messages("capture failed")
+    end
+    bufnr = require("org.utils").load_buffer(stored)
   end
   local hl = (tpl.type or "entry") == "entry" and M.headline_at(bufnr, line) or nil
   local id

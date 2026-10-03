@@ -709,6 +709,21 @@ describe("cli json: writing", function()
     eq("bad_value", err.errors[1].code)
   end)
 
+  it("captures with a template whose kill_buffer closes the target", function()
+    local d = workspace({
+      "  capture = { templates = { k = { description = 'Kill', target = dir .. '/inbox.org',",
+      "    template = '* TODO %?', kill_buffer = true } } },",
+    })
+    local code, e = json(d, { "capture", "-t", "k", "--id", "Water the plants" })
+    eq(0, code)
+    eq("Water the plants", e.data.headline.title)
+    ok(same_path(d .. "/inbox.org", e.data.file))
+    ok(type(e.data.id) == "string")
+    local inbox = table.concat(read(d .. "/inbox.org"), "\n")
+    ok(inbox:find("* TODO Water the plants", 1, true), inbox)
+    ok(inbox:find(":ID:%s+" .. vim.pesc(e.data.id)), inbox)
+  end)
+
   it("keeps the repeater and warning period of a rescheduled date, and logs it", function()
     local d = workspace({ "  log_reschedule = 'time',", "  log_redeadline = 'note'," })
     vim.fn.writefile(
