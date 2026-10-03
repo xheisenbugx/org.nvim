@@ -6658,6 +6658,10 @@ api.headlines([query])      Headlines matching every condition of `query`,
 api.headline_at([opts])     The headline containing a line: `opts.bufnr`
                             (default current) and `opts.lnum` (default the
                             cursor line), or `opts.file` and `opts.lnum`.
+                            A buffer's cursor is the current window's when
+                            it shows the buffer, else that of the first
+                            window showing it; a buffer no window shows
+                            has none (give `lnum`, else nil and an error).
 api.find_by_id(id)          The headline with this ID, found like `id:`
                             links find it.
 api.date(value)             A date in the form below, from any value the
@@ -6793,13 +6797,17 @@ Links ~
                                                            *org-api-links*
 api.links.store(link, [desc])   Add to the stored links (<prefix>li).
 api.links.store_location([where])  Store a link to a handle or `{ bufnr,
-                            lnum }` (default the cursor), like <prefix>ls.
+                            lnum }` (default the cursor, as for
+                            `api.headline_at`), like <prefix>ls.
 api.links.stored()          The stored links `{ link, desc }`, newest first.
 api.links.format(link, [desc])  `[[link][desc]]`, escaped.
 api.links.insert(link, [desc], [opts])  Insert at the cursor, or at
                             `opts.bufnr`, `opts.row` (1-based), `opts.col`
                             (0-based byte), written for that buffer like
-                            <prefix>li. Returns the inserted text.
+                            <prefix>li. What isn't given comes from the
+                            buffer's cursor (as for `api.headline_at`: nil
+                            and an error when no window shows the buffer).
+                            Returns the inserted text.
 api.links.resolve(link, [opts])  What a link (a target or `[[...]]`) points
                             to, without following it: `{ type, path,
                             target, search, file, line, headline, url }`.

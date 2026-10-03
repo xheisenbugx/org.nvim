@@ -138,10 +138,33 @@ end
 -- Headlines
 ---------------------------------------------------------------------------
 
+--- The cursor `{ row, col }` (1-based row, 0-based byte column) of a
+--- buffer: of the current window when it shows the buffer, else of the
+--- first window showing it (in this tab page first). A buffer no window
+--- shows has no cursor: nil and an error.
+---@param bufnr integer
+---@return integer[]|nil cursor, string|nil err
+local function buffer_cursor(bufnr)
+  local win = vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_buf(win) ~= bufnr then
+    win = vim.fn.bufwinid(bufnr)
+    if win == -1 then
+      win = vim.fn.win_findbuf(bufnr)[1]
+    end
+  end
+  if not win then
+    return nil, ("buffer %d is not shown in a window: there is no cursor, give a line"):format(bufnr)
+  end
+  return vim.api.nvim_win_get_cursor(win)
+end
+
 --- The headline containing a line: `opts.bufnr` (default current) and
---- `opts.lnum` (default the cursor line), or `opts.file` and `opts.lnum`.
+--- `opts.lnum` (default the cursor line: of the current window when it
+--- shows the buffer, else of the first window showing it), or `opts.file`
+--- and `opts.lnum`. nil and an error for a buffer no window shows without
+--- `opts.lnum`.
 ---@param opts? { bufnr?: integer, file?: string, lnum?: integer }
----@return org.api.Headline|nil
+---@return org.api.Headline|nil, string|nil err
 function M.headline_at(opts)
   opts = opts or {}
   local f
@@ -152,8 +175,11 @@ function M.headline_at(opts)
   else
     local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
     if not lnum then
-      local win = vim.fn.bufwinid(bufnr)
-      lnum = win ~= -1 and vim.api.nvim_win_get_cursor(win)[1] or 1
+      local cur, err = buffer_cursor(bufnr)
+      if not cur then
+        return nil, err
+      end
+      lnum = cur[1]
     end
     f = files.get_buffer(bufnr)
   end
@@ -409,8 +435,9 @@ function M.links.store(link, desc)
 end
 
 --- Compute and store a link to a headline (a handle) or a location
---- `{ bufnr, lnum }` (default: the cursor), like <prefix>ls (an `id:` link
---- when `id.link_to_org_use_id` asks for it, which may create the ID).
+--- `{ bufnr, lnum }` (default: the cursor, see `headline_at`), like
+--- <prefix>ls (an `id:` link when `id.link_to_org_use_id` asks for it,
+--- which may create the ID).
 ---@param where? org.api.Headline|{ bufnr?: integer, lnum?: integer }
 ---@return org.api.Link|nil link, string|nil err
 function M.links.store_location(where)
@@ -422,12 +449,22 @@ function M.links.store_location(where)
     end
     loc = { bufnr = bufnr, lnum = hl.line }
   elseif type(where) == "table" then
-    loc = { bufnr = where.bufnr, lnum = where.lnum }
+    loc = { bufnr = where.bufnr ~= 0 and where.bufnr or nil, lnum = where.lnum }
+  end
+  -- the current buffer's cursor is the current window's (link_to_location
+  -- reads it); another buffer's is in a window showing it
+  if loc.bufnr and not loc.lnum and loc.bufnr ~= vim.api.nvim_get_current_buf() then
+    local cur, err = buffer_cursor(loc.bufnr)
+    if not cur then
+      return nil, err
+    end
+    loc.lnum, loc.col = cur[1], cur[2] + 1
   end
   local links = require("org.links")
   local ok, msgs, l = utils.noninteractive(links.link_to_location, {
     bufnr = loc.bufnr,
     lnum = loc.lnum,
+    col = loc.col,
     interactive = false,
   })
   if not ok then
@@ -455,22 +492,25 @@ function M.links.format(link, desc)
   return require("org.links").format(link, desc)
 end
 
---- Insert a link at the cursor of the current window, or at
---- `opts.bufnr` / `opts.row` / `opts.col` (1-based row, 0-based byte
---- column), written for that buffer like <prefix>li writes it (file links
---- per `links.file_path_type`). Returns the inserted text.
+--- Insert a link at the cursor, or at `opts.bufnr` / `opts.row` /
+--- `opts.col` (1-based row, 0-based byte column; the missing ones from the
+--- buffer's cursor, see `headline_at`), written for that buffer like
+--- <prefix>li writes it (file links per `links.file_path_type`). Returns
+--- the inserted text, or nil and an error.
 ---@param link string
 ---@param desc? string
 ---@param opts? { bufnr?: integer, row?: integer, col?: integer }
----@return string
+---@return string|nil text, string|nil err
 function M.links.insert(link, desc, opts)
   opts = opts or {}
   local links = require("org.links")
   local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
   local row, col = opts.row, opts.col
   if not row or not col then
-    local win = vim.fn.bufwinid(bufnr)
-    local cur = win ~= -1 and vim.api.nvim_win_get_cursor(win) or { 1, 0 }
+    local cur, err = buffer_cursor(bufnr)
+    if not cur then
+      return nil, err
+    end
     row, col = row or cur[1], col or cur[2]
   end
   local text = links.format_for_buffer(link, desc, { bufnr = bufnr }) or ""
