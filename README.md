@@ -20,6 +20,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Tour](#-a-quick-tour)** ·
 **[Features](#-features)** ·
 **[Docs](doc/org.txt)** ·
+**[Changelog](CHANGELOG.md)** ·
 **[Contributing](CONTRIBUTING.md)**
 
 <br>
@@ -1282,7 +1283,8 @@ make lint                                 # stylua --check + source lint rules
 ```
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) explains how the code is organised
-and how to add a feature.
+and how to add a feature. [`CHANGELOG.md`](CHANGELOG.md) lists what changed
+in each release.
 
 ## License
 

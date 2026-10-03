@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format media publish-media parity-fixtures
+.PHONY: test snapshots lint format media publish-media parity-fixtures changelog
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -42,3 +42,9 @@ publish-media:
 # (needs Emacs; see scripts/emacs-parity/README.md). AREAS picks a subset.
 parity-fixtures:
 	scripts/emacs-parity/generate.sh $(AREAS)
+
+# Regenerate CHANGELOG.md from the tags and merged pull requests. On a
+# release/vX.Y.Z branch the commits after the latest tag go under vX.Y.Z;
+# elsewhere pass VERSION=vX.Y.Z for that, or get an Unreleased section.
+changelog:
+	nvim --headless --clean -l scripts/changelog.lua $(if $(VERSION),--version $(VERSION))

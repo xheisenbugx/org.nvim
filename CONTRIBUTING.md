@@ -278,21 +278,39 @@ fails the spec instead of hanging it.
   after editing `doc/org.txt`, run
   `nvim --headless -u NONE -c "helptags doc" -c q`. Pushes don't run CI.
 
-To release, branch from `dev` and open a pull request into `main`:
+To release, branch from `dev`, update the changelog and open a pull
+request into `main`:
 
 ```sh
 git switch -c release/v0.2.0 origin/dev
+make changelog                            # adds the ## [v0.2.0] section
+git commit -am "release: CHANGELOG for v0.2.0"
 git push -u origin release/v0.2.0
 gh pr create --base main --title "release: v0.2.0"
 ```
 
-Merging it tags `v0.2.0` and publishes the GitHub release, with notes
-generated from the pull requests merged since the last tag. The tag goes on
-the release branch's last commit, so `dev` reaches it as well as `main`.
+[`CHANGELOG.md`](CHANGELOG.md) is generated from the history by
+`scripts/changelog.lua`: one entry per pull request merged into `dev`, by
+its title, grouped by Conventional Commits type, with breaking changes
+(`feat!:` or a `BREAKING CHANGE:` footer) first. On a `release/vX.Y.Z`
+branch, `make changelog` files the pull requests since the latest tag under
+`vX.Y.Z`; elsewhere they go under Unreleased (or pass `VERSION=vX.Y.Z`).
+Entries come from the merge commits, so a good pull request title is a
+good changelog entry; `make changelog` rewrites the whole file, so don't
+edit it by hand. The `release branch` check fails until `CHANGELOG.md` has
+a `## [vX.Y.Z]` section.
+
+Merging it tags `v0.2.0` and publishes the GitHub release. The release
+notes are the `v0.2.0` section of `CHANGELOG.md`, plus a link to the full
+diff (GitHub's generated notes, grouped by `.github/release.yml`, only when
+the section is empty). The tag goes on the release branch's last commit.
 There is no version number in the code: `:Org version` reports the latest
 `vX.Y.Z` tag of the checkout. Merge release PRs with a merge commit, not a
-squash, so that commit is part of `main`. If you commit a fix to the
-release branch itself, merge the release branch back into `dev` too. Pick the version with [semver](https://semver.org): before 1.0, a
-`feat` or a breaking change bumps the minor version, fixes bump the patch.
+squash, so that commit is part of `main`. Afterwards, merge the release
+branch back into `dev` (a pull request from `release/v0.2.0` into `dev`),
+so `dev` gets the changelog and reaches the tag; do the same for any fix
+committed to the release branch itself. Pick the version with
+[semver](https://semver.org): before 1.0, a `feat` or a breaking change
+bumps the minor version, fixes bump the patch.
 
 Thanks again, and happy hacking! 🦄
