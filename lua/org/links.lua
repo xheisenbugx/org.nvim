@@ -417,12 +417,44 @@ function M.classify(link)
   return link
 end
 
+--- Whether byte `col1` (1-based) of `line` is inside a bracket link. A
+--- `<<target>>` or `<<<radio target>>>` there is only text: a link's
+--- description holds no targets (org-element-object-restrictions), so
+--- Emacs, which checks `org-element-context`, skips it.
+function M.in_bracket_link(line, col1)
+  if not line:find("[[", 1, true) then
+    return false
+  end
+  for _, lk in ipairs(M.parse_links(line, { bracket_only = true })) do
+    if col1 >= lk.start_col and col1 <= lk.end_col then
+      return true
+    end
+  end
+  return false
+end
+
+--- Byte (1-based) where `<<name>>` (`name` taken literally) starts in
+--- `line` outside any bracket link, else nil.
+---@param line string
+---@param name string
+---@return integer|nil
+function M.find_target(line, name)
+  local init = 1
+  while true do
+    local at = line:find("<<" .. name .. ">>", init, true)
+    if not at or not M.in_bracket_link(line, at) then
+      return at
+    end
+    init = at + 1
+  end
+end
+
 --- Radio targets `<<<text>>>` of the buffer, longest first.
 function M.radio_targets(bufnr)
   local seen, out = {}, {}
   for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr or 0, 0, -1, false)) do
-    for t in l:gmatch("<<<([^<>]-)>>>") do
-      if vim.trim(t) ~= "" and not seen[t] then
+    for s, t in l:gmatch("()<<<([^<>]-)>>>") do
+      if vim.trim(t) ~= "" and not seen[t] and not M.in_bracket_link(l, s) then
         seen[t] = true
         out[#out + 1] = t
       end
@@ -1019,7 +1051,12 @@ function M.search_location(search, src, sopts)
         break
       end
       if text:sub(s - 1, s - 1) ~= "<" and text:sub(e + 1, e + 1) ~= ">" then
-        return pos(s)
+        -- a real target, not text in a link (org-link-search checks
+        -- that `org-element-context` is a target)
+        local l, c = pos(s)
+        if not M.in_bracket_link(lines[l - first + 1], c + 1) then
+          return l, c
+        end
       end
       init = s + 1
     end
@@ -1183,13 +1220,21 @@ end
 function M.search_radio_target(target)
   local text, pos = buffer_text(0)
   local pat = "<<<" .. words_pattern(split_words(target), "[ \t]+\n?[ \t]*") .. ">>>"
-  local s = text:lower():find(pat)
-  if not s then
-    return false, "No match for radio target: " .. target
+  local lower = text:lower()
+  local init = 1
+  while true do
+    local s = lower:find(pat, init)
+    if not s then
+      return false, "No match for radio target: " .. target
+    end
+    local l, c = pos(s)
+    -- not one in a link's description (org-element-context)
+    if not M.in_bracket_link(vim.api.nvim_buf_get_lines(0, l - 1, l, false)[1], c + 1) then
+      goto_pos(l, c)
+      return true
+    end
+    init = s + 1
   end
-  local l, c = pos(s)
-  goto_pos(l, c)
-  return true
 end
 
 ---------------------------------------------------------------------------

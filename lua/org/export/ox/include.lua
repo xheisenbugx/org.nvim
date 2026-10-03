@@ -216,8 +216,10 @@ function M.include_location(content, search, only_contents)
       end
     end
   end
+  local links = require("org.links")
   for i, l in ipairs(content) do
-    if l:find("<<" .. s .. ">>", 1, true) then
+    -- a real target: not text in a link's description
+    if links.find_target(l, s) then
       local a, b = i, i
       while a > 1 and not content[a - 1]:match("^[ \t]*$") do
         a = a - 1

@@ -3041,7 +3041,9 @@ Targets:
 Searches (org-link-search) ignore case and runs of whitespace (a text
 search also matches across line breaks), and headline searches ignore the
 TODO keyword, priority, COMMENT, tags and statistics cookies. A fuzzy
-link tries `<<target>>`, `#+NAME:` and headlines. When nothing matches in
+link tries `<<target>>`, `#+NAME:` and headlines; a `<<target>>` (or
+`<<<radio target>>>`) written inside a link's description is only text,
+not a target. When nothing matches in
 an Org file, `links.search_must_match_exact_headline` decides: with
 "query-to-create" (default) you are asked "No match - create this as a new
 heading?" (the heading is added at the end of the file, or as the last
