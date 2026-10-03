@@ -105,11 +105,97 @@ function M.date(d, raw)
   }
 end
 
+--- `v` as an integer (a number or a numeric string), or nil.
+local function integer(v)
+  if type(v) == "string" then
+    v = tonumber(v)
+  end
+  if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge or v ~= math.floor(v) then
+    return nil
+  end
+  return v
+end
+
+local SPEC_TYPES = {
+  repeater = { ["+"] = true, ["++"] = true, [".+"] = true },
+  warning = { ["-"] = true, ["--"] = true },
+}
+
+--- `{ value, unit }` of a repeater, warning or habit maximum, or nil.
+local function interval(s)
+  local value = type(s) == "table" and integer(s.value)
+  if value and value >= 0 and type(s.unit) == "string" and s.unit:match("^[hdwmy]$") then
+    return { value = value, unit = s.unit }
+  end
+end
+
+--- A copy of a repeater or warning `{ type, value, unit }` (a repeater
+--- also with a habit's `max = { value, unit }`), or nil and an error when
+--- it isn't one.
+local function date_spec(s, what)
+  local out = interval(s)
+  local max = out and what == "repeater" and s.max ~= nil and interval(s.max)
+  if not out or not SPEC_TYPES[what][s.type] or max == nil then
+    return nil, "invalid date: the " .. what .. " " .. vim.inspect(s) .. " is not { type, value, unit }"
+  end
+  out.type, out.max = s.type, max or nil
+  return out
+end
+
+--- An org.date timestamp from a table with year, month, day and optionally
+--- hour, min, end_hour, end_min, active, repeater and warning. Fields out
+--- of range roll over like os.time (day 32 of October is November 1, hour
+--- 25 is 1:00 the next day); fields that aren't integers, an end time that
+--- isn't a time of the day and years outside 1-9999 are errors.
+local function date_from_table(v)
+  local date = require("org.date")
+  if v.year == nil or v.month == nil or v.day == nil then
+    return nil, "a date needs year, month and day"
+  end
+  local f = {}
+  for _, k in ipairs({ "year", "month", "day", "hour", "min", "end_hour", "end_min" }) do
+    if v[k] ~= nil then
+      f[k] = integer(v[k])
+      if not f[k] then
+        return nil, "invalid date: " .. k .. " is " .. vim.inspect(v[k]) .. ", not an integer"
+      end
+    end
+  end
+  local months = f.year * 12 + f.month - 1
+  local minutes = f.hour and f.hour * 60 + (f.min or 0) or 0
+  local days = date.days_from_civil(math.floor(months / 12), months % 12 + 1, 1) + f.day - 1
+  local y, m, d = date.civil_from_days(days + math.floor(minutes / 1440))
+  if y < 1 or y > 9999 then
+    return nil, "invalid date: the year " .. y .. " is out of range"
+  end
+  local t = { year = y, month = m, day = d, active = v.active }
+  if f.hour then
+    minutes = minutes % 1440
+    t.hour, t.min = math.floor(minutes / 60), minutes % 60
+    if f.end_hour then
+      t.end_hour, t.end_min = f.end_hour, f.end_min or 0
+      if t.end_hour < 0 or t.end_min < 0 or t.end_min > 59 or t.end_hour * 60 + t.end_min > 1440 then
+        return nil, string.format("invalid date: the end time %d:%02d is not a time of the day", t.end_hour, t.end_min)
+      end
+    end
+  end
+  for _, what in ipairs({ "repeater", "warning" }) do
+    if v[what] ~= nil then
+      local s, err = date_spec(v[what], what)
+      if not s then
+        return nil, err
+      end
+      t[what] = s
+    end
+  end
+  return date.Date.new(t)
+end
+
 --- An org.date timestamp from what the API accepts as a date: an org.date
 --- object, an |org.api.Date| (or any table with year, month, day and
---- optionally hour, min), a Unix time, or a string: a timestamp
---- (`<2026-10-02 Fri>`, `2026-10-02 10:00`) or anything the date prompt
---- reads (`+2d`, `fri`, `10/5`).
+--- optionally hour, min; see `date_from_table`), a Unix time, or a string:
+--- a timestamp (`<2026-10-02 Fri>`, `2026-10-02 10:00`) or anything the
+--- date prompt reads (`+2d`, `fri`, `10/5`).
 ---@param v any
 ---@return table|nil date, string|nil err
 function M.to_date(v)
@@ -118,26 +204,19 @@ function M.to_date(v)
     return nil, "no date"
   end
   if type(v) == "number" then
-    return date.from_time(v, true)
+    local ok, d = false, nil
+    if v == v and v ~= math.huge and v ~= -math.huge then
+      ok, d = pcall(date.from_time, v, true)
+    end
+    if not ok or not d or not d.year or d.year < 1 or d.year > 9999 then
+      return nil, "invalid date: " .. tostring(v)
+    end
+    return d
   elseif type(v) == "table" then
     if getmetatable(v) == date.Date then
       return v
     end
-    if not (v.year and v.month and v.day) then
-      return nil, "a date needs year, month and day"
-    end
-    return date.Date.new({
-      year = v.year,
-      month = v.month,
-      day = v.day,
-      hour = v.hour,
-      min = v.hour and v.min or nil,
-      end_hour = v.end_hour,
-      end_min = v.end_min,
-      active = v.active,
-      repeater = v.repeater,
-      warning = v.warning,
-    })
+    return date_from_table(v)
   elseif type(v) == "string" then
     local s = vim.trim(v)
     local d = date.parse(s)
@@ -145,10 +224,16 @@ function M.to_date(v)
       d = date.parse("<" .. s .. ">")
     end
     d = d or date.read_date((s:gsub("^[<%[]", ""):gsub("[>%]]$", "")))
-    if d then
-      return d
+    if not d then
+      return nil, "invalid date: " .. v
     end
-    return nil, "invalid date: " .. v
+    -- a timestamp's day 29-31 that its month doesn't have rolls over
+    -- (2026-02-30 is March 2), as at the date prompt
+    if d.day > date.days_in_month(d.year, d.month) then
+      local y, m, day = date.civil_from_days(date.days_from_civil(d.year, d.month, 1) + d.day - 1)
+      d = d:clone({ year = y, month = m, day = day })
+    end
+    return d
   end
   return nil, "invalid date: " .. tostring(v)
 end

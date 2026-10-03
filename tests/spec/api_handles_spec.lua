@@ -63,6 +63,80 @@ describe("org.api handles", function()
   end
 
   describe("dates", function()
+    it("normalises out-of-range fields like os.time", function()
+      local h = head("Write report")
+      ok(h:schedule({ year = 2026, month = 10, day = 32, hour = 12, min = 0 }))
+      eq("<2026-11-01 Sun 12:00>", h.scheduled.raw)
+      eq("SCHEDULED: <2026-11-01 Sun 12:00>", vim.trim(disk(work)[5]))
+      -- the usual way to compute a date in Lua
+      local t = os.date("*t", os.time({ year = 2026, month = 10, day = 2, hour = 12 }))
+      t.day = t.day + 30
+      ok(h:schedule(t))
+      eq("<2026-11-01 Sun 12:00>", h.scheduled.raw)
+      eq("<2027-01-01 Fri>", api.date({ year = 2026, month = 13, day = 1 }).text)
+      eq("<2026-09-30 Wed>", api.date({ year = 2026, month = 10, day = 0 }).text)
+      eq("<2024-02-29 Thu>", api.date({ year = 2024, month = 3, day = 0 }).text)
+      eq("<2026-10-03 Sat 01:30>", api.date({ year = 2026, month = 10, day = 2, hour = 24, min = 90 }).text)
+      eq("<2026-10-01 Thu 23:00>", api.date({ year = 2026, month = 10, day = 2, hour = 0, min = -60 }).text)
+      eq(
+        "<2026-10-02 Fri 09:00-10:30>",
+        api.date({ year = 2026, month = 10, day = 2, hour = 9, end_hour = 10, end_min = 30 }).text
+      )
+      eq("<2026-10-02 Fri>", api.date({ year = "2026", month = "10", day = "2" }).text)
+      eq("<2026-03-02 Mon 10:00>", api.date("<2026-02-30 Mon 10:00>").text)
+      eq("<2026-05-01 Fri>", api.date("2026-04-31").text)
+      eq(
+        "<2026-10-02 Fri +1w -2d>",
+        api.date({
+          year = 2026,
+          month = 10,
+          day = 2,
+          repeater = { type = "+", value = 1, unit = "w" },
+          warning = { type = "-", value = 2, unit = "d" },
+        }).text
+      )
+      eq(
+        "<2026-10-02 Fri .+1d/3d>",
+        api.date({
+          year = 2026,
+          month = 10,
+          day = 2,
+          repeater = { type = ".+", value = 1, unit = "d", max = { value = 3, unit = "d" } },
+        }).text
+      )
+      -- a date the API gave back is taken as it is
+      eq("<2026-11-01 Sun 12:00>", api.date(h.scheduled).text)
+    end)
+
+    it("rejects impossible dates", function()
+      local h = head("Write report")
+      for _, bad in ipairs({
+        { year = 2026, month = 10, day = 1.5 },
+        { year = 2026, month = "x", day = 1 },
+        { year = 2026, month = 10, day = 2, hour = 0 / 0 },
+        { year = 2026, month = 10, day = 2, hour = math.huge },
+        { year = 2026, month = 10, day = 2, hour = 9, end_hour = 30 },
+        { year = 2026, month = 10, day = 2, hour = 9, end_hour = 10, end_min = 75 },
+        { year = 12026, month = 1, day = 1 },
+        { year = 2026, month = 10, day = 2, repeater = { type = "+", value = 1, unit = "x" } },
+        { year = 2026, month = 10, day = 2, repeater = { type = "*", value = 1, unit = "d" } },
+        { year = 2026, month = 10, day = 2, repeater = { type = "+", value = 1, unit = "d", max = { value = "x" } } },
+        { year = 2026, month = 10, day = 2, warning = "-3d" },
+      }) do
+        local res, err = h:schedule(bad)
+        eq(nil, res, vim.inspect(bad))
+        ok(err and err:match("invalid date"), vim.inspect(bad) .. ": " .. tostring(err))
+      end
+      eq(WORK, disk(work))
+      for _, bad in ipairs({ 0 / 0, math.huge, 1e15 }) do
+        local res, err = h:schedule(bad)
+        eq(nil, res)
+        ok(err and err:match("invalid date"), tostring(err))
+      end
+      local _, err = api.date({ year = 2026, month = 10 })
+      ok(err:match("year, month and day"), err)
+    end)
+
     it("gives a planning range's raw text whole", function()
       local p = write(dir, "range.org", {
         "* Trip",
