@@ -514,6 +514,25 @@ describe("pickers", function()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
     end)
 
+    it("previews the buffer of the item's own file, not one whose name it matches", function()
+      local work = write("work.org", { "* Work" })
+      local archive = write("work.org_archive", { "* Archived" })
+      local ab = vim.fn.bufadd(archive)
+      vim.fn.bufload(ab)
+      require("org.pickers").pick({
+        title = "T",
+        items = { { display = { { "Work" } }, filename = work, lnum = 1 } },
+        on_choice = function() end,
+      })
+      local prev = opts.previewer:new({}, opts)
+      local e = prev:parse_entry(entries[1])
+      eq(work, e.path)
+      -- work.org isn't loaded: the file, not work.org_archive's buffer
+      eq(nil, e.bufnr)
+      vim.cmd("edit " .. vim.fn.fnameescape(work))
+      eq(vim.api.nvim_get_current_buf(), prev:parse_entry(entries[1]).bufnr)
+    end)
+
     it("supports multi-select, a bare query and cancelling", function()
       local got, query, cancelled
       local spec = {
