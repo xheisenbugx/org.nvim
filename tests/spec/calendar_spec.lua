@@ -54,6 +54,22 @@ describe("calendar", function()
     )
   end)
 
+  it("hints q/Esc to cancel, or Esc only when q is a calendar key", function()
+    local function keys(opts)
+      local lines, marks = render("<2026-10-03 Sat>", "<2026-10-03 Sat>", opts)
+      return marked(lines, marks, "OrgCalendarKey")
+    end
+    ok(vim.tbl_contains(keys(), "q/Esc"))
+    local config = require("org.config")
+    local saved = config.opts.calendar_to_agenda_key
+    config.opts.calendar_to_agenda_key = "q"
+    local with_q = keys({ calendar = true })
+    config.opts.calendar_to_agenda_key = saved
+    ok(vim.tbl_contains(with_q, "Esc"))
+    ok(not vim.tbl_contains(with_q, "q/Esc"))
+    ok(vim.tbl_contains(with_q, "q"))
+  end)
+
   it("previews with the custom formats when display_custom_times is on", function()
     local config = require("org.config")
     local saved = { config.opts.display_custom_times, config.opts.time_stamp_custom_formats }
