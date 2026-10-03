@@ -15,6 +15,16 @@ vim.opt.rtp:prepend(root)
 vim.opt.termguicolors = true
 vim.opt.swapfile = false
 
+-- doc/tags is not in the repo (plugin managers build it), so build the help
+-- tags of a copy of the manual under the scratch directory: `:h org` then
+-- works from a plain clone without writing into it.
+local help = scratch .. "/help"
+vim.fn.mkdir(help .. "/doc", "p")
+vim.fn.writefile(vim.fn.readfile(root .. "/doc/org.txt"), help .. "/doc/org.txt")
+if pcall(vim.cmd.helptags, vim.fn.fnameescape(help .. "/doc")) then
+  vim.opt.rtp:append(help)
+end
+
 require("org").setup({
   org_directory = scratch,
   agenda_files = { examples .. "/*.org", scratch .. "/*.org" },
@@ -47,7 +57,7 @@ require("org").setup({
         description = "Meeting",
         template = "* %^{Who} %^g\n  %T\n  %?",
         target = "work.org",
-        olp = { "Meetings" },
+        headline = "Meetings",
         clock_in = true,
       },
       j = { description = "Journal", template = "* %<%H:%M> %?", target = "journal.org", datetree = true },
@@ -69,8 +79,16 @@ require("org").setup({
     },
   },
 
-  -- Keep the clock and ID index of the tutorial separate from your own.
-  clock = { persist_file = scratch .. "/clock.json" },
+  -- Refile to any heading of the agenda files, labelled with its file and
+  -- outline path (tutorial.org/Refile and archive/Refiling/Projects).
+  refile = {
+    targets = { { files = "agenda", max_level = 3 } },
+    use_outline_path = "file",
+  },
+
+  -- Keep the clock and ID index of the tutorial separate from your own. A
+  -- running clock is saved on exit and resumed (after asking) next time.
+  clock = { persist = true, persist_file = scratch .. "/clock.json" },
   id = { locations_file = scratch .. "/id-locations.json" },
 
   ui = {
