@@ -659,6 +659,27 @@ flush_stale = function(bufnr)
   end
 end
 
+--- Recompute the fold levels of `bufnr` after its settings changed
+--- (C-c C-c on a `#+` line), keeping the folds that are open or closed
+--- as they are, like Emacs (org-save-outline-visibility); `zx` would reset
+--- them all to 'foldlevel'.
+function M.refresh(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  cache[bufnr] = nil
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+    if vim.wo[win].foldmethod == "expr" then
+      if vim._foldupdate then
+        pcall(vim._foldupdate, win, 0, n)
+      else
+        vim.api.nvim_win_call(win, function()
+          vim.cmd("normal! zx")
+        end)
+      end
+    end
+  end
+end
+
 --- Fold regions (drawers, blocks, items, ...) of the sections covering
 --- lines [s, e] (default: the whole buffer), possibly with others.
 ---@param s? integer
@@ -2674,6 +2695,23 @@ function M.setup_buffer(bufnr)
     group = group,
     callback = function()
       accept_unchanged_tick(bufnr)
+    end,
+  })
+  -- :edit re-reads the file (Emacs revert-buffer re-runs org-mode): its
+  -- startup visibility applies again, from the #+STARTUP: line on disk
+  vim.api.nvim_create_autocmd("BufReadPre", {
+    buffer = bufnr,
+    group = group,
+    callback = function()
+      vim.b[bufnr].org_startup_done = nil
+      vim.b[bufnr].org_startup_foldlevel = nil
+      -- the reload would move the marks of the old visibility (hidden
+      -- lines, ellipses, fold states) onto other rows
+      M.clear_hidden(bufnr)
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_state, 0, -1)
+      for _, ns in pairs(closed_ns) do
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+      end
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {

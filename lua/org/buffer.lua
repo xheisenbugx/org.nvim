@@ -160,8 +160,8 @@ function M.refresh(bufnr)
     vim.cmd("syntax clear")
     vim.b.current_syntax = nil
     vim.cmd("runtime! syntax/org.lua")
-    vim.cmd("normal! zx")
   end)
+  require("org.fold").refresh(bufnr)
   try("org.ui.decorations", "refresh", bufnr)
 end
 
