@@ -80,7 +80,12 @@ function M.pick(spec, finish)
   for i, it in ipairs(spec.items) do
     entries[i] = i .. "\t" .. colored(it, ansi)
   end
+  -- Every close answers once: enter with its choice, any other way (esc,
+  -- ctrl-c, ctrl-q, ctrl-z, an abort bind, hide) with a cancel. Only enter
+  -- runs an action of ours, so the cancel comes from the window closing.
+  local answered = false
   local function accept(selected, o)
+    answered = true
     local chosen = {}
     for _, e in ipairs(selected or {}) do
       local it = item_of(spec.items, e)
@@ -95,12 +100,20 @@ function M.pick(spec, finish)
     end
     finish(chosen, query)
   end
-  local function cancel()
-    finish(nil)
-  end
   fzf.fzf_exec(entries, {
     prompt = spec.title .. "> ",
-    winopts = { title = " " .. spec.title .. " " },
+    winopts = {
+      title = " " .. spec.title .. " ",
+      -- fzf-lua closes the window before it runs the action of the key
+      on_close = function()
+        vim.schedule(function()
+          if not answered then
+            finish(nil)
+          end
+          answered = false
+        end)
+      end,
+    },
     query = spec.query,
     fzf_opts = {
       ["--ansi"] = true,
@@ -110,11 +123,7 @@ function M.pick(spec, finish)
       ["--no-multi"] = not spec.multi and true or nil,
     },
     previewer = spec.preview and previewer(spec.items) or nil,
-    actions = {
-      ["enter"] = accept,
-      ["esc"] = cancel,
-      ["ctrl-c"] = cancel,
-    },
+    actions = { ["enter"] = accept },
   })
 end
 

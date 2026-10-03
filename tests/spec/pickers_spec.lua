@@ -564,9 +564,46 @@ describe("pickers", function()
       eq({}, got)
       eq("brand new", query)
       require("org.pickers").pick(spec)
-      opts.actions.esc({}, {})
+      opts.winopts.on_close()
       settle()
       eq(true, cancelled)
+    end)
+
+    it("cancels once whichever key closes it", function()
+      local events = {}
+      local spec = {
+        title = "T",
+        items = { { display = { { "a" } }, value = 1 }, { display = { { "b" } }, value = 2 } },
+        on_choice = function(items)
+          events[#events + 1] = "choice " .. items[1].value
+        end,
+        on_cancel = function()
+          events[#events + 1] = "cancel"
+        end,
+      }
+      -- esc, ctrl-c, ctrl-q, ctrl-z, ctrl-g, ...: fzf-lua closes its window
+      -- and runs none of our actions
+      require("org.pickers").pick(spec)
+      opts.winopts.on_close()
+      settle()
+      eq({ "cancel" }, events)
+      -- enter: the window closes, then the action runs
+      events = {}
+      require("org.pickers").pick(spec)
+      opts.winopts.on_close()
+      opts.actions.enter({ entries[2] }, { last_query = "" })
+      settle()
+      eq({ "choice 2" }, events)
+      -- choose() returns (roam's node finder waits for it)
+      local returned = false
+      utils.run(function()
+        returned = require("org.pickers").choose(spec) == nil
+      end)
+      opts.winopts.on_close()
+      vim.wait(500, function()
+        return returned
+      end)
+      eq(true, returned)
     end)
   end)
 
