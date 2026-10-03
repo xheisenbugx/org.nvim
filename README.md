@@ -19,7 +19,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Install](#-install-in-30-seconds)** ·
 **[Tour](#-a-quick-tour)** ·
 **[Features](#-features)** ·
-**[Docs](doc/org.txt)** ·
+**[Docs](https://xheisenbugx.github.io/org.nvim/)** ·
 **[Changelog](CHANGELOG.md)** ·
 **[Contributing](CONTRIBUTING.md)**
 
@@ -461,7 +461,9 @@ searches it, and `{` / `}` jump between sections:
 | 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
 | 🎁 | **And more** | Column view, `org-indent` mode, speed keys, footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, BibTeX links (`ol-bibtex`), `org-ctags`, the Org/table/agenda menus and org-mouse, completion, `:checkhealth org` |
 
-The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
+The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)), and
+on the [documentation website](https://xheisenbugx.github.io/org.nvim/)
+together with the examples, searchable.
 
 ---
 

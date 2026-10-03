@@ -74,7 +74,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: 2.5.2
-          args: --check lua plugin ftplugin syntax tests
+          args: --check lua plugin ftplugin syntax tests scripts/site
 
   helptags:
     runs-on: ubuntu-latest

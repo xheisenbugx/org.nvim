@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format media publish-media parity-fixtures changelog
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -13,12 +13,19 @@ snapshots:
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:
-	stylua --check lua plugin ftplugin syntax tests
+	stylua --check lua plugin ftplugin syntax tests scripts/site
 	nvim --headless --clean -l scripts/lint_sources.lua lua
 
 # stylua sometimes needs a second pass to settle
 format:
-	stylua lua plugin ftplugin syntax tests && stylua lua plugin ftplugin syntax tests
+	stylua lua plugin ftplugin syntax tests scripts/site && stylua lua plugin ftplugin syntax tests scripts/site
+
+# The documentation website (doc/org.txt, README.md, examples/*.org and the
+# parity docs as HTML) in site/; see scripts/site/build.lua. Open
+# site/index.html in a browser.
+site:
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless --clean -l scripts/site/build.lua site; \
+	s=$$?; rm -rf $$d; exit $$s
 
 # Re-record the README GIFs and screenshots (needs vhs and the
 # BlexMono Nerd Font; see docs/media/README.md).

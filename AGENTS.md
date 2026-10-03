@@ -12,6 +12,7 @@ make test SPEC=tests/spec/agenda_spec.lua  # one spec (space-separate several)
 make snapshots                             # rewrite the screen snapshot golden files
 make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
 make format                                # stylua over the same paths
+make site                                  # docs website into site/ (scripts/site/build.lua)
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the

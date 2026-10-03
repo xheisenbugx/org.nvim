@@ -54,6 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write # to start pages.yml
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,3 +85,12 @@ jobs:
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
               --title "org.nvim $tag" --generate-notes
           fi
+      # The release event of a release made with GITHUB_TOKEN doesn't start
+      # workflows, so deploy the documentation site from here. It runs on
+      # main (which the github-pages environment allows) and builds the tag.
+      - name: Deploy the documentation site
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f ref="${HEAD_REF#release/}"

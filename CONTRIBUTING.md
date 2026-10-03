@@ -252,6 +252,29 @@ screen:close()                      -- in an after_each, so a failure closes it 
 gives up after `ORG_SCREEN_TIMEOUT` ms (10000), so a prompt in the child
 fails the spec instead of hanging it.
 
+## Documentation website
+
+The website at <https://xheisenbugx.github.io/org.nvim/> is generated, never
+edited by hand: [`scripts/site/build.lua`](scripts/site/build.lua) turns
+`doc/org.txt` into one page per chapter (help tags become anchors, `|links|`
+hyperlinks and `>lua` blocks highlighted code), renders `README.md` and
+`docs/parity-review.md`, scores `docs/parity/inventory.tsv`, and exports
+every `examples/*.org` with org.nvim's own HTML exporter. Build it with
+nothing but Neovim:
+
+```sh
+make site                # into site/ (not committed); open site/index.html
+```
+
+The build checks every internal link, `#anchor` and search entry, and
+fails on a broken one or on a `|tag|` that is neither an org.nvim nor a
+Neovim help tag. `tests/spec/site_spec.lua` runs it too. The look and the
+search live in `scripts/site/assets/`.
+
+Pull requests that change the sources run the `Pages` workflow, which only
+builds the site. Publishing a release deploys it to GitHub Pages (a
+maintainer can also run the workflow by hand from the Actions tab).
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.
@@ -303,7 +326,8 @@ a `## [vX.Y.Z]` section.
 Merging it tags `v0.2.0` and publishes the GitHub release. The release
 notes are the `v0.2.0` section of `CHANGELOG.md`, plus a link to the full
 diff (GitHub's generated notes, grouped by `.github/release.yml`, only when
-the section is empty). The tag goes on the release branch's last commit.
+the section is empty), and deploys the documentation website built from
+that tag. The tag goes on the release branch's last commit.
 There is no version number in the code: `:Org version` reports the latest
 `vX.Y.Z` tag of the checkout. Merge release PRs with a merge commit, not a
 squash, so that commit is part of `main`. Afterwards, merge the release
