@@ -355,6 +355,59 @@ Pull requests that change the sources run the `Pages` workflow, which only
 builds the site. Publishing a release deploys it to GitHub Pages (a
 maintainer can also run the workflow by hand from the Actions tab).
 
+## Performance budgets
+
+`tests/spec/perf_budgets_spec.lua` times org.nvim on pathological input
+from [`tests/helpers/gen.lua`](tests/helpers/gen.lua): lines of 10,000 to
+100,000 characters (prose, dense markup, unclosed markers, a hash),
+headlines 60 levels deep, 40-deep lists, nested blocks, 10,000 headlines
+with planning, properties and clocks, a 2,000 × 20 table, a 100,000-line
+file, thousands of links and footnotes. It checks two kinds of limits:
+
+- **Budgets**: an operation (opening a file, drawing a long line, typing,
+  TODO cycling, promoting a subtree, `zM`/`zR`, an agenda view, a lint)
+  must finish within about 10× what it takes on a laptop, so slow shared
+  CI runners pass.
+- **Growth**: the same work at size N and 2N; 2N may take at most 3× as
+  long. A linear algorithm passes on any machine, a quadratic one (4×)
+  fails, without depending on how fast the runner is.
+
+It also checks outcomes: no E363 or "'redrawtime' exceeded" message
+(either turns syntax highlighting off), the lines after a long line still
+highlighted, fold levels equal to a full recompute.
+
+```sh
+ORG_PERF_REPORT=1 make test SPEC=tests/spec/perf_budgets_spec.lua  # print every timing
+ORG_PERF_SCALE=3 make test SPEC=tests/spec/perf_budgets_spec.lua   # 3x the budgets (slow machine)
+ORG_PERF_SCALE=0.2 make test SPEC=tests/spec/perf_budgets_spec.lua # strict, to hunt a regression
+```
+
+When a budget fails, profile the operation with `require("jit.p")`
+(`jit.p.start("Fl3", "/tmp/prof.txt")` … `jit.p.stop()`) and look for
+work repeated per line, per headline or per object. For syntax, `:syntime
+on`, redraw, then `:syntime report` names the slow patterns. What the
+first pass over this input found (Neovim 0.12.5 on a laptop):
+
+| Input | Before | After | Cause |
+| --- | --- | --- | --- |
+| drawing a 3,000-character line of markup | 123 ms | 14 ms | the list term look-behind ran from every column |
+| drawing a 30,000-character line of markup | syntax off ("redrawtime") | 14 ms | the same, and emphasis looked for its end past 'synmaxcol' |
+| drawing a 1,000-character headline | E363, syntax off | 6 ms | the ARCHIVE pattern on the NFA engine |
+| drawing a table with a 20,000-character cell | E363, syntax off | 86 ms | table formula look-behinds |
+| lint, a file of 100,000-character lines | 2.2 s | 0.13 s | emphasis and link types searched to the paragraph end |
+| export to Markdown, 10,000 headlines | 453 s | 2.8 s | a whole-tree walk per headline |
+| export to HTML, 2,500 footnotes | 34 s | 0.3 s | a whole-tree walk per footnote reference |
+| decorations, a 40,000-character hash | 8 s | 34 ms | a backtracking Lua pattern |
+
+The syntax patterns use the backtracking engine (`\%#=1`) where the NFA
+engine runs out of 'maxmempattern' on long lines. Note that the
+backtracking engine matches what follows a look-behind (`\@<=`, `\@<!`)
+before the look-behind itself, from every column of the line, and the
+look-behind then goes back to the start of the line: make what follows it
+fail fast (a literal character), keep `.*` out of look-behinds (`.\{-}`
+stops where the look-behind ends), or use `lc=N` for a fixed leading
+context.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.

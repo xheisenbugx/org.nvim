@@ -135,6 +135,12 @@ Every bug fix and feature gets a spec. Tests run headless, so anything that
 prompts (`vim.fn.input`, `vim.ui.select`, confirms) has to be stubbed or
 turned off, or the run will hang.
 
+`tests/spec/perf_budgets_spec.lua` times pathological input
+(`tests/helpers/gen.lua`) against budgets and checks that work grows
+linearly; `ORG_PERF_SCALE` scales the budgets, `ORG_PERF_REPORT=1` prints
+the timings (CONTRIBUTING.md, "Performance budgets"). Don't set 'lines' or
+'columns' in specs: on nightly Neovim that trips grid assertions headless.
+
 ## Changes and PRs
 
 - Keep each change focused; one fix or feature per branch and PR.

@@ -56,12 +56,13 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
-      # make test without make: a throwaway XDG_DATA_HOME
+      # make test without make: a throwaway XDG_DATA_HOME; the Windows
+      # runners are the slowest, so twice the perf budgets
       - name: Run specs
         shell: bash
         run: |
           d=$(mktemp -d)
-          ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
+          ORG_PERF_SCALE=2 ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:
     name: lint (stylua)
