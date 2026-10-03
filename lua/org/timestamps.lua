@@ -28,16 +28,55 @@ end
 -- Insert
 ---------------------------------------------------------------------------
 
+--- Where the last timestamp command left the buffer and cursor, so that the
+--- command repeated right away makes a range (Emacs checks `last-command`).
+---@type { bufnr: integer, tick: integer, win: integer, cursor: integer[] }|nil
+local last_insert
+
+local function remember_insert()
+  local bufnr = vim.api.nvim_get_current_buf()
+  last_insert = {
+    bufnr = bufnr,
+    tick = vim.api.nvim_buf_get_changedtick(bufnr),
+    win = vim.api.nvim_get_current_win(),
+    cursor = vim.api.nvim_win_get_cursor(0),
+  }
+end
+
+--- True when nothing happened since the last timestamp command: same
+--- buffer and window, no edit, cursor not moved.
+local function is_repeat()
+  local l = last_insert
+  if not l then
+    return false
+  end
+  local bufnr = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  return l.bufnr == bufnr
+    and l.win == vim.api.nvim_get_current_win()
+    and l.tick == vim.api.nvim_buf_get_changedtick(bufnr)
+    and l.cursor[1] == cursor[1]
+    and l.cursor[2] == cursor[2]
+end
+
 --- Write `picked` at the cursor: replace the timestamp `existing` under
---- the cursor, or insert after the cursor character (creating a range when
---- right after another timestamp).
-local function put(picked, existing)
+--- the cursor, append it to `existing` as the end of a range (`range`), or
+--- insert after the cursor character.
+local function put(picked, existing, range)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum, col = utils.cursor()
+  if existing and range then
+    -- org-timestamp repeated right after a timestamp: `--` and a second stamp
+    local text = "--" .. picked:to_string()
+    local at = existing.end_col
+    vim.api.nvim_buf_set_text(bufnr, lnum - 1, at, lnum - 1, at, { text })
+    vim.api.nvim_win_set_cursor(0, { lnum, at + #text - 1 })
+    return picked
+  end
   if existing and existing.date.repeater and not picked.repeater then
     picked.repeater = vim.deepcopy(existing.date.repeater)
   end
   local text = picked:to_string()
-  local bufnr = vim.api.nvim_get_current_buf()
-  local lnum, col = utils.cursor()
   if existing then
     replace_text(bufnr, lnum, existing.start_col, existing.end_col, text)
     vim.api.nvim_win_set_cursor(0, { lnum, existing.start_col - 1 })
@@ -47,12 +86,7 @@ local function put(picked, existing)
   -- insert after the cursor character (like `a`), or at col 0 on empty lines
   local at = #line == 0 and 0 or col
   local before = line:sub(1, at)
-  -- right after an existing timestamp: create a range
-  local prev = date.parse_all(before)
-  local last = prev[#prev]
-  if last and last.end_col == #before and not last.date.range_end then
-    text = "--" .. text
-  elseif at > 0 and not before:match("%s$") then
+  if at > 0 and not before:match("%s$") then
     text = " " .. text
   end
   vim.api.nvim_buf_set_text(bufnr, lnum - 1, at, lnum - 1, at, { text })
@@ -60,14 +94,31 @@ local function put(picked, existing)
   return picked
 end
 
-local function insert(active)
+---@param active boolean
+---@param opts? { edit?: boolean } edit: only edit the timestamp at the cursor (never a range)
+local function insert(active, opts)
+  opts = opts or {}
   local with_time = vim.v.count > 0
   local existing = M.at_cursor()
+  -- like Emacs: the command repeated right after a timestamp makes a range
+  local range = existing ~= nil and not opts.edit and is_repeat()
+  last_insert = nil
+  local function done(picked)
+    local result = put(picked, existing, range)
+    if not opts.edit then
+      remember_insert()
+    end
+    return result
+  end
   if vim.v.count >= 16 then
     -- C-u C-u: the current time, without prompting
-    return put(date.now():clone({ active = active }), existing)
+    return done(date.now():clone({ active = active }))
   end
   local default = existing and existing.date or nil
+  if range and default and default.range_end then
+    -- after a range, the prompt starts from its end
+    default = default.range_end
+  end
   local picked = require("org.calendar").pick({
     default = default,
     prompt = active and "Timestamp" or "Inactive timestamp",
@@ -77,15 +128,20 @@ local function insert(active)
   if not picked or picked.remove then
     return nil
   end
-  return put(picked:clone({ active = active }), existing)
+  return done(picked:clone({ active = active }))
 end
 
-function M.insert_active()
-  return insert(true)
+--- Insert an active timestamp, or change the one at the cursor
+--- (org-timestamp). Repeated right after a timestamp, it makes a range.
+---@param opts? { edit?: boolean } edit: only change the timestamp at the cursor
+function M.insert_active(opts)
+  return insert(true, opts)
 end
 
-function M.insert_inactive()
-  return insert(false)
+--- Inactive variant of |insert_active| (org-timestamp-inactive).
+---@param opts? { edit?: boolean }
+function M.insert_inactive(opts)
+  return insert(false, opts)
 end
 
 --- Toggle the timestamp at the cursor between active and inactive

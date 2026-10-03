@@ -96,17 +96,99 @@ describe("timestamps", function()
 
   it("inserts timestamps and ranges", function()
     local orig = calendar.pick
-    calendar.pick = function()
-      return date.parse("<2026-10-01 Thu>")
+    local picks = { "<2026-10-01 Thu>", "<2026-10-04 Sun>", "<2026-10-06 Tue>" }
+    local defaults = {}
+    calendar.pick = function(opts)
+      table.insert(defaults, opts.default and opts.default:to_string() or "none")
+      return date.parse(table.remove(picks, 1))
     end
     local buf = org_buffer({ "Meet" }, { 1, 3 })
     ts.insert_active()
     eq("Meet <2026-10-01 Thu>", buf_lines(buf)[1])
+    -- repeated right after: a range (org-timestamp, last-command)
     ts.insert_active()
-    -- cursor on the timestamp: replaced
-    eq("Meet <2026-10-01 Thu>", buf_lines(buf)[1])
+    eq("Meet <2026-10-01 Thu>--<2026-10-04 Sun>", buf_lines(buf)[1])
+    eq({ 1, 38 }, vim.api.nvim_win_get_cursor(0))
+    -- again: Emacs appends one more `--` and stamp, from the range end
+    ts.insert_active()
+    eq("Meet <2026-10-01 Thu>--<2026-10-04 Sun>--<2026-10-06 Tue>", buf_lines(buf)[1])
+    eq({ "none", "<2026-10-01 Thu>", "<2026-10-04 Sun>" }, defaults)
+    calendar.pick = orig
+  end)
+
+  it("makes the range end inactive with the inactive command", function()
+    local orig = calendar.pick
+    local picks = { "<2026-10-01 Thu>", "<2026-10-04 Sun>" }
+    calendar.pick = function()
+      return date.parse(table.remove(picks, 1))
+    end
+    local buf = org_buffer({ "Meet" }, { 1, 3 })
+    ts.insert_active()
     ts.insert_inactive()
-    eq("Meet [2026-10-01 Thu]", buf_lines(buf)[1])
+    eq("Meet <2026-10-01 Thu>--[2026-10-04 Sun]", buf_lines(buf)[1])
+    calendar.pick = orig
+  end)
+
+  it("replaces the timestamp at the cursor when not repeated", function()
+    local orig = calendar.pick
+    local picks = { "<2026-10-01 Thu>", "<2026-10-04 Sun>", "<2026-10-06 Tue>" }
+    calendar.pick = function()
+      return date.parse(table.remove(picks, 1))
+    end
+    local buf = org_buffer({ "Meet" }, { 1, 3 })
+    ts.insert_active()
+    -- the cursor moved: an edit of the timestamp, not a range
+    vim.api.nvim_win_set_cursor(0, { 1, 8 })
+    ts.insert_active()
+    eq("Meet <2026-10-04 Sun>", buf_lines(buf)[1])
+    -- a fresh buffer edit also ends the repeat
+    local buf2 = org_buffer({ "Due <2026-10-01 Thu +1w>" }, { 1, 23 })
+    ts.insert_active()
+    eq("Due <2026-10-06 Tue +1w>", buf_lines(buf2)[1])
+    eq(buf2, vim.api.nvim_get_current_buf())
+    ok(buf ~= buf2)
+    calendar.pick = orig
+  end)
+
+  it("a repeat after a change keeps the edit a range, and the range end has no repeater", function()
+    local orig = calendar.pick
+    local picks = { "<2026-10-04 Sun>", "<2026-10-06 Tue>" }
+    calendar.pick = function()
+      return date.parse(table.remove(picks, 1))
+    end
+    local buf = org_buffer({ "Due <2026-10-01 Thu +1w>" }, { 1, 23 })
+    ts.insert_active()
+    eq("Due <2026-10-04 Sun +1w>", buf_lines(buf)[1])
+    ts.insert_active()
+    eq("Due <2026-10-04 Sun +1w>--<2026-10-06 Tue>", buf_lines(buf)[1])
+    calendar.pick = orig
+  end)
+
+  it("an edit between the two inserts ends the repeat", function()
+    local orig = calendar.pick
+    local picks = { "<2026-10-01 Thu>", "<2026-10-04 Sun>" }
+    calendar.pick = function()
+      return date.parse(table.remove(picks, 1))
+    end
+    local buf = org_buffer({ "Meet <2026-09-01 Tue>" }, { 1, 20 })
+    ts.insert_active()
+    vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "Meet <2026-10-01 Thu>" })
+    vim.api.nvim_win_set_cursor(0, { 1, 20 })
+    ts.insert_active()
+    eq("Meet <2026-10-04 Sun>", buf_lines(buf)[1])
+    calendar.pick = orig
+  end)
+
+  it("editing a timestamp (edit = true) never makes a range", function()
+    local orig = calendar.pick
+    local picks = { "<2026-10-01 Thu>", "<2026-10-04 Sun>" }
+    calendar.pick = function()
+      return date.parse(table.remove(picks, 1))
+    end
+    local buf = org_buffer({ "Meet" }, { 1, 3 })
+    ts.insert_active()
+    ts.insert_active({ edit = true })
+    eq("Meet <2026-10-04 Sun>", buf_lines(buf)[1])
     calendar.pick = orig
   end)
 
@@ -182,6 +264,17 @@ describe("timestamps (Emacs details)", function()
     local now = date.now()
     ok(buf_lines(buf)[1]:find(now:to_date_string(), 1, true), buf_lines(buf)[1])
     ok(buf_lines(buf)[1]:match("%d%d:%d%d>$"), buf_lines(buf)[1])
+  end)
+
+  it("C-c . twice in a row makes a range through the calendar", function()
+    local buf = org_buffer({ "Meeting " }, { 1, 7 })
+    local today = date.today()
+    keys("<C-c>.<CR>")
+    eq("Meeting <" .. today:to_date_string(), buf_lines(buf)[1]:sub(1, 19))
+    keys("<C-c>.lll<CR>")
+    local later = today:add(3, "d"):to_date_string()
+    local line = buf_lines(buf)[1]
+    ok(line:find(">--<" .. later, 1, true) and line:match(">$"), line)
   end)
 
   it("reads ISO weeks, dotted dates and HHhMM times", function()

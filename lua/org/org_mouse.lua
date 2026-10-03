@@ -260,7 +260,7 @@ end
 --- org-mouse-timestamp-today: change the timestamp at the cursor with the
 --- date prompt, then shift it by `shift` `unit`s (org-timestamp-change).
 function M.timestamp_today(shift, unit)
-  require("org.timestamps").insert_active()
+  require("org.timestamps").insert_active({ edit = true })
   if shift then
     M.timestamp_change(shift, unit)
   end
@@ -1213,7 +1213,12 @@ function M.context_items(ctx, direct)
     return "timestamp",
       {
         { "Show Day", action = "open_at_point" },
-        { "Change Timestamp", fn = ts.insert_active },
+        {
+          "Change Timestamp",
+          fn = function()
+            ts.insert_active({ edit = true })
+          end,
+        },
         { "Delete Timestamp", fn = M.delete_timestamp },
         {
           "Compute Time Range",
