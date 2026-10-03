@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.0.1] - 2026-10-03
+
+### Fixes
+
+- **calendar:** Hint q/Esc to cancel, like the other menus ([#137](https://github.com/xheisenbugx/org.nvim/pull/137))
+
 ## [v2.0.0] - 2026-10-03
 
 ### ⚠ Breaking changes
@@ -211,6 +217,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.0.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.0...v2.0.1
 [v2.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.5...v2.0.0
 [v1.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.4...v1.2.5
 [v1.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.3...v1.2.4
