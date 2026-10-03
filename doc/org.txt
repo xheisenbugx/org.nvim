@@ -9106,8 +9106,11 @@ leaves all of them as they were (`clock in` checks the file of the running
 clock it clocks out of too). Writes go through `utils.save_buffer`, so
 the write hooks run: with `crypt.encrypt_on_save` the entries tagged
 `crypt` are encrypted, as when Neovim saves them (|org-crypt|). The
-hooks of all the files run before any is written. Writes touch the
-clock stamp file, so a Neovim with the extension enabled
+hooks of all the files run before any is written; one that needs input,
+such as the passphrase of symmetric encryption, fails the command with
+exit code 3 and writes nothing, so give `crypt.key` (or `CRYPTKEY`) a
+public key for writes from the shell. Writes touch the clock stamp
+file, so a Neovim with the extension enabled
 rereads the files (see below).
 
 JSON                                                *org-extensions-cli-json*
@@ -9137,7 +9140,9 @@ the exit code of the error:
   `failed` (1)           org.nvim refused (`details.messages` says why)
   `internal` (1)         an unexpected error
   `input_needed` (3)     the command would have to ask: `details.prompt`
-                         names the question (answer it with `--field`)
+                         names the question (answer a capture prompt
+                         with `--field`; a confirmation or a passphrase
+                         can't be answered)
   `file_busy` (4)        unsaved changes in a running Neovim:
                          `details.file`, `details.pid`
 

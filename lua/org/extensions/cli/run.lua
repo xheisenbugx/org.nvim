@@ -197,6 +197,11 @@ function M.headless()
   vim.fn.input = function(opts)
     return ask(opts)
   end
+  vim.fn.inputdialog = function(opts)
+    return ask(opts)
+  end
+  -- (under `nvim -l` an unanswered inputsecret() ends Neovim, exit 0)
+  vim.fn.inputsecret = no_input("passphrase")
   vim.fn.inputlist = no_input("inputlist")
   vim.fn.confirm = no_input("confirm")
   vim.fn.getchar = no_input("getchar")
@@ -233,6 +238,23 @@ function M.headless()
     end
     if show then
       err(msg)
+    end
+  end
+  -- nvim_echo() writes to stderr under `nvim -l`: make its messages
+  -- notifications like the others (org-crypt's "No crypt key set, ...")
+  vim.api.nvim_echo = function(chunks)
+    local text, level = {}, vim.log.levels.INFO
+    for _, c in ipairs(chunks or {}) do
+      text[#text + 1] = c[1] or ""
+      if c[2] == "ErrorMsg" then
+        level = vim.log.levels.ERROR
+      elseif c[2] == "WarningMsg" then
+        level = math.max(level, vim.log.levels.WARN)
+      end
+    end
+    local msg = table.concat(text)
+    if msg ~= "" then
+      vim.notify(msg, level)
     end
   end
 end

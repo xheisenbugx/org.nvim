@@ -985,6 +985,25 @@ describe("cli json: org-crypt", function()
     ok(journal():find("* New secret :crypt:", 1, true), journal())
     ok(not journal():find("secret body", 1, true), journal())
   end)
+
+  it("fails without writing when encrypting needs a passphrase", function()
+    -- symmetric encryption: no key at all, or none matching
+    for _, key in ipairs({ "false", "''" }) do
+      setup(key)
+      local code, e = json(dir, { "set", "tags", "journal.org::Diary", "--add", "crypt" })
+      eq(3, code, key)
+      eq("input_needed", e.errors[1].code)
+      ok(e.errors[1].details.prompt:find("Passphrase", 1, true), e.errors[1].details.prompt)
+      eq(JOURNAL, read(dir .. "/journal.org"))
+      local stdout, stderr
+      code, stdout, stderr = run(dir, { "capture", "-t", "s", "New secret" })
+      eq(3, code, key)
+      eq("", stdout)
+      ok(stderr:find("Passphrase", 1, true), stderr)
+      eq(JOURNAL, read(dir .. "/journal.org"))
+      vim.fn.delete(dir, "rf")
+    end
+  end)
 end)
 
 describe("cli json: schema", function()
