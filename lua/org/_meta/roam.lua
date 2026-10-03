@@ -21,8 +21,9 @@
 ---Re-index a roam file when it is written (default: `true`).
 ---@field update_on_save? boolean
 ---How nodes are chosen: `"auto"` (default: snacks.nvim's picker when loaded,
----else `"select"`), `"snacks"`, `"select"` (vim.ui.select) or `"input"`.
----@field picker? "auto"|"snacks"|"select"|"input"
+---else org's `picker` option, `:h org-pickers`), `"snacks"`, `"fzf-lua"`,
+---`"telescope"`, `"mini"`, `"select"` (vim.ui.select) or `"input"`.
+---@field picker? "auto"|"snacks"|"fzf-lua"|"telescope"|"mini"|"select"|"input"
 ---Order of node candidates: `"mtime"` (default), `"title"` or `"none"`.
 ---@field sort? "mtime"|"title"|"none"
 ---Show the outline path before headline nodes (default: `false`).

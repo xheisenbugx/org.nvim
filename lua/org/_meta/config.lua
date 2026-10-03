@@ -477,6 +477,11 @@
 ---when `false`, n p f b u move and q quits. (Emacs `org-goto-auto-isearch`,
 ---default: `true`)
 ---@field goto_auto_isearch? boolean
+---The picker of the `pick_*` actions (`:h org-pickers`): `"auto"` uses the
+---first installed of snacks.nvim, fzf-lua, telescope.nvim and mini.pick
+---(LazyVim's `vim.g.lazyvim_picker` first), else vim.ui.select.
+---(default: `"auto"`)
+---@field picker? "auto"|"snacks"|"fzf-lua"|"telescope"|"mini"|"select"
 ---How sorting (entries, lists, tables, the agenda) compares text:
 ---`"collate"` with the collation locale (`:language collate`; character
 ---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`

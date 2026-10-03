@@ -47,8 +47,8 @@ formulas, Babel and export.
   increments). Press `g?` in an org or agenda buffer to see what's
   available.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
-  source, `vim.ui.select` pickers and a lualine clock, and it works with
-  any other setup too.
+  source, pickers for snacks.nvim, fzf-lua, Telescope and mini.pick, and a
+  lualine clock, and it works with any other setup too.
 - ✅ **Tested.** The headless test suite runs 4,800+ tests from 240+ spec
   files.
 
@@ -348,7 +348,8 @@ buffer you browse and jump from. With `goto_interface =
 switches to the other interface for one jump. `<leader>og` jumps to any
 heading of your agenda files. The pickers use `vim.ui.select`, so they get
 your picker: snacks.nvim here, or Telescope / fzf-lua once they're set up
-as the `vim.ui.select` provider.
+as the `vim.ui.select` provider. The [`pick_*` actions](#pickers) talk to
+those pickers directly, with a preview of each heading.
 
 ![Fuzzy-finding a heading in the file, then with the Emacs key](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/goto-buffer.gif)
 
@@ -477,6 +478,7 @@ together with the examples, searchable.
 - [Capture templates](#capture-templates)
 - [Custom agenda commands](#custom-agenda-commands)
 - [Completion](#completion)
+- [Pickers](#pickers)
 - [Statusline](#statusline)
 - [Lua API](#lua-api)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
@@ -857,6 +859,36 @@ The match syntax is the same as in Emacs. Some examples:
 It completes TODO keywords, tags, `#+` keywords, `#+STARTUP` and
 `#+OPTIONS` values, src block languages, property names, link types,
 headings (`[[*`), custom IDs (`[[#`) and stored links.
+
+---
+
+## Pickers
+
+The `pick_*` actions open a fuzzy picker with a preview, using the first
+one you have installed: [snacks.nvim](https://github.com/folke/snacks.nvim),
+[fzf-lua](https://github.com/ibhagwan/fzf-lua),
+[telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) or
+[mini.pick](https://github.com/echasnovski/mini.pick), else `vim.ui.select`.
+Set `picker = "snacks" | "fzf-lua" | "telescope" | "mini" | "select"` to
+choose. None of them is required, and none is loaded until a picker opens.
+
+| Action | Picks |
+| --- | --- |
+| `pick_headline` / `pick_headline_all` | a heading of this file / of the agenda files (TODO, priority and tags shown) |
+| `pick_tag` | a tag, then a heading with it |
+| `pick_set_tags` | tags to toggle on the heading (multi-select; typing a new one adds it) |
+| `pick_agenda` / `pick_agenda_week` / `pick_todo` | an entry of today's agenda / the next 7 days / the TODO list |
+| `pick_agenda_file`, `pick_capture_template` | an agenda file, a capture template |
+
+They have no default keys; bind them like any action:
+
+```lua
+mappings = { global = { pick_headline_all = "<leader>fo", pick_todo = "<leader>ft" } }
+```
+
+Telescope users can also `require("telescope").load_extension("org")` and
+run `:Telescope org headlines`. The roam extension's node finder uses the
+same picker. See `:h org-pickers`.
 
 ---
 

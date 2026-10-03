@@ -154,6 +154,11 @@ local defaults = {
   --- In the outline interface, typing searches the headlines
   --- (org-goto-auto-isearch); else n p f b u move and q quits.
   goto_auto_isearch = true,
+  --- The picker of the `pick_*` actions (`:h org-pickers`): "auto" (the
+  --- first installed of snacks.nvim, fzf-lua, telescope.nvim and
+  --- mini.pick, else vim.ui.select), "snacks", "fzf-lua", "telescope",
+  --- "mini" or "select".
+  picker = "auto",
   --- How sorting compares text (org-sort-function): "collate" (the
   --- collation locale, like string-collate-lessp), "fallback" (character
   --- codes, org-sort-function-fallback) or function(a, b, ignore_case).

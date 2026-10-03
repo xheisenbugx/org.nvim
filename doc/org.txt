@@ -5271,6 +5271,61 @@ blink.cmp: >lua
 <nvim-cmp: >lua
     require("cmp").register_source("org", require("org.completion.cmp").new())
 <
+Pickers ~
+                                                                *org-pickers*
+The `pick_*` actions open a fuzzy picker: headlines show their outline
+path, TODO keyword, priority and tags with the Org highlights, and the
+preview shows the entry in its file. Confirming jumps there (and opens the
+folds around it). The `picker` option chooses the picker:
+
+  "auto"       LazyVim's `vim.g.lazyvim_picker` when it is installed, else
+               the first installed of the ones below, else "select"
+               (default)
+  "snacks"     snacks.nvim (`Snacks.picker`)
+  "fzf-lua"    fzf-lua (`fzf_exec`, the builtin previewer)
+  "telescope"  telescope.nvim
+  "mini"       mini.pick, once `require("mini.pick").setup()` has run
+  "select"     |vim.ui.select()|: one item, no preview
+
+None of these plugins is required: a picker is looked for (with `require`)
+when an action runs, never at startup, and one that isn't installed falls
+back to "select" with a warning.
+
+  pick_headline          a headline of this file
+  pick_headline_all      a headline of the agenda files (and this file)
+  pick_tag               a tag of the agenda files (with how many headlines
+                         carry it), then a headline with it, its own or
+                         inherited
+  pick_set_tags          the tags of the headline at the cursor: the tags
+                         chosen (several with multi-select) are toggled, ✓
+                         marks the ones it has; text that matches no tag
+                         is added as new tags (`a:b` adds two). With
+                         "select" and mini.pick, "+ New tags…" asks for it.
+  pick_agenda            an entry of today's agenda
+  pick_agenda_week       an entry of the agenda of the next 7 days
+  pick_todo              an open TODO entry (the global TODO list)
+  pick_agenda_file       an agenda file
+  pick_capture_template  a capture template, then capture with it
+
+Multi-select: <Tab> in snacks.nvim, fzf-lua and telescope, <C-x> then
+<M-CR> in mini.pick. The actions have no default keys; bind them in any
+action section (|org-keymaps|), e.g. >lua
+    mappings = {
+      global = { pick_headline_all = "<leader>fo", pick_todo = "<leader>ft" },
+    }
+<or run `:Org pick_todo`. telescope.nvim also gets an extension: >lua
+    require("telescope").load_extension("org")
+<then `:Telescope org headlines` (also `headlines_all`, `tags`, `set_tags`,
+`agenda`, `agenda_week`, `todo`, `agenda_files`, `capture_templates`;
+`:Telescope org` alone is `headlines_all`). These use telescope whatever
+`picker` says. The roam extension's node finder uses the same pickers
+(|org-extensions-roam|).
+
+From Lua, `require("org.pickers").pick(spec)` shows any list: `spec.items`
+are `{ display = { { text, hl_group }, ... }, filename?, bufnr?, lnum?,
+value? }` and `spec.on_choice(items, query)` gets the chosen ones; see
+`lua/org/pickers/init.lua`.
+
 ==============================================================================
 25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
@@ -5830,6 +5885,10 @@ Structure and visibility ~
                                       "outline-path-completion"
   goto_max_level            5         deepest headlines offered (completion)
   goto_auto_isearch         true      typing searches the headlines
+  picker                    "auto"    picker of the `pick_*` actions:
+                                      "auto"|"snacks"|"fzf-lua"|
+                                      "telescope"|"mini"|"select"
+                                      (|org-pickers|)
   bookmark_names            { last_capture = "org-capture-last-stored",
                               last_refile = "org-refile-last-stored",
                               last_capture_marker =
@@ -7882,9 +7941,14 @@ The `:Org` forms of these take the value as an argument, e.g.
 Choosing a node ~
 `picker` sets how nodes are chosen:
 
-  "auto"    snacks.nvim's picker when it is loaded, else "select" (default)
+  "auto"    snacks.nvim's picker when it is loaded and org's `picker`
+            option is "auto", else the picker of that option
+            (|org-pickers|) (default)
   "snacks"  fuzzy search; confirming a query that matches no node creates a
             node with that title (like completing-read in Emacs)
+  "fzf-lua", "telescope", "mini"
+            the same with that picker, previewing the node (mini.pick: a
+            "+ New node" entry takes the typed query)
   "select"  |vim.ui.select()|, with a "+ New node" candidate that asks for
             the title
   "input"   type the title, <Tab> completes titles and aliases; a title
@@ -8012,7 +8076,8 @@ Options ~
   `index_file`             the JSON index
                          (stdpath("data")/org/roam-index.json)
   `update_on_save`         re-index a roam file when it is written (true)
-  `picker`                 "auto", "snacks", "select" or "input" (see above)
+  `picker`                 "auto", "snacks", "fzf-lua", "telescope", "mini",
+                           "select" or "input" (see above)
   `sort`                   candidates: "mtime" (recent files first),
                          "title" or "none"
   `display_olp`            show the outline path of headline nodes (false)
