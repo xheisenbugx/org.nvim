@@ -1351,10 +1351,18 @@ function M.cmd_capture(words, flags)
   if ok_target and target then
     M.guard(target, flags)
   end
+  -- The template's prompts are answered by their names as the template
+  -- writes them (%^{Size [cm]} by "Size [cm]"), ignoring case; any other
+  -- prompt through `ask`, by its question.
+  local answers = setmetatable({}, {
+    __index = function(_, k)
+      return type(k) == "string" and state.answers[k:lower()] or nil
+    end,
+  })
   M.mark_messages()
   local done, bufnr, line
   local co = coroutine.create(function()
-    bufnr, line = capture.capture(tpl, { initial = text })
+    bufnr, line = capture.capture(tpl, { initial = text, answers = answers })
     done = true
   end)
   local ok, e = coroutine.resume(co)

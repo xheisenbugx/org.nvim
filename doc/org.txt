@@ -9064,9 +9064,10 @@ Writing (each saves the files it changed):
     Capture TEXT with template KEY (default: `capture_template`, else `t`,
     else the first). The template finishes at once, the text taking the
     place of `%?` (or filling `%i` when the template has one). TEXT `-`
-    reads stdin. `--field` answers a prompt of the template by its name:
-    `%^{Title}` and `%^{Title}p` by `Title`, `%^g` by `Tags`, a date
-    prompt by its label or `Date` (names ignore case). `--input FILE`
+    reads stdin. `--field` answers a prompt of the template by its name,
+    the text before any `|`: `%^{Title}` and `%^{Title}p` by `Title`,
+    `%^{Size [cm]|10}` by `Size [cm]`, `%^g` by `Tags`, a date prompt by
+    its name or `Date` (names ignore case). `--input FILE`
     (`-` for stdin) reads a JSON object `{ "template", "text", "fields" }`
     instead. `--id` gives the new entry an ID.
 `org clock in [--pick N] TARGET`, `org clock out`, `org clock cancel`

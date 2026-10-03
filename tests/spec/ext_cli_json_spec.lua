@@ -852,6 +852,17 @@ describe("cli json: writing", function()
     eq("bad_value", e.errors[1].code)
   end)
 
+  it("answers a template prompt by its name, brackets and all", function()
+    local d = workspace({
+      "  capture = { templates = { s = { description = 'Size', target = dir .. '/inbox.org',",
+      "    template = '* %^{Size [cm]} %^{Where|home|work}' } } },",
+    })
+    local code, e = json(d, { "capture", "-t", "s", "--field", "Size [cm]=12", "--field", "where=office" })
+    eq(0, code, vim.inspect(e.errors))
+    eq("12 office", e.data.headline.title)
+    vim.fn.delete(d, "rf")
+  end)
+
   it("clocks in and out with JSON results", function()
     local code, e = json(dir, { "clock", "in", "notes-id" })
     eq(0, code)
