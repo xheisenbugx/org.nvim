@@ -142,7 +142,7 @@ end
 
 --- Diagnostics of a buffer (all at once).
 ---@param bufnr integer
----@return table[] Diagnostic[]
+---@return table[]|nil diagnostics
 function M.compute(bufnr)
   return M.job(bufnr)()
 end

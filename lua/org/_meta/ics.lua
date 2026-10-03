@@ -2,10 +2,6 @@
 -- LuaLS type definitions for `require("org").setup({ extensions = { ics = ... } })`.
 -- Annotations only; never loaded at runtime.
 
----@class org.Config.Extensions
----iCalendar subscriptions shown in the agenda (`:h org-extensions-ics`).
----@field ics? org.Config.Extensions.Ics|boolean
-
 ---@class org.Config.Extensions.Ics
 ---`false` keeps the extension off.
 ---@field enabled? boolean

@@ -12,6 +12,60 @@ local M = {}
 local disk_cache = {} -- path -> { mtime, size, file, todo_spec }
 local buf_cache = {} -- bufnr -> { tick, name, cwd, file, todo_spec }
 
+-- autocmd pattern -> its regex (false: none), per 'fileignorecase'
+local pattern_regex = { [true] = {}, [false] = {} }
+
+--- Does a User autocmd listen to `name`? Its pattern is matched the way
+--- Neovim matches autocmd patterns: a file pattern (`Org*`, `Org?ile*`,
+--- `{A,B}`), ignoring case with 'fileignorecase'. A buffer-local one may.
+---@param name string
+---@return boolean
+local function listened(name)
+  local ok, acs = pcall(vim.api.nvim_get_autocmds, { event = "User" })
+  if not ok then
+    return false
+  end
+  local fic = vim.o.fileignorecase
+  local cache = pattern_regex[fic]
+  for _, ac in ipairs(acs) do
+    local pat = ac.pattern
+    if ac.buflocal or pat == name then
+      return true
+    end
+    if pat and pat ~= "" then
+      local re = cache[pat]
+      if re == nil then
+        local rok, r = pcall(function()
+          return vim.regex((fic and "\\c" or "\\C") .. vim.fn.glob2regpat(pat))
+        end)
+        re = rok and r or false
+        cache[pat] = re
+      end
+      if re and re:match_str(name) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+--- Fire the User autocmd `OrgFileLoaded` (scheduled: parsing can happen
+--- where autocommands must not run, such as a fold expression) when a
+--- file is read from disk, or a buffer is parsed for the first time. Only
+--- when someone listens, so a parse costs nothing more otherwise.
+local function loaded(filename, bufnr, source)
+  if not listened("OrgFileLoaded") then
+    return
+  end
+  vim.schedule(function()
+    pcall(vim.api.nvim_exec_autocmds, "User", {
+      pattern = "OrgFileLoaded",
+      data = { file = filename, bufnr = bufnr, source = source },
+      modeline = false,
+    })
+  end)
+end
+
 --- Parse a buffer (cached by changedtick).
 ---@param bufnr? integer
 ---@return org.File
@@ -44,6 +98,9 @@ function M.get_buffer(bufnr)
   local file = require("org.parser").parse(lines, name ~= "" and vim.fs.normalize(name) or nil, base)
   file.bufnr = bufnr
   buf_cache[bufnr] = { tick = tick, name = name, cwd = cwd, file = file, todo_spec = spec, base = base }
+  if not c or c.name ~= name then
+    loaded(file.filename, bufnr, "buffer")
+  end
   return file
 end
 
@@ -90,6 +147,9 @@ function M.get(path)
   end
   local file = require("org.parser").parse(lines, path)
   disk_cache[path] = { mtime = mtime, size = size, file = file, todo_spec = spec }
+  if not c or c.mtime ~= mtime or c.size ~= size then
+    loaded(file.filename, nil, "disk")
+  end
   return file
 end
 

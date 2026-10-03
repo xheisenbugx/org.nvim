@@ -1,6 +1,6 @@
 # The org command line (bin/org): the agenda as text and JSON, capture
 # and the clock, from a shell
-Output docs/media/cli.gif
+Output docs/media/org-cli.gif
 Source docs/media/tapes/common.tape
 Set TypingSpeed 45ms
 
@@ -18,7 +18,7 @@ Hide
 Type "clear" Enter
 Show
 Type "# JSON for status bars and scripts" Enter
-Type "org agenda --json | jq -c '.items[] | {time, todo, title}'" Enter
+Type "org agenda --json | jq -c '.data.items[] | {time, todo, title}'" Enter
 Sleep 3.5s
 Hide
 Type "clear" Enter
@@ -38,7 +38,7 @@ Type "org clock status" Enter
 Sleep 1.5s
 Type "org clock status --format '#[fg=green]%e %t'" Enter
 Sleep 2s
-Type "org clock status --json | jq -c ." Enter
+Type "org clock status --json | jq -c .data" Enter
 Sleep 2.5s
 Type "org clock out" Enter
 Sleep 3s

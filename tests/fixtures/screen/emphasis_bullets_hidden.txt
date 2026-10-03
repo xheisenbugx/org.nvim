@@ -1,0 +1,23 @@
+screen 60x12
+|{1:◉ }{2:bold}{1: one}|
+|{3: }{4:○ }{2:bold}{4: two}|
+|{5:  }{6:✸ }{2:bold}{6: three}|
+|{7:   }{8:✿ }{9:italic}{8: and }{2:bold}{8: four}|
+|{10:    }{11:◉ }{12:under}{11: }{13:verbatim}{11: }{14:code}{11: }{15:strike}{11: five}|
+|Body with {2:bold}, {9:italic} and {13:verbatim}.|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgBold [bold]
+{3} OrgHeadlineLevel2 -> Constant | OrgHiddenStars -> Conceal
+{4} OrgHeadlineLevel2 -> Constant
+{5} OrgHeadlineLevel3 -> Identifier | OrgHiddenStars -> Conceal
+{6} OrgHeadlineLevel3 -> Identifier
+{7} OrgHeadlineLevel4 -> Statement | OrgHiddenStars -> Conceal [bold]
+{8} OrgHeadlineLevel4 -> Statement [bold]
+{9} OrgItalic [italic]
+{10} OrgHeadlineLevel5 -> PreProc | OrgHiddenStars -> Conceal
+{11} OrgHeadlineLevel5 -> PreProc
+{12} OrgUnderline [underline]
+{13} OrgVerbatim -> String
+{14} OrgCode -> String
+{15} OrgStrikethrough [strikethrough]

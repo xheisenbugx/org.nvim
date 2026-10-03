@@ -155,7 +155,7 @@ local function is_word(c)
 end
 
 --- One time at byte `i` (a word start): "10:00", "9:30am", "8pm".
----@return integer|nil minutes, integer end (exclusive)
+---@return integer|nil minutes, integer? end (exclusive)
 local function match_one(s, i)
   if is_word(s:sub(i - 1, i - 1)) then
     return nil

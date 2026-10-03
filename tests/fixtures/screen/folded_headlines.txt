@@ -1,0 +1,15 @@
+screen 60x12
+|{1:* }{2:TODO}{1: }{3:[#A]}{1: Folded task with }{4:a link}{1: }{5::work:}{6:...}{7:               }|
+|{1:* }{2:NEXT}{1: }{8:*}{9:Bold}{8:*}{1: folded }{5::home:}{6:...}{7:                              }|
+|{10:* Open headline without body}|
+
+{1} Folded | OrgHeadlineLevel1 -> Title [bold]
+{2} Folded | OrgTodo -> @comment.error
+{3} Folded | OrgPriorityA -> DiagnosticError
+{4} Folded | OrgLink -> @markup.link [underline]
+{5} Folded | OrgTags -> @property
+{6} Folded | Comment
+{7} Folded
+{8} Folded | orgBoldDelimiter -> OrgBold [bold]
+{9} Folded | OrgBold [bold]
+{10} OrgHeadlineLevel1 -> Title [bold]

@@ -19,7 +19,8 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Install](#-install-in-30-seconds)** ·
 **[Tour](#-a-quick-tour)** ·
 **[Features](#-features)** ·
-**[Docs](doc/org.txt)** ·
+**[Docs](https://org-nvim.com/)** ·
+**[Changelog](CHANGELOG.md)** ·
 **[Contributing](CONTRIBUTING.md)**
 
 <br>
@@ -46,8 +47,8 @@ formulas, Babel and export.
   increments). Press `g?` in an org or agenda buffer to see what's
   available.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
-  source, `vim.ui.select` pickers and a lualine clock, and it works with
-  any other setup too.
+  source, pickers for snacks.nvim, fzf-lua, Telescope and mini.pick, and a
+  lualine clock, and it works with any other setup too.
 - ✅ **Tested.** The headless test suite runs 4,800+ tests from 240+ spec
   files.
 
@@ -347,7 +348,8 @@ buffer you browse and jump from. With `goto_interface =
 switches to the other interface for one jump. `<leader>og` jumps to any
 heading of your agenda files. The pickers use `vim.ui.select`, so they get
 your picker: snacks.nvim here, or Telescope / fzf-lua once they're set up
-as the `vim.ui.select` provider.
+as the `vim.ui.select` provider. The [`pick_*` actions](#pickers) talk to
+those pickers directly, with a preview of each heading.
 
 ![Fuzzy-finding a heading in the file, then with the Emacs key](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/goto-buffer.gif)
 
@@ -460,7 +462,9 @@ searches it, and `{` / `}` jump between sections:
 | 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
 | 🎁 | **And more** | Column view, `org-indent` mode, speed keys, footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, BibTeX links (`ol-bibtex`), `org-ctags`, the Org/table/agenda menus and org-mouse, completion, `:checkhealth org` |
 
-The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
+The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)), and
+on the [documentation website](https://org-nvim.com/)
+together with the examples, searchable.
 
 ---
 
@@ -474,7 +478,9 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 - [Capture templates](#capture-templates)
 - [Custom agenda commands](#custom-agenda-commands)
 - [Completion](#completion)
+- [Pickers](#pickers)
 - [Statusline](#statusline)
+- [Lua API](#lua-api)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
 - [Extensions](#-extensions)
@@ -698,7 +704,7 @@ navigation…): `g?` in the agenda or `:h org-agenda-keys`.
 
 ## Configuration
 
-Every option with its default is in [`lua/org/config.lua`](lua/org/config.lua)
+Every option with its default is in [`lua/org/config/`](lua/org/config)
 and documented in `:h org-config`. The most common ones:
 
 ```lua
@@ -856,6 +862,36 @@ headings (`[[*`), custom IDs (`[[#`) and stored links.
 
 ---
 
+## Pickers
+
+The `pick_*` actions open a fuzzy picker with a preview, using the first
+one you have installed: [snacks.nvim](https://github.com/folke/snacks.nvim),
+[fzf-lua](https://github.com/ibhagwan/fzf-lua),
+[telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) or
+[mini.pick](https://github.com/echasnovski/mini.pick), else `vim.ui.select`.
+Set `picker = "snacks" | "fzf-lua" | "telescope" | "mini" | "select"` to
+choose. None of them is required, and none is loaded until a picker opens.
+
+| Action | Picks |
+| --- | --- |
+| `pick_headline` / `pick_headline_all` | a heading of this file / of the agenda files (TODO, priority and tags shown) |
+| `pick_tag` | a tag, then a heading with it |
+| `pick_set_tags` | tags to toggle on the heading (multi-select; typing a new one adds it) |
+| `pick_agenda` / `pick_agenda_week` / `pick_todo` | an entry of today's agenda / the next 7 days / the TODO list |
+| `pick_agenda_file`, `pick_capture_template` | an agenda file, a capture template |
+
+They have no default keys; bind them like any action:
+
+```lua
+mappings = { global = { pick_headline_all = "<leader>fo", pick_todo = "<leader>ft" } }
+```
+
+Telescope users can also `require("telescope").load_extension("org")` and
+run `:Telescope org headlines`. The roam extension's node finder uses the
+same picker. See `:h org-pickers`.
+
+---
+
 ## Statusline
 
 ```lua
@@ -871,6 +907,30 @@ headings (`[[*`), custom IDs (`[[#`) and stored links.
 
 While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`,
 followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
+
+---
+
+## Lua API
+
+`require("org.api")` is a stable, versioned API for plugins and configs:
+read files and headlines as plain data, query them, change them (TODO
+state, tags, priority, properties, dates, clock, refile, archive, IDs),
+run agenda queries without opening the agenda, capture without a window,
+store and resolve links, and listen to events such as `OrgTodoStateChange`,
+`OrgTagsChanged` or `OrgRefile`. Changes work whether or not the file is
+open, and never prompt.
+
+```lua
+local api = require("org.api")
+for _, h in ipairs(api.headlines({ match = "+work", todo = "WAITING" })) do
+  h:set_todo("TODO")
+  h:schedule("+1d")
+end
+api.capture({ template = "* TODO %^{Task}", target = "~/org/inbox.org", values = { Task = "Call the bank" } })
+api.on("OrgClockOut", function(data) print(data.title, data.minutes) end)
+```
+
+See [`:h org-api`](doc/org.txt) for every function, field and event.
 
 ---
 
@@ -1001,6 +1061,12 @@ its options may still change):
 | --- | --- |
 | `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap` |
 
+> [!NOTE]
+> 🧪 Experimental extensions are prone to change. Their options, commands,
+> keys and output (such as the `org` command line's JSON) can change in any
+> release, so read the release notes before you upgrade if a config or a
+> script relies on one.
+
 - ✅ **`present`** ([org-present](https://github.com/rlister/org-present)):
   `:Org present` shows the buffer as a slideshow, one top-level heading per
   slide, in its own tab (`:h org-extensions-present`).
@@ -1100,10 +1166,14 @@ its options may still change):
 - 🧪 **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
   prints the agenda as text, CSV or JSON, captures with a template, clocks
   in and out, reports the running clock (for tmux, SketchyBar or Raycast),
-  searches and exports, from a config file of its own
-  (`:h org-extensions-cli`).
+  searches, queries and exports, and changes headings (TODO state, tags,
+  priority, properties, dates, notes, refile, archive) without ever
+  prompting, from a config file of its own. With `--json` every command
+  prints a versioned envelope with stable error codes, and `org schema`
+  describes the commands as JSON Schema, so scripts and AI agents can use
+  it as a tool (`:h org-extensions-cli`, `:h org-extensions-cli-json`).
 
-  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/cli.gif)
+  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/org-cli.gif)
 
 - 🧪 **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
   ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
@@ -1253,7 +1323,8 @@ make lint                                 # stylua --check + source lint rules
 ```
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) explains how the code is organised
-and how to add a feature.
+and how to add a feature. [`CHANGELOG.md`](CHANGELOG.md) lists what changed
+in each release.
 
 ## License
 

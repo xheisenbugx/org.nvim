@@ -2,10 +2,6 @@
 -- LuaLS type definitions for `require("org").setup({ extensions = { review = ... } })`.
 -- Annotations only; never loaded at runtime.
 
----@class org.Config.Extensions
----Guided GTD weekly review (`:h org-extensions-review`).
----@field review? org.Config.Extensions.Review|boolean
-
 ---A step of the weekly review. Builtin names: `"inbox"`, `"stuck"`,
 ---`"waiting"`, `"overdue"`, `"upcoming"`, `"someday"`, `"clock"`, `"reflect"`.
 ---@alias org.Config.Extensions.ReviewStep

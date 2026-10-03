@@ -286,6 +286,20 @@ local function restore(s)
   end)
 end
 
+--- Whether `make coverage` runs the specs: the JIT is off and every line
+--- is counted, so a spec's time limits don't hold.
+_G.under_coverage = function()
+  return package.loaded["tests.coverage"] ~= nil
+end
+
+--- `make coverage`: this Neovim's line counts (tests/coverage.lua).
+local function write_coverage()
+  local cov = package.loaded["tests.coverage"]
+  if cov then
+    cov.write()
+  end
+end
+
 local files = _G.arg and #_G.arg > 0 and _G.arg or vim.fn.glob(root .. "/tests/spec/**/*_spec.lua", false, true)
 local progress = vim.env.ORG_TEST_PROGRESS
 
@@ -426,6 +440,7 @@ local function run_parallel(jobs)
     )
   )
   io.stderr:write(string.format("%d files, %d jobs, %.1f s\n", #files, n, (uv.hrtime() - start) / 1e9))
+  write_coverage()
   vim.cmd(failed > 0 and "cquit 1" or "qall!")
 end
 
@@ -486,4 +501,5 @@ io.stdout:write(
     #results.skipped > 0 and string.format(", %d skipped", #results.skipped) or ""
   )
 )
+write_coverage()
 vim.cmd(results.failed > 0 and "cquit 1" or "qall!")

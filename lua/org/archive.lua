@@ -400,7 +400,8 @@ function M.archive_subtree(target, opts)
     add_itags = "infile"
   end
   if #itags > 0 and (add_itags == true or (add_itags == "infile" and same)) then
-    edit.update_headline(abuf, lnum, { tags = all_tags })
+    -- (an OrgTagsChanged handler may move the entry)
+    lnum = select(2, edit.update_headline(abuf, lnum, { tags = all_tags }))
   end
   mark_done(abuf, lnum, file.settings.todo)
   for _, p in ipairs(props) do
@@ -485,11 +486,12 @@ function M.archive_to_sibling(target)
   if sib then
     sib_line = sib.line
   else
-    -- created at the end of the parent's subtree (after the source)
+    -- created at the end of the parent's subtree (after the source), then
+    -- tagged like org-toggle-tag tags it: OrgTagsChanged fires, and its
+    -- handlers may move the sibling
     local at = hl.parent and hl.parent.end_line or vim.api.nvim_buf_line_count(bufnr)
-    local heading = edit.align_tags_line(string.rep("*", hl.level) .. " " .. name .. " :ARCHIVE:", file.settings.todo)
-    vim.api.nvim_buf_set_lines(bufnr, at, at, false, { heading })
-    sib_line = at + 1
+    vim.api.nvim_buf_set_lines(bufnr, at, at, false, { string.rep("*", hl.level) .. " " .. name })
+    sib_line = select(2, edit.update_headline(bufnr, at + 1, { tags = { "ARCHIVE" } }))
   end
   local sibling = assert(marks.set(bufnr, sib_line))
   local shl = files.get_buffer(bufnr):headline_at(sib_line)
@@ -642,9 +644,10 @@ function M.toggle_archive_tag(target)
   else
     tags[#tags + 1] = "ARCHIVE"
   end
-  edit.update_headline(bufnr, hl.line, { tags = tags })
+  -- (an OrgTagsChanged handler may move the headline)
+  local _, lnum = edit.update_headline(bufnr, hl.line, { tags = tags })
   if not idx and bufnr == vim.api.nvim_get_current_buf() then
-    pcall(vim.cmd, hl.line .. "foldclose")
+    pcall(vim.cmd, lnum .. "foldclose")
   end
   if not target then
     utils.notify(idx and "Subtree unarchived" or "Subtree archived")

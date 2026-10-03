@@ -1,6 +1,6 @@
 ---@meta
 -- LuaLS type definitions for `require("org").setup({ mappings = ... })`.
--- Generated from `M.defaults.mappings` in lua/org/config.lua and
+-- Generated from `M.defaults.mappings` in lua/org/config/mappings.lua and
 -- `actions.list` in lua/org/actions.lua. Annotations only.
 
 --- A mapping value: one lhs, a list of lhs, or `false` to disable the
@@ -263,6 +263,15 @@
 ---| "orgtbl_toggle_comment" # Comment / uncomment table
 ---| "paste_special" # Paste table rectangle / subtree
 ---| "paste_subtree" # Paste subtree
+---| "pick_agenda" # Pick an entry of today's agenda
+---| "pick_agenda_file" # Pick an agenda file
+---| "pick_agenda_week" # Pick an agenda entry of the next 7 days
+---| "pick_capture_template" # Pick a capture template and capture
+---| "pick_headline" # Pick a headline of this file
+---| "pick_headline_all" # Pick a headline of the agenda files
+---| "pick_set_tags" # Toggle the headline's tags in a picker
+---| "pick_tag" # Pick a tag, then a headline with it
+---| "pick_todo" # Pick an open TODO of the agenda files
 ---| "prev_heading" # Previous heading
 ---| "prev_link" # Previous link
 ---| "prev_sibling" # Previous sibling heading

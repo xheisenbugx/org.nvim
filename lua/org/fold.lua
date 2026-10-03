@@ -183,7 +183,9 @@ end
 ---@param stack? integer[] the stars of the headlines containing `lines[1]`
 --- (outermost first)
 ---@param at_eof? boolean whether `lines` ends the buffer (default true)
----@return table levels, table regions (list of {start, end, kind}), table stars (line -> stars of each outline headline)
+---@return table levels
+---@return table regions list of {start, end, kind}
+---@return table stars line -> stars of each outline headline
 function M.compute(lines, stack, at_eof)
   local levels, regions, stars = {}, {}, {}
   stack = stack and vim.list_slice(stack) or {}

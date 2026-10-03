@@ -501,12 +501,6 @@ local function register_ids(entries)
   end
 end
 
---- The parse of `path`: its buffer's, else read from disk now. Not
---- through org.files' cache: that would keep every note of a large
---- directory in memory, and trust an mtime that a quick rewrite leaves
---- unchanged.
----@param path string
----@return org.File|nil
 --- The lines of buffer `b` as its file holds them: without the text the
 --- transclusion extension inserted, which is never saved and must not be
 --- indexed. nil when nothing is inserted.
@@ -518,6 +512,12 @@ local function without_transcluded(b)
   return (tr.clean_lines(b))
 end
 
+--- The parse of `path`: its buffer's, else read from disk now. Not
+--- through org.files' cache: that would keep every note of a large
+--- directory in memory, and trust an mtime that a quick rewrite leaves
+--- unchanged.
+---@param path string
+---@return org.File|nil
 local function fresh_parse(path)
   files.invalidate(path)
   local b = utils.find_buffer(path)

@@ -123,7 +123,7 @@ function M.dir_for(target, create_id)
     return M.dir_from_id(id, base, false), hl
   elseif method == "dir" then
     local d = M.set_directory({ bufnr = bufnr, lnum = hl.line })
-    return d, edit.refresh(bufnr, hl.line)
+    return d, (edit.refresh(bufnr, hl.line))
   end
   utils.error("No existing directory.  DIR or ID property has to be explicitly created")
   return nil, hl

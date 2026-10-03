@@ -2,10 +2,6 @@
 -- LuaLS type definitions for `require("org").setup({ extensions = { diagrams = ... } })`.
 -- Annotations only; never loaded at runtime.
 
----@class org.Config.Extensions
----mermaid, dot and plantuml blocks rendered to images (`:h org-extensions-diagrams`).
----@field diagrams? org.Config.Extensions.Diagrams|boolean
-
 ---@class org.Config.Extensions.Diagrams
 ---`false` keeps the extension off.
 ---@field enabled? boolean

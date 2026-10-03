@@ -1,0 +1,10 @@
+screen 60x12
+|{1:* Headline}|
+|{2::PROPERTIES:}{3:...}{4:                                             }|
+|{2::LOGBOOK:}{3:...}{4:                                                }|
+|Body after the drawers.|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} Folded | OrgDrawer -> Comment
+{3} Folded | Comment
+{4} Folded

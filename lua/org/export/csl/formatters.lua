@@ -337,7 +337,7 @@ function M.for_format(format)
   return {
     rt = f.rt,
     cite = f.cite or identity,
-    bib_item = f.bib_item or function(x)
+    bib_item = f.bib_item or function(x, _params)
       return x
     end,
     bib = f.bib or default_bib,

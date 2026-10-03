@@ -10,6 +10,20 @@ local utils = require("org.utils")
 
 local M = {}
 
+--- Fire the User autocmd `OrgPriorityChanged` when the priority cookie of
+--- the headline at (bufnr, lnum) changed (`from` / `to`: nil without one).
+local function changed(bufnr, lnum, old, new)
+  if old == new then
+    return
+  end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgPriorityChanged",
+    data = { bufnr = bufnr, lnum = lnum, file = name ~= "" and vim.fs.normalize(name) or nil, from = old, to = new },
+    modeline = false,
+  })
+end
+
 --- Numeric value of a priority string or number (org-priority-to-value):
 --- its number when it contains digits, else its first character's code.
 ---@param s string|integer|nil
@@ -135,6 +149,7 @@ function M.shift(target, dir)
   end
   local value = new and M.to_string(new)
   edit.update_headline(bufnr, hl.line, { priority = value or false })
+  changed(bufnr, hl.line, hl.priority, value or nil)
   if not value then
     last_removal = { bufnr = bufnr, lnum = hl.line, dir = dir, tick = vim.api.nvim_buf_get_changedtick(bufnr) }
     utils.notify("Priority removed")
@@ -179,6 +194,7 @@ function M.set(target, value)
     return nil
   end
   local r = M.range(file)
+  local old = hl.priority
   local msg = string.format("Priority %s-%s, SPC to remove: ", M.to_string(r.hi), M.to_string(r.lo))
   if value == nil then
     if r.numeric and r.lo >= 10 then
@@ -192,6 +208,7 @@ function M.set(target, value)
   end
   if value == " " or value == "" then
     edit.update_headline(bufnr, hl.line, { priority = false })
+    changed(bufnr, hl.line, old, nil)
     return nil
   end
   local v
@@ -209,6 +226,7 @@ function M.set(target, value)
   end
   local str = M.to_string(v)
   edit.update_headline(bufnr, hl.line, { priority = str })
+  changed(bufnr, hl.line, old, str)
   return str
 end
 

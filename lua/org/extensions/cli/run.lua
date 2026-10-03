@@ -4,22 +4,53 @@
 --- which calls |M.main| with the arguments. Every subcommand works on the
 --- files of the loaded configuration (`--config`, `$ORG_NVIM_CONFIG` or
 --- `stdpath("config")/org-cli.lua`) and writes plain text or, with
---- `--json`, JSON to stdout. Messages go to stderr.
+--- `--json` / `--jsonl`, JSON to stdout (`org schema` describes it).
+--- Messages go to stderr.
+
+local schema = require("org.extensions.cli.schema")
+local data = require("org.extensions.cli.data")
 
 local M = {}
 
-M.USAGE = [[
+M.USAGE = [==[
 usage: org [global options] <command> [args]
 
-Commands:
-  agenda [day|week|fortnight|month|year|todo [KW]|tags MATCH|KEY]
-         [--date DATE] [--span N] [--json|--csv]
-  capture [-t KEY] [--list] TEXT...     (TEXT "-" reads stdin)
-  clock [status [--short] [--format FMT]|in [--pick N] QUERY|out|cancel]
-        [--json]    (QUERY: title words, ID, id:ID or FILE::HEADING)
-  search QUERY... [--json]               (org-ql syntax when ql is enabled)
+Read:
+  agenda [day|week|fortnight|month|year|todo [KW]|tags MATCH|tags-todo MATCH|KEY]
+         [--date DATE] [--span N] [--csv]
+  search [QUERY...] [--match MATCH] [--limit N]
+  headlines [FILE...] [--todo KW] [--tag TAG] [--property NAME=VALUE]
+         [--level N] [--scheduled FROM..TO] [--deadline FROM..TO]
+         [--file FILE] [--match MATCH] [--limit N] [--archived]   (alias: query)
+  show TARGET [--children]
+  clock [status [--short] [--format FMT]]
+  templates | files | tags | keywords
   export FILE BACKEND [-o OUTPUT|--stdout]
-  help | version
+
+Write (never prompt; --force writes over unsaved changes in a running Neovim):
+  capture [-t KEY] [--field NAME=VALUE] [--input FILE|-] [--id] TEXT...
+          (TEXT "-" reads stdin; --list lists the templates)
+  clock in [--pick N] TARGET | clock out | clock cancel
+  set todo TARGET STATE [--note TEXT]
+  set tags TARGET [TAGS] [--add TAG] [--remove TAG]
+  set priority TARGET PRIORITY
+  set property TARGET NAME [VALUE] [--delete]
+  set scheduled TARGET DATE [--note TEXT]   ("none" removes)
+  set deadline TARGET DATE [--note TEXT]
+  note TARGET TEXT
+  refile TARGET DESTINATION
+  archive TARGET
+  id TARGET [--create]
+
+  schema [COMMAND] | help [--json] | version
+
+TARGET: id:ID or an ID, FILE:LINE, FILE::TITLE, FILE::#CUSTOM_ID, or title
+words (an org-ql query with ql); several matches: --pick N.
+
+Arguments are one word each, except a last one of free text (TEXT, QUERY,
+DATE, a property VALUE, a TARGET with nothing after it), which takes the
+remaining words: quote a TARGET of several words that other arguments
+follow. A word left over is an error, never dropped.
 
 Global options:
   --config FILE   Lua file calling require("org").setup(), or returning
@@ -27,10 +58,11 @@ Global options:
                   stdpath("config")/org-cli.lua when it exists)
   --files GLOB    agenda files (repeatable; replaces agenda_files)
   --dir DIR       org_directory
-  --json          JSON output (agenda, clock, search, capture --list)
+  --json          JSON envelope { version, ok, command, data, warnings, errors }
+  --jsonl         JSON lines: one result per line
   -v, --verbose   also print org.nvim's messages on stderr
   -q, --quiet     no warnings on stderr (errors are still printed)
-]]
+]==]
 
 -- Options the CLI forces so nothing waits for input.
 M.OVERRIDES = {
@@ -41,21 +73,39 @@ M.OVERRIDES = {
     persist_query_save = false,
   },
   note_buffer = false,
+  read_date_popup_calendar = false,
 }
 
 ---------------------------------------------------------------------------
 -- Output
 ---------------------------------------------------------------------------
 
+local real_stdout = io.stdout
+
 --- Where output goes; specs replace these.
 M.stdout = function(s)
-  io.stdout:write(s)
+  real_stdout:write(s)
 end
 M.stderr = function(s)
   io.stderr:write(s)
 end
 
-local state = { quiet = false, verbose = false }
+local state = {}
+
+local function reset_state()
+  state = {
+    quiet = false,
+    verbose = false,
+    machine = false,
+    messages = {},
+    warnings = {},
+    answers = {},
+    note = nil,
+    prompted = nil,
+    touched = false,
+  }
+end
+reset_state()
 
 local function out(line)
   M.stdout(line .. "\n")
@@ -65,39 +115,151 @@ local function err(line)
   M.stderr("org: " .. line .. "\n")
 end
 
-local function json(v)
-  out(vim.json.encode(v))
-end
+M.out = out
 
---- An error that ends the command with exit code `code`.
-local function fail(msg, code)
-  error({ cli = true, msg = msg, code = code or 1 }, 0)
+-- tostring() of a failure is its message: org.nvim code that catches an
+-- error and reports it (code blocks evaluated during an export, ...)
+-- then says what went wrong
+local Failure = {
+  __tostring = function(e)
+    return e.msg
+  end,
+}
+
+--- An error that ends the command. `ecode` is one of `schema.ERRORS`
+--- (its exit code is used), or a number (an exit code, error code
+--- `usage` for 2, else `failed`).
+---@param msg string
+---@param ecode? string|integer
+---@param details? table
+local function fail(msg, ecode, details)
+  local code
+  if type(ecode) == "number" then
+    code = ecode
+    ecode = code == 2 and "usage" or code == 3 and "input_needed" or "failed"
+  else
+    ecode = ecode or "failed"
+    code = (schema.ERRORS[ecode] or schema.ERRORS.failed).exit
+  end
+  error(setmetatable({ cli = true, msg = msg, code = code, ecode = ecode, details = details }, Failure), 0)
 end
+M.fail = fail
 
 ---------------------------------------------------------------------------
 -- Headless safety
 ---------------------------------------------------------------------------
 
+--- The question a prompt asks, without its ": ", default and date hint:
+--- "Title [x]: " -> "Title", "Deadline Date+time [2026-10-01]: " -> "Deadline".
+function M.prompt_label(p)
+  if type(p) == "table" then
+    p = p.prompt
+  end
+  p = vim.trim(tostring(p or ""))
+  p = p:gsub(":$", "")
+  p = vim.trim(p)
+  p = p:gsub("%s*%[[^%]]*%]$", "")
+  p = p:gsub("%s*Date%+time$", "")
+  return vim.trim(p)
+end
+
+--- The `--field` answer to a prompt, or a failure (exit 3).
+local function ask(prompt)
+  local label = M.prompt_label(prompt)
+  local v = state.answers[label:lower()]
+  if v == nil and label == "" then
+    v = state.answers.date
+  end
+  if v ~= nil then
+    return v
+  end
+  state.prompted = state.prompted or (label ~= "" and label or "input")
+  fail(
+    "interactive input needed ("
+      .. state.prompted
+      .. "); not available in the CLI"
+      .. (label ~= "" and (" (answer it with --field '" .. label .. "=...')") or ""),
+    "input_needed",
+    { prompt = state.prompted }
+  )
+end
+
+--- A prompt `--field` doesn't answer (a confirmation, a passphrase, a
+--- key press): fail with `input_needed`, naming its question (else `what`).
 local function no_input(what)
-  return function()
-    state.prompted = what
-    fail("interactive input needed (" .. what .. "); not available in the CLI", 3)
+  return function(prompt)
+    local label = type(prompt) == "string" and M.prompt_label(prompt) or ""
+    label = label ~= "" and label or what
+    state.prompted = state.prompted or label
+    fail("interactive input needed (" .. label .. "); not available in the CLI", "input_needed", { prompt = label })
   end
 end
 
---- Replace prompts with errors and route notifications to stderr.
+--- Replace prompts with `--field` answers or errors, and route
+--- notifications to stderr (and the JSON envelope).
 function M.headless()
-  vim.fn.input = no_input("input")
+  local utils = require("org.utils")
+  vim.fn.input = function(opts)
+    return ask(opts)
+  end
+  vim.fn.inputdialog = function(opts)
+    return ask(opts)
+  end
+  -- (under `nvim -l` an unanswered inputsecret() ends Neovim, exit 0)
+  vim.fn.inputsecret = no_input("passphrase")
   vim.fn.inputlist = no_input("inputlist")
   vim.fn.confirm = no_input("confirm")
   vim.fn.getchar = no_input("getchar")
   vim.fn.getcharstr = no_input("getchar")
-  vim.ui.input = no_input("vim.ui.input")
+  vim.ui.input = function(opts, cb)
+    cb(ask(opts))
+  end
   vim.ui.select = no_input("vim.ui.select")
+  utils.input = function(opts)
+    return ask(opts)
+  end
+  utils.input_complete = function(prompt)
+    return ask(prompt)
+  end
+  -- a log note the command records: --note, else an empty note (the
+  -- entry is logged with its time only, as C-c C-c on an empty note)
+  utils.input_note = function()
+    return state.note or ""
+  end
+  utils.confirm = no_input("confirm")
+  utils.getchar = no_input("getchar")
   vim.notify = function(msg, level)
     level = level or vim.log.levels.INFO
-    if (level >= vim.log.levels.WARN and not state.quiet) or state.verbose then
-      err(tostring(msg))
+    msg = tostring(msg)
+    state.messages[#state.messages + 1] = { msg = msg, level = level }
+    if level >= vim.log.levels.WARN then
+      state.warnings[#state.warnings + 1] = msg
+    end
+    local show
+    if state.machine then
+      show = state.verbose
+    else
+      show = (level >= vim.log.levels.WARN and not state.quiet) or state.verbose
+    end
+    if show then
+      err(msg)
+    end
+  end
+  -- nvim_echo() writes to stderr under `nvim -l`: make its messages
+  -- notifications like the others (org-crypt's "No crypt key set, ...")
+  vim.api.nvim_echo = function(chunks)
+    local text, level = {}, vim.log.levels.INFO
+    for _, c in ipairs(chunks or {}) do
+      text[#text + 1] = c[1] or ""
+      if c[2] == "ErrorMsg" then
+        level = vim.log.levels.ERROR
+      elseif c[2] == "WarningMsg" then
+        level = math.max(level, vim.log.levels.WARN)
+      end
+    end
+    local msg = table.concat(text)
+    if msg ~= "" then
+      vim.notify(msg, level)
     end
   end
 end
@@ -106,42 +268,21 @@ end
 -- Arguments
 ---------------------------------------------------------------------------
 
--- flags taking a value
-local VALUE_FLAGS = {
-  ["--config"] = "config",
-  ["--files"] = "files",
-  ["--dir"] = "dir",
-  ["--date"] = "date",
-  ["--span"] = "span",
-  ["-t"] = "template",
-  ["--template"] = "template",
-  ["-o"] = "output",
-  ["--output"] = "output",
-  ["--format"] = "format",
-  ["--pick"] = "pick",
-}
+-- repeatable flags whose values may also be comma-separated
+local COMMA = { files = true, todo = true, tag = true, add = true, remove = true }
 
-local BOOL_FLAGS = {
-  ["--json"] = "json",
-  ["--csv"] = "csv",
-  ["-q"] = "quiet",
-  ["--quiet"] = "quiet",
-  ["-v"] = "verbose",
-  ["--verbose"] = "verbose",
-  ["--list"] = "list",
-  ["--short"] = "short",
-  ["--stdout"] = "stdout",
-  ["-h"] = "help",
-  ["--help"] = "help",
-  ["--version"] = "version",
-}
-
---- Split `argv` into flags and positional words. `--files` repeats;
---- `--flag=value` works too; `--` ends the flags.
+--- Split `argv` into flags and positional words. Repeatable flags give
+--- lists; `--flag=value` works too; `--` ends the flags.
 ---@param argv string[]
 ---@return table flags, string[] words
 function M.parse_args(argv)
-  local flags, words = { files = {} }, {}
+  local flags, words = {}, {}
+  for _, f in ipairs(schema.FLAGS) do
+    if f.repeatable then
+      flags[f.key] = {}
+    end
+  end
+  local given = {}
   local i = 1
   local rest = false
   while i <= #argv do
@@ -153,30 +294,37 @@ function M.parse_args(argv)
     else
       local name, value = a:match("^(%-%-[%w-]+)=(.*)$")
       name = name or a
-      if VALUE_FLAGS[name] then
+      local f = schema.BY_NAME[name]
+      if f and f.value then
         if not value then
           i = i + 1
           value = argv[i]
           if value == nil then
-            fail(name .. " needs a value", 2)
+            fail(name .. " needs a value", "usage", { flag = name })
           end
         end
-        local key = VALUE_FLAGS[name]
-        if key == "files" then
-          vim.list_extend(flags.files, vim.split(value, ",", { trimempty = true }))
+        if f.repeatable then
+          if COMMA[f.key] then
+            vim.list_extend(flags[f.key], vim.split(value, ",", { trimempty = true }))
+          else
+            table.insert(flags[f.key], value)
+          end
         else
-          flags[key] = value
+          flags[f.key] = value
         end
-      elseif BOOL_FLAGS[a] then
-        flags[BOOL_FLAGS[a]] = true
+        given[f.key] = name
+      elseif f and not value then
+        flags[f.key] = true
+        given[f.key] = name
       elseif a:match("^%-%-?%a") and a ~= "-" then
-        fail("unknown option " .. a .. " (see org help)", 2)
+        fail("unknown option " .. a .. " (see org help)", "unknown_option", { option = a })
       else
         words[#words + 1] = a
       end
     end
     i = i + 1
   end
+  flags._given = given
   return flags, words
 end
 
@@ -190,10 +338,9 @@ end
 function M.config_file(flags)
   local f = flags.config or vim.env.ORG_NVIM_CONFIG
   if f and f ~= "" then
-    -- lint: allow expand: a command-line argument
-    f = vim.fn.expand(f)
+    f = require("org.utils").expand_vars(f)
     if vim.fn.filereadable(f) == 0 then
-      fail("config file not found: " .. f, 2)
+      fail("config file not found: " .. f, "config", { file = f })
     end
     return f
   end
@@ -203,6 +350,12 @@ function M.config_file(flags)
   end
   return nil
 end
+
+--- A path from the command line, absolute.
+local function arg_path(p)
+  return vim.fs.normalize(vim.fn.fnamemodify(require("org.utils").expand_vars(p), ":p"))
+end
+M.arg_path = arg_path
 
 --- Load the user's configuration with the CLI's overrides forced in, then
 --- apply `--files` and `--dir`.
@@ -218,7 +371,7 @@ function M.load_config(flags)
     ok, res = pcall(dofile, file)
     if not ok then
       config.setup = setup
-      fail("error in " .. file .. ": " .. tostring(res), 2)
+      fail("error in " .. file .. ": " .. tostring(res), "config", { file = file })
     end
   end
   local org = require("org")
@@ -240,14 +393,15 @@ function M.load_config(flags)
     end
   end
   if flags.dir then
-    -- lint: allow expand: a command-line argument
-    config.opts.org_directory = vim.fn.fnamemodify(vim.fn.expand(flags.dir), ":p")
+    config.opts.org_directory = arg_path(flags.dir) .. "/"
   end
   if #flags.files > 0 then
-    config.opts.agenda_files = vim.tbl_map(function(f)
-      -- lint: allow expand: a command-line argument
-      return vim.fn.fnamemodify(vim.fn.expand(f), ":p")
-    end, flags.files)
+    config.opts.agenda_files = vim.tbl_map(arg_path, flags.files)
+  end
+  -- org.crypt registers its write hook (encrypt_on_save) when it loads,
+  -- which Neovim does as it sets up an org buffer: `nvim -l` sets up none
+  if (config.opts.crypt or {}).encrypt_on_save then
+    require("org.crypt")
   end
 end
 
@@ -261,39 +415,25 @@ end
 -- Helpers
 ---------------------------------------------------------------------------
 
-local function iso_day(days)
-  if not days then
-    return nil
-  end
-  local d = require("org.date").from_days(days)
-  return string.format("%04d-%02d-%02d", d.year, d.month, d.day)
-end
-
-local function hm(minutes)
-  if not minutes then
-    return nil
-  end
-  return string.format("%02d:%02d", math.floor(minutes / 60), minutes % 60)
-end
-
 local function short_path(p)
   return p and require("org.utils").abbreviate(p) or nil
 end
+M.short_path = short_path
 
 --- Load a file into a buffer (filetype org) and return its number.
 local function load_buffer(path)
-  local bufnr = vim.fn.bufadd(path)
-  vim.fn.bufload(bufnr)
-  vim.bo[bufnr].buflisted = true
+  local bufnr = require("org.utils").load_buffer(path)
   if vim.bo[bufnr].filetype ~= "org" then
     vim.bo[bufnr].filetype = "org"
   end
   return bufnr
 end
+M.load_buffer = load_buffer
 
--- Tell a running Neovim (with the cli extension on) that the clock
--- changed: it watches this file and rereads the clock (org.clock.sync).
-local function touch_clock_stamp()
+-- Tell a running Neovim (with the cli extension on) that files changed:
+-- it watches this file, rereads changed files and the clock
+-- (org.clock.sync).
+local function touch_stamp()
   pcall(function()
     local path = require("org.extensions.cli").stamp_path()
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
@@ -305,37 +445,132 @@ local function touch_clock_stamp()
   end)
 end
 
-local function save_all()
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
-      local ok, e = require("org.utils").save_buffer(b)
-      if not ok then
-        fail("could not save " .. vim.api.nvim_buf_get_name(b) .. ": " .. tostring(e))
+--- Swap files a Neovim editing `path` would have ('directory').
+local function swap_files(path)
+  local full = arg_path(path)
+  local tail = vim.fn.fnamemodify(full, ":t")
+  local head = vim.fn.fnamemodify(full, ":h")
+  local win = vim.fn.has("win32") == 1
+  local out = {}
+  for _, d in ipairs(vim.split(vim.o.directory, ",", { trimempty = true })) do
+    local percent = d:match("//$") or d:match("\\\\$")
+    local dir = d:gsub("[/\\]+$", "")
+    local base
+    if dir == "." or dir == "" then
+      dir, base = head, "." .. tail
+    elseif percent then
+      base = full:gsub(win and "[/\\:]" or "/", "%%")
+    else
+      base = tail
+    end
+    for _, ext in ipairs({ ".swp", ".swo", ".swn" }) do
+      out[#out + 1] = dir .. "/" .. base .. ext
+    end
+  end
+  return out
+end
+
+--- Fail with `file_busy` when a running Neovim has unsaved changes in
+--- `path` (its swap file says so), unless --force.
+---@param path string
+---@param flags table
+function M.guard(path, flags)
+  if not path or flags.force then
+    return
+  end
+  local me = vim.fn.getpid()
+  for _, sw in ipairs(swap_files(path)) do
+    if vim.uv.fs_stat(sw) then
+      local ok, info = pcall(vim.fn.swapinfo, sw)
+      if ok and type(info) == "table" and not info.error and info.dirty == 1 and info.pid ~= me then
+        local alive = info.pid and info.pid > 0 and vim.uv.kill(info.pid, 0) == 0
+        if alive then
+          fail(
+            string.format(
+              "%s has unsaved changes in a running Neovim (pid %d); save it there or use --force",
+              path,
+              info.pid
+            ),
+            "file_busy",
+            { file = arg_path(path), pid = info.pid, swap = sw }
+          )
+        end
       end
     end
   end
 end
 
---- A headline as JSON-friendly data.
-local function headline_data(hl)
-  local p = hl.planning or {}
-  local function ts(t)
-    return t and t:to_string() or nil
+--- Save every modified buffer (through utils.save_buffer: the write hooks
+--- run) and tell a running Neovim. None is written unless all can be:
+--- no file has unsaved changes in a running Neovim, and no write hook
+--- refuses one (org-crypt without the passphrase it would ask for).
+function M.save_all(flags)
+  local utils = require("org.utils")
+  local hooks = require("org.write_hooks")
+  local bufs = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified and vim.api.nvim_buf_get_name(b) ~= "" then
+      bufs[#bufs + 1] = b
+    end
   end
-  return {
-    file = hl.file.filename,
-    line = hl.line,
-    level = hl.level,
-    todo = hl.todo,
-    priority = hl.priority,
-    title = hl:plain_title(),
-    tags = hl:get_tags(),
-    category = hl:get_category(),
-    scheduled = ts(p.scheduled),
-    deadline = ts(p.deadline),
-    closed = ts(p.closed),
-    id = hl.properties.ID,
-  }
+  local function failed(b, e)
+    -- a prompt a hook couldn't ask (a passphrase) is the reason
+    M.check_prompted()
+    local name = vim.api.nvim_buf_get_name(b)
+    fail("could not save " .. name .. ": " .. tostring(e), "failed", { file = name })
+  end
+  for _, b in ipairs(bufs) do
+    M.guard(vim.api.nvim_buf_get_name(b), flags or {})
+  end
+  -- The pre-write hooks of every buffer run before any file is written.
+  -- What they change (entries org-crypt encrypts) stays for the write;
+  -- the post hooks undo the rest, as after a failed write.
+  for _, b in ipairs(bufs) do
+    local ok, e, run = hooks.run_pre(b, "save_buffer")
+    if not ok then
+      failed(b, e)
+    end
+    hooks.run_post(run, false)
+  end
+  for _, b in ipairs(bufs) do
+    local ok, e = utils.save_buffer(b)
+    if not ok then
+      failed(b, e)
+    end
+    state.touched = true
+  end
+  if state.touched then
+    touch_stamp()
+  end
+end
+
+--- Fail with `input_needed` when a prompt was refused during the command.
+function M.check_prompted()
+  if state.prompted then
+    fail(
+      "interactive input needed (" .. state.prompted .. "); not available in the CLI",
+      "input_needed",
+      { prompt = state.prompted }
+    )
+  end
+end
+
+--- Fail with org.nvim's own warnings and errors as the message.
+function M.fail_with_messages(default, ecode)
+  M.check_prompted()
+  local msgs = {}
+  for _, m in ipairs(state.messages) do
+    if m.level >= vim.log.levels.WARN then
+      msgs[#msgs + 1] = m.msg
+    end
+  end
+  fail(#msgs > 0 and msgs[#msgs] or default, ecode or "failed", { messages = msgs })
+end
+
+--- Forget the messages so far (fail_with_messages reports the ones a
+--- step adds).
+function M.mark_messages()
+  state.messages = {}
 end
 
 local function headline_line(hl)
@@ -353,6 +588,159 @@ local function headline_line(hl)
   end
   return string.format("%s:%d: %s", short_path(hl.file.filename), hl.line, table.concat(parts, " "))
 end
+M.headline_line = headline_line
+
+local function int_flag(flags, key)
+  local v = flags[key]
+  if v == nil then
+    return nil
+  end
+  local n = tonumber(v)
+  if not n or n < 1 or n ~= math.floor(n) then
+    fail(string.format("%s needs a positive whole number, not %s", schema.BY_KEY[key].names[1], v), "bad_value")
+  end
+  return n
+end
+M.int_flag = int_flag
+
+---------------------------------------------------------------------------
+-- Headings by query
+---------------------------------------------------------------------------
+
+--- The org files a `FILE` of a query names: agenda files by path, name or
+--- name without extension, else the file itself when it exists.
+local function files_named(name, files)
+  local want = arg_path(name)
+  local sel = {}
+  for _, f in ipairs(files) do
+    local fname = f.filename or ""
+    local tail = vim.fn.fnamemodify(fname, ":t")
+    if
+      fname == want
+      or vim.fn.resolve(fname) == vim.fn.resolve(want)
+      or tail == name
+      or vim.fn.fnamemodify(tail, ":r") == name
+    then
+      sel[#sel + 1] = f
+    end
+  end
+  if #sel == 0 and vim.fn.filereadable(want) == 1 then
+    local f = require("org.files").get(want)
+    if f then
+      sel[1] = f
+    end
+  end
+  return sel
+end
+M.files_named = files_named
+
+--- Headlines matching `query`: an `id:` or ID, `FILE:LINE` (the entry
+--- containing that line of any org file), `FILE::#CUSTOM_ID`,
+--- `FILE::HEADING` (a file of the agenda, by path or name, or any org
+--- file, and a title in it, `*` stars allowed, as in an org link), a ql
+--- query when ql is enabled, else a case-insensitive title substring (an
+--- exact title wins).
+function M.find_headlines(query)
+  local files = require("org.files").agenda_files()
+  local items = require("org.agenda.items")
+  query = vim.trim(query)
+  local id = query:match("^id:(.+)$")
+  local file_part, head_part = query:match("^(.-)::(.+)$")
+  if not file_part then
+    local f, l = query:match("^(.-[^:]):(%d+)$")
+    if f and vim.fn.filereadable(arg_path(f)) == 1 then
+      local file = require("org.files").get(arg_path(f))
+      local hl = file and file:headline_at(tonumber(l))
+      return { hl }
+    end
+  end
+  if file_part and file_part ~= "" then
+    files = files_named(file_part, files)
+    local cid = head_part:match("^#(.+)$")
+    if cid then
+      local found = {}
+      items.each_headline(files, { all = true }, function(hl)
+        if hl.properties.CUSTOM_ID == cid then
+          found[#found + 1] = hl
+        end
+      end)
+      return found
+    end
+    query = vim.trim((head_part:gsub("^%*+%s*", "")))
+  else
+    file_part = nil
+  end
+  local found, exact, by_id = {}, {}, {}
+  if not id and not file_part and require("org.extensions").enabled("ql") then
+    local ok, res = pcall(require("org.extensions.ql").select, files, query)
+    if ok and #res > 0 then
+      return res
+    end
+  end
+  local q = query:lower()
+  items.each_headline(files, { all = true }, function(hl)
+    if id then
+      if hl.properties.ID == id then
+        found[#found + 1] = hl
+      end
+    else
+      local t = hl:plain_title():lower()
+      if hl.properties.ID == query then
+        by_id[#by_id + 1] = hl
+      elseif t == q then
+        exact[#exact + 1] = hl
+      elseif t:find(q, 1, true) then
+        found[#found + 1] = hl
+      end
+    end
+  end)
+  return #by_id > 0 and by_id or #exact > 0 and exact or found
+end
+
+--- The one headline `query` names (`--pick N` among several), or a
+--- `not_found` / `ambiguous` failure.
+---@return org.Headline
+function M.resolve_target(query, flags)
+  query = vim.trim(query or "")
+  if query == "" then
+    fail("a heading is needed (id:ID, FILE:LINE, FILE::TITLE or title words)", "usage")
+  end
+  local hls = M.find_headlines(query)
+  local pick = int_flag(flags, "pick")
+  if #hls == 0 then
+    fail("no heading matches " .. query, "not_found", { query = query })
+  end
+  if pick and not hls[pick] then
+    fail(string.format("--pick %s: pick 1 to %d", flags.pick, #hls), "usage", { count = #hls })
+  end
+  if #hls > 1 and not pick then
+    local lines = { "several headings match " .. query .. " (--pick N):" }
+    local candidates = {}
+    for i, hl in ipairs(hls) do
+      lines[#lines + 1] = string.format("%3d  %s", i, headline_line(hl))
+      candidates[i] = data.headline(hl)
+    end
+    fail(table.concat(lines, "\n"), "ambiguous", { query = query, candidates = candidates })
+  end
+  return hls[pick or 1]
+end
+
+--- The buffer target of a headline found on disk: (bufnr, lnum).
+function M.open_target(hl, flags)
+  M.guard(hl.file.filename, flags)
+  local bufnr = load_buffer(hl.file.filename)
+  local file = require("org.files").get_buffer(bufnr)
+  local target = file:headline_at(hl.line)
+  if not target then
+    fail("the heading moved: " .. headline_line(hl), "failed")
+  end
+  return bufnr, target.line
+end
+
+--- The headline at (bufnr, lnum) of the current buffer text.
+function M.headline_at(bufnr, lnum)
+  return require("org.files").get_buffer(bufnr):headline_at(lnum)
+end
 
 ---------------------------------------------------------------------------
 -- agenda
@@ -369,37 +757,50 @@ local function open_agenda(words, flags)
   if flags.date then
     local d = require("org.date").read_date(flags.date, require("org.date").today())
     if not d then
-      fail("cannot read date " .. flags.date, 2)
+      fail("cannot read date " .. flags.date, "bad_value", { date = flags.date })
     end
     anchor = d:days()
   end
   local span = flags.span and (tonumber(flags.span) or flags.span)
-  local label = what
+  local label, key = what, vim.NIL
+  local custom = not (what == "todo" or what == "tags" or what == "tags-todo")
+    and type((config.opts.agenda.custom_commands or {})[what]) == "table"
+  if words[2] ~= nil and (what == "agenda" or SPANS[what] or custom) then
+    fail(string.format("agenda %s takes no other argument, not %s", what, words[2]), "usage", { view = what })
+  end
   if what == "agenda" or SPANS[what] then
     span = span or SPANS[what]
     agenda.open({ type = "agenda" }, { span = span, anchor = anchor })
     label = "agenda"
   elseif what == "todo" then
     agenda.open({ type = "todo", keywords = words[2] })
-  elseif what == "tags" then
+  elseif what == "tags" or what == "tags-todo" then
     if not words[2] then
-      fail("agenda tags needs a match, e.g. org agenda tags +work", 2)
+      fail("agenda " .. what .. " needs a match, e.g. org agenda tags +work", "usage")
     end
-    agenda.open({ type = "tags", match = words[2] })
-  elseif type((config.opts.agenda.custom_commands or {})[what]) == "table" then
+    local ok, e = require("org.agenda.search").try_compile(words[2])
+    if not ok then
+      fail("bad match " .. words[2] .. ": " .. tostring(e), "bad_value", { match = words[2] })
+    end
+    agenda.open({ type = what == "tags" and "tags" or "tags_todo", match = words[2] })
+  elseif custom then
     if span then
       config.opts.agenda.span = span
     end
     agenda.open_custom(what)
-    label = "custom"
+    label, key = "custom", what
   else
-    fail("unknown agenda view " .. what .. " (day, week, month, todo, tags or a custom command key)", 2)
+    fail(
+      "unknown agenda view " .. what .. " (day, week, month, todo, tags or a custom command key)",
+      "usage",
+      { view = what }
+    )
   end
   local S = require("org.agenda.view").state
   if not S.buf or not vim.api.nvim_buf_is_valid(S.buf) then
-    fail("no agenda was built (are agenda_files set? see --files)")
+    fail("no agenda was built (are agenda_files set? see --files)", "failed")
   end
-  return S, label
+  return S, label, key
 end
 
 --- JSON data of the items of the agenda view `S`.
@@ -414,19 +815,24 @@ function M.agenda_items(S)
     local it = S.line_items[l]
     if it then
       local hl = it.headline
+      local d = it.day or (type(it.date) == "table" and it.date.days and it.date:days()) or (hl and day) or nil
+      local extra = it.extra and vim.trim(it.extra) ~= "" and vim.trim(it.extra) or nil
       items[#items + 1] = {
-        date = iso_day(it.day or (it.date and it.date.days and it.date:days()) or (hl and day) or nil),
-        time = hm(it.time),
-        end_time = hm(it.end_time),
-        type = it.ts_type or it.type,
-        todo = it.todo,
-        priority = it.priority,
-        title = hl and hl:plain_title() or it.title,
+        date = data.iso_day(d),
+        time = data.hm(it.time),
+        end_time = data.hm(it.end_time),
+        type = data.nn(it.ts_type or it.type),
+        todo = data.nn(it.todo),
+        priority = data.nn(it.priority),
+        title = hl and hl:plain_title() or it.title or "",
         tags = it.tags or {},
-        category = it.category,
-        file = it.filename,
-        line = it.lnum,
-        extra = it.extra and vim.trim(it.extra) ~= "" and vim.trim(it.extra) or nil,
+        category = data.nn(it.category),
+        file = data.path(it.filename),
+        line = data.nn(it.lnum),
+        id = hl and data.nn(hl.properties.ID) or vim.NIL,
+        level = data.nn(it.level),
+        timestamp = data.timestamp(it.date),
+        extra = data.nn(extra),
         done = it.done or false,
         text = vim.trim(line),
       }
@@ -436,26 +842,398 @@ function M.agenda_items(S)
 end
 
 function M.cmd_agenda(words, flags)
-  local S, label = open_agenda(words, flags)
+  local S, label, key = open_agenda(words, flags)
   if flags.csv then
-    for _, l in ipairs(require("org.agenda.export").csv_lines()) do
-      out(l)
+    if state.machine then
+      fail("--csv and --json/--jsonl exclude each other", "usage")
     end
-    return 0
+    return { text = require("org.agenda.export").csv_lines() }
   end
-  if flags.json then
+  if state.machine then
     local first, last
     for _, d in pairs(S.day_lines or {}) do
       first = math.min(first or d, d)
       last = math.max(last or d, d)
     end
-    json({ view = label, start = iso_day(first), ["end"] = iso_day(last), items = M.agenda_items(S) })
-    return 0
+    local items = M.agenda_items(S)
+    return {
+      data = { view = label, key = key, start = data.iso_day(first), ["end"] = data.iso_day(last), items = items },
+      stream = items,
+    }
   end
+  local text = {}
   for _, l in ipairs(vim.api.nvim_buf_get_lines(S.buf, 0, -1, false)) do
-    out((l:gsub("%s+$", "")))
+    text[#text + 1] = (l:gsub("%s+$", ""))
   end
-  return 0
+  return { text = text }
+end
+
+---------------------------------------------------------------------------
+-- search, headlines, show
+---------------------------------------------------------------------------
+
+local function headline_result(hls, limit)
+  if limit and #hls > limit then
+    hls = vim.list_slice(hls, 1, limit)
+  end
+  local list = vim.tbl_map(data.headline, hls)
+  local text = vim.tbl_map(headline_line, hls)
+  return { data = list, text = text, code = #hls > 0 and 0 or 1 }
+end
+
+local function match_predicate(match)
+  local pred, e = require("org.agenda.search").try_compile(match)
+  if not pred then
+    fail("bad match " .. match .. ": " .. tostring(e), "bad_value", { match = match })
+  end
+  return pred
+end
+
+function M.cmd_search(words, flags)
+  local query = table.concat(words, " ")
+  local limit = int_flag(flags, "limit")
+  local hls = {}
+  if flags.match then
+    local pred = match_predicate(flags.match)
+    require("org.agenda.items").each_headline(require("org.files").agenda_files(), {}, function(hl)
+      if pred(hl) and (query == "" or hl:plain_title():lower():find(query:lower(), 1, true)) then
+        hls[#hls + 1] = hl
+      end
+    end)
+    return headline_result(hls, limit)
+  end
+  if query == "" then
+    fail("search needs a query (or --match MATCH)", "usage")
+  end
+  if require("org.extensions").enabled("ql") then
+    local ok, res = pcall(require("org.extensions.ql").select, "agenda", query)
+    if not ok then
+      fail("bad query: " .. tostring(res), "bad_value", { query = query })
+    end
+    hls = res
+  else
+    require("org.agenda").open({ type = "search", match = query })
+    local S = require("org.agenda.view").state
+    local seen = {}
+    local lnums = vim.tbl_keys(S.line_items or {})
+    table.sort(lnums)
+    for _, l in ipairs(lnums) do
+      local hl = S.line_items[l].headline
+      if hl and not seen[hl] then
+        seen[hl] = true
+        hls[#hls + 1] = hl
+      end
+    end
+  end
+  return headline_result(hls, limit)
+end
+
+--- A `FROM..TO` day range (either side optional; a single date is that
+--- day), `any` or `none`, as a predicate on a timestamp (or nil).
+local function date_range(spec, flag)
+  local date = require("org.date")
+  if spec == "any" then
+    return function(ts)
+      return ts ~= nil
+    end
+  elseif spec == "none" then
+    return function(ts)
+      return ts == nil
+    end
+  end
+  local a, b = spec:match("^(.-)%.%.(.-)$")
+  if not a then
+    a, b = spec, spec
+  end
+  local function day(s)
+    s = vim.trim(s)
+    if s == "" then
+      return nil
+    end
+    local d = date.read_date(s, date.today())
+    if not d then
+      fail(string.format("%s: cannot read date %s", flag, s), "bad_value", { date = s })
+    end
+    return d:days()
+  end
+  local from, to = day(a), day(b)
+  return function(ts)
+    if not ts then
+      return false
+    end
+    local n = ts:days()
+    return (not from or n >= from) and (not to or n <= to)
+  end
+end
+
+local function level_range(spec)
+  local a, b = spec:match("^(%d*)%.%.(%d*)$")
+  if not a then
+    a = spec:match("^(%d+)$")
+    b = a
+  end
+  if not a then
+    fail("--level needs N or FROM..TO, not " .. spec, "bad_value")
+  end
+  local from, to = tonumber(a), tonumber(b)
+  return function(n)
+    return (not from or n >= from) and (not to or n <= to)
+  end
+end
+
+--- A predicate on headlines from the filters of `org headlines`.
+function M.headline_filter(flags)
+  local preds = {}
+  if #flags.todo > 0 then
+    local want = flags.todo
+    preds[#preds + 1] = function(hl)
+      for _, w in ipairs(want) do
+        if
+          (w == "any" and hl.todo)
+          or (w == "open" and hl:is_todo())
+          or (w == "done" and hl:is_done())
+          or (w == "none" and not hl.todo)
+          or hl.todo == w
+        then
+          return true
+        end
+      end
+      return false
+    end
+  end
+  for _, t in ipairs(flags.tag) do
+    preds[#preds + 1] = function(hl)
+      return vim.tbl_contains(hl:get_tags(), t)
+    end
+  end
+  for _, p in ipairs(flags.property) do
+    local name, value = p:match("^([^=]+)=(.*)$")
+    name = (name or p):upper()
+    preds[#preds + 1] = function(hl)
+      -- inherited per use_property_inheritance, like a property match
+      local v = hl:get_property(name)
+      if value then
+        return v == value
+      end
+      return v ~= nil
+    end
+  end
+  if flags.level then
+    local ok = level_range(flags.level)
+    preds[#preds + 1] = function(hl)
+      return ok(hl.level)
+    end
+  end
+  for _, kind in ipairs({ "scheduled", "deadline" }) do
+    if flags[kind] then
+      local ok = date_range(flags[kind], "--" .. kind)
+      preds[#preds + 1] = function(hl)
+        return ok(hl.planning[kind])
+      end
+    end
+  end
+  if flags.match then
+    preds[#preds + 1] = match_predicate(flags.match)
+  end
+  return function(hl)
+    for _, p in ipairs(preds) do
+      if not p(hl) then
+        return false
+      end
+    end
+    return true
+  end
+end
+
+function M.cmd_headlines(words, flags)
+  local files
+  if #words > 0 then
+    files = {}
+    for _, w in ipairs(words) do
+      local p = arg_path(w)
+      local f = vim.fn.filereadable(p) == 1 and require("org.files").get(p) or nil
+      if not f then
+        fail("no such file: " .. p, "bad_value", { file = p })
+      end
+      files[#files + 1] = f
+    end
+  else
+    files = require("org.files").agenda_files()
+  end
+  if #flags.file > 0 then
+    local sel, seen = {}, {}
+    for _, name in ipairs(flags.file) do
+      local named = files_named(name, files)
+      if #named == 0 then
+        fail("no agenda file " .. name, "bad_value", { file = name })
+      end
+      for _, f in ipairs(named) do
+        if not seen[f] then
+          seen[f] = true
+          sel[#sel + 1] = f
+        end
+      end
+    end
+    files = sel
+  end
+  local pred = M.headline_filter(flags)
+  local hls = {}
+  require("org.agenda.items").each_headline(files, { all = flags.archived or false }, function(hl)
+    if pred(hl) then
+      hls[#hls + 1] = hl
+    end
+  end)
+  return headline_result(hls, int_flag(flags, "limit"))
+end
+
+function M.cmd_show(words, flags)
+  local hl = M.resolve_target(table.concat(words, " "), flags)
+  local entry = data.entry(hl, { children = flags.children })
+  local text = { headline_line(hl) }
+  local function ts(label, t)
+    if t then
+      text[#text + 1] = label .. t:to_string()
+    end
+  end
+  ts("  SCHEDULED: ", hl.planning.scheduled)
+  ts("  DEADLINE: ", hl.planning.deadline)
+  ts("  CLOSED: ", hl.planning.closed)
+  local keys = vim.tbl_keys(hl.properties)
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    text[#text + 1] = "  :" .. k .. ": " .. hl.properties[k]
+  end
+  if entry.clock.count > 0 then
+    text[#text + 1] = "  clocked: " .. entry.clock.total .. " (" .. entry.clock.count .. " clocks)"
+  end
+  if entry.body ~= "" then
+    text[#text + 1] = ""
+    vim.list_extend(text, vim.split(entry.body, "\n", { plain = true }))
+  end
+  return { data = entry, text = text }
+end
+
+---------------------------------------------------------------------------
+-- templates, files, tags, keywords
+---------------------------------------------------------------------------
+
+function M.cmd_templates()
+  local capture = require("org.capture")
+  local templates = capture.templates()
+  local keys = vim.tbl_keys(templates)
+  table.sort(keys)
+  local list, text = {}, {}
+  for _, k in ipairs(keys) do
+    local t = templates[k]
+    local group = type(t) ~= "table"
+    local desc = type(t) == "table" and t.description or (type(t) == "string" and t) or ""
+    local target = vim.NIL
+    if not group then
+      local ok, p = pcall(capture.target_path, t)
+      target = ok and data.path(p) or vim.NIL
+    end
+    list[#list + 1] = {
+      key = k,
+      description = desc,
+      type = group and vim.NIL or (t.type or "entry"),
+      target = target,
+      group = group,
+    }
+    text[#text + 1] = k .. "\t" .. desc .. (group and " (group)" or "")
+  end
+  return { data = list, text = text }
+end
+
+function M.cmd_files()
+  local list, text = {}, {}
+  for _, f in ipairs(require("org.files").agenda_files()) do
+    list[#list + 1] = {
+      file = data.path(f.filename),
+      title = data.nn(f:title()),
+      category = data.nn(f:category()),
+      headlines = #f.headlines,
+    }
+    text[#text + 1] = f.filename
+  end
+  return { data = list, text = text }
+end
+
+function M.cmd_tags()
+  local counts, defined = {}, {}
+  local tags = require("org.tags")
+  local function define(defs)
+    for _, d in ipairs(defs or {}) do
+      if type(d) == "table" and d.name and not d.name:match("^[{}]") then
+        defined[d.name] = true
+      end
+    end
+  end
+  pcall(function()
+    define(tags.option_definitions())
+  end)
+  for _, f in ipairs(require("org.files").agenda_files()) do
+    pcall(function()
+      define(f:tag_definitions())
+    end)
+    for _, t in ipairs(f.settings.filetags or {}) do
+      counts[t] = (counts[t] or 0) + 1
+    end
+    for _, hl in ipairs(f.headlines) do
+      for _, t in ipairs(hl.tags) do
+        counts[t] = (counts[t] or 0) + 1
+      end
+    end
+  end
+  local names = {}
+  for k in pairs(counts) do
+    names[#names + 1] = k
+  end
+  for k in pairs(defined) do
+    if not counts[k] then
+      names[#names + 1] = k
+    end
+  end
+  table.sort(names)
+  local list, text = {}, {}
+  for _, n in ipairs(names) do
+    list[#list + 1] = { name = n, count = counts[n] or 0, defined = defined[n] or false }
+    text[#text + 1] = string.format("%s\t%d", n, counts[n] or 0)
+  end
+  return { data = list, text = text }
+end
+
+function M.cmd_keywords()
+  local cfg = require("org.todo_keywords").global()
+  local sequences, todo, done = {}, {}, {}
+  for _, seq in ipairs(cfg.sequences) do
+    local s = {}
+    for _, kw in ipairs(seq) do
+      s[#s + 1] = { name = kw.name, done = kw.done or false, key = data.nn(kw.key) }
+      table.insert(kw.done and done or todo, kw.name)
+    end
+    sequences[#sequences + 1] = s
+  end
+  local o = require("org.config").opts
+  local priority = {
+    highest = tostring(o.priority_highest),
+    lowest = tostring(o.priority_lowest),
+    default = tostring(o.priority_default),
+  }
+  local text = {}
+  for _, s in ipairs(sequences) do
+    local parts = {}
+    local bar = false
+    for _, kw in ipairs(s) do
+      if kw.done and not bar then
+        parts[#parts + 1] = "|"
+        bar = true
+      end
+      parts[#parts + 1] = kw.name
+    end
+    text[#text + 1] = table.concat(parts, " ")
+  end
+  text[#text + 1] = string.format("priorities: %s-%s (default %s)", priority.highest, priority.lowest, priority.default)
+  return { data = { sequences = sequences, todo = todo, done = done, priority = priority }, text = text }
 end
 
 ---------------------------------------------------------------------------
@@ -469,7 +1247,7 @@ function M.capture_template(key)
   local capture = require("org.capture")
   local tpl = capture.get_template(key)
   if not tpl then
-    fail("no capture template " .. key .. " (org capture --list)", 2)
+    fail("no capture template " .. key .. " (org templates)", "bad_value", { template = key })
   end
   tpl.immediate_finish = true
   tpl.jump_to_captured = false
@@ -506,64 +1284,132 @@ local function default_template_key()
   end
   table.sort(keys)
   if #keys == 0 then
-    fail("no capture templates", 2)
+    fail("no capture templates", "bad_value")
   end
   return keys[1]
+end
+
+local function read_stdin()
+  return io.stdin:read("*a") or ""
+end
+M.read_stdin = function()
+  return read_stdin()
+end
+
+--- `NAME=VALUE` pairs of `--field` (and an `--input` object's `fields`)
+--- as prompt answers, by lowercased name.
+local function set_answers(fields, input_fields)
+  for k, v in pairs(input_fields or {}) do
+    state.answers[tostring(k):lower()] = tostring(v)
+  end
+  for _, f in ipairs(fields or {}) do
+    local k, v = f:match("^([^=]+)=(.*)$")
+    if not k then
+      fail("--field needs NAME=VALUE, not " .. f, "bad_value", { field = f })
+    end
+    state.answers[vim.trim(k):lower()] = v
+  end
 end
 
 function M.cmd_capture(words, flags)
   local capture = require("org.capture")
   if flags.list then
-    local templates = capture.templates()
-    local keys = vim.tbl_keys(templates)
-    table.sort(keys)
-    local list = {}
-    for _, k in ipairs(keys) do
-      local t = templates[k]
-      local desc = type(t) == "table" and t.description or (type(t) == "string" and t) or ""
-      list[#list + 1] = { key = k, description = desc, group = type(t) ~= "table" or nil }
-    end
-    if flags.json then
-      json(list)
-    else
-      for _, t in ipairs(list) do
-        out(t.key .. "\t" .. t.description .. (t.group and " (group)" or ""))
-      end
-    end
-    return 0
+    return M.cmd_templates()
   end
+  local input = {}
+  if flags.input then
+    local text = flags.input == "-" and M.read_stdin() or nil
+    if not text then
+      local p = arg_path(flags.input)
+      local lines = vim.fn.filereadable(p) == 1 and vim.fn.readfile(p) or nil
+      if not lines then
+        fail("no such file: " .. p, "bad_value", { file = p })
+      end
+      text = table.concat(lines, "\n")
+    end
+    local ok, obj = pcall(vim.json.decode, text, { luanil = { object = true, array = true } })
+    if not ok or type(obj) ~= "table" or vim.islist(obj) and next(obj) ~= nil then
+      fail("--input needs a JSON object { template, text, fields }", "bad_value")
+    end
+    input = obj
+  end
+  set_answers(flags.field, type(input.fields) == "table" and input.fields or nil)
   local text = table.concat(words, " ")
   if text == "-" then
-    text = io.stdin:read("*a") or ""
+    text = M.read_stdin()
+  elseif text == "" and input.text then
+    text = tostring(input.text)
   end
   text = vim.trim(text)
-  if text == "" then
-    fail("nothing to capture (org capture [-t KEY] TEXT)", 2)
+  local key = flags.template or input.template or default_template_key()
+  local tpl = M.capture_template(tostring(key))
+  local prompts = type(tpl.template) == "string" and tpl.template:find("%^", 1, true)
+  if text == "" and next(state.answers) == nil and not prompts then
+    fail("nothing to capture (org capture [-t KEY] TEXT)", "usage")
   end
-  local tpl = M.capture_template(flags.template or default_template_key())
-  local done, bufnr, line
+  local ok_target, target = pcall(capture.target_path, tpl)
+  if ok_target and target then
+    M.guard(target, flags)
+  end
+  -- The template's prompts are answered by their names as the template
+  -- writes them (%^{Size [cm]} by "Size [cm]"), ignoring case; any other
+  -- prompt through `ask`, by its question.
+  local answers = setmetatable({}, {
+    __index = function(_, k)
+      return type(k) == "string" and state.answers[k:lower()] or nil
+    end,
+  })
+  M.mark_messages()
+  local done, bufnr, line, stored
   local co = coroutine.create(function()
-    bufnr, line = capture.capture(tpl, { initial = text })
+    bufnr, line, stored = capture.capture(tpl, { initial = text, answers = answers })
     done = true
   end)
   local ok, e = coroutine.resume(co)
   if not ok then
     error(e, 0)
   end
-  if not done or state.prompted then
-    fail("interactive input needed (" .. (state.prompted or "template") .. "); not available in the CLI", 3)
+  if not done then
+    vim.wait(5000, function()
+      return done or state.prompted ~= nil
+    end, 10)
   end
-  if not bufnr then
-    fail("capture failed")
+  M.check_prompted()
+  if not done or not bufnr then
+    M.fail_with_messages("capture failed")
   end
-  save_all()
-  local path = vim.api.nvim_buf_get_name(bufnr)
-  if flags.json then
-    json({ file = path, line = line, template = tpl.key })
-  else
-    out(string.format("Captured to %s:%d", short_path(path), line or 0))
+  -- a template's kill_buffer wipes the buffer the entry went to: it's
+  -- saved, so read it back from its file
+  if not (vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)) then
+    if not stored then
+      M.fail_with_messages("capture failed")
+    end
+    bufnr = require("org.utils").load_buffer(stored)
   end
-  return 0
+  local hl = (tpl.type or "entry") == "entry" and M.headline_at(bufnr, line) or nil
+  local id
+  if hl then
+    id = hl.properties.ID
+    if flags.id and not id then
+      id = require("org.id").get_create({ bufnr = bufnr, lnum = hl.line })
+      hl = M.headline_at(bufnr, hl.line)
+    end
+  end
+  -- the capture saved its target itself: a running Neovim rereads it too
+  state.touched = true
+  M.save_all(flags)
+  local path = data.path(vim.api.nvim_buf_get_name(bufnr))
+  return {
+    data = {
+      file = path,
+      line = line,
+      template = tpl.key or tostring(key),
+      type = tpl.type or "entry",
+      id = data.nn(id),
+      headline = hl and data.headline(hl) or vim.NIL,
+    },
+    text = { string.format("Captured to %s:%d", short_path(path), line or 0) },
+  }
 end
 
 ---------------------------------------------------------------------------
@@ -578,31 +1424,57 @@ function M.clock_data()
   if not st then
     return nil
   end
-  local start = date.parse(st.start)
+  local start = date.parse(st.start) or date.parse("[" .. tostring(st.start) .. "]")
   local minutes = start and date.elapsed_minutes(start, date.now()) or 0
   local title = st.title or ""
+  local line, id = vim.NIL, vim.NIL
+  local ok, bufnr, lnum = pcall(clock.find_open_clock)
+  if ok and bufnr and lnum then
+    local hl = M.headline_at(bufnr, lnum)
+    if hl then
+      line, id = hl.line, data.nn(hl.properties.ID)
+    end
+  end
   return {
     active = true,
     title = title,
-    file = st.path,
+    file = data.path(st.path),
+    line = line,
+    id = id,
     start = st.start,
+    start_iso = start and data.iso(start) or vim.NIL,
     minutes = minutes,
     elapsed = date.duration_to_string(minutes),
     total = (st.total or 0) + minutes,
-    effort = st.effort,
+    effort = data.nn(st.effort),
   }
 end
+
+local NO_CLOCK = {
+  active = false,
+  title = vim.NIL,
+  file = vim.NIL,
+  line = vim.NIL,
+  id = vim.NIL,
+  start = vim.NIL,
+  start_iso = vim.NIL,
+  minutes = vim.NIL,
+  elapsed = vim.NIL,
+  total = vim.NIL,
+  effort = vim.NIL,
+}
 
 --- Expand a `--format` string: %t title, %e elapsed, %T total (with past
 --- clocks), %E effort, %f file, %s start, %% a percent sign.
 function M.format_clock(fmt, c)
   local date = require("org.date")
+  local effort = c.effort ~= vim.NIL and c.effort or nil
   local map = {
     t = c.title,
     e = c.elapsed,
     T = date.duration_to_string(c.total or c.minutes),
-    E = c.effort and date.duration_to_string(c.effort) or "",
-    f = short_path(c.file) or "",
+    E = effort and date.duration_to_string(effort) or "",
+    f = c.file ~= vim.NIL and short_path(c.file) or "",
     s = c.start or "",
     ["%"] = "%",
   }
@@ -611,271 +1483,392 @@ function M.format_clock(fmt, c)
   end))
 end
 
---- Headlines of the agenda files matching `query`: an `id:` or ID, a ql
---- query when ql is enabled, else a case-insensitive title substring (an
---- exact title wins).
----
---- Also `FILE::HEADING` (a file of the agenda, by path or name, and a
---- title in it, `*` stars allowed, as in an org link), and a bare ID.
-function M.find_headlines(query)
-  local files = require("org.files").agenda_files()
-  local items = require("org.agenda.items")
-  query = vim.trim(query)
-  local id = query:match("^id:(.+)$")
-  local file_part, head_part = query:match("^(.-)::%**%s*(.+)$")
-  if file_part and file_part ~= "" then
-    -- lint: allow expand: a command-line argument
-    local want = vim.fn.fnamemodify(vim.fn.expand(file_part), ":p")
-    local sel = {}
-    for _, f in ipairs(files) do
-      local name = f.filename
-      local tail = vim.fn.fnamemodify(name, ":t")
-      if name == want or vim.fn.resolve(name) == vim.fn.resolve(want) or tail == file_part then
-        sel[#sel + 1] = f
-      elseif vim.fn.fnamemodify(tail, ":r") == file_part then
-        sel[#sel + 1] = f
-      end
-    end
-    files, query = sel, head_part
+function M.cmd_clock_status(_, flags)
+  local c = M.clock_data()
+  local text
+  if flags.format or flags.short then
+    text = c and { M.format_clock(flags.format or cli_opts().status_format, c) } or {}
+  elseif c then
+    text = { string.format("%s  %s  (%s)", c.elapsed, c.title, short_path(c.file)) }
+  else
+    text = { "No running clock" }
   end
-  local found, exact, by_id = {}, {}, {}
-  if not id and not file_part and require("org.extensions").enabled("ql") then
-    local ok, res = pcall(require("org.extensions.ql").select, files, query)
-    if ok and #res > 0 then
-      return res
-    end
-  end
-  local q = query:lower()
-  items.each_headline(files, { all = true }, function(hl)
-    if id then
-      if hl.properties.ID == id then
-        found[#found + 1] = hl
-      end
-    else
-      local t = hl:plain_title():lower()
-      if hl.properties.ID == query then
-        by_id[#by_id + 1] = hl
-      elseif t == q then
-        exact[#exact + 1] = hl
-      elseif t:find(q, 1, true) then
-        found[#found + 1] = hl
-      end
-    end
-  end)
-  return #by_id > 0 and by_id or #exact > 0 and exact or found
+  return { data = c or NO_CLOCK, text = text }
 end
 
-function M.cmd_clock(words, flags)
-  local sub = words[1] or "status"
+function M.cmd_clock_in(words, flags)
   local clock = require("org.clock")
-  if sub == "status" then
-    local c = M.clock_data()
-    if flags.json then
-      json(c or { active = false })
-    elseif flags.format or flags.short then
-      if c then
-        out(M.format_clock(flags.format or cli_opts().status_format, c))
-      end
-    elseif c then
-      out(string.format("%s  %s  (%s)", c.elapsed, c.title, short_path(c.file)))
-    else
-      out("No running clock")
-    end
-    return 0
-  elseif sub == "in" then
-    local query = table.concat(words, " ", 2)
-    if query == "" then
-      fail("clock in needs a heading: org clock in QUERY", 2)
-    end
-    local hls = M.find_headlines(query)
-    local pick = flags.pick and tonumber(flags.pick)
-    if flags.pick and not (pick and hls[pick]) then
-      if #hls == 0 then
-        fail("no heading matches " .. query, 1)
-      end
-      fail(string.format("--pick %s: pick 1 to %d", flags.pick, #hls), 2)
-    end
-    if #hls == 0 then
-      fail("no heading matches " .. query, 1)
-    elseif #hls > 1 and not pick then
-      local lines = { "several headings match " .. query .. " (org clock in --pick N ...):" }
-      for i, hl in ipairs(hls) do
-        lines[#lines + 1] = string.format("%3d  %s", i, headline_line(hl))
-      end
-      fail(table.concat(lines, "\n"), 1)
-    end
-    local hl = hls[pick or 1]
-    clock.restore()
-    local bufnr = load_buffer(hl.file.filename)
-    local target = require("org.files").get_buffer(bufnr):headline_at(hl.line)
-    local st = clock.clock_in({ bufnr = bufnr, lnum = target and target.line or hl.line }, { no_count = true })
-    if not st then
-      fail("could not clock in")
-    end
-    save_all()
-    touch_clock_stamp()
-    if flags.json then
-      json(M.clock_data() or { active = false })
-    else
-      out("Clocked in: " .. hl:plain_title())
-    end
-    return 0
-  elseif sub == "out" or sub == "cancel" then
-    local c = M.clock_data()
-    if not c then
-      if flags.json then
-        json({ active = false })
-      else
-        out("No running clock")
-      end
-      return 1
-    end
-    local minutes
-    if sub == "out" then
-      minutes = clock.clock_out({ note = false })
-    else
-      clock.clock_cancel()
-    end
-    save_all()
-    touch_clock_stamp()
-    if flags.json then
-      json({ active = false, title = c.title, file = c.file, minutes = minutes, canceled = sub == "cancel" })
-    elseif sub == "out" then
-      out(string.format("Clocked out: %s (%s)", c.title, require("org.date").duration_to_string(minutes or 0)))
-    else
-      out("Clock canceled: " .. c.title)
-    end
-    return 0
-  end
-  fail("unknown clock command " .. sub .. " (status, in, out, cancel)", 2)
-end
-
----------------------------------------------------------------------------
--- search
----------------------------------------------------------------------------
-
-function M.cmd_search(words, flags)
   local query = table.concat(words, " ")
   if query == "" then
-    fail("search needs a query", 2)
+    fail("clock in needs a heading: org clock in TARGET", "usage")
   end
-  local hls = {}
-  if require("org.extensions").enabled("ql") then
-    local ok, res = pcall(require("org.extensions.ql").select, "agenda", query)
-    if not ok then
-      fail("bad query: " .. tostring(res), 2)
+  local hl = M.resolve_target(query, flags)
+  -- clocking in clocks out of the running clock, in its file: that file
+  -- is checked too before anything changes
+  local running = clock.restore()
+  if running and running.path and running.path ~= "" then
+    M.guard(running.path, flags)
+  end
+  local bufnr, lnum = M.open_target(hl, flags)
+  M.mark_messages()
+  local st = clock.clock_in({ bufnr = bufnr, lnum = lnum }, { no_count = true })
+  if not st then
+    M.fail_with_messages("could not clock in")
+  end
+  M.save_all(flags)
+  touch_stamp()
+  return { data = M.clock_data() or NO_CLOCK, text = { "Clocked in: " .. hl:plain_title() } }
+end
+
+local function clock_stop(cancel, flags)
+  local clock = require("org.clock")
+  local c = M.clock_data()
+  if not c then
+    if state.machine then
+      fail("no running clock", "no_clock")
     end
-    hls = res
+    return { text = { "No running clock" }, code = 1 }
+  end
+  if c.file ~= vim.NIL then
+    M.guard(c.file, flags)
+  end
+  local minutes
+  if cancel then
+    clock.clock_cancel()
   else
-    require("org.agenda").open({ type = "search", match = query })
-    local S = require("org.agenda.view").state
-    local seen = {}
-    local lnums = vim.tbl_keys(S.line_items or {})
-    table.sort(lnums)
-    for _, l in ipairs(lnums) do
-      local hl = S.line_items[l].headline
-      if hl and not seen[hl] then
-        seen[hl] = true
-        hls[#hls + 1] = hl
-      end
-    end
+    minutes = clock.clock_out({ note = false })
   end
-  if flags.json then
-    json(vim.tbl_map(headline_data, hls))
+  M.save_all(flags)
+  touch_stamp()
+  local text
+  if cancel then
+    text = { "Clock canceled: " .. c.title }
   else
-    for _, hl in ipairs(hls) do
-      out(headline_line(hl))
-    end
+    text = { string.format("Clocked out: %s (%s)", c.title, data.duration(minutes)) }
   end
-  return #hls > 0 and 0 or 1
+  return {
+    data = {
+      active = false,
+      title = c.title,
+      file = c.file,
+      minutes = data.nn(minutes),
+      duration = minutes and data.duration(minutes) or vim.NIL,
+      canceled = cancel,
+    },
+    text = text,
+  }
+end
+
+function M.cmd_clock_out(_, flags)
+  return clock_stop(false, flags)
+end
+
+function M.cmd_clock_cancel(_, flags)
+  return clock_stop(true, flags)
 end
 
 ---------------------------------------------------------------------------
 -- export
 ---------------------------------------------------------------------------
 
+--- Stop the export at a code block that would ask before it runs
+--- (`babel.confirm_evaluate`, `:eval query`): nothing is exported, as in
+--- Emacs's batch export, and the command fails with `input_needed`. The
+--- before-parsing hooks run right after the blocks are evaluated, and an
+--- export that fails there writes nothing.
+local function stop_export_at_prompt()
+  local o = require("org.config").opts.export
+  o.hooks = o.hooks or {}
+  local before = o.hooks.before_parsing
+  local list = type(before) == "table" and vim.list_slice(before) or { before }
+  table.insert(list, 1, function()
+    M.check_prompted()
+  end)
+  o.hooks.before_parsing = list
+end
+
 function M.cmd_export(words, flags)
   local file, backend = words[1], words[2]
   if not file or not backend then
-    fail("usage: org export FILE BACKEND [-o OUTPUT|--stdout]", 2)
+    fail("usage: org export FILE BACKEND [-o OUTPUT|--stdout]", "usage")
   end
-  -- lint: allow expand: a command-line argument
-  file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(file), ":p"))
+  file = arg_path(file)
   if vim.fn.filereadable(file) == 0 then
-    fail("no such file: " .. file, 2)
+    fail("no such file: " .. file, "bad_value", { file = file })
   end
   local export = require("org.export")
   local bufnr = load_buffer(file)
   vim.api.nvim_set_current_buf(bufnr)
+  stop_export_at_prompt()
+  M.mark_messages()
   if flags.stdout or flags.output == "-" then
     local ok, text = pcall(export.to_string, backend, { bufnr = bufnr })
+    M.check_prompted()
     if not ok then
-      fail(tostring(text), 1)
+      fail(tostring(text), "failed")
     end
-    M.stdout(text:sub(-1) == "\n" and text or (text .. "\n"))
-    return 0
+    return {
+      data = { file = file, backend = backend, output = vim.NIL, text = text },
+      raw = text:sub(-1) == "\n" and text or (text .. "\n"),
+    }
   end
-  -- lint: allow expand: a command-line argument
-  local output = flags.output and vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(flags.output), ":p")) or nil
+  local output = flags.output and arg_path(flags.output) or nil
   local res = export.export(backend, { bufnr = bufnr, output = output, async = false })
   if not res then
-    fail("export failed")
+    M.fail_with_messages("export failed")
   end
-  out(vim.fs.normalize(res))
-  return 0
+  M.check_prompted()
+  res = vim.fs.normalize(res)
+  return { data = { file = file, backend = backend, output = data.path(res), text = vim.NIL }, text = { res } }
+end
+
+---------------------------------------------------------------------------
+-- schema, help, version
+---------------------------------------------------------------------------
+
+function M.cmd_schema(words)
+  local name = #words > 0 and table.concat(words, " ") or nil
+  local doc = schema.describe(name)
+  if not doc then
+    fail("unknown command " .. name, "unknown_command", { command = name })
+  end
+  return { data = doc, raw = vim.json.encode(doc) .. "\n" }
+end
+
+function M.cmd_version()
+  local v = require("org.version").release
+  return { data = { version = v }, text = { "org.nvim " .. v } }
 end
 
 ---------------------------------------------------------------------------
 -- main
 ---------------------------------------------------------------------------
 
+local function write_cmd(name)
+  return function(...)
+    return require("org.extensions.cli.write")[name](...)
+  end
+end
+
+--- Command name (as in `schema.COMMANDS`) -> function(words, flags)
+--- returning { data, text, raw, stream, code }.
 M.COMMANDS = {
   agenda = M.cmd_agenda,
-  capture = M.cmd_capture,
-  clock = M.cmd_clock,
   search = M.cmd_search,
+  headlines = M.cmd_headlines,
+  show = M.cmd_show,
+  id = write_cmd("cmd_id"),
+  ["clock status"] = M.cmd_clock_status,
+  ["clock in"] = M.cmd_clock_in,
+  ["clock out"] = M.cmd_clock_out,
+  ["clock cancel"] = M.cmd_clock_cancel,
+  templates = M.cmd_templates,
+  files = M.cmd_files,
+  tags = M.cmd_tags,
+  keywords = M.cmd_keywords,
+  capture = M.cmd_capture,
+  ["set todo"] = write_cmd("cmd_set_todo"),
+  ["set tags"] = write_cmd("cmd_set_tags"),
+  ["set priority"] = write_cmd("cmd_set_priority"),
+  ["set property"] = write_cmd("cmd_set_property"),
+  ["set scheduled"] = write_cmd("cmd_set_scheduled"),
+  ["set deadline"] = write_cmd("cmd_set_deadline"),
+  note = write_cmd("cmd_note"),
+  refile = write_cmd("cmd_refile"),
+  archive = write_cmd("cmd_archive"),
   export = M.cmd_export,
+  schema = M.cmd_schema,
+  version = M.cmd_version,
 }
 
+--- The command `words` start with: its schema entry and the remaining
+--- words. `clock` alone is `clock status`.
+local function find_command(words)
+  local first = words[1]
+  if first == "clock" and (words[2] == nil or not schema.BY_COMMAND["clock " .. words[2]]) then
+    if words[2] ~= nil then
+      fail("unknown clock command " .. words[2] .. " (status, in, out, cancel)", "usage", { command = "clock" })
+    end
+    return schema.BY_COMMAND["clock status"], {}
+  end
+  if first == "set" then
+    local c = words[2] and schema.BY_COMMAND["set " .. words[2]]
+    if not c then
+      fail("set needs what to set: todo, tags, priority, property, scheduled or deadline", "usage", { command = "set" })
+    end
+    return c, vim.list_slice(words, 3)
+  end
+  local two = words[2] and schema.BY_COMMAND[first .. " " .. words[2]]
+  if two then
+    return two, vim.list_slice(words, 3)
+  end
+  local c = schema.BY_COMMAND[first]
+  if not c then
+    fail("unknown command " .. tostring(first) .. " (see org help)", "unknown_command", { command = first })
+  end
+  return c, vim.list_slice(words, 2)
+end
+
+--- The message for words a command has no argument for: nothing is ever
+--- dropped (a TARGET of several words followed by other arguments has
+--- to be quoted).
+local function too_many(cmd, rest, max)
+  local extra = table.concat(vim.list_slice(rest, max + 1), " ")
+  if max == 0 then
+    return string.format("%s takes no arguments, not %s", cmd.name, extra)
+  end
+  local names = vim.tbl_map(function(a)
+    return a.name:upper()
+  end, cmd.args)
+  local msg = string.format("%s takes %s, not also %s", cmd.name, table.concat(names, " "), extra)
+  if cmd.args[1].name == "target" then
+    msg = msg .. " (quote a TARGET of several words)"
+  end
+  return msg
+end
+
+--- The JSON envelope.
+local function envelope(command, ok, payload, errors)
+  return {
+    version = schema.VERSION,
+    ok = ok,
+    command = command or vim.NIL,
+    data = payload == nil and vim.NIL or payload,
+    warnings = state.warnings,
+    errors = errors or {},
+  }
+end
+
+local function emit(command, res, flags)
+  if flags.jsonl then
+    local stream = res.stream or (type(res.data) == "table" and vim.islist(res.data) and res.data) or nil
+    if stream then
+      for _, v in ipairs(stream) do
+        out(vim.json.encode(v))
+      end
+    else
+      out(vim.json.encode(res.data == nil and vim.NIL or res.data))
+    end
+  else
+    out(vim.json.encode(envelope(command, true, res.data)))
+  end
+end
+
 --- Run the CLI. Returns the exit code: 0 ok, 1 failure (or nothing
---- found), 2 usage error, 3 input would be needed.
+--- found), 2 usage error, 3 input would be needed, 4 file busy.
 ---@param argv string[]
 ---@return integer
 function M.main(argv)
+  reset_state()
+  local command
+  local saved_write = io.write
   local ok, code = pcall(function()
+    -- a quick look for --json, so that argument errors are JSON too
+    for _, a in ipairs(argv or {}) do
+      if a == "--" then
+        break
+      end
+      if a == "--json" or a == "--jsonl" then
+        state.machine = true
+        state.jsonl = a == "--jsonl"
+      end
+    end
     local flags, words = M.parse_args(argv or {})
     state.quiet = flags.quiet or false
     state.verbose = flags.verbose or false
-    if flags.version then
-      out("org.nvim " .. require("org.version").release)
-      return 0
+    state.machine = flags.json or flags.jsonl or false
+    state.jsonl = flags.jsonl or false
+    state.note = flags.note
+    if state.machine then
+      -- nothing but the JSON on stdout
+      io.write = function(...)
+        return io.stderr:write(...)
+      end
     end
-    local cmd = table.remove(words, 1)
-    if flags.help or cmd == nil or cmd == "help" then
+    if flags.version and #words == 0 then
+      words = { "version" }
+    end
+    if words[1] == nil or words[1] == "help" then
+      if state.machine then
+        words = vim.list_extend({ "schema" }, vim.list_slice(words, 2))
+      else
+        M.stdout(M.USAGE)
+        return words[1] == nil and not flags.help and 2 or 0
+      end
+    end
+    if flags.help and not state.machine then
       M.stdout(M.USAGE)
-      return cmd == nil and not flags.help and 2 or 0
-    end
-    if cmd == "version" then
-      out("org.nvim " .. require("org.version").release)
       return 0
     end
-    local fn = M.COMMANDS[cmd]
-    if not fn then
-      fail("unknown command " .. cmd .. " (see org help)", 2)
+    local cmd, rest = find_command(words)
+    command = cmd.name
+    if flags.help then
+      emit(command, M.cmd_schema(vim.split(command, " ")), flags)
+      return 0
+    end
+    local allowed = schema.allowed(cmd)
+    for key, name in pairs(flags._given) do
+      if not allowed[key] then
+        fail(
+          string.format("%s is not an option of %s (see org schema %s)", name, cmd.name, cmd.name),
+          "unknown_option",
+          {
+            option = name,
+          }
+        )
+      end
+    end
+    local max = schema.max_words(cmd)
+    if max and #rest > max then
+      fail(too_many(cmd, rest, max), "usage", { command = command, extra = vim.list_slice(rest, max + 1) })
+    end
+    if command == "schema" or command == "version" then
+      local res = M.COMMANDS[command](rest, flags)
+      if state.machine then
+        emit(command, res, flags)
+      elseif res.raw then
+        M.stdout(res.raw)
+      else
+        for _, l in ipairs(res.text or {}) do
+          out(l)
+        end
+      end
+      return 0
     end
     M.headless()
     M.load_config(flags)
-    return fn(words, flags)
+    local res = M.COMMANDS[command](rest, flags) or {}
+    if state.machine then
+      emit(command, res, flags)
+      return 0
+    end
+    if res.raw then
+      M.stdout(res.raw)
+    else
+      for _, l in ipairs(res.text or {}) do
+        out(l)
+      end
+    end
+    return res.code or 0
   end)
+  io.write = saved_write
   if ok then
     return code or 0
   end
-  if type(code) == "table" and code.cli then
-    err(code.msg)
-    return code.code
+  local e = code
+  if type(e) ~= "table" or not e.cli then
+    e = { msg = tostring(e), code = 1, ecode = "internal" }
   end
-  err(tostring(code))
-  return 1
+  if state.machine then
+    local errobj = { code = e.ecode or "failed", message = e.msg, details = e.details or vim.empty_dict() }
+    out(vim.json.encode(envelope(command, false, nil, { errobj })))
+    if state.verbose then
+      err(e.msg)
+    end
+  else
+    err(e.msg)
+  end
+  return e.code
 end
 
 return M

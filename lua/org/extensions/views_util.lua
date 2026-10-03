@@ -811,7 +811,7 @@ end
 --- Returns the augroup; delete it to stop (pending calls are dropped).
 ---@param name string augroup name
 ---@param fn fun()
----@param opts? integer|{ delay?: integer, relevant?: fun(buf: integer): boolean, buf?: integer, events?: string[] }
+---@param opts? integer|{ delay?: integer, relevant?: (fun(buf: integer): boolean), buf?: integer, events?: string[] }
 ---@return integer augroup
 function M.watch(name, fn, opts)
   if type(opts) ~= "table" then

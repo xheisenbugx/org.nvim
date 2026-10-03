@@ -2,9 +2,13 @@ name: Release
 
 # Development happens on dev. main only takes pull requests from
 # release/vX.Y.Z branches; merging one tags vX.Y.Z and publishes the GitHub
-# release with notes generated from the merged PRs. The tag goes on the
-# release branch's last commit, not the merge commit, so dev reaches it too:
-# org.nvim's version (:Org version) is the latest vX.Y.Z tag of the checkout.
+# release. Its notes are the vX.Y.Z section of CHANGELOG.md, which the
+# release branch regenerates with `make changelog` (scripts/changelog.lua);
+# GitHub's generated notes (.github/release.yml) are the fallback when the
+# section is empty. The tag goes on the release branch's last commit, not
+# the merge commit, so dev reaches it once the release branch is merged
+# back: org.nvim's version (:Org version) is the latest vX.Y.Z tag of the
+# checkout.
 on:
   pull_request:
     branches: [main]
@@ -32,13 +36,29 @@ jobs:
             echo "::error::Tag $tag already exists."
             exit 1
           fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: CHANGELOG.md has a section for the version
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          tag="${HEAD_REF#release/}"
+          if ! grep -qF "## [$tag]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::No '## [$tag]' section. Run 'make changelog' on $HEAD_REF and commit CHANGELOG.md."
+            exit 1
+          fi
 
   publish:
     if: github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write # to start pages.yml
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Tag and publish the release
         env:
           HEAD_REF: ${{ github.head_ref }}
@@ -46,5 +66,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${HEAD_REF#release/}"
-          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
-            --title "org.nvim $tag" --generate-notes
+          # the version's section of CHANGELOG.md without its heading, up to
+          # the next version or the link definitions at the end
+          awk -v h="## [$tag]" '
+            index($0, h) == 1 { on = 1; next }
+            on && (/^## \[/ || /^\[[^]]+\]: /) { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          prev=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          if grep -q '[^[:space:]]' notes.md && ! grep -qx 'No changes yet.' notes.md; then
+            if [[ -n "$prev" ]]; then
+              printf '\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' \
+                "$GITHUB_REPOSITORY" "$prev" "$tag" >> notes.md
+            fi
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+              --title "org.nvim $tag" --notes-file notes.md
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+              --title "org.nvim $tag" --generate-notes
+          fi
+      # The release event of a release made with GITHUB_TOKEN doesn't start
+      # workflows, so deploy the documentation site from here. It runs on
+      # main (which the github-pages environment allows) and builds the tag.
+      - name: Deploy the documentation site
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f ref="${HEAD_REF#release/}"

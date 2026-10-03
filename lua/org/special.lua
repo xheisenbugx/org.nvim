@@ -22,7 +22,7 @@ local ns = vim.api.nvim_create_namespace("org.special")
 ---@field lines string[] initial content of the edit buffer
 ---@field filetype? string
 ---@field name? string buffer name suffix
----@field to_source? fun(lines: string[]): string[] transform before writing back
+---@field to_source? fun(lines: string[]): string[]|nil transform before writing back (nil: cannot convert)
 ---@field on_close? fun()
 ---@field window? string
 ---@field start_col? integer edit an object: 0-based byte column of its start on `start_line`

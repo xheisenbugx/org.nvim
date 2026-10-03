@@ -1,8 +1,8 @@
 ---@mod org.extensions.cli The `org` command line
 ---
---- `bin/org` runs org.nvim headless from a shell: the agenda as text or
---- JSON, capture, the clock, search and export (see `:h org-extensions-cli`
---- and `org help`). The command line works whether or not this extension
+--- `bin/org` runs org.nvim headless from a shell: the agenda, queries,
+--- capture, the clock, changes to headings and export, as text or JSON
+--- (see `:h org-extensions-cli`, `org help` and `org schema`). The command line works whether or not this extension
 --- is enabled; enabling it adds `:Org cli_install` (a symlink to `bin/org`
 --- on your $PATH), health checks and the options below, which the CLI reads
 --- from the configuration it loads.

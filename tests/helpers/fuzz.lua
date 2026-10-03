@@ -7,8 +7,11 @@
 --   end
 --
 -- The default run uses a few fixed seeds so `make test` stays fast and
--- reproducible; ORG_FUZZ_ITERATIONS=5000 runs that many (seeds 1..N), and
--- ORG_FUZZ_SEED=1234 runs just that seed (to replay a failure).
+-- reproducible. ORG_FUZZ_ITERATIONS=5000 runs that many seeds,
+-- ORG_FUZZ_SCALE=40 forty times each spec's default, ORG_FUZZ_START=S
+-- starts at seed S instead of 1, and ORG_FUZZ_SEED=1234 runs just that
+-- seed (to replay a failure). `make fuzz` runs a long session from a random
+-- start; see "Fuzzing" in CONTRIBUTING.md.
 local M = {}
 
 --- A Park-Miller PRNG: the same numbers on every platform (products stay
@@ -47,8 +50,13 @@ function Rng:pick(t)
   return t[self:int(#t)]
 end
 
---- The seeds a fuzz spec runs: `default` fixed ones, ORG_FUZZ_ITERATIONS
---- of them, or the single ORG_FUZZ_SEED.
+--- The seeds a fuzz spec runs: `default` fixed ones (1..default), so that
+--- `make test` stays fast and gives the same result every time. The
+--- environment asks for more, or for one:
+---   ORG_FUZZ_SEED=N        just seed N (replays a reported failure)
+---   ORG_FUZZ_ITERATIONS=N  N seeds instead of `default`
+---   ORG_FUZZ_SCALE=K       K times `default` (`make fuzz`)
+---   ORG_FUZZ_START=S       start at seed S instead of 1 (S, S+1, ...)
 ---@param default integer
 ---@return integer[]
 function M.seeds(default)
@@ -56,17 +64,125 @@ function M.seeds(default)
   if one then
     return { one }
   end
-  local n = tonumber(vim.env.ORG_FUZZ_ITERATIONS or "") or default
+  local n = tonumber(vim.env.ORG_FUZZ_ITERATIONS or "")
+    or math.floor(default * (tonumber(vim.env.ORG_FUZZ_SCALE or "") or 1) + 0.5)
+  local start = tonumber(vim.env.ORG_FUZZ_START or "") or 1
   local out = {}
   for i = 1, n do
-    out[i] = i
+    out[i] = start + i - 1
+  end
+  if M.long() then
+    io.stderr:write(("fuzz: %s: seeds %d..%d\n"):format(M.spec(), start, start + n - 1))
   end
   return out
 end
 
 --- Whether a long run was asked for (specs may then print progress).
 function M.long()
-  return vim.env.ORG_FUZZ_ITERATIONS ~= nil and vim.env.ORG_FUZZ_ITERATIONS ~= ""
+  return (vim.env.ORG_FUZZ_ITERATIONS or "") ~= "" or (vim.env.ORG_FUZZ_SCALE or "") ~= ""
+end
+
+--- The fuzz spec file running (tests/spec/fuzz_*_spec.lua), from the stack.
+function M.spec()
+  for level = 2, 50 do
+    local info = debug.getinfo(level, "S")
+    if not info then
+      break
+    end
+    local f = info.source:match("(tests[/\\]spec[/\\][^/\\]+_spec%.lua)$")
+    if f then
+      return (f:gsub("\\", "/"))
+    end
+  end
+  return "tests/spec/fuzz_*_spec.lua"
+end
+
+--- The command that replays `seed` of the running fuzz spec.
+function M.replay(seed)
+  return ("ORG_FUZZ_SEED=%d make test SPEC=%s"):format(seed, M.spec())
+end
+
+--- What kind of failure `msg` is, to keep shrinking on the same one: its
+--- first line without the numbers (line numbers, counts).
+function M.kind(msg)
+  return (tostring(msg):match("^[^\n]*"):gsub("%d+", "#"))
+end
+
+--- The smallest `lines` found that still fail: drops chunks of lines, then
+--- single lines (delta debugging), while `fails(candidate)` holds.
+--- `keep` (a line index) is never dropped; the second result is its index
+--- in the shrunk lines. At most `budget` calls of `fails` (default 3000).
+---@param lines string[]
+---@param fails fun(lines: string[], keep?: integer): boolean
+---@param keep? integer
+---@param budget? integer
+---@return string[] lines, integer|nil keep
+function M.shrink(lines, fails, keep, budget)
+  budget = budget or 3000
+  local cur = { lines = lines, keep = keep }
+  local calls = 0
+  --- `cur` without the lines i..j (but `keep`).
+  local function without(i, j)
+    local out, k = {}, nil
+    for l, s in ipairs(cur.lines) do
+      if l < i or l > j or l == cur.keep then
+        out[#out + 1] = s
+        if l == cur.keep then
+          k = #out
+        end
+      end
+    end
+    return out, k
+  end
+  local chunk = math.max(1, math.floor(#cur.lines / 2))
+  while chunk >= 1 and calls < budget do
+    local progress = false
+    local i = 1
+    while i <= #cur.lines and calls < budget do
+      local cand, k = without(i, i + chunk - 1)
+      if #cand < #cur.lines then
+        calls = calls + 1
+        local ok_, res = pcall(fails, cand, k)
+        if ok_ and res then
+          cur = { lines = cand, keep = k }
+          progress = true
+        else
+          i = i + chunk
+        end
+      else
+        i = i + chunk
+      end
+    end
+    if not progress then
+      if chunk == 1 then
+        break
+      end
+      chunk = math.max(1, math.floor(chunk / 2))
+    end
+  end
+  return cur.lines, cur.keep
+end
+
+--- A failure report: the seed, how to replay it, the generated input and,
+--- when shrinking found a smaller one, the minimal input.
+---@param seed integer
+---@param msg string
+---@param input string[]
+---@param minimal? string[]
+---@param extra? string
+function M.report(seed, msg, input, minimal, extra)
+  local t = {
+    ("seed %d: %s"):format(seed, msg),
+    "replay: " .. M.replay(seed),
+    "input = " .. M.dump(input),
+  }
+  if minimal and #minimal < #input then
+    t[#t + 1] = "minimal input = " .. M.dump(minimal)
+  end
+  if extra then
+    t[#t + 1] = extra
+  end
+  return table.concat(t, "\n")
 end
 
 ---------------------------------------------------------------------------

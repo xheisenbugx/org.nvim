@@ -135,7 +135,7 @@ end
 
 --- Parse a sexp string such as "(diary-float t 4 2)".
 ---@param str string
----@return table|nil node, string|nil err
+---@return any node, string|nil err
 function M.parse(str)
   local ok, res = pcall(read, str or "")
   if not ok then

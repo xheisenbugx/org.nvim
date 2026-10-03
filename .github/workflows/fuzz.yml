@@ -1,0 +1,86 @@
+name: Fuzz
+
+# The fuzz specs (tests/spec/fuzz_*_spec.lua) with many more seeds than the
+# pull request run, nightly and on demand: `make fuzz`, from a random first
+# seed. A failure opens an issue labelled "fuzz" (or comments on the open
+# one) with the seeds and the minimal failing inputs; CONTRIBUTING.md
+# ("Fuzzing") says how to turn one into a regression case.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: "Seeds per spec, as a multiple of its default (ORG_FUZZ_SCALE)"
+        default: "40"
+      iterations:
+        description: "Seeds per spec, overriding scale (ORG_FUZZ_ITERATIONS); empty: use scale"
+        default: ""
+      seed:
+        description: "First seed (ORG_FUZZ_START); empty: random"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # a scheduled run starts from the default branch (main, the last
+          # release): test dev, where new code lands
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Fuzz
+        id: fuzz
+        shell: bash
+        env:
+          ORG_FUZZ_SCALE: ${{ inputs.scale || '40' }}
+          ORG_FUZZ_ITERATIONS: ${{ inputs.iterations }}
+          ORG_FUZZ_START: ${{ inputs.seed }}
+        run: make fuzz 2>&1 | tee fuzz.log
+      - name: Report the failure in an issue
+        if: failure() && steps.fuzz.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          sha=$(git rev-parse --short=12 HEAD)
+          {
+            echo "The [nightly fuzz run]($RUN_URL) on \`$sha\` failed."
+            echo
+            run=$(grep -m1 '^fuzz: ORG_FUZZ' fuzz.log || true)
+            echo "Settings: \`${run#fuzz: }\`"
+            echo
+            echo "Replay a seed with the \`replay:\` command of its failure, then turn the"
+            echo "minimal input into a case in \`tests/spec/fuzz_regressions_spec.lua\`"
+            echo "(see \"Fuzzing\" in CONTRIBUTING.md)."
+            echo
+            echo '```'
+            # the failures, from the first FAIL to the totals
+            sed -n '/^FAIL: /,/^[0-9]* passed, [0-9]* failed/p' fuzz.log | head -c 55000
+            echo '```'
+          } > issue.md
+          gh label create fuzz --color B60205 --description "Found by the nightly fuzz run" 2>/dev/null || true
+          num=$(gh issue list --label fuzz --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body-file issue.md
+          else
+            gh issue create --title "Fuzz: nightly run failed" --label fuzz --body-file issue.md
+          fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-log
+          path: fuzz.log

@@ -467,7 +467,9 @@ end
 
 --- Agenda items for the TODOs of `root` (scanned now, waiting for it).
 ---@param root string
----@return table[] items, integer count of TODO comments, boolean truncated
+---@return table[] items
+---@return integer count of TODO comments
+---@return boolean truncated
 function M.items(root)
   local list, truncated = M.scan(root)
   return to_items(list, root), #list, truncated

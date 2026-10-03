@@ -378,6 +378,9 @@ end
 ---@return table|nil
 function M.pick(opts)
   opts = opts or {}
+  if require("org.utils").is_noninteractive() then
+    return nil
+  end
   local sel = (opts.default or date.today()):clone({ range_end = vim.NIL })
   local initial = sel:to_date_string()
   if opts.with_time and not sel.hour then

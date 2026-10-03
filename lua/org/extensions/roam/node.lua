@@ -123,19 +123,28 @@ function M.candidates(filter)
 end
 
 local function has_snacks_picker()
-  return type(_G.Snacks) == "table" and type(Snacks.picker) == "table" and type(Snacks.picker.pick) == "function"
+  return require("org.pickers.backends.snacks").api() ~= nil
 end
 
---- Which picker `read` uses: the `picker` option, with "auto" resolved.
----@return "snacks"|"select"|"input"
+-- the picker plugins org.pickers drives
+local GENERIC = { ["fzf-lua"] = true, telescope = true, mini = true }
+
+--- Which picker `read` uses: the `picker` option, with "auto" resolved to
+--- the backend of org's own `picker` option (`:h org-pickers`; its "auto"
+--- takes LazyVim's picker, else snacks.nvim first).
+---@return "snacks"|"fzf-lua"|"telescope"|"mini"|"select"|"input"
 function M.picker()
   local p = ropts().picker or "auto"
   if p == "auto" then
+    return require("org.pickers").backend()
+  end
+  if p == "snacks" then
     return has_snacks_picker() and "snacks" or "select"
   end
-  if p == "snacks" and not has_snacks_picker() then
-    return "select"
+  if GENERIC[p] then
+    return require("org.pickers").backend(p)
   end
+  ---@cast p "snacks"|"select"|"input"
   return p
 end
 
@@ -152,15 +161,21 @@ local function snacks_read(items, opts)
     end
     local list = {}
     for i, c in ipairs(items) do
-      list[i] = { text = M.display(c.node, c.name), cand = c, idx = i }
+      list[i] = {
+        text = M.display(c.node, c.name),
+        cand = c,
+        idx = i,
+        file = c.node.file,
+        pos = { c.node.lnum or 1, 0 },
+      }
     end
-    Snacks.picker.pick({
+    require("org.pickers.backends.snacks").api().pick({
       source = "org_roam_node",
       title = opts.prompt or "Node",
       items = list,
       pattern = opts.default_title,
       format = "text",
-      layout = { preset = "select" },
+      preview = "file",
       actions = {
         confirm = function(picker, item)
           local query = vim.trim(picker.input and picker.input.filter.pattern or "")
@@ -180,6 +195,36 @@ local function snacks_read(items, opts)
       end,
     })
   end)
+end
+
+-- fzf-lua, telescope or mini.pick through org.pickers, with a preview of
+-- the node; a query that matches nothing creates a node (mini.pick: the
+-- "+ New node" entry)
+local function generic_read(items, opts, backend)
+  local list = {}
+  for i, c in ipairs(items) do
+    list[i] = {
+      display = { { M.display(c.node, c.name) } },
+      filename = c.node.file,
+      lnum = c.node.lnum or 1,
+      value = c,
+    }
+  end
+  local chosen, query = require("org.pickers").choose({
+    title = opts.prompt or "Node",
+    items = list,
+    query = opts.default_title,
+    allow_query = opts.allow_new ~= false,
+    create_label = "+ New node",
+  }, backend)
+  if not chosen then
+    return nil
+  end
+  if chosen[1] then
+    return chosen[1].value
+  end
+  query = query and vim.trim(query) or ""
+  return query ~= "" and { title = query } or nil
 end
 
 -- candidates of the running `input` read, for `M._complete`
@@ -249,10 +294,13 @@ function M.read(opts)
   if kind == "input" then
     return input_read(items, opts)
   end
-  if kind == "snacks" then
+  if kind == "snacks" or GENERIC[kind] then
     if #items == 0 and opts.allow_new == false then
       utils.warn("org-roam: no nodes")
       return nil
+    end
+    if kind ~= "snacks" then
+      return generic_read(items, opts, kind)
     end
     return snacks_read(items, opts)
   end

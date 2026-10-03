@@ -636,7 +636,7 @@
 ---Formatted link with description (`%a`).
 ---@field annotation? string
 ---Initial content, e.g. the visual selection (`%i`). (default: `""`)
----@field initial string
+---@field initial? string
 ---Date used for `%t`/`%T`/`%u`/`%U` and the datetree (from the agenda or `time_prompt`).
 ---@field date? table
 ---The target file.
@@ -644,7 +644,7 @@
 ---The headline of the target location, if any.
 ---@field target_hl? org.Headline
 ---Values for `%:keyword`.
----@field keywords table
+---@field keywords? table
 
 ---A capture template (an entry of org-capture-templates). At least one of
 ---`template`, `type`, `target`, `file`, `headline`, `olp`, `id`, `datetree`

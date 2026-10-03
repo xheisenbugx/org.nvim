@@ -837,11 +837,9 @@ local function goto_pos(lnum, col, stealth)
   end
 end
 
---- Text of lines `first`..`last` of the buffer, with functions mapping a
+--- Text of `lines`, lines `first`.. of a buffer, with functions mapping a
 --- 1-based byte offset to { lnum, col0 } and back.
-local function buffer_text(bufnr, first, last)
-  first = first or 1
-  local lines = vim.api.nvim_buf_get_lines(bufnr, first - 1, last or -1, false)
+local function lines_text(lines, first)
   local starts, off = {}, 0
   for i, l in ipairs(lines) do
     starts[i] = off
@@ -863,6 +861,13 @@ local function buffer_text(bufnr, first, last)
     return (starts[lnum - first + 1] or 0) + col1
   end
   return table.concat(lines, "\n"), pos, offset, lines
+end
+
+--- Text of lines `first`..`last` of the buffer, with functions mapping a
+--- 1-based byte offset to { lnum, col0 } and back.
+local function buffer_text(bufnr, first, last)
+  first = first or 1
+  return lines_text(vim.api.nvim_buf_get_lines(bufnr, first - 1, last or -1, false), first)
 end
 
 local function words_pattern(words, sep)
@@ -938,37 +943,31 @@ local function search_coderef(lines, label)
   end
 end
 
---- Search the current buffer for a link search string (org-link-search).
---- `#id` (CUSTOM_ID), `(label)` (coderef), `/regexp/` (sparse tree in Org
---- buffers, location list elsewhere), `*heading`, otherwise dedicated
---- `<<target>>`, `#+NAME:`, headline, then (see
---- `links.search_must_match_exact_headline`) query-to-create or text.
---- Returns true when found (cursor moved), else false and a message.
+--- Where a link search string points (org-link-search), found without
+--- moving the cursor or changing anything, in `src` (see `search_source`):
+--- `#id` (CUSTOM_ID), `(label)` (coderef), `*heading`, otherwise
+--- dedicated `<<target>>`, `#+NAME:`, headline, then (see
+--- `links.search_must_match_exact_headline`) text. Following a link
+--- (`search_in_buffer`) and `org.api` resolving one both use it, so they
+--- agree. Returns the line (1-based) and column (0-based) of the match,
+--- else nil, nil, a message and, for a search that does more than move
+--- the cursor, its kind: "regexp" (`/regexp/`: a sparse tree or occur) or
+--- "create" (no match, and query-to-create offers to make the heading).
 ---@param search string
----@param sopts? { avoid?: integer[], container?: org.Headline, stealth?: boolean, range?: integer[] }
----@return boolean found, string|nil err
-function M.search_in_buffer(search, sopts)
+---@param src { lines: string[], file?: org.File }
+---@param sopts? { avoid?: integer[], range?: integer[] }
+---@return integer|nil lnum, integer|nil col, string|nil err, "regexp"|"create"|nil kind
+function M.search_location(search, src, sopts)
   sopts = sopts or {}
   if not search or vim.trim(search) == "" then
-    return false, string.format('Invalid search string "%s"', tostring(search))
-  end
-  local bufnr = vim.api.nvim_get_current_buf()
-  for _, fn in ipairs(lopts().search_functions or {}) do
-    if fn(search) then
-      return true
-    end
-  end
-  -- a key in a BibTeX file (org-execute-file-search-in-bibtex)
-  if require("org.bibtex").file_search(search) then
-    return true
+    return nil, nil, string.format('Invalid search string "%s"', tostring(search))
   end
   local normalized = search:gsub("\n[ \t]*", " ")
   local starred = normalized:sub(1, 1) == "*"
   local words = split_words(starred and search:sub(2) or search)
-  local is_org = utils.is_org(bufnr) or vim.api.nvim_buf_get_name(bufnr):match("%.org$") ~= nil
-  local file = is_org and files.get_buffer(bufnr) or nil
+  local file = src.file
   -- a range restricts the search (org-id-open narrows to the entry)
-  local first, last = 1, vim.api.nvim_buf_line_count(bufnr)
+  local first, last = 1, #src.lines
   if sopts.range then
     first, last = sopts.range[1], sopts.range[2]
   end
@@ -978,7 +977,7 @@ function M.search_in_buffer(search, sopts)
       headlines[#headlines + 1] = hl
     end
   end
-  local text, pos, offset, lines = buffer_text(bufnr, first, last)
+  local text, pos, offset, lines = lines_text(vim.list_slice(src.lines, first, last), first)
   local lower = text:lower()
 
   if normalized:sub(1, 1) == "#" then
@@ -986,56 +985,29 @@ function M.search_in_buffer(search, sopts)
     -- the file-level property drawer (org-find-property: point-min)
     local fcid = file and first == 1 and file.properties and file.properties.CUSTOM_ID
     if fcid and fcid:lower() == id then
-      goto_pos(1, 0, sopts.stealth)
-      return true
+      return 1, 0
     end
     for _, hl in ipairs(headlines) do
       local cid = hl.properties.CUSTOM_ID
       if cid and cid:lower() == id then
-        goto_pos(hl.line, 0, sopts.stealth)
-        return true
+        return hl.line, 0
       end
     end
-    return false, "No match for custom ID: " .. normalized:sub(2)
+    return nil, nil, "No match for custom ID: " .. normalized:sub(2)
   end
   local coderef = normalized:match("^%((.*)%)$")
   if coderef then
     local l, c = search_coderef(lines, coderef)
     if l then
-      goto_pos(first + l - 1, c, sopts.stealth)
-      return true
+      return first + l - 1, c
     end
-    return false, "No match for coderef: " .. coderef
+    return nil, nil, "No match for coderef: " .. coderef
   end
-  local regex = normalized:match("^/(.*)/$")
-  if regex then
-    local vre = M.emacs_regexp_to_vim(search:match("^/(.*)/$"))
-    local ok, re = pcall(vim.regex, vre)
-    if not ok then
-      return false, "Invalid regexp: " .. regex
-    end
-    if file then
-      require("org.agenda.sparse").regexp(vre)
-    else
-      local items = {}
-      for i, l in ipairs(lines) do
-        local s = re:match_str(l)
-        if s then
-          items[#items + 1] = { bufnr = bufnr, lnum = first + i - 1, col = s + 1, text = l }
-        end
-      end
-      vim.fn.setloclist(0, {}, "r", { title = "Occur: " .. regex, items = items })
-      local win = vim.api.nvim_get_current_win()
-      vim.cmd("lwindow")
-      if vim.api.nvim_win_is_valid(win) then
-        vim.api.nvim_set_current_win(win)
-      end
-      utils.notify(string.format("%d match%s for %s", #items, #items == 1 and "" or "es", regex))
-    end
-    return true
+  if normalized:match("^/(.*)/$") then
+    return nil, nil, nil, "regexp"
   end
   if #words == 0 then
-    return false, "No match for fuzzy expression: " .. normalized
+    return nil, nil, "No match for fuzzy expression: " .. normalized
   end
   if not starred then
     -- dedicated target <<words>>
@@ -1047,9 +1019,7 @@ function M.search_in_buffer(search, sopts)
         break
       end
       if text:sub(s - 1, s - 1) ~= "<" and text:sub(e + 1, e + 1) ~= ">" then
-        local l, c = pos(s)
-        goto_pos(l, c, sopts.stealth)
-        return true
+        return pos(s)
       end
       init = s + 1
     end
@@ -1058,8 +1028,7 @@ function M.search_in_buffer(search, sopts)
     for i, l in ipairs(lines) do
       local name = l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+(.-)[ \t]*$")
       if name and vim.deep_equal(upper_words(name), want) then
-        goto_pos(first + i - 1, 0, sopts.stealth)
-        return true
+        return first + i - 1, 0
       end
     end
   end
@@ -1067,8 +1036,7 @@ function M.search_in_buffer(search, sopts)
     local want = vim.tbl_map(string.upper, words)
     for _, hl in ipairs(headlines) do
       if vim.deep_equal(upper_words(M.normalize_string(hl.title)), want) then
-        goto_pos(hl.line, 0, sopts.stealth)
-        return true
+        return hl.line, 0
       end
     end
     local must = lopts().search_must_match_exact_headline
@@ -1076,13 +1044,10 @@ function M.search_in_buffer(search, sopts)
       must = "query-to-create"
     end
     if must == "query-to-create" then
-      if utils.confirm("No match - create this as a new heading?") then
-        create_heading(bufnr, starred and search:sub(2) or search, sopts.container)
-        return true
-      end
+      return nil, nil, "No match for fuzzy expression: " .. normalized, "create"
     end
     if starred or must then
-      return false, "No match for fuzzy expression: " .. normalized
+      return nil, nil, "No match for fuzzy expression: " .. normalized
     end
   end
   -- plain text search
@@ -1107,13 +1072,111 @@ function M.search_in_buffer(search, sopts)
         end
       end
       if not skip then
-        goto_pos(l, c, sopts.stealth)
-        return true
+        return l, c
       end
     end
     init = s + 1
   end
-  return false, "No match for fuzzy expression: " .. normalized
+  return nil, nil, "No match for fuzzy expression: " .. normalized
+end
+
+--- What a link search looks in (`search_location`): the lines of buffer
+--- `bufnr`, with their parse in an Org buffer; without a buffer, the
+--- lines of file `path` (loaded in a buffer or read from disk, parsed when
+--- it's an Org file), as following the link would open it. nil when the
+--- file can't be read.
+---@param bufnr? integer
+---@param path? string
+---@return { lines: string[], file?: org.File }|nil
+function M.search_source(bufnr, path)
+  bufnr = bufnr or (path and utils.find_buffer(path))
+  if bufnr then
+    local is_org = utils.is_org(bufnr) or vim.api.nvim_buf_get_name(bufnr):match("%.org$") ~= nil
+    return {
+      lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
+      file = is_org and files.get_buffer(bufnr) or nil,
+    }
+  end
+  if not path then
+    return nil
+  end
+  if vim.filetype.match({ filename = path }) == "org" then
+    local f = files.get(path)
+    return f and { lines = f.lines, file = f } or nil
+  end
+  local lines = utils.readfile(path)
+  return lines and { lines = lines } or nil
+end
+
+--- Search the current buffer for a link search string (org-link-search,
+--- see `search_location`) and move the cursor there. First the
+--- `links.search_functions` and a BibTeX key search; a `/regexp/` makes a
+--- sparse tree in Org buffers, a location list elsewhere; a missing
+--- heading may be created (query-to-create). Returns true when found
+--- (cursor moved), else false and a message.
+---@param search string
+---@param sopts? { avoid?: integer[], container?: org.Headline, stealth?: boolean, range?: integer[] }
+---@return boolean found, string|nil err
+function M.search_in_buffer(search, sopts)
+  sopts = sopts or {}
+  if not search or vim.trim(search) == "" then
+    return false, string.format('Invalid search string "%s"', tostring(search))
+  end
+  local bufnr = vim.api.nvim_get_current_buf()
+  for _, fn in ipairs(lopts().search_functions or {}) do
+    if fn(search) then
+      return true
+    end
+  end
+  -- a key in a BibTeX file (org-execute-file-search-in-bibtex)
+  if require("org.bibtex").file_search(search) then
+    return true
+  end
+  local src = M.search_source(bufnr) --[[@as { lines: string[], file?: org.File }]]
+  local lnum, col, err, kind = M.search_location(search, src, sopts)
+  if lnum then
+    goto_pos(lnum, col, sopts.stealth)
+    return true
+  end
+  local normalized = search:gsub("\n[ \t]*", " ")
+  if kind == "regexp" then
+    local regex = normalized:match("^/(.*)/$")
+    local vre = M.emacs_regexp_to_vim(search:match("^/(.*)/$"))
+    local ok, re = pcall(vim.regex, vre)
+    if not ok then
+      return false, "Invalid regexp: " .. regex
+    end
+    if src.file then
+      require("org.agenda.sparse").regexp(vre)
+    else
+      local first, last = 1, #src.lines
+      if sopts.range then
+        first, last = sopts.range[1], sopts.range[2]
+      end
+      local items = {}
+      for i = first, math.min(last, #src.lines) do
+        local l = src.lines[i]
+        local s = re:match_str(l)
+        if s then
+          items[#items + 1] = { bufnr = bufnr, lnum = i, col = s + 1, text = l }
+        end
+      end
+      vim.fn.setloclist(0, {}, "r", { title = "Occur: " .. regex, items = items })
+      local win = vim.api.nvim_get_current_win()
+      vim.cmd("lwindow")
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_set_current_win(win)
+      end
+      utils.notify(string.format("%d match%s for %s", #items, #items == 1 and "" or "es", regex))
+    end
+    return true
+  end
+  if kind == "create" and utils.confirm("No match - create this as a new heading?") then
+    local starred = normalized:sub(1, 1) == "*"
+    create_heading(bufnr, starred and search:sub(2) or search, sopts.container)
+    return true
+  end
+  return false, err
 end
 
 --- Go to the radio target `<<<target>>>` (org-link--search-radio-target).
@@ -1262,15 +1325,26 @@ local function open_wildcard(pattern, how)
   return true
 end
 
---- Open a file link (org-open-file). `app` is "vim" (C-u: always in
---- Neovim), "system" (C-u C-u) or nil.
-local function open_file_link(path, search, o)
-  o = o or {}
-  local full = M.resolve_path(path, o.bufnr)
+--- The file a file link's `path` opens, from buffer `bufnr`: relative to
+--- the buffer's directory, a directory's index.org with
+--- `links.open_directory_means_index_dot_org`.
+---@param path string
+---@param bufnr? integer
+---@return string
+function M.file_link_path(path, bufnr)
+  local full = M.resolve_path(path, bufnr)
   if lopts().open_directory_means_index_dot_org and utils.is_dir(full) then
     -- org-open-directory-means-index-dot-org
     full = full:gsub("/+$", "") .. "/index.org"
   end
+  return full
+end
+
+--- Open a file link (org-open-file). `app` is "vim" (C-u: always in
+--- Neovim), "system" (C-u C-u) or nil.
+local function open_file_link(path, search, o)
+  o = o or {}
+  local full = M.file_link_path(path, o.bufnr)
   -- a wildcard in the file name opens a listing of the matches
   -- (org-link-open-as-file: dired)
   if (vim.fn.fnamemodify(full, ":t")):find("[*?{]") and not utils.exists(full) then
@@ -1492,6 +1566,51 @@ local function other_window_same_buffer()
   vim.fn.winrestview(view)
 end
 
+--- A link target (as written inside [[...]]) as following reads it from
+--- buffer `bufnr`: blanks around line breaks squeezed, abbreviations
+--- expanded (`target`), classified (`type`, `path`), then
+--- `links.translation_function` applied.
+---@param target string
+---@param bufnr integer
+---@return { target: string, type: string, path: string }
+function M.read_target(target, bufnr)
+  local file = utils.is_org(bufnr) and files.get_buffer(bufnr) or nil
+  target = target:gsub("[ \t]*\n[ \t]*", " ")
+  local link = M.classify({ target = M.expand_abbrev(target, file) }) --[[@as { target: string, type: string, path: string }]]
+  local translate = lopts().translation_function
+  if translate and M.URL_SCHEMES[link.type] then
+    local nt, np = translate(link.type, link.path)
+    if nt then
+      link.type, link.path = nt, np
+      link.target = nt .. ":" .. np
+    end
+  end
+  return link
+end
+
+--- The location of an `id:` link's `path` (org-id-find, see `org.id`),
+--- the ID and the search option after `::` (an ID containing "::" is
+--- tried too). nil when the ID is unknown.
+---@param path string
+---@return table|nil loc, string id, string|nil option
+function M.find_id_link(path)
+  local id, option = path, nil
+  local p, s = path:match("^(.-)::(.*)$")
+  if p then
+    id, option = p, s
+  end
+  local idm = require("org.id")
+  local loc = idm.find(id)
+  if not loc and option then
+    -- an ID containing "::" (backwards compatibility)
+    loc = idm.find(path)
+    if loc then
+      id, option = path, nil
+    end
+  end
+  return loc, id, option
+end
+
 --- Open a link target string (as written inside [[...]]).
 ---@param target string
 ---@param opts? { bufnr?: integer, split?: string, link?: org.Link, arg?: integer, avoid?: integer[] }
@@ -1499,18 +1618,8 @@ function M.open(target, opts)
   opts = opts or {}
   local arg = opts.arg or 0
   local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
-  local file = utils.is_org(bufnr) and files.get_buffer(bufnr) or nil
-  target = target:gsub("[ \t]*\n[ \t]*", " ")
-  local expanded = M.expand_abbrev(target, file)
-  local link = M.classify({ target = expanded })
-  local translate = lopts().translation_function
-  if translate and M.URL_SCHEMES[link.type] then
-    local nt, np = translate(link.type, link.path)
-    if nt then
-      link.type, link.path = nt, np
-      expanded = nt .. ":" .. np
-    end
-  end
+  local link = M.read_target(target, bufnr)
+  local expanded = link.target
   local lt = M.link_type(link.type)
   if lt and lt.follow then
     return lt.follow(link.path, link, arg)
@@ -1538,20 +1647,7 @@ function M.open(target, opts)
     end
     return open_file_link(path, search, { bufnr = bufnr, how = how, app = app })
   elseif t == "id" then
-    local id, option = link.path, nil
-    local p, s = link.path:match("^(.-)::(.*)$")
-    if p then
-      id, option = p, s
-    end
-    local idm = require("org.id")
-    local loc = idm.find(id)
-    if not loc and option then
-      -- an ID containing "::" (backwards compatibility)
-      loc = idm.find(link.path)
-      if loc then
-        id, option = link.path, nil
-      end
-    end
+    local loc, id, option = M.find_id_link(link.path)
     if not loc then
       utils.warn('Cannot find entry with ID "' .. id .. '"')
       return false

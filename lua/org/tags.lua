@@ -3,12 +3,82 @@
 local config = require("org.config")
 local edit = require("org.edit")
 local files = require("org.files")
+local marks = require("org.marks")
 local parser = require("org.parser")
 local utils = require("org.utils")
 
 local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.tags.select")
+
+--- Is `tag` a name org reads back as a tag (org-tag-re `[[:alnum:]_@#%]`):
+--- ASCII letters and digits, `_`, `@`, `#`, `%`, and letters and digits of
+--- other scripts (no punctuation, symbols or emoji)? The API and the
+--- command line check new tag names with it.
+---@param tag any
+---@return boolean
+function M.valid(tag)
+  if type(tag) ~= "string" or tag == "" then
+    return false
+  end
+  local i = 1
+  while i <= #tag do
+    local c = tag:byte(i)
+    local n = c < 0x80 and 1 or c >= 0xF0 and 4 or c >= 0xE0 and 3 or c >= 0xC2 and 2 or 0
+    local ch = n > 0 and tag:sub(i, i + n - 1) or ""
+    if n == 1 then
+      if not ch:match("^[%w_@#%%]$") then
+        return false
+      end
+    elseif n == 0 or c > 0xF4 or #ch ~= n or not ch:match("^.[\128-\191]+$") then
+      return false -- not UTF-8
+    else
+      -- Vim's character class: 2 a word character, above 3 a script's
+      -- letters; 0 blanks, 1 punctuation and symbols, 3 emoji
+      local class = vim.fn.charclass(ch)
+      if class < 2 or class == 3 then
+        return false
+      end
+    end
+    i = i + n
+  end
+  return true
+end
+
+--- Fire the User autocmd `OrgTagsChanged` (org-after-tags-change-hook,
+--- which org-set-tags runs) for the headline at (bufnr, lnum), whose own
+--- tags went from `old` to `new`; nothing when they are equal.
+--- `edit.update_headline` calls it for every change of tags, so that each
+--- change fires once, whichever command made it. A handler may edit the
+--- buffer: returns the line the headline is on afterwards.
+---@param bufnr integer
+---@param lnum integer
+---@param old string[]
+---@param new string[]
+---@return integer lnum
+function M.changed(bufnr, lnum, old, new)
+  if vim.deep_equal(old, new) then
+    return lnum
+  end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  -- set once the headline line is rewritten (a rewrite leaves a mark at
+  -- column 0, where lines inserted above no longer move it)
+  local mark = marks.set(bufnr, lnum)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgTagsChanged",
+    data = {
+      bufnr = bufnr,
+      lnum = lnum,
+      file = name ~= "" and vim.fs.normalize(name) or nil,
+      from = vim.deepcopy(old),
+      to = vim.deepcopy(new),
+    },
+    modeline = false,
+  })
+  local now = mark and mark:lnum()
+  marks.del(mark)
+  return now or lnum
+end
 
 --- Parse a tag input string (":a:b:" / "a b" / "a:b") into a list.
 function M.parse_input(str)
@@ -672,6 +742,7 @@ function M.set_tags(target, tags, no_fast)
     return nil
   end
   if not tags then
+    local lnum = hl.line
     local defs = file:tag_definitions()
     local has_keys, has_names = false, false
     for _, d in ipairs(defs) do
@@ -690,7 +761,6 @@ function M.set_tags(target, tags, no_fast)
       end, M.all_tags(bufnr))
     end
     if not no_fast and (mode == true or (mode and has_keys)) then
-      local lnum = hl.line
       local todo_keys
       if config.opts.fast_tag_selection_include_todo then
         todo_keys = {}
@@ -703,7 +773,10 @@ function M.set_tags(target, tags, no_fast)
       tags = M.fast_select(hl.tags, defs, hl:get_inherited_tags(), {
         todo_keys = todo_keys,
         on_todo = function(kw)
-          require("org.todo").change_state({ bufnr = bufnr, lnum = lnum }, kw)
+          -- the OrgTagsChanged handlers of its tag triggers may move the
+          -- headline (Emacs sets the tags at point, which moves with it)
+          local res = require("org.todo").change_state({ bufnr = bufnr, lnum = lnum }, kw)
+          lnum = res and res.lnum or lnum
         end,
         completion = M.all_tags(bufnr),
       })
@@ -715,37 +788,53 @@ function M.set_tags(target, tags, no_fast)
     if not tags then
       return nil
     end
-    hl = files.get_buffer(bufnr):headline_at(hl.line)
+    hl = files.get_buffer(bufnr):headline_at(lnum)
+    if not hl then
+      return nil
+    end
   end
   tags = M.sort(tags)
   edit.update_headline(bufnr, hl.line, { tags = tags })
   return tags
 end
+
 --- Add (`op = "add"`) or remove (`op = "remove"`) `tag` on every headline
 --- whose line is in [s, e] (org-change-tag-in-region). Returns the
---- number of headlines changed.
+--- number of headlines changed. An OrgTagsChanged handler may edit the
+--- buffer between two headlines, so each one is followed with a mark and
+--- its tags are read just before they change (Emacs follows the entries
+--- of an agenda region with markers).
 function M.change_tag_in_region(bufnr, s, e, op, tag)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
-  local file = files.get_buffer(bufnr)
-  local changed = 0
-  for _, hl in ipairs(file.headlines) do
-    if hl.line >= s and hl.line <= e then
-      local tags = vim.deepcopy(hl.tags)
-      local has = vim.tbl_contains(tags, tag)
-      if op == "add" and not has then
-        tags[#tags + 1] = tag
-      elseif op == "remove" and has then
-        tags = vim.tbl_filter(function(t)
-          return t ~= tag
-        end, tags)
-      end
-      if #tags ~= #hl.tags then
-        edit.update_headline(bufnr, hl.line, { tags = tags })
-        changed = changed + 1
+  return marks.with(function(track)
+    local todo = {}
+    for _, hl in ipairs(files.get_buffer(bufnr).headlines) do
+      if hl.line >= s and hl.line <= e then
+        todo[#todo + 1] = track(bufnr, hl.line)
       end
     end
-  end
-  return changed
+    local changed = 0
+    for _, mark in ipairs(todo) do
+      local lnum = mark:lnum()
+      local hl = lnum and files.get_buffer(bufnr):headline_on(lnum)
+      if hl then
+        local tags = vim.deepcopy(hl.tags)
+        local has = vim.tbl_contains(tags, tag)
+        if op == "add" and not has then
+          tags[#tags + 1] = tag
+        elseif op == "remove" and has then
+          tags = vim.tbl_filter(function(t)
+            return t ~= tag
+          end, tags)
+        end
+        if #tags ~= #hl.tags then
+          edit.update_headline(bufnr, hl.line, { tags = tags })
+          changed = changed + 1
+        end
+      end
+    end
+    return changed
+  end)
 end
 
 --- Set tags (C-c C-q). With a count, realign the tags of every headline

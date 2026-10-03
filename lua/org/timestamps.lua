@@ -701,7 +701,9 @@ end
 -- Schedule / deadline
 ---------------------------------------------------------------------------
 
-local function log_planning_change(bufnr, file, lnum, kind, old, new)
+--- `note`: the note to log when the setting asks for one (nil prompts,
+--- false logs without a note).
+local function log_planning_change(bufnr, file, lnum, kind, old, new, note)
   if not old then
     return
   end
@@ -719,8 +721,9 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
   else
     purpose = kind == "scheduled" and "delschedule" or "deldeadline"
   end
-  local note
-  if setting == "note" then
+  if setting ~= "note" or note == false then
+    note = nil
+  elseif note == nil then
     note = utils.input_note({ prompt = "Note: ", purpose = edit.note_purpose(purpose) })
     if note == nil then
       -- cancelled (C-c C-k): nothing is logged (org-note-abort)
@@ -829,6 +832,41 @@ local function plan(target, kind, arg)
     utils.notify(kind == "deadline" and "Entry no longer has a deadline." or "Entry is no longer scheduled.")
   end
   -- true after a removal: `false` would mean "not applicable" to key mappings
+  return new or true
+end
+
+--- Set (or with nil remove) the SCHEDULED or DEADLINE date of the entry at
+--- `target` without prompting, as C-c C-s / C-c C-d do once a date is
+--- picked: the old repeater and warning period are kept unless `value`
+--- has its own, a new date removes CLOSED and a changed one is logged per
+--- `log_reschedule` / `log_redeadline`. `opts.note` is the note such a log
+--- takes (false: none, nil: ask). Returns the date, true after a removal,
+--- or nil when there was nothing to remove.
+---@param target? org.Target
+---@param kind "scheduled"|"deadline"
+---@param value table|nil an org.date timestamp
+---@param opts? { note?: string|false }
+function M.plan_date(target, kind, value, opts)
+  local bufnr, file, hl = edit.resolve_headline(target)
+  if not bufnr then
+    return nil
+  end
+  local existing = hl.planning[kind]
+  local new = value and value:clone({ active = true, range_end = vim.NIL }) or nil
+  if not existing and not new then
+    return nil
+  end
+  if new and existing then
+    -- the repeater and warning period stay (org--deadline-or-schedule)
+    new.repeater = new.repeater or (existing.repeater and vim.deepcopy(existing.repeater))
+    new.warning = new.warning or (existing.warning and vim.deepcopy(existing.warning))
+  end
+  local lnum = hl.line
+  edit.set_planning(bufnr, lnum, kind, new)
+  if new and hl.planning.closed then
+    edit.set_planning(bufnr, lnum, "closed", nil)
+  end
+  log_planning_change(bufnr, file, lnum, kind, existing, new, (opts or {}).note)
   return new or true
 end
 

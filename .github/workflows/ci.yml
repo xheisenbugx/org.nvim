@@ -56,12 +56,13 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
-      # make test without make: a throwaway XDG_DATA_HOME
+      # make test without make: a throwaway XDG_DATA_HOME; the Windows
+      # runners are the slowest, so twice the perf budgets
       - name: Run specs
         shell: bash
         run: |
           d=$(mktemp -d)
-          ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
+          ORG_PERF_SCALE=2 ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:
     name: lint (stylua)
@@ -74,7 +75,33 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: 2.5.2
-          args: --check lua plugin ftplugin syntax tests
+          args: --check lua plugin ftplugin syntax tests scripts/site
+
+  typecheck:
+    name: typecheck (lua-language-server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # bump it together with a `make typecheck` pass: new releases can add
+      # diagnostics
+      LUALS_VERSION: 3.19.1
+    steps:
+      - uses: actions/checkout@v4
+      # the runtime's type annotations (vim.api, vim.uv, ...) come from
+      # VIMRUNTIME
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Install lua-language-server
+        run: |
+          d="$RUNNER_TEMP/luals"
+          mkdir -p "$d"
+          curl -fsSL "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/lua-language-server-$LUALS_VERSION-linux-x64.tar.gz" \
+            | tar -xz -C "$d"
+          echo "$d/bin" >> "$GITHUB_PATH"
+      - run: lua-language-server --version
+      - run: make typecheck
 
   helptags:
     runs-on: ubuntu-latest

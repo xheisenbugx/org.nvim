@@ -1267,6 +1267,7 @@ end
 ---@param theirs_path string
 ---@param opts? org.merge.Opts
 ---@return integer conflicts
+---@return any error why the structural merge failed (it fell back to a line merge)
 function M.merge_files(base_path, ours_path, theirs_path, opts)
   local base = M.read_file(base_path) or {}
   local ours, eol = M.read_file(ours_path)
