@@ -87,6 +87,12 @@ local function env(dir)
   }
 end
 
+--- The file `org` touches after a write (stdpath("data") of the runs).
+local function stamp_file(dir)
+  local data = env(dir).XDG_DATA_HOME .. (vim.fn.has("win32") == 1 and "/nvim-data" or "/nvim")
+  return data .. "/org/cli-clock.stamp"
+end
+
 --- Run bin/org; returns exit code, stdout, stderr.
 local function run(dir, args, stdin)
   local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua" }
@@ -861,6 +867,13 @@ describe("cli json: writing", function()
     eq(0, code, vim.inspect(e.errors))
     eq("12 office", e.data.headline.title)
     vim.fn.delete(d, "rf")
+  end)
+
+  it("tells a running Neovim about a capture, like every write", function()
+    local before = read(stamp_file(dir))[1]
+    eq(0, (json(dir, { "capture", "Buy bread" })))
+    local after = read(stamp_file(dir))[1]
+    ok(after and after ~= before, "the stamp file was not touched")
   end)
 
   it("clocks in and out with JSON results", function()

@@ -1387,6 +1387,8 @@ function M.cmd_capture(words, flags)
       hl = M.headline_at(bufnr, hl.line)
     end
   end
+  -- the capture saved its target itself: a running Neovim rereads it too
+  state.touched = true
   M.save_all(flags)
   local path = data.path(vim.api.nvim_buf_get_name(bufnr))
   return {

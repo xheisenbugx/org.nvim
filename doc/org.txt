@@ -9119,8 +9119,8 @@ the write hooks run: with `crypt.encrypt_on_save` the entries tagged
 hooks of all the files run before any is written; one that needs input,
 such as the passphrase of symmetric encryption, fails the command with
 exit code 3 and writes nothing, so give `crypt.key` (or `CRYPTKEY`) a
-public key for writes from the shell. Writes touch the clock stamp
-file, so a Neovim with the extension enabled
+public key for writes from the shell. Every write, a capture too,
+touches the clock stamp file, so a Neovim with the extension enabled
 rereads the files (see below).
 
 JSON                                                *org-extensions-cli-json*
@@ -9286,7 +9286,8 @@ Options (`extensions.cli`) ~
   `watch_clock`        a running Neovim follows the shell's clock (true)
 
 Clock in the shell and in Neovim ~
-`org clock in`, `out` and `cancel` touch `stdpath("data")/org/cli-clock.stamp`.
+Every write (`org clock in`, `out` and `cancel`, `capture`, `set`, ...)
+touches `stdpath("data")/org/cli-clock.stamp`.
 A Neovim with the extension enabled (and `watch_clock`) checks that file
 every two seconds and on |FocusGained|; when it changed, Neovim rereads
 changed files (|:checktime|), drops its running clock when the open CLOCK
