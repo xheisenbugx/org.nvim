@@ -167,6 +167,40 @@ describe("perf: long lines", function()
     end)
   end
 
+  -- Lines shorter than 'synmaxcol' are drawn to their end: a screen of
+  -- them shows what each marker costs. A look-behind for a table row on
+  -- each emphasis marker went back to the start of the line: 20 lines of
+  -- 2,900 characters of bold took 1.4 s to draw, 3.7x the time of 1,450.
+  describe("a screen of lines of markup", function()
+    local wrap
+    before_each(function()
+      wrap = vim.wo.wrap
+    end)
+    after_each(function()
+      vim.wo.wrap = wrap
+    end)
+
+    it("draws in time linear in their length", function()
+      local buf = open({ "" })
+      -- (a screen row per line: all 20 are drawn)
+      vim.wo.wrap = false
+      local function screen(n)
+        local lines = { "* Before" }
+        for _ = 1, 20 do
+          lines[#lines + 1] = string.rep("*a* ", math.ceil(n / 4)):sub(1, n)
+        end
+        lines[#lines + 1] = "* After *bold*"
+        return lines
+      end
+      linear("draw 20 lines of bold", 1450, redraw_fresh, function(n)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, screen(n))
+      end)
+      eq("OrgBold", syn(2, 2))
+      eq("OrgBold", syn(21, 2))
+      eq("OrgHeadlineLevel1", syn(22, 1))
+    end)
+  end)
+
   it("typing in a 10,000-character line", function()
     open(file("marked", 10000))
     vim.api.nvim_win_set_cursor(0, { 2, 100 })

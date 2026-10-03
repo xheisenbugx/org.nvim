@@ -335,27 +335,39 @@ local function emphasis(in_table, conceal_emph, synmaxcol)
   -- the newline cannot be followed by a line that ends the paragraph
   local nl = in_table and "" or string.format([=[\%%(\n\%%(%s\)\@!%s\)\=]=], PARA_SEP, chars("."))
   local body = string.format([=[\%%(%s\|%s%s%s%s\)%s]=], border, border, chars(any), nl, border, upto_max)
-  -- (the general regions don't start on table rows, where the cell
-  -- variant applies; ".\{-}": a greedy ".*" went to the end of the line
-  -- and back for each marker)
-  local not_table = in_table and "" or [=[\%(^\s*|.\{-}\)\@<!]=]
   local function emph(i, char)
     local group = MARKUP[i]
     local c = esc(char)
     -- headline stars never open bold markup (Emacs `org-do-emphasis-faces`),
     -- or "*** Title" would be bold "*" with both outer stars concealed
     local not_stars = char == "*" and [=[\%(^\*\+ \)\@!]=] or ""
-    local contains
-    if char == "=" or char == "~" then
-      contains = ""
-    else
-      local others = {}
-      for j, g in ipairs(MARKUP) do
-        -- (not the group itself: "*a *b *c ..." would nest without end)
-        if j ~= i then
-          others[#others + 1] = g
+    local verbatim = char == "=" or char == "~"
+    -- the other kinds: markup holds them (verbatim and code hold none;
+    -- not its own kind: "*a *b *c ..." would nest without end)
+    local others, holders = {}, { "orgTable" }
+    for j, g in ipairs(MARKUP) do
+      if j ~= i then
+        others[#others + 1] = g
+        if j <= 4 then
+          holders[#holders + 1] = g
         end
       end
+    end
+    local contains
+    if in_table then
+      -- Table rows (orgTable) get the cell variant item by item
+      -- (containedin): a contains= of orgTable takes group names, and
+      -- with them the general regions, which run over the cells. (Those
+      -- had a look-behind for the start of a table row instead, which
+      -- went back to the start of the line from every marker: quadratic
+      -- in the length of a line of markup.) Markup in a cell holds the
+      -- cell variants of the other kinds the same way.
+      contains = (verbatim and "" or ("contains=" .. list("@Spell", OBJECTS) .. " "))
+        .. "containedin="
+        .. table.concat(holders, ",")
+    elseif verbatim then
+      contains = ""
+    else
       contains = "contains=" .. list("@Spell", OBJECTS, others)
     end
     -- The end is the first marker after a non-blank that is not the
@@ -364,14 +376,13 @@ local function emphasis(in_table, conceal_emph, synmaxcol)
     -- NFA engine ran out of 'maxmempattern' on long lines with many markers
     cmd(
       string.format(
-        [=[syntax region %s matchgroup=%sDelimiter start=/\%%#=1%s%s%s%s%s\ze%s%s%s/ end=/\%%#=1%s\@4<=\%%(\%%(^\|[[:space:]('"{-]\)%s\)\@2<!%s\ze%s/ keepend%s%s %s]=],
+        [=[syntax region %s matchgroup=%sDelimiter start=/\%%#=1%s%s%s%s\ze%s%s%s/ end=/\%%#=1%s\@4<=\%%(\%%(^\|[[:space:]('"{-]\)%s\)\@2<!%s\ze%s/ keepend%s%s %s]=],
         group,
         group,
         before_max,
         not_stars,
         pre,
         c,
-        not_table,
         body,
         c,
         post,
@@ -674,11 +685,10 @@ function M.apply(bufnr)
   )
 
   -- Tables -------------------------------------------------------------------
+  -- (markup in cells: the cell variant of emphasis, below, names orgTable
+  -- in its containedin)
   cmd(
-    string.format(
-      [=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgTableFormula,%s,@orgLinks,orgTimestamp,orgTimestampInactive,orgFootnote,orgMacro,orgTarget,orgStatistic,orgStatisticDone,orgExportSnippet]=],
-      table.concat(MARKUP, ",")
-    )
+    [=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgTableFormula,@orgLinks,orgTimestamp,orgTimestampInactive,orgFootnote,orgMacro,orgTarget,orgStatistic,orgStatisticDone,orgExportSnippet]=]
   )
   cmd([=[syntax match orgTableSeparator /|/ contained]=])
   -- table internals (org-formula): alignment cookies, field formulas and
@@ -696,11 +706,15 @@ function M.apply(bufnr)
     [=[syntax match orgTableFormula /\%#=1\%(^\s*\)\@<=| *[$!_^\/] *|.*\ze|/lc=1 contained contains=orgTableSeparator]=]
   )
   -- table.el borders (`+--+---+`), fontified like table lines in Emacs
-  cmd([=[syntax match orgTable /^\s*+-[-+].*$/]=])
+  cmd([=[syntax match orgTable /^\s*+-[-+].*$/ contains=orgTableBorder]=])
   cmd([=[syntax match orgTableHline /^\s*|[-+]\+|\?\s*$/ contained]=])
   cmd([=[syntax match orgTableFormula /^\s*#+\ctblfm:.*$/]=])
   -- markup in cells (after the formulas, so "| =v= |" is verbatim)
   emphasis(true, conceal_emph, synmaxcol)
+  -- (a border is an orgTable too: what it holds, defined after the cell
+  -- markup so it wins at the start of the line, keeps "+--+" from being
+  -- struck through)
+  cmd([=[syntax match orgTableBorder /.*$/ contained transparent contains=NONE]=])
 
   -- Blocks -------------------------------------------------------------------
   -- A block always ends at a headline (org-fontify-meta-lines-and-blocks),
