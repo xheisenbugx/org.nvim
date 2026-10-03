@@ -398,7 +398,7 @@ local function meta_left_right_region(delta)
   if is_headline(line) then
     result = require("org.structure").change_level_region(delta)
   elseif item_line(first) then
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     result = require("org.lists").indent_item(delta, false, { s, e })
   else
     return false

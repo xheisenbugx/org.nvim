@@ -3275,7 +3275,7 @@ function M.export_as_odf(latex_frag, odf_file)
     local m = vim.fn.mode()
     if m == "v" or m == "V" or m == "\22" then
       local srow, scol, erow, ecol, mode = utils.visual_range()
-      vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+      utils.exit_visual()
       local text
       if mode == "v" then
         local last = vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or ""

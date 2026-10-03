@@ -227,7 +227,7 @@ function M.src_associate_babel_session(ebuf, bufnr, b)
     end, { buffer = ebuf, desc = "org: send the edit buffer to its session" })
     vim.keymap.set("x", lhs, function()
       local s, _, e = utils.visual_range()
-      vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+      utils.exit_visual()
       M.send_to_associated_session(ebuf, s, e)
     end, { buffer = ebuf, desc = "org: send the selected lines to the session" })
   end

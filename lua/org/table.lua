@@ -850,7 +850,7 @@ function M.sort_column(opts)
   local srow, scol, erow
   if visual then
     srow, scol, erow = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     vim.api.nvim_win_set_cursor(0, { srow, math.max(scol - 1, 0) })
   end
   local info = M.at_cursor()
@@ -1058,7 +1058,7 @@ function M.create_or_convert()
   if mode == "v" or mode == "V" or mode == "\22" then
     local sep = M.separator_for_count(vim.v.count)
     local srow, _, erow = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     if too_long(erow - srow + 1) then
       return
     end
@@ -1976,7 +1976,7 @@ local function selected_rect(whole_column)
   local srow, scol, erow, ecol, mode
   if visual then
     srow, scol, erow, ecol, mode = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
   end
   local info, row, field = current_field()
   if not info then
@@ -2371,7 +2371,7 @@ function M.rotate_recalc_marks(mark)
   if visual then
     local s, _, e = utils.visual_range()
     srow, erow = s, e
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
   end
   local info, row, field = current_field()
   if not info then

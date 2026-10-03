@@ -634,7 +634,7 @@ function M.indent_region_action()
   local m = vim.fn.mode()
   if m == "v" or m == "V" or m == "\22" then
     local s, _, e = require("org.utils").visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    require("org.utils").exit_visual()
     M.indent_region(bufnr, s, e)
   else
     M.indent_region(bufnr, 1, vim.api.nvim_buf_line_count(bufnr))

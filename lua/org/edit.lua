@@ -62,7 +62,7 @@ function M.region_headlines(skip)
     return nil
   end
   local s, _, e = utils.visual_range()
-  vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  utils.exit_visual()
   local bufnr = vim.api.nvim_get_current_buf()
   local file = files.get_buffer(bufnr)
   local out, level = {}, nil

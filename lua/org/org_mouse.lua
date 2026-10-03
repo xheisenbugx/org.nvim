@@ -1474,7 +1474,7 @@ function M.visual_region()
     s, e = e, s
   end
   local lines = vim.fn.getregion(s, e, { type = m })
-  vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  utils.exit_visual()
   return { text = table.concat(lines, "\n"), s = { s[2], s[3] }, e = { e[2], e[3] } }
 end
 
