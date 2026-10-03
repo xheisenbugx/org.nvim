@@ -32,6 +32,16 @@ local function disk(path)
   return utils.readfile(path) or {}
 end
 
+local function text(path)
+  return table.concat(disk(path), "\n")
+end
+
+local function open_file(path)
+  vim.cmd("enew!")
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
+  return vim.api.nvim_get_current_buf()
+end
+
 --- A headline line with its tags aligned or not.
 local function squash(line)
   return (line:gsub("%s+(:[^%s]+:)$", " %1"))
@@ -67,6 +77,235 @@ describe("org.api handles", function()
     return api.headlines({ files = path or work, title = title })[1]
   end
 
+  describe("finding the headline again", function()
+    local CALLS = {
+      "* TODO Call",
+      "  :PROPERTIES:",
+      "  :ID:       call-a",
+      "  :END:",
+      "* TODO Call",
+      "  :PROPERTIES:",
+      "  :ID:       call-b",
+      "  :END:",
+    }
+
+    it("an ID decides, not the line", function()
+      local p = write(dir, "calls.org", CALLS)
+      local hb = api.find_by_id("call-b")
+      eq(5, hb.line)
+      local lines = disk(p)
+      for _ = 1, 4 do
+        table.insert(lines, 1, "# note")
+      end
+      utils.writefile(p, lines)
+      ok(hb:set_todo("DONE"))
+      lines = disk(p)
+      eq("* TODO Call", lines[5])
+      eq("* DONE Call", lines[9])
+      eq(9, hb.line)
+    end)
+
+    it("an ID that no entry has any more is an error, never another entry", function()
+      local p = write(dir, "calls.org", CALLS)
+      local hb = api.find_by_id("call-b")
+      local lines = disk(p)
+      lines[7] = "  :ID:       call-c"
+      lines[3] = "  :ID:       call-x"
+      utils.writefile(p, lines)
+      local res, err = hb:set_todo("DONE")
+      eq(nil, res)
+      ok(err:match("call%-b"), err)
+      eq(CALLS[1], disk(p)[1])
+      eq(CALLS[5], disk(p)[5])
+    end)
+
+    local REVIEWS = {
+      "* Reviews",
+      "** DONE Weekly review",
+      "   CLOSED: [2026-08-01 Sat 10:00]",
+      "** DONE Weekly review",
+      "   CLOSED: [2026-08-08 Sat 10:00]",
+      "** DONE Weekly review",
+      "   CLOSED: [2026-09-28 Mon 10:00]",
+      "** DONE Weekly review",
+      "   CLOSED: [2026-10-01 Thu 10:00]",
+    }
+
+    local function old(h)
+      return h.closed ~= nil and h.closed.date < "2026-09-01"
+    end
+
+    it("archiving each handle of a query archives the selected entries", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local list = api.headlines({ files = p, done = true, filter = old })
+      eq(2, #list)
+      for _, h in ipairs(list) do
+        ok(h:archive())
+      end
+      local left = text(p)
+      ok(left:find("2026-09-28", 1, true), "Sep 28 stays")
+      ok(left:find("2026-10-01", 1, true), "Oct 1 stays")
+      ok(not left:find("2026-08", 1, true), "Aug entries archived")
+      local archived = text(p .. "_archive")
+      ok(archived:find("2026-08-01", 1, true))
+      ok(archived:find("2026-08-08", 1, true))
+      ok(not archived:find("2026-09-28", 1, true))
+    end)
+
+    it("handles follow the user's edits of a loaded buffer", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local b = open_file(p)
+      local list = api.headlines({ files = p, done = true, filter = old })
+      eq(2, #list)
+      -- the first entry goes: the Sep 28 one is now where Aug 8's was
+      vim.api.nvim_buf_set_lines(b, 1, 3, false, {})
+      ok(list[2]:set_todo("TODO"))
+      eq("** TODO Weekly review", buf_lines(b)[2])
+      eq("   CLOSED: [2026-08-08 Sat 10:00]", buf_lines(b)[3])
+      eq(2, list[2].line)
+      -- lines added at the top
+      vim.api.nvim_buf_set_lines(b, 0, 0, false, { "#+TITLE: Reviews", "" })
+      ok(list[2]:set_todo("DONE"))
+      eq("** DONE Weekly review", buf_lines(b)[4])
+      eq(4, list[2].line)
+      ok(list[2]:set_todo("TODO"))
+      -- the deleted entry's handle doesn't find another one
+      local res, err = list[1]:set_todo("TODO")
+      eq(nil, res)
+      ok(err:match("get a new handle"), err)
+      local todos = 0
+      for _, l in ipairs(buf_lines(b)) do
+        todos = todos + (l:match("^%*%* TODO") and 1 or 0)
+      end
+      eq(1, todos)
+    end)
+
+    it("sibling handles follow lines added by another handle's change", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local list = api.headlines({ files = p, title = "Weekly review" })
+      eq(4, #list)
+      ok(list[1]:set_property("Where", "Office"))
+      ok(list[1]:schedule("2026-10-10"))
+      ok(list[3]:set_todo("TODO"))
+      local lines = disk(p)
+      local n = 0
+      for i, l in ipairs(lines) do
+        if l:match("^%*%* ") then
+          n = n + 1
+          if n == 3 then
+            eq("** TODO Weekly review", l)
+            eq("   CLOSED: [2026-09-28 Mon 10:00]", lines[i + 1])
+          else
+            eq("** DONE Weekly review", l)
+          end
+        end
+      end
+      eq(4, n)
+    end)
+
+    it("an ambiguous headline is an error instead of a guess", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local h = api.headlines({ files = p, title = "Weekly review" })[2]
+      -- changed on disk behind the handle's back: two lines removed above it
+      local lines = disk(p)
+      table.remove(lines, 2)
+      table.remove(lines, 2)
+      utils.writefile(p, lines)
+      local res, err = h:set_todo("TODO")
+      eq(nil, res)
+      ok(err:match("get a new handle"), err)
+      ok(not text(p):find("TODO", 1, true))
+    end)
+
+    it("a unique headline is still found after an outside change", function()
+      local h = head("Write report")
+      local lines = disk(work)
+      table.insert(lines, 1, "#+TITLE: Work")
+      utils.writefile(work, lines)
+      ok(h:set_todo("DONE"))
+      eq("** DONE Write report", disk(work)[5])
+    end)
+
+    it("handles read from disk follow the buffer once the file is opened", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local list = api.headlines({ files = p, done = true, filter = old })
+      local b = open_file(p)
+      vim.api.nvim_buf_set_lines(b, 1, 3, false, {})
+      ok(list[2]:reload())
+      eq(2, list[2].line)
+      ok(list[2]:set_todo("TODO"))
+      eq("** TODO Weekly review", buf_lines(b)[2])
+      eq("   CLOSED: [2026-08-08 Sat 10:00]", buf_lines(b)[3])
+    end)
+
+    it("a file read again after an outside change doesn't make a handle take another entry", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local b = open_file(p)
+      local list = api.headlines({ files = p, title = "Weekly review" })
+      local lines = disk(p)
+      table.remove(lines, 2)
+      table.remove(lines, 2)
+      utils.writefile(p, lines)
+      vim.cmd("silent edit!")
+      local res, err = list[2]:set_todo("TODO")
+      eq(nil, res)
+      ok(err:match("get a new handle"), err)
+      ok(not table.concat(buf_lines(b), "\n"):find("TODO", 1, true))
+    end)
+
+    it("a parent whose statistics cookie changed is still found", function()
+      local p = write(dir, "project.org", { "* TODO Project [0/2]", "** TODO a", "** TODO b" })
+      local list = api.headlines({ files = p })
+      ok(list[2]:set_todo("DONE"))
+      ok(list[3]:set_todo("DONE"))
+      eq("* TODO Project [2/2]", disk(p)[1])
+      ok(list[1]:set_todo("DONE"))
+      eq("* DONE Project [2/2]", disk(p)[1])
+    end)
+
+    it("several entries with the handle's ID are an error", function()
+      local p = write(dir, "calls.org", CALLS)
+      local ha = api.find_by_id("call-a")
+      local lines = disk(p)
+      vim.list_extend(lines, { "* TODO Call (copy)", "  :PROPERTIES:", "  :ID:       call-a", "  :END:" })
+      table.insert(lines, 1, "")
+      utils.writefile(p, lines)
+      local res, err = ha:set_todo("DONE")
+      eq(nil, res)
+      ok(err:match("several entries have the ID call%-a"), err)
+      -- a handle that follows its line still knows which one it is
+      local h = api.headlines({ files = p, title = "Call (copy)" })[1]
+      ok(h:set_todo("DONE"))
+      eq("* DONE Call (copy)", disk(p)[10])
+    end)
+
+    it("deletes the marks of handles that were collected", function()
+      local p = write(dir, "many.org", { "* a", "* b", "* c" })
+      local b = open_file(p)
+      local ns = vim.api.nvim_get_namespaces()["org.api.headlines"]
+      for _ = 1, 10 do
+        api.headlines({ files = p })
+      end
+      ok(#vim.api.nvim_buf_get_extmarks(b, ns, 0, -1, {}) > 3)
+      collectgarbage("collect")
+      collectgarbage("collect")
+      local kept = api.headlines({ files = p })
+      eq(3, #vim.api.nvim_buf_get_extmarks(b, ns, 0, -1, {}))
+      ok(kept[3]:set_todo("TODO"))
+      eq("* TODO c", buf_lines(b)[3])
+    end)
+
+    it("an archived handle stays gone", function()
+      local p = write(dir, "reviews.org", REVIEWS)
+      local h = api.headlines({ files = p, title = "Weekly review" })[1]
+      ok(h:archive())
+      local res, err = h:set_todo("TODO")
+      eq(nil, res)
+      ok(err:match("not found"), err)
+      ok(not text(p):find("TODO", 1, true))
+    end)
+  end)
+
   describe("tags", function()
     it("add_tag and remove_tag keep tags added since the handle was made", function()
       local p = write(dir, "ids.org", {
@@ -95,6 +334,15 @@ describe("org.api handles", function()
       ok(h1:add_tag("c"))
       ok(h1:remove_tag("nope"))
       eq("* TODO Plan offsite :urgent:c:d:", squash(disk(p)[1]))
+    end)
+
+    it("add_tag keeps tags set with C-c C-q in a loaded buffer", function()
+      local b = open_file(work)
+      local h = head("Plan offsite")
+      require("org.tags").set_tags({ bufnr = b, lnum = 2 }, { "travel", "urgent" })
+      vim.cmd("silent write")
+      ok(h:add_tag("b"))
+      eq("** TODO Plan offsite :travel:urgent:b:", squash(disk(work)[2]))
     end)
 
     it("rejects tag names org can't read back", function()

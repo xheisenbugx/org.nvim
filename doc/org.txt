@@ -6707,9 +6707,20 @@ is 1:00 the next day, and so is a timestamp's day its month doesn't have
 1-9999, an end time outside the day or a repeater or warning that isn't
 `{ type, value, unit }` is an error.
 
-Methods find the headline again (at its line, else by its ID, else the
-nearest line with the same text), run the same code as the keys, refresh
-the fields and return the handle (or nil and an error):
+Methods find the headline again, run the same code as the keys, refresh
+the fields and return the handle (or nil and an error). A handle with an
+ID finds the entry with that ID wherever it went; when no entry has it, or
+several do, that's an error, never another entry. While the file is loaded
+in a buffer (a change loads it), an extmark follows the headline's line
+through every edit, yours and the API's, so all the handles of a query
+stay on their entries while you change them one by one (a line replaced
+by another change, for its keyword, tags or a statistics cookie, stays
+the handle's while no other headline has its title). A file changed
+outside Neovim leaves only the text: the one headline with the handle's
+text. When the headline can't be told apart (its line was deleted, its
+subtree moved, several headlines have its text), a method returns nil and
+"the headline moved; get a new handle". After h:archive() the handle no
+longer points to an entry.
     h:set_todo(state, [opts])     C-c C-t; nil removes the keyword.
                                   `opts.note` is the note the logging asks
                                   for, `opts.force` ignores blocking

@@ -2,7 +2,8 @@
 ---
 --- A handle is a plain table of fields (a snapshot taken when it was made)
 --- with methods. The methods find the headline again in its file (by its
---- line, then its ID, then its text), run the same code as the keys and
+--- ID when it has one, else by an extmark that follows its line while the
+--- file is loaded, never by a guess), run the same code as the keys and
 --- actions, and refresh the fields. See |org-api-headlines|.
 
 local files = require("org.files")
@@ -53,9 +54,6 @@ local M = {}
 local Headline = {}
 Headline.__index = Headline
 M.Headline = Headline
-
--- private state of handles: { bufnr } (a buffer without a file)
-local priv = setmetatable({}, { __mode = "k" })
 
 ---------------------------------------------------------------------------
 -- Dates
@@ -239,10 +237,211 @@ function M.to_date(v)
 end
 
 ---------------------------------------------------------------------------
+-- Following headlines
+---------------------------------------------------------------------------
+
+-- While a handle's file is loaded in a buffer, an extmark follows its
+-- headline's line through every edit, yours and the API's: from after the
+-- line's first character (left gravity) to its end (right gravity). Lines
+-- added or removed around it move it; edits inside the line leave its
+-- start after the first star. Replacing the line (org rewrites a headline
+-- line to change its keyword or tags) or deleting it puts the start at
+-- column 0 for good, and a deletion collapses the mark. A handle read
+-- from disk gets its mark when that version of the file is read into a
+-- buffer; reading a buffer again (:e!) or unloading it drops its marks.
+local ns = vim.api.nvim_create_namespace("org.api.headlines")
+
+--- Private state of the live handles (weak keys: it goes with the handle):
+--- `bufnr` the buffer of a handle without a file; `file`, `id`, `raw`,
+--- `title` and `line` what identified its headline when last read;
+--- `mark` `{ bufnr, extmark }` following that line; `stat` the version of
+--- the file on disk `line` was read from (for a handle read from disk);
+--- `gone` once the entry was archived; `proxy` a userdata whose finalizer
+--- queues the mark for deletion when the handle is collected.
+local priv = setmetatable({}, { __mode = "k" })
+
+--- Marks of collected handles, deleted at the next call (the collector
+--- may run where buffers can't be changed).
+local dead = {}
+
+local function flush_dead()
+  if #dead == 0 then
+    return
+  end
+  local list = dead
+  dead = {}
+  for _, m in ipairs(list) do
+    if vim.api.nvim_buf_is_valid(m[1]) then
+      pcall(vim.api.nvim_buf_del_extmark, m[1], ns, m[2])
+    end
+  end
+end
+
+local function state(self)
+  local p = priv[self]
+  if not p then
+    p = {}
+    priv[self] = p
+  end
+  return p
+end
+
+local function unmark(p)
+  local m = p.mark
+  p.mark = nil
+  if m and vim.api.nvim_buf_is_valid(m[1]) then
+    pcall(vim.api.nvim_buf_del_extmark, m[1], ns, m[2])
+  end
+end
+
+--- Follow line `lnum` of `bufnr`, whose text is `line`, with the mark.
+local function mark(p, bufnr, lnum, line)
+  if p.mark and p.mark[1] ~= bufnr then
+    unmark(p)
+  end
+  local ok, id = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, lnum - 1, math.min(1, #line), {
+    id = p.mark and p.mark[2] or nil,
+    end_row = lnum - 1,
+    end_col = #line,
+    right_gravity = false,
+    end_right_gravity = true,
+  })
+  if not ok then
+    unmark(p)
+    return
+  end
+  p.mark = { bufnr, id }
+  if not p.proxy then
+    local proxy = newproxy(true)
+    getmetatable(proxy).__gc = function()
+      if p.mark then
+        dead[#dead + 1] = p.mark
+      end
+    end
+    p.proxy = proxy
+  end
+end
+
+--- Where the mark puts the headline in `bufnr`: its line, and how sure
+--- that is. "same": the line was only edited inside (the mark's start is
+--- still after the first star: a deleted line takes it to column 0 for
+--- good). "gone": the line was deleted (the mark collapsed). "replaced":
+--- the line was replaced, by org rewriting it (a TODO keyword, tags, a
+--- statistics cookie) or by other text after it was deleted, which an
+--- extmark can't tell apart. nil without a mark there.
+---@return integer|nil lnum, string|nil how
+local function marked(p, bufnr)
+  local m = p.mark
+  if not m or m[1] ~= bufnr then
+    return nil
+  end
+  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, m[2], { details = true })
+  if not ok or not pos or not pos[1] then
+    p.mark = nil
+    return nil
+  end
+  local r1, c1, d = pos[1], pos[2], pos[3] or {}
+  if c1 > 0 then
+    -- only stars before it, not the end of a line it was joined to
+    local line = vim.api.nvim_buf_get_lines(bufnr, r1, r1 + 1, false)[1] or ""
+    return r1 + 1, line:sub(1, c1):match("^%**$") and "same" or "replaced"
+  elseif (d.end_row or r1) == r1 and (d.end_col or 0) == 0 then
+    return r1 + 1, "gone"
+  end
+  return r1 + 1, "replaced"
+end
+
+--- Does no other headline of `f` have the plain title `title`?
+local function unique_title(f, title)
+  local n = 0
+  for _, h in ipairs(f.headlines) do
+    if h:plain_title() == title then
+      n = n + 1
+      if n > 1 then
+        return false
+      end
+    end
+  end
+  return n == 1
+end
+
+--- The version of a file on disk (mtime and size), nil when it's missing.
+local function stat_of(path)
+  local st = path and vim.uv.fs_stat(path)
+  return st and string.format("%d.%d:%d", st.mtime.sec, st.mtime.nsec, st.size) or nil
+end
+
+--- The version a file read from disk was parsed from (files.get() has
+--- just checked it), once per parse.
+local parsed_stats = setmetatable({}, { __mode = "k" })
+local function parsed_stat(file)
+  local s = parsed_stats[file]
+  if s == nil then
+    s = stat_of(file.filename) or false
+    parsed_stats[file] = s
+  end
+  return s or nil
+end
+
+--- Does the handle's line still hold its headline? Known only for a
+--- handle read from disk, while the file has that version and its buffer,
+--- if loaded, has no changes.
+local function trusted(p, bufnr)
+  if not p.stat or (bufnr and vim.bo[bufnr].modified) then
+    return false
+  end
+  return stat_of(p.file) == p.stat
+end
+
+local group = vim.api.nvim_create_augroup("org.api.headlines", { clear = true })
+
+-- the buffer's text is read again or freed: its marks follow nothing
+vim.api.nvim_create_autocmd({ "BufReadPre", "BufUnload" }, {
+  group = group,
+  callback = function(ev)
+    if next(priv) == nil then
+      return
+    end
+    for _, p in pairs(priv) do
+      if p.mark and p.mark[1] == ev.buf then
+        p.mark = nil
+      end
+    end
+    pcall(vim.api.nvim_buf_clear_namespace, ev.buf, ns, 0, -1)
+  end,
+})
+
+-- a file is read into a buffer: the handles read from this version of it
+-- follow their headlines from now on
+vim.api.nvim_create_autocmd("BufReadPost", {
+  group = group,
+  callback = function(ev)
+    if next(priv) == nil then
+      return
+    end
+    flush_dead()
+    local now = stat_of(vim.api.nvim_buf_get_name(ev.buf))
+    local here = {}
+    for _, p in pairs(priv) do
+      if now and p.stat == now and not p.mark and not p.gone then
+        if here[p.file] == nil then
+          here[p.file] = utils.find_buffer(p.file) == ev.buf
+        end
+        local line = here[p.file] and vim.api.nvim_buf_get_lines(ev.buf, p.line - 1, p.line, false)[1]
+        if line and line == p.raw then
+          mark(p, ev.buf, p.line, line)
+        end
+      end
+    end
+  end,
+})
+
+---------------------------------------------------------------------------
 -- Making handles
 ---------------------------------------------------------------------------
 
 local function fill(self, hl)
+  flush_dead()
   for k in pairs(self) do
     self[k] = nil
   end
@@ -269,7 +468,19 @@ local function fill(self, hl)
   self.outline_path = hl:outline_path()
   self.archived = hl:is_archived()
   self.commented = hl.commented and true or false
-  priv[self] = { bufnr = not file.filename and file.bufnr or nil }
+  local p = state(self)
+  p.bufnr = not file.filename and file.bufnr or nil
+  p.file, p.id, p.raw, p.title, p.line = file.filename, self.id, hl.raw, self.plain_title, hl.line
+  p.gone, p.stat = nil, nil
+  local b = file.bufnr
+  if b and vim.api.nvim_buf_is_loaded(b) and files.cached_buffer(b) == file then
+    mark(p, b, hl.line, hl.raw)
+  else
+    unmark(p)
+    if not b and file.filename then
+      p.stat = parsed_stat(file)
+    end
+  end
   return self
 end
 
@@ -284,53 +495,106 @@ end
 -- Finding the headline again
 ---------------------------------------------------------------------------
 
+--- What identifies a handle's headline (a copy of a handle has only its
+--- fields).
+local function identity(self)
+  return priv[self] or { file = self.file, id = self.id, raw = self.raw, title = self.plain_title, line = self.line }
+end
+
 --- The buffer of the handle's file, loaded (hidden) when needed.
 ---@return integer|nil bufnr, string|nil err
 local function buffer_of(self)
-  local p = priv[self] or {}
-  if not self.file then
+  local p = identity(self)
+  if not p.file then
     if p.bufnr and vim.api.nvim_buf_is_valid(p.bufnr) then
       return p.bufnr
     end
     return nil, "the buffer of this headline is gone"
   end
-  local b = utils.find_buffer(self.file)
+  local b = utils.find_buffer(p.file)
   if b then
     return b
   end
-  if not utils.exists(self.file) then
-    return nil, "file not found: " .. self.file
+  if not utils.exists(p.file) then
+    return nil, "file not found: " .. p.file
   end
-  local ok, res = pcall(utils.load_buffer, self.file)
+  local ok, res = pcall(utils.load_buffer, p.file)
   if not ok then
-    return nil, "cannot load " .. self.file .. ": " .. tostring(res)
+    return nil, "cannot load " .. p.file .. ": " .. tostring(res)
   end
   return res
 end
 
---- The current headline of a handle in the parsed file `f`: on its line
---- when that still holds it, else the one with its ID, else the nearest
---- one with the same headline text.
+local MOVED = "the headline moved; get a new handle: "
+
+--- The handle's current headline in the parsed file `f` (from buffer
+--- `bufnr` when it's loaded). Its ID decides when it has one (no entry
+--- with it is an error, never another entry); otherwise its mark, or its
+--- line while the file is still the version it was read from, or, when
+--- neither knows, the one headline with its text. A headline that can't
+--- be told apart is an error instead of a guess.
 ---@param f org.File
----@return org.Headline|nil
-local function locate(self, f)
-  local hl = f:headline_on(self.line)
-  if hl and hl.raw == self.raw then
-    return hl
+---@param bufnr? integer
+---@return org.Headline|nil hl, string|nil err
+local function locate(self, f, bufnr)
+  flush_dead()
+  local p = identity(self)
+  if p.gone then
+    return nil, "headline not found (it was archived): " .. p.raw
   end
-  if self.id then
-    hl = f:find_by_id(self.id)
-    if hl then
-      return hl
+  local lnum, how = marked(p, bufnr)
+  if not how and trusted(p, bufnr) then
+    lnum, how = p.line, "recorded"
+  end
+  local at = how and how ~= "gone" and f:headline_on(lnum) or nil
+  if how == "recorded" and not (at and at.raw == p.raw) then
+    at, how = nil, nil
+  elseif at and how == "replaced" and not (at:plain_title() == p.title and unique_title(f, p.title)) then
+    -- maybe another headline took its place
+    at = nil
+  end
+  local hl
+  if p.id then
+    if at and at.properties.ID == p.id then
+      hl = at
+    else
+      local n = 0
+      for _, h in ipairs(f.headlines) do
+        if h.properties.ID == p.id then
+          hl, n = h, n + 1
+        end
+      end
+      if n == 0 then
+        return nil, "headline not found: no entry has the ID " .. p.id .. " (get a new handle)"
+      elseif n > 1 then
+        return nil, MOVED .. "several entries have the ID " .. p.id
+      end
     end
-  end
-  local best
-  for _, h in ipairs(f.headlines) do
-    if h.raw == self.raw and (not best or math.abs(h.line - self.line) < math.abs(best.line - self.line)) then
-      best = h
+  elseif at then
+    hl = at
+  elseif how == nil or how == "replaced" then
+    -- nothing tells where it went: the one headline with its text
+    for _, h in ipairs(f.headlines) do
+      if h.raw == p.raw then
+        if hl then
+          return nil, MOVED .. p.raw
+        end
+        hl = h
+      end
     end
+    if not hl then
+      return nil, "headline not found (it was changed or removed): " .. p.raw
+    end
+  else
+    -- its line was deleted, or holds no headline any more
+    return nil, MOVED .. p.raw
   end
-  return best
+  -- follow it from here
+  if priv[self] and bufnr and not (how == "same" and lnum == hl.line) and files.cached_buffer(bufnr) == f then
+    p.line, p.raw, p.title, p.stat = hl.line, hl.raw, hl:plain_title(), nil
+    mark(p, bufnr, hl.line, hl.raw)
+  end
+  return hl
 end
 
 --- The buffer and current headline of a handle, or nil, nil and an error.
@@ -342,9 +606,10 @@ function M.resolve(self)
   if not bufnr then
     return nil, nil, err
   end
-  local hl = locate(self, files.get_buffer(bufnr))
+  local hl
+  hl, err = locate(self, files.get_buffer(bufnr), bufnr)
   if not hl then
-    return nil, nil, "headline not found (it was changed or removed): " .. self.raw
+    return nil, nil, err
   end
   return bufnr, hl
 end
@@ -353,21 +618,17 @@ end
 --- else from disk (nothing is loaded).
 ---@return org.Headline|nil hl, string|nil err
 function M.find(self)
+  local p = identity(self)
   local f
-  if self.file then
-    f = files.get(self.file)
+  if p.file then
+    f = files.get(p.file)
   else
-    local b = (priv[self] or {}).bufnr
-    f = b and vim.api.nvim_buf_is_valid(b) and files.get_buffer(b) or nil
+    f = p.bufnr and vim.api.nvim_buf_is_valid(p.bufnr) and files.get_buffer(p.bufnr) or nil
   end
   if not f then
-    return nil, "cannot read " .. (self.file or "the buffer of this headline")
+    return nil, "cannot read " .. (p.file or "the buffer of this headline")
   end
-  local hl = locate(self, f)
-  if not hl then
-    return nil, "headline not found (it was changed or removed): " .. self.raw
-  end
-  return hl
+  return locate(self, f, f.bufnr)
 end
 
 --- The last warning or error among collected messages.
@@ -785,6 +1046,12 @@ function Headline:archive(opts)
     local name = vim.api.nvim_buf_get_name(abuf)
     return name ~= "" and vim.fs.normalize(name) or true, false
   end)
+  if res then
+    -- an archived copy with the same text or ID is not this handle's entry
+    local p = state(self)
+    p.gone = true
+    unmark(p)
+  end
   return res, err
 end
 
