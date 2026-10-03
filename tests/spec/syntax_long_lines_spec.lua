@@ -19,16 +19,16 @@ local function draw()
 end
 
 describe("syntax on long lines", function()
-  local mmp, rdt
+  local mmp, rdt, smc
   before_each(function()
-    mmp, rdt = vim.o.maxmempattern, vim.o.redrawtime
+    mmp, rdt, smc = vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol
     -- the default 'maxmempattern'; a short 'redrawtime' catches patterns
     -- that are slow without being out of memory
     vim.o.maxmempattern = 1000
     vim.o.redrawtime = 500
   end)
   after_each(function()
-    vim.o.maxmempattern, vim.o.redrawtime = mmp, rdt
+    vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol = mmp, rdt, smc
   end)
 
   it("highlights description terms, not the blanks around the bullet", function()
@@ -106,6 +106,63 @@ describe("syntax on long lines", function()
     is("OrgHeadlineLevel1", 3, 1)
     is("", 4, 1)
     is("OrgBold", 4, 7)
+  end)
+
+  -- bold from column 98 to 114: past a 'synmaxcol' of 110 it can't be
+  -- drawn, and a region started for it would go on below
+  local ENDS_AT_114 = { gen.prose(96) .. " *starts here and* ends after", "plain text", "* Next", "text *b*" }
+  local function follows_110()
+    eq(110, vim.bo.synmaxcol)
+    draw()
+    is("", 1, 100)
+    is("", 2, 1)
+    is("OrgHeadlineLevel1", 3, 1)
+    is("OrgBold", 4, 7)
+  end
+
+  it("follows 'synmaxcol' when it changes", function()
+    local buf = org_buffer(ENDS_AT_114)
+    draw()
+    is("OrgBold", 1, 100)
+    for _, set in ipairs({
+      function(n)
+        vim.cmd("setlocal synmaxcol=" .. n)
+      end,
+      function(n)
+        vim.cmd("set synmaxcol=" .. n)
+      end,
+      function(n)
+        vim.bo[buf].synmaxcol = n
+      end,
+    }) do
+      set(110)
+      follows_110()
+      set(3000)
+      draw()
+      is("OrgBold", 1, 100)
+    end
+  end)
+
+  it("follows a 'synmaxcol' set when the file opens", function()
+    local path = vim.fn.tempname() .. ".org"
+    -- by an autocommand after the syntax (no OptionSet: autocommands
+    -- don't nest), or by a modeline
+    vim.fn.writefile(ENDS_AT_114, path)
+    local id = vim.api.nvim_create_autocmd("FileType", {
+      pattern = "org",
+      callback = function()
+        vim.bo.synmaxcol = 110
+      end,
+    })
+    vim.cmd("edit! " .. vim.fn.fnameescape(path))
+    vim.api.nvim_del_autocmd(id)
+    follows_110()
+    vim.cmd("bwipeout!")
+    vim.fn.writefile(vim.list_extend(vim.deepcopy(ENDS_AT_114), { "# vim: set synmaxcol=110 :" }), path)
+    vim.cmd("edit! " .. vim.fn.fnameescape(path))
+    follows_110()
+    vim.cmd("bwipeout!")
+    vim.fn.delete(path)
   end)
 
   it("still highlights markup over two lines", function()

@@ -315,11 +315,13 @@ local function emphasis(in_table, conceal_emph, synmaxcol)
   local any = in_table and "[^|]" or "."
   -- Markup is drawn only when it ends before 'synmaxcol': past it Vim
   -- doesn't look for the end of a region, which then went on over the
-  -- following lines. The text is matched only up to that column too: each
+  -- following lines (`apply` defines the syntax again when the option
+  -- changes). The text is matched only up to that column too: each
   -- opening marker looks ahead for its closing one, and a long line with
   -- many unclosed markers took time quadratic in its length (400 ms to
   -- draw a 10,000-character one; at 100,000 "'redrawtime' exceeded" turned
-  -- syntax off).
+  -- syntax off). So markup over two lines whose part on the first line is
+  -- longer than 'synmaxcol' isn't drawn either (:h org-differences).
   local before_max, upto_max, count = "", "", [=[\{-}]=]
   if synmaxcol > 0 then
     before_max = string.format([=[\%%<%dc]=], synmaxcol)
@@ -467,9 +469,56 @@ local function watch_languages(bufnr)
   })
 end
 
+--- Define the syntax of `buf` again when its 'synmaxcol' is no longer the
+--- one its emphasis patterns were made for: with a lower one, markup that
+--- ends past it would start a region Vim never ends.
+local function follow_synmaxcol(buf)
+  if
+    vim.api.nvim_buf_is_valid(buf)
+    and vim.b[buf].current_syntax == "org"
+    and vim.b[buf].org_synmaxcol ~= nil
+    and vim.b[buf].org_synmaxcol ~= vim.bo[buf].synmaxcol
+  then
+    vim.api.nvim_buf_call(buf, function()
+      M.apply(buf)
+    end)
+  end
+end
+
+local following = false
+
+--- Follow changes of 'synmaxcol' (once per session): OptionSet sees
+--- :set, :setlocal, modelines and Lua; BufWinEnter the changes made by
+--- other autocommands while a file opens (FileType, BufEnter), for which
+--- OptionSet doesn't fire.
+local function watch_synmaxcol()
+  if following then
+    return
+  end
+  following = true
+  local group = vim.api.nvim_create_augroup("org.syntax.synmaxcol", { clear = true })
+  vim.api.nvim_create_autocmd("OptionSet", {
+    group = group,
+    pattern = "synmaxcol",
+    callback = function()
+      follow_synmaxcol(vim.api.nvim_get_current_buf())
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    callback = function(ev)
+      follow_synmaxcol(ev.buf)
+    end,
+  })
+end
+
 function M.apply(bufnr)
   require("org.highlights").ensure()
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  -- emphasis is matched up to the buffer's 'synmaxcol' (see `emphasis`)
+  local synmaxcol = vim.bo[bufnr].synmaxcol
+  vim.b[bufnr].org_synmaxcol = synmaxcol
+  watch_synmaxcol()
   local config = require("org.config").opts
   local file = require("org.files").get_buffer(bufnr)
   local todo = file.settings.todo
@@ -590,7 +639,7 @@ function M.apply(bufnr)
   cmd([=[syntax match orgInlineSrcBody /{\@1<=[^}]\+/ contained]=])
 
   -- Emphasis -----------------------------------------------------------------
-  emphasis(false, conceal_emph, vim.bo[bufnr].synmaxcol)
+  emphasis(false, conceal_emph, synmaxcol)
 
   -- Links --------------------------------------------------------------------
   M.links(bufnr, conceal_links)
@@ -651,7 +700,7 @@ function M.apply(bufnr)
   cmd([=[syntax match orgTableHline /^\s*|[-+]\+|\?\s*$/ contained]=])
   cmd([=[syntax match orgTableFormula /^\s*#+\ctblfm:.*$/]=])
   -- markup in cells (after the formulas, so "| =v= |" is verbatim)
-  emphasis(true, conceal_emph, vim.bo[bufnr].synmaxcol)
+  emphasis(true, conceal_emph, synmaxcol)
 
   -- Blocks -------------------------------------------------------------------
   -- A block always ends at a headline (org-fontify-meta-lines-and-blocks),
@@ -874,6 +923,9 @@ function M.apply(bufnr)
   )
 
   require("org.highlights").apply_todo_faces()
+  -- (`:syntax clear` above deleted it: without it the syntax would no
+  -- longer be defined again for a new src language or 'synmaxcol')
+  vim.b[bufnr].current_syntax = "org"
 end
 
 return M

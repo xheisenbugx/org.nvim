@@ -198,6 +198,10 @@ describe("ui syntax: blocks", function()
     vim.api.nvim_buf_set_lines(buf, 2, 2, false, { "#+begin_src python", "def f(): return 1", "#+end_src" })
     vim.cmd("doautocmd TextChanged")
     ok(has(4, 1, "orgsrcblock_python"), groups(4, 1))
+    -- and another one after that
+    vim.api.nvim_buf_set_lines(buf, 2, 2, false, { "#+begin_src lua", "local x = 1", "#+end_src" })
+    vim.cmd("doautocmd TextChanged")
+    ok(has(4, 1, "orgsrcblock_lua"), groups(4, 1))
   end)
 end)
 

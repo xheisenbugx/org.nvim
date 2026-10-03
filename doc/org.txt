@@ -7104,8 +7104,11 @@ Differences from Emacs:
   line of a closed fold, is drawn below the line or shown as its link text
   (Emacs makes that screen line as tall as the image). Vim draws syntax
   up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
-  ends before that column (with the 'synmaxcol' the buffer had when its
-  syntax was set up), so a long line can't leave the lines below it bold.
+  ends before that column, so a long line can't leave the lines below it
+  bold. Emphasis over two lines is highlighted only when its part on the
+  first line is at most 'synmaxcol' characters long: looking further for
+  the end of every marker would make drawing a long line take time
+  quadratic in its length.
 
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or
