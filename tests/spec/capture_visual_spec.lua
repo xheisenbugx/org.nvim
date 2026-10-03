@@ -31,6 +31,11 @@ describe("capture from Visual mode", function()
     end
     screen:lua("vim.api.nvim_win_set_cursor(0, { 2, 0 })")
     screen:input("V" .. keys)
+    -- type the template key once the menu is up (a key typed earlier is
+    -- run when Visual mode ends: fix/visual-typeahead)
+    vim.wait(5000, function()
+      return screen:snapshot():find("Quote", 1, true) ~= nil
+    end, 20)
     screen:input("t")
     -- the menu reads the key and opens the capture window asynchronously
     vim.wait(5000, function()
