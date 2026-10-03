@@ -36,7 +36,6 @@ function M.pick(spec, finish, topts)
   local conf = require("telescope.config").values
   local actions = require("telescope.actions")
   local action_state = require("telescope.actions.state")
-  local finished = false
   tpickers
     .new(topts, {
       prompt_title = spec.title,
@@ -59,7 +58,9 @@ function M.pick(spec, finish, topts)
       }),
       sorter = conf.generic_sorter(topts),
       previewer = spec.preview and conf.grep_previewer(topts) or nil,
+      -- runs for each prompt: builtin.resume() makes a new picker of this one
       attach_mappings = function(prompt_bufnr)
+        local answered = false
         actions.select_default:replace(function()
           local picker = action_state.get_current_picker(prompt_bufnr)
           local chosen = {}
@@ -78,7 +79,8 @@ function M.pick(spec, finish, topts)
           if #chosen == 0 and not (spec.allow_query and query ~= "") then
             return
           end
-          finished = true
+          -- before closing: closing wipes the prompt
+          answered = true
           actions.close(prompt_bufnr)
           finish(chosen, query)
         end)
@@ -87,8 +89,8 @@ function M.pick(spec, finish, topts)
           buffer = prompt_bufnr,
           once = true,
           callback = function()
-            if not finished then
-              finished = true
+            if not answered then
+              answered = true
               finish(nil)
             end
           end,

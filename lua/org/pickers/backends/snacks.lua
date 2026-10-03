@@ -39,7 +39,9 @@ function M.pick(spec, finish)
       org_item = it,
     }
   end
-  local finished = false
+  -- each picker answers once; Snacks.picker.resume() opens a new one with
+  -- these options
+  local answered = setmetatable({}, { __mode = "k" })
   M.api().pick({
     source = "org",
     title = spec.title,
@@ -56,7 +58,7 @@ function M.pick(spec, finish)
     layout = not spec.preview and { preset = "select" } or nil,
     actions = {
       confirm = function(picker, item)
-        if finished then
+        if answered[picker] then
           return
         end
         local chosen = {}
@@ -71,15 +73,15 @@ function M.pick(spec, finish)
         if #chosen == 0 and not (spec.allow_query and query and query ~= "") then
           return
         end
-        finished = true
+        answered[picker] = true
         -- answer before closing: closing runs on_close
         finish(chosen, query)
         picker:close()
       end,
     },
-    on_close = function()
-      if not finished then
-        finished = true
+    on_close = function(picker)
+      if not answered[picker] then
+        answered[picker] = true
         finish(nil)
       end
     end,

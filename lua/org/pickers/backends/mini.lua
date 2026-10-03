@@ -42,21 +42,36 @@ function M.pick(spec, finish)
       org_idx = i,
     }
   end
-  local chosen, query
   local function query_text()
     local ok, q = pcall(MiniPick.get_picker_query)
     return ok and type(q) == "table" and vim.trim(table.concat(q)) or nil
   end
+  -- Answer when entries are chosen, also in a run of
+  -- MiniPick.builtin.resume() (start() has returned by then). The answer
+  -- comes once the picker has stopped.
+  local answered = false
   local function take(list)
-    local out = {}
+    answered = true
+    local out, create = {}, false
     for _, x in ipairs(list) do
       if x.create then
-        query = query_text()
+        create = true
       elseif x.org_idx then
         out[#out + 1] = spec.items[x.org_idx]
       end
     end
-    chosen = out
+    local query = create and query_text() or nil
+    if create and #out == 0 and (query or "") == "" then
+      -- "+ New" with nothing typed: ask for it
+      vim.schedule(function()
+        utils.run(function()
+          local text = vim.trim(utils.input({ prompt = pickers.create_prompt(spec) }) or "")
+          finish(text ~= "" and {} or nil, text)
+        end)
+      end)
+      return
+    end
+    finish(out, query)
   end
   MiniPick.start({
     source = {
@@ -95,15 +110,7 @@ function M.pick(spec, finish)
       end,
     },
   })
-  if chosen and (#chosen > 0 or (query and query ~= "")) then
-    finish(chosen, query)
-  elseif chosen and query then
-    -- "+ New" with nothing typed: ask for it
-    utils.run(function()
-      local text = vim.trim(utils.input({ prompt = pickers.create_prompt(spec) }) or "")
-      finish(text ~= "" and {} or nil, text)
-    end)
-  else
+  if not answered then
     finish(nil)
   end
 end

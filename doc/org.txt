@@ -5321,6 +5321,11 @@ action section (|org-keymaps|), e.g. >lua
 `picker` says. The roam extension's node finder uses the same pickers
 (|org-extensions-roam|).
 
+Resuming (`Snacks.picker.resume()`, `:FzfLua resume`, `:Telescope resume`,
+`:Pick resume`) reopens the last picker as it was left, and choosing there
+acts again: jumps, toggles the tags, captures. A resumed roam node finder
+closes without effect.
+
 From Lua, `require("org.pickers").pick(spec)` shows any list: `spec.items`
 are `{ display = { { text, hl_group }, ... }, filename?, bufnr?, lnum?,
 value? }` and `spec.on_choice(items, query)` gets the chosen ones; see

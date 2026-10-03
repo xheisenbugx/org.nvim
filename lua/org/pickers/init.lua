@@ -47,9 +47,12 @@ local M = {}
 
 ---@class org.PickerSpec: org.PickerOpts
 ---Called with the chosen items (and the typed query) once the picker has
----closed, inside a coroutine, so it may prompt.
+---closed, inside a coroutine, so it may prompt. The picker plugins' resume
+---(snacks.nvim, fzf-lua, telescope, mini.pick) reopens the picker, which
+---calls it again for what is chosen then.
 ---@field on_choice fun(items: org.PickerItem[], query?: string)
----Called when the picker is closed without a choice.
+---Called when the picker is first closed without a choice (not when a
+---resumed picker is).
 ---@field on_cancel? fun()
 
 --- The backends, in the order `picker = "auto"` tries them.
@@ -158,16 +161,19 @@ function M.pick(spec, backend)
   end
   require("org.highlights").ensure()
   local name = M.backend(backend)
-  local done = false
-  -- answer once, after the picker has closed, in a coroutine (the
-  -- callback may prompt or open a capture)
+  -- The backend calls this once each time the picker closes. The answer
+  -- comes after the picker has closed, in a coroutine (on_choice may
+  -- prompt or open a capture). The first close answers either way; a
+  -- picker reopened by the plugin's resume answers again with a choice.
+  local answered = false
   local function finish(items, query)
-    if done then
+    local chose = items ~= nil and (#items > 0 or (spec.allow_query and query ~= nil and query ~= "")) or false
+    if answered and not chose then
       return
     end
-    done = true
+    answered = true
     vim.schedule(function()
-      if items and (#items > 0 or (spec.allow_query and query and query ~= "")) then
+      if chose then
         utils.run(spec.on_choice, items, query)
       elseif spec.on_cancel then
         utils.run(spec.on_cancel)
@@ -183,7 +189,8 @@ function M.pick(spec, backend)
 end
 
 --- `pick()` inside a coroutine: wait for the choice. Returns the chosen
---- items and the query, or nil when cancelled.
+--- items and the query, or nil when cancelled. It returns once: choosing
+--- in the picker reopened by a resume does nothing.
 ---@param spec org.PickerOpts
 ---@param backend? string
 ---@return org.PickerItem[]|nil, string|nil

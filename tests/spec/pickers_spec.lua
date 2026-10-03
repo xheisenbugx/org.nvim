@@ -48,6 +48,21 @@ local function texts(items)
   return vim.tbl_map(require("org.pickers").line, items)
 end
 
+--- A spec of items a (1) and b (2) logging its answers in `events`:
+--- "choice <value>", "cancel".
+local function recorder(events)
+  return {
+    title = "T",
+    items = { { display = { { "a" } }, value = 1 }, { display = { { "b" } }, value = 2 } },
+    on_choice = function(items)
+      events[#events + 1] = "choice " .. items[1].value
+    end,
+    on_cancel = function()
+      events[#events + 1] = "cancel"
+    end,
+  }
+end
+
 describe("pickers", function()
   local a_path, b_path
   before_each(function()
@@ -448,6 +463,25 @@ describe("pickers", function()
       settle()
       eq(true, cancelled)
     end)
+
+    it("answers again when resumed", function()
+      local events = {}
+      require("org.pickers").pick(recorder(events))
+      local opts = captured
+      fake_picker({}):close()
+      settle()
+      eq({ "cancel" }, events)
+      -- Snacks.picker.resume() opens a new picker with the same options
+      local p = fake_picker({})
+      opts.actions.confirm(p, opts.items[2])
+      settle()
+      eq({ "cancel", "choice 2" }, events)
+      eq(true, p.closed)
+      -- a resumed picker closed without a choice doesn't cancel again
+      fake_picker({}):close()
+      settle()
+      eq({ "cancel", "choice 2" }, events)
+    end)
   end)
 
   describe("fzf-lua adapter", function()
@@ -571,25 +605,15 @@ describe("pickers", function()
 
     it("cancels once whichever key closes it", function()
       local events = {}
-      local spec = {
-        title = "T",
-        items = { { display = { { "a" } }, value = 1 }, { display = { { "b" } }, value = 2 } },
-        on_choice = function(items)
-          events[#events + 1] = "choice " .. items[1].value
-        end,
-        on_cancel = function()
-          events[#events + 1] = "cancel"
-        end,
-      }
       -- esc, ctrl-c, ctrl-q, ctrl-z, ctrl-g, ...: fzf-lua closes its window
       -- and runs none of our actions
-      require("org.pickers").pick(spec)
+      require("org.pickers").pick(recorder(events))
       opts.winopts.on_close()
       settle()
       eq({ "cancel" }, events)
       -- enter: the window closes, then the action runs
       events = {}
-      require("org.pickers").pick(spec)
+      require("org.pickers").pick(recorder(events))
       opts.winopts.on_close()
       opts.actions.enter({ entries[2] }, { last_query = "" })
       settle()
@@ -597,13 +621,25 @@ describe("pickers", function()
       -- choose() returns (roam's node finder waits for it)
       local returned = false
       utils.run(function()
-        returned = require("org.pickers").choose(spec) == nil
+        returned = require("org.pickers").choose(recorder({})) == nil
       end)
       opts.winopts.on_close()
       vim.wait(500, function()
         return returned
       end)
       eq(true, returned)
+    end)
+
+    it("answers again when resumed", function()
+      local events = {}
+      require("org.pickers").pick(recorder(events))
+      opts.winopts.on_close()
+      settle()
+      -- FzfLua.resume() runs fzf again with the same options
+      opts.winopts.on_close()
+      opts.actions.enter({ entries[2] }, { last_query = "" })
+      settle()
+      eq({ "cancel", "choice 2" }, events)
     end)
   end)
 
@@ -733,6 +769,23 @@ describe("pickers", function()
       eq(true, cancelled)
     end)
 
+    it("answers again when resumed", function()
+      local events = {}
+      require("org.pickers").pick(recorder(events))
+      vim.api.nvim_buf_delete(conf.prompt_bufnr, { force = true })
+      settle()
+      eq({ "cancel" }, events)
+      -- builtin.resume() makes a picker of the cached one: a new prompt
+      -- buffer, attach_mappings again
+      local prompt = vim.api.nvim_create_buf(false, true)
+      eq(true, conf.attach_mappings(prompt, function() end))
+      selected = conf.finder.entry_maker(conf.finder.results[2])
+      select_fn()
+      settle()
+      eq({ "cancel", "choice 2" }, events)
+      eq(prompt, closed)
+    end)
+
     it("registers a telescope extension using the telescope picker", function()
       stub(require("org.config").opts, "picker", "select")
       fake_module("telescope", {
@@ -845,6 +898,17 @@ describe("pickers", function()
       require("org.pickers").pick(spec)
       settle()
       eq(true, cancelled)
+    end)
+
+    it("answers again when resumed", function()
+      local events = {}
+      require("org.pickers").pick(recorder(events))
+      settle()
+      eq({ "cancel" }, events)
+      -- MiniPick.builtin.resume() runs the same source again
+      started.source.choose(started.source.items[2])
+      settle()
+      eq({ "cancel", "choice 2" }, events)
     end)
   end)
 
