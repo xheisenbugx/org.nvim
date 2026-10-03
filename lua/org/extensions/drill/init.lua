@@ -78,7 +78,7 @@ M.defaults = {
     reveal = { "<Space>", "<CR>" },
     skip = "s",
     edit = "e",
-    quit = "<Esc>",
+    quit = { "<Esc>", "q" },
   },
 }
 
@@ -379,15 +379,20 @@ local function close_window(s)
 end
 
 local function footer(s)
+  local quit = require("org.extensions.views_util").key_hint(
+    opts().keys or {},
+    "quit",
+    { grade = { "0", "1", "2", "3", "4", "5" } }
+  ) or "<Esc>"
   if s.finished then
-    return { "<Esc> close" }
+    return { quit .. " close" }
   end
   if not s.revealed then
-    return { "<Space> show answer   s skip   e edit   <Esc> quit" }
+    return { "<Space> show answer   s skip   e edit   " .. quit .. " quit" }
   end
   return {
     "0-2 failed   3 hard   4 good   5 easy",
-    "s skip   e edit   <Esc> quit",
+    "s skip   e edit   " .. quit .. " quit",
   }
 end
 
@@ -499,16 +504,18 @@ local function map_keys(s)
     end
   end
   local keys = o.keys or {}
-  map(keys.reveal, function()
+  local views = require("org.extensions.views_util")
+  local grades = { grade = { "0", "1", "2", "3", "4", "5" } }
+  map(views.lhs(keys, "reveal", grades), function()
     M.reveal()
   end)
-  map(keys.skip, function()
+  map(views.lhs(keys, "skip", grades), function()
     M.skip()
   end)
-  map(keys.edit, function()
+  map(views.lhs(keys, "edit", grades), function()
     M.edit()
   end)
-  map(keys.quit, function()
+  map(views.lhs(keys, "quit", grades), function()
     M.quit()
   end)
   for q = 0, 5 do

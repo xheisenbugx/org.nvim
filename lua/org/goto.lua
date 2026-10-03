@@ -25,7 +25,7 @@ local utils = require("org.utils")
 
 local M = {}
 
-local HELP = "RET=jump  C-g=quit  Up/Down=next/prev headline  TAB=cycle  /=sparse tree"
+local HELP = "RET=jump  C-g/Esc=quit  Up/Down=next/prev headline  TAB=cycle  /=sparse tree"
 
 --- Make line `lnum` of the current window visible when it is hidden,
 --- with the context `detail` (org-fold-show-set-visibility), or open the
@@ -98,7 +98,7 @@ function M.outline()
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
   local auto = config.opts.goto_auto_isearch ~= false
-  vim.wo[win].winbar = HELP .. (auto and "  Just type for auto-isearch." or "  n/p/f/b/u to navigate, q to quit.")
+  vim.wo[win].winbar = HELP .. (auto and "  Just type for auto-isearch." or "  n/p/f/b/u to navigate, q/Esc to quit.")
   require("org.fold").overview()
   local start_line = math.min(start[1], vim.api.nvim_buf_line_count(buf))
   vim.api.nvim_win_set_cursor(win, { start_line, start[2] })
@@ -151,9 +151,11 @@ function M.outline()
       end
     end, "jump to the headline")
   end
-  map("<C-g>", function()
-    finish(nil)
-  end, "quit")
+  for _, key in ipairs({ "<C-g>", "<Esc>" }) do
+    map(key, function()
+      finish(nil)
+    end, "quit")
+  end
   map("<Tab>", function()
     require("org.fold").cycle()
   end, "cycle")

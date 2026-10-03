@@ -682,9 +682,9 @@ function M.menu()
   if cfg().expert then
     local keys = table.concat(vim.tbl_map(function(c)
       return c[1]
-    end, commands)) .. "q"
+    end, commands)) .. (by_key.q and "" or "q")
     choice = utils.getchar("Select command: [" .. keys .. "]")
-    if choice == "q" then
+    if choice == "q" and not by_key.q then
       utils.notify("Abort")
       return
     end

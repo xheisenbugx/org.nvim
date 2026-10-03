@@ -248,6 +248,7 @@ local function create_buffer()
   end
   map("<CR>", jump)
   map("<Esc>", M.close)
+  map("q", M.close)
   map("r", function()
     db.sync()
     local win = state.source_win

@@ -282,7 +282,7 @@ describe("heatmap view", function()
     end
     vim.api.nvim_feedkeys("k", "x", false)
     eq(today - 1, st.day)
-    eq("", vim.fn.maparg("q", "n"))
+    eq(1, vim.fn.maparg("q", "n", false, true).buffer)
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
     eq(nil, heatmap.state)
   end)

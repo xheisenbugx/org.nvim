@@ -81,7 +81,7 @@ M.defaults = {
     prev = { "p", "<BS>" },
     first = { "gg", "<" },
     last = { "G", ">" },
-    quit = "<Esc>",
+    quit = { "<Esc>", "q" },
     toggle_one_big_page = "1",
     big = { "+", "=" },
     small = "-",
@@ -473,8 +473,9 @@ local function set_keys(st)
   end
   st.ro_mapped = {}
   if st.read_only then
-    for name, keys in pairs(st.opts.read_only_keys or {}) do
-      vim.list_extend(st.ro_mapped, map(keys, name))
+    local views = require("org.extensions.views_util")
+    for name in pairs(st.opts.read_only_keys or {}) do
+      vim.list_extend(st.ro_mapped, map(views.lhs(st.opts.read_only_keys, name, st.opts.keys), name))
     end
   end
 end

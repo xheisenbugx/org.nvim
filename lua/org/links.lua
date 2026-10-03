@@ -1256,7 +1256,9 @@ local function open_wildcard(pattern, how)
       vim.cmd("edit " .. vim.fn.fnameescape(file))
     end
   end, { buffer = buf, desc = "org: open file" })
-  vim.keymap.set("n", "q", "<Cmd>bwipeout<CR>", { buffer = buf, desc = "org: close listing" })
+  for _, lhs in ipairs({ "q", "<Esc>" }) do
+    vim.keymap.set("n", lhs, "<Cmd>bwipeout<CR>", { buffer = buf, desc = "org: close listing" })
+  end
   return true
 end
 

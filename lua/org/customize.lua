@@ -149,7 +149,7 @@ end
 ---@return string[], table<integer, org.CustomizeOption>
 function M.render()
   local lines = {
-    "Org options (org.nvim)  <CR>/K: documentation  c: change  R: reset to default  q: quit",
+    "Org options (org.nvim)  <CR>/K: documentation  c: change  R: reset to default  q/Esc: quit",
     "Changes last for this session; put them in setup() to keep them.",
     "",
   }
@@ -275,9 +275,11 @@ function M.open(opts)
     map("K", M.help)
     map("c", M.change)
     map("R", M.reset)
-    map("q", function()
-      vim.api.nvim_buf_delete(buf, { force = true })
-    end)
+    for _, lhs in ipairs({ "q", "<Esc>" }) do
+      map(lhs, function()
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end)
+    end
   end
   refresh(buf)
   if vim.fn.bufwinid(buf) == -1 then

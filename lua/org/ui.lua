@@ -222,7 +222,8 @@ end
 
 --- Show a key-driven menu and return the selected item's value (or the
 --- item when it has no value). Blocks until a key is pressed. <BS> goes
---- back from a submenu, <Esc> quits.
+--- back from a submenu, <Esc> quits, and so does `q` unless an entry of
+--- the menu shown uses it (a user's TODO keyword, template or command key).
 ---@param opts { title: string, items: org.MenuItem[], footer?: string[] }
 ---@return any|nil
 function M.menu(opts)
@@ -241,10 +242,12 @@ function M.menu(opts)
     for _, l in ipairs(lines) do
       width = math.max(width, utils.width(l) + 2)
     end
+    local q_quits = M.q_quits(items)
+    local quit = q_quits and "q/Esc quit" or "Esc quit"
     local buf, win = M.float(lines, {
       title = title,
       width = width,
-      footer = #stack > 0 and "BS back · Esc quit" or "Esc quit",
+      footer = #stack > 0 and ("BS back · " .. quit) or quit,
     })
     for _, h in ipairs(hls) do
       vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], { end_col = h[3], hl_group = h[4] })
@@ -254,7 +257,7 @@ function M.menu(opts)
     if vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end
-    if not ch then
+    if not ch or (ch == "q" and q_quits) then
       return nil
     end
     local chosen
@@ -280,6 +283,20 @@ function M.menu(opts)
       return chosen
     end
   end
+end
+
+--- Whether `q` may quit a menu of `items`: only when no entry uses it as
+--- its key, so a user-defined `q` (TODO keyword, capture template, agenda
+--- command, …) always selects that entry.
+---@param items { key?: string, heading?: any }[]
+---@return boolean
+function M.q_quits(items)
+  for _, it in ipairs(items) do
+    if not it.heading and it.key == "q" then
+      return false
+    end
+  end
+  return true
 end
 
 ---@class org.Choice
@@ -333,7 +350,7 @@ function M.choose(opts)
   for _, l in ipairs(lines) do
     width = math.max(width, utils.width(l) + 2)
   end
-  local footer = "j/k move · ↵ select" .. (opts.edit and " · e edit" or "") .. " · Esc cancel"
+  local footer = "j/k move · ↵ select" .. (opts.edit and " · e edit" or "") .. " · q/Esc cancel"
   local title = opts.title or vim.trim((opts.prompt:gsub("[:%s]+$", "")))
   local buf, win = M.float(lines, {
     title = title,
@@ -474,7 +491,7 @@ function M.help(title, rows)
     vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], { end_col = h[3], hl_group = h[4] })
   end
   pcall(vim.api.nvim_win_set_config, win, {
-    footer = " q close  / search  { } sections ",
+    footer = " q/Esc close  / search  { } sections ",
     footer_pos = "center",
   })
   for _, k in ipairs({ "q", "<Esc>", "g?" }) do
