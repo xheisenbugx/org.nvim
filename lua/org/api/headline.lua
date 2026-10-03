@@ -481,7 +481,52 @@ function Headline:set_todo(state, opts)
   return res and self, err
 end
 
---- Replace the own tags.
+--- Is `tag` a name org reads back as a tag (org-tag-re `[[:alnum:]_@#%]`):
+--- ASCII letters and digits, `_`, `@`, `#`, `%`, and letters and digits of
+--- other scripts (no punctuation, symbols or emoji)?
+local function valid_tag(tag)
+  if type(tag) ~= "string" or tag == "" then
+    return false
+  end
+  local i = 1
+  while i <= #tag do
+    local c = tag:byte(i)
+    local n = c < 0x80 and 1 or c >= 0xF0 and 4 or c >= 0xE0 and 3 or c >= 0xC2 and 2 or 0
+    local ch = n > 0 and tag:sub(i, i + n - 1) or ""
+    if n == 1 then
+      if not ch:match("^[%w_@#%%]$") then
+        return false
+      end
+    elseif n == 0 or c > 0xF4 or #ch ~= n or not ch:match("^.[\128-\191]+$") then
+      return false -- not UTF-8
+    else
+      -- Vim's character class: 2 a word character, above 3 a script's
+      -- letters; 0 blanks, 1 punctuation and symbols, 3 emoji
+      local class = vim.fn.charclass(ch)
+      if class < 2 or class == 3 then
+        return false
+      end
+    end
+    i = i + n
+  end
+  return true
+end
+
+--- true, or nil and an error naming the first invalid tag of `tags`.
+local function check_tags(tags)
+  if type(tags) ~= "table" then
+    return nil, "invalid tags: " .. vim.inspect(tags) .. ' (a list or a string such as ":a:b:")'
+  end
+  for _, t in ipairs(tags) do
+    if not valid_tag(t) then
+      return nil, "invalid tag " .. vim.inspect(t) .. " (letters, digits, _ @ # %)"
+    end
+  end
+  return true
+end
+
+--- Replace the own tags. Tag names that org wouldn't read back as tags
+--- (see `valid_tag`) are an error.
 ---@param tags string[]|string a list, or a string such as `":a:b:"`
 ---@param opts? { save?: boolean }
 ---@return org.api.Headline|nil self, string|nil err
@@ -490,8 +535,14 @@ function Headline:set_tags(tags, opts)
   if type(tags) == "string" then
     tags = tagmod.parse_input(tags)
   end
-  local res, err = M.edit(self, opts, function(t)
-    return tagmod.set_tags(t, tags or {})
+  tags = tags or {}
+  local ok, err = check_tags(tags)
+  if not ok then
+    return nil, err
+  end
+  local res
+  res, err = M.edit(self, opts, function(t)
+    return tagmod.set_tags(t, tags)
   end)
   return res and self, err
 end
@@ -500,6 +551,10 @@ end
 ---@param tag string
 ---@param opts? { save?: boolean }
 function Headline:add_tag(tag, opts)
+  local ok, err = check_tags({ tag })
+  if not ok then
+    return nil, err
+  end
   local tags = vim.deepcopy(self.tags)
   if not vim.tbl_contains(tags, tag) then
     tags[#tags + 1] = tag
@@ -511,6 +566,10 @@ end
 ---@param tag string
 ---@param opts? { save?: boolean }
 function Headline:remove_tag(tag, opts)
+  local ok, err = check_tags({ tag })
+  if not ok then
+    return nil, err
+  end
   return self:set_tags(
     vim.tbl_filter(function(t)
       return t ~= tag

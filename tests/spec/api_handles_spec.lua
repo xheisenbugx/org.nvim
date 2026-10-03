@@ -62,6 +62,33 @@ describe("org.api handles", function()
     return api.headlines({ files = path or work, title = title })[1]
   end
 
+  describe("tags", function()
+    it("rejects tag names org can't read back", function()
+      local h = head("Plan offsite")
+      for _, bad in ipairs({ "follow-up", "two words", "", "a:b", "x.y", "a—b", "😀", "x\255" }) do
+        local res, err = h:add_tag(bad)
+        eq(nil, res, bad)
+        ok(err and err:match("invalid tag"), bad .. ": " .. tostring(err))
+      end
+      local res, err = h:set_tags({ "ok", "not-ok" })
+      eq(nil, res)
+      ok(err:match("not%-ok"), err)
+      res, err = h:set_tags(":fine:bad-one:")
+      eq(nil, res)
+      ok(err:match("bad%-one"), err)
+      res, err = h:remove_tag("follow-up")
+      eq(nil, res)
+      ok(err:match("invalid tag"), err)
+      res, err = h:set_tags({ "ok", 42 })
+      eq(nil, res)
+      ok(err:match("invalid tag"), err)
+      eq(WORK, disk(work))
+      -- letters and digits of any script, _ @ # %
+      ok(h:set_tags({ "café", "日本", "x_1", "@home", "#n", "50%" }))
+      eq({ "café", "日本", "x_1", "@home", "#n", "50%" }, api.load(work).headlines[2].tags)
+    end)
+  end)
+
   describe("dates", function()
     it("normalises out-of-range fields like os.time", function()
       local h = head("Write report")
