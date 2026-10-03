@@ -371,6 +371,11 @@ function M.load_config(flags)
   if #flags.files > 0 then
     config.opts.agenda_files = vim.tbl_map(arg_path, flags.files)
   end
+  -- org.crypt registers its write hook (encrypt_on_save) when it loads,
+  -- which Neovim does as it sets up an org buffer: `nvim -l` sets up none
+  if (config.opts.crypt or {}).encrypt_on_save then
+    require("org.crypt")
+  end
 end
 
 --- The resolved `extensions.cli` options (its defaults when the extension

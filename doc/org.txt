@@ -9104,9 +9104,10 @@ swap file says so), and `--force` writes anyway. Every file a command
 would write is checked before anything changes, so a refused command
 leaves all of them as they were (`clock in` checks the file of the running
 clock it clocks out of too). Writes go through `utils.save_buffer`, so
-write hooks (|org-crypt| encryption, ...) run, those of all the files
-before any is written, and touch the clock stamp file, so a Neovim with
-the extension enabled
+the write hooks run: with `crypt.encrypt_on_save` the entries tagged
+`crypt` are encrypted, as when Neovim saves them (|org-crypt|). The
+hooks of all the files run before any is written. Writes touch the
+clock stamp file, so a Neovim with the extension enabled
 rereads the files (see below).
 
 JSON                                                *org-extensions-cli-json*

@@ -82,6 +82,8 @@ local function env(dir)
     XDG_CACHE_HOME = dir .. "/xdg-cache",
     XDG_DATA_HOME = vim.env.XDG_DATA_HOME or (dir .. "/xdg-data"),
     ORG_NVIM_BIN = vim.v.progpath,
+    -- where fake_gpg() logs its calls
+    FAKE_GPG_LOG = dir .. "/gpg.log",
   }
 end
 
@@ -171,6 +173,31 @@ local function stop_busy()
     pcall(job.wait, job, 5000)
   end
   busy = {}
+end
+
+--- A gpg for org-crypt without a keyring: `--list-keys` knows one key,
+--- me@example.com, and `--encrypt` / `--symmetric` print the same PGP
+--- block whatever the text. Every call is logged to $FAKE_GPG_LOG.
+local function fake_gpg()
+  return fake_exe(
+    vim.fs.normalize(vim.fn.tempname()),
+    "fake-gpg",
+    table.concat({
+      'echo "$*" >> "$FAKE_GPG_LOG"',
+      'case " $* " in',
+      '  *" --list-keys "*)',
+      '    case "$*" in *me@example.com*) ;; *) exit 2 ;; esac',
+      '    echo "pub:u:255:22:ABCDEF0123456789:1700000000:::u:::scESC:::::ed25519:::0:"',
+      '    echo "fpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:"',
+      "    exit 0 ;;",
+      '  *" --encrypt "*|*" --symmetric "*)',
+      "    cat > /dev/null",
+      '    printf "%s\\n" "-----BEGIN PGP MESSAGE-----" "" "ZmFrZQ==" "-----END PGP MESSAGE-----"',
+      "    exit 0 ;;",
+      "esac",
+      "exit 2",
+    }, "\n")
+  )
 end
 
 --- Does the decoded JSON `v` fit the JSON Schema `s` (the parts of JSON
@@ -907,6 +934,56 @@ describe("cli: saving the changed files", function()
     cli.save_all({})
     eq({ "* A changed" }, vim.fn.readfile(d .. "/a.org"))
     eq({ "* B changed" }, vim.fn.readfile(d .. "/b.org"))
+  end)
+end)
+
+describe("cli json: org-crypt", function()
+  local dir, gpg
+  local JOURNAL = {
+    "* Bank :crypt:",
+    "-----BEGIN PGP MESSAGE-----",
+    "",
+    "b2xk",
+    "-----END PGP MESSAGE-----",
+    "* Diary",
+    "Plain text.",
+  }
+
+  --- A workspace with journal.org, encrypting on save for `key` (Lua).
+  local function setup(key)
+    gpg = gpg or fake_gpg()
+    dir = workspace({
+      "  crypt = { encrypt_on_save = true, key = " .. key .. ", gpg_program = " .. vim.inspect(gpg) .. " },",
+      "  capture = { templates = { s = { description = 'Secret', target = dir .. '/journal.org',",
+      "    template = '* %i :crypt:\\nsecret body' } } },",
+    })
+    vim.fn.writefile(JOURNAL, dir .. "/journal.org")
+  end
+
+  after_each(function()
+    vim.fn.delete(dir, "rf")
+  end)
+
+  local function journal()
+    return table.concat(read(dir .. "/journal.org"), "\n")
+  end
+
+  it("encrypts what a write adds to an encrypted entry, as a save in Neovim does", function()
+    setup("'me@example.com'")
+    eq(0, (json(dir, { "note", "journal.org::*Bank", "new PIN is 9876" })))
+    ok(not journal():find("9876", 1, true), journal())
+    ok(journal():find("-----BEGIN PGP MESSAGE-----", 1, true), journal())
+    local calls = table.concat(read(dir .. "/gpg.log"), "\n")
+    ok(calls:find("--encrypt", 1, true), calls)
+  end)
+
+  it("encrypts an entry tagged crypt by set tags, and a captured one", function()
+    setup("'me@example.com'")
+    eq(0, (json(dir, { "set", "tags", "journal.org::Diary", "--add", "crypt" })))
+    ok(not journal():find("Plain text.", 1, true), journal())
+    eq(0, (json(dir, { "capture", "-t", "s", "New secret" })))
+    ok(journal():find("* New secret :crypt:", 1, true), journal())
+    ok(not journal():find("secret body", 1, true), journal())
   end)
 end)
 
