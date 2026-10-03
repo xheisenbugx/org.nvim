@@ -38,6 +38,32 @@ describe("links (Emacs commands)", function()
     vim.bo[buf].modified = false
   end)
 
+  it("stores links to targets at the start or end of a line, like org-store-link", function()
+    -- Emacs: (org-in-regexp "[^<]<<\\([^<>]+\\)>>[^>]" 1), so the line
+    -- break around a target counts; an adjacent < or > doesn't (results
+    -- checked against Emacs 9.8.10)
+    local dir = tmpdir()
+    local cases = {
+      { { "* H", "<<my target>> text" }, { 2, 3 }, "my target" },
+      { { "* H", "text <<eol target>>" }, { 2, 8 }, "eol target" },
+      { { "* H", "<<a>>" }, { 2, 0 }, "a" },
+      { { "* H", "foo <<a>> bar" }, { 2, 10 }, "a" },
+      { { "* H", "x <<a>> y" }, { 2, 1 }, "a" },
+      { { "* H", "x <<a>>  <<b>>" }, { 2, 11 }, "b" },
+      { { "* H", "x <<a>> y" }, { 2, 0 }, "*H" },
+      { { "* H", "x <<a>> <<b>>" }, { 2, 10 }, "*H" },
+      { { "* H", "<<<r>> x" }, { 2, 4 }, "*H" },
+      { { "* H", "a <<b>>> x" }, { 2, 4 }, "*H" },
+      { { "* H", "<<a", "b>> x" }, { 3, 0 }, "*H" },
+    }
+    for i, c in ipairs(cases) do
+      local buf = file_buffer(dir, "t" .. i .. ".org", c[1], c[2])
+      local l = links.link_to_location({ bufnr = buf })
+      eq(c[3], l.link:match("::(.*)$"), vim.inspect(c))
+      vim.bo[buf].modified = false
+    end
+  end)
+
   it("stores a link to the entry of an agenda item", function()
     local dir = tmpdir()
     local path = dir .. "/ag.org"

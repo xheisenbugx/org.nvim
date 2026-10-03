@@ -2360,21 +2360,36 @@ function M.link_to_location(opts)
   end
   local path = display_path(name)
   if vim.bo[bufnr].filetype == "org" then
-    -- a dedicated <<target>> under the cursor
-    local cur_line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+    -- a dedicated <<target>> under the cursor: Emacs's
+    -- (org-in-regexp "[^<]<<\\([^<>]+\\)>>[^>]" 1) searches from the start
+    -- of the line above to the end of the line below, so the line break
+    -- before or after a target at the start or end of a line counts as
+    -- the character around it that isn't < or >
     local col = opts.col or (is_cur and not opts.lnum and (vim.api.nvim_win_get_cursor(0)[2] + 1)) or nil
-    local init = 1
-    while col and not region do
-      local s, e, target = cur_line:find("<<([^<>]+)>>", init)
-      if not s then
-        break
+    if col and not region then
+      local first = math.max(lnum - 1, 1)
+      local lines = vim.api.nvim_buf_get_lines(bufnr, first - 1, lnum + 1, false)
+      local text = table.concat(lines, "\n")
+      if lnum + 1 > vim.api.nvim_buf_line_count(bufnr) and (vim.bo[bufnr].eol or vim.bo[bufnr].fixeol) then
+        -- the file's final newline
+        text = text .. "\n"
       end
-      -- Emacs wants a character around the target that is not < or >
-      local before, after = cur_line:sub(s - 1, s - 1), cur_line:sub(e + 1, e + 1)
-      if col >= s and col <= e and before ~= "" and after ~= "" and before ~= "<" and after ~= ">" then
-        return { link = "file:" .. path .. "::" .. target, desc = nil }
+      -- point: 0-based offset of the cursor in `text`
+      local pos = col - 1
+      for i = first, lnum - 1 do
+        pos = pos + #lines[i - first + 1] + 1
       end
-      init = e + 1
+      local init = 1
+      while true do
+        local s, e, target = text:find("[^<]<<([^<>]+)>>[^>]", init)
+        if not s or s - 1 > pos then
+          break
+        end
+        if e >= pos then
+          return { link = "file:" .. path .. "::" .. target, desc = nil }
+        end
+        init = e + 1
+      end
     end
   end
   return finish(file_link_to_here(bufnr, lnum, region, ctx))
