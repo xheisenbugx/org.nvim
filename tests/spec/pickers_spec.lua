@@ -180,6 +180,58 @@ describe("pickers", function()
       eq({ "a: TODO [#A] Write report  :urgent:", "b: TODO Call mom  :home:" }, todo)
     end)
 
+    it("sorts the TODO list like the TODO view, timestamp strategies too", function()
+      local date = require("org.date")
+      local function stamp(n)
+        return "<" .. date.today():add(n, "d"):to_string({ brackets = false }) .. ">"
+      end
+      write("c.org", {
+        "* TODO Later",
+        "  SCHEDULED: " .. stamp(5),
+        "* TODO Sooner",
+        "  SCHEDULED: " .. stamp(1),
+      })
+      stub(require("org.config").opts.agenda, "sorting", { todo = { "scheduled-up" } })
+      local titles = vim.tbl_map(function(it)
+        return it.value.title
+      end, require("org.pickers.sources").todo_items())
+      eq({ "Write report", "Sooner", "Later", "Call mom" }, titles)
+      -- the order of the TODO view
+      local view = require("org.agenda.view")
+      require("org.agenda").open_todo()
+      local shown = {}
+      for l = 1, vim.api.nvim_buf_line_count(0) do
+        local it = view.state.line_items[l]
+        if it then
+          shown[#shown + 1] = it.title
+        end
+      end
+      view.quit(true)
+      eq(shown, titles)
+    end)
+
+    it("warns about an invalid sorting strategy and keeps the file order", function()
+      local warned
+      stub(utils, "warn", function(msg)
+        warned = msg
+      end)
+      local agenda = require("org.config").opts.agenda
+      local function titles()
+        return vim.tbl_map(function(it)
+          return it.value.title
+        end, require("org.pickers.sources").todo_items())
+      end
+      stub(agenda, "sorting", { todo = { "bogus-up" } })
+      eq({ "Write report", "Call mom" }, titles())
+      ok(warned and warned:find("bogus-up", 1, true), warned)
+      -- fails only when sorting
+      warned = nil
+      stub(agenda, "sorting", { todo = { "user-defined-up" } })
+      stub(agenda, "cmp_user_defined", nil)
+      eq({ "Write report", "Call mom" }, titles())
+      ok(warned and warned:find("cmp_user_defined", 1, true), warned)
+    end)
+
     it("lists the capture templates by key", function()
       local capture = require("org.config").opts.capture
       stub(capture, "templates", {

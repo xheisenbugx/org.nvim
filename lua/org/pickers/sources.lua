@@ -369,6 +369,21 @@ function M.agenda_item(it, day)
   }
 end
 
+--- Sort agenda items with an `agenda.sorting` strategy, like the views.
+--- A strategy that fails (an unknown one, user-defined-up without
+--- agenda.cmp_user_defined), which the views report, is warned about and
+--- leaves the order. Returns whether it sorted.
+---@param list org.AgendaItem[]
+---@param sorting string[]
+---@return boolean
+local function sort(list, sorting)
+  local ok, err = pcall(require("org.agenda.items").sort, list, sorting)
+  if not ok then
+    utils.warn(tostring(err))
+  end
+  return ok
+end
+
 --- Items of the agenda from day `from` to `to` (day numbers), sorted like
 --- the agenda view.
 ---@param from integer
@@ -378,20 +393,19 @@ end
 function M.agenda_items(from, to, file_list)
   local date = require("org.date")
   local items_mod = require("org.agenda.items")
-  local render = require("org.agenda.render")
   require("org.agenda.highlights").setup()
   local today = date.today_days()
   local by_day = items_mod.agenda(file_list or files.agenda_files(), from, to, { today = today })
-  local sorting = render.sorting_for({}, "agenda")
+  local sorting = require("org.agenda.render").sorting_for({}, "agenda")
   local out = {}
   for d = from, to do
     local list = by_day[d] or {}
-    if #list > 0 then
-      local ok, sorted = pcall(items_mod.sort, list, sorting)
-      for _, it in ipairs(ok and sorted or list) do
-        if (it.filename or it.bufnr) and it.lnum then
-          out[#out + 1] = M.agenda_item(it, from ~= to and d or nil)
-        end
+    if #list > 0 and sorting and not sort(list, sorting) then
+      sorting = nil -- warned once
+    end
+    for _, it in ipairs(list) do
+      if (it.filename or it.bufnr) and it.lnum then
+        out[#out + 1] = M.agenda_item(it, from ~= to and d or nil)
       end
     end
   end
@@ -417,9 +431,16 @@ function M.todo_items(file_list)
   require("org.agenda.highlights").setup()
   local items_mod = require("org.agenda.items")
   local list = items_mod.todo(file_list or files.agenda_files())
-  local ok, sorted = pcall(items_mod.sort, list, require("org.agenda.render").sorting_for({}, "todo"))
+  local sorting = require("org.agenda.render").sorting_for({}, "todo")
+  -- the timestamp the timestamp-*, scheduled-*, deadline-*, ts-* and
+  -- tsia-* strategies compare, as the TODO view takes it
+  local kind = items_mod.list_timestamp_kind(sorting) or false
+  for _, it in ipairs(list) do
+    items_mod.set_list_timestamp(it, sorting, kind)
+  end
+  sort(list, sorting)
   local out = {}
-  for _, it in ipairs(ok and sorted or list) do
+  for _, it in ipairs(list) do
     out[#out + 1] = M.agenda_item(it)
   end
   return out

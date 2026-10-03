@@ -5305,7 +5305,8 @@ back to "select" with a warning.
                          with "select", "+ New tags…" asks for the text.
   pick_agenda            an entry of today's agenda
   pick_agenda_week       an entry of the agenda of the next 7 days
-  pick_todo              an open TODO entry (the global TODO list)
+  pick_todo              an open TODO entry (the global TODO list, in
+                         the order of its view: `agenda.sorting`)
   pick_agenda_file       an agenda file
   pick_capture_template  a capture template, then capture with it (from
                          the agenda, at the date at the cursor with
