@@ -32,6 +32,10 @@ describe("capture from Visual mode", function()
     screen:lua("vim.api.nvim_win_set_cursor(0, { 2, 0 })")
     screen:input("V" .. keys)
     screen:input("t")
+    -- the menu reads the key and opens the capture window asynchronously
+    vim.wait(5000, function()
+      return screen:lua("return vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == '* Q'")
+    end, 20)
     return screen:lua([[
       local source = vim.fn.bufnr("#")
       return {
