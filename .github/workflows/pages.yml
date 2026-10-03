@@ -2,7 +2,7 @@ name: Pages
 
 # The documentation website (make site, scripts/site/build.lua): the manual,
 # README, examples and parity docs as HTML, deployed to GitHub Pages
-# (https://xheisenbugx.github.io/org.nvim/) for every release. A release
+# (https://org-nvim.com/) for every release. A release
 # published by release.yml can't start this workflow through its `release`
 # event (events made with GITHUB_TOKEN don't run workflows), so release.yml
 # runs it with workflow_dispatch instead; `release` covers a release

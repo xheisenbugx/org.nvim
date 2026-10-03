@@ -19,7 +19,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Install](#-install-in-30-seconds)** ·
 **[Tour](#-a-quick-tour)** ·
 **[Features](#-features)** ·
-**[Docs](https://xheisenbugx.github.io/org.nvim/)** ·
+**[Docs](https://org-nvim.com/)** ·
 **[Changelog](CHANGELOG.md)** ·
 **[Contributing](CONTRIBUTING.md)**
 
@@ -463,7 +463,7 @@ searches it, and `{` / `}` jump between sections:
 | 🎁 | **And more** | Column view, `org-indent` mode, speed keys, footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, BibTeX links (`ol-bibtex`), `org-ctags`, the Org/table/agenda menus and org-mouse, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)), and
-on the [documentation website](https://xheisenbugx.github.io/org.nvim/)
+on the [documentation website](https://org-nvim.com/)
 together with the examples, searchable.
 
 ---

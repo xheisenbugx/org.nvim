@@ -318,7 +318,7 @@ fails the spec instead of hanging it.
 
 ## Documentation website
 
-The website at <https://xheisenbugx.github.io/org.nvim/> is generated, never
+The website at <https://org-nvim.com/> is generated, never
 edited by hand: [`scripts/site/build.lua`](scripts/site/build.lua) turns
 `doc/org.txt` into one page per chapter (help tags become anchors, `|links|`
 hyperlinks and `>lua` blocks highlighted code), renders `README.md` and
