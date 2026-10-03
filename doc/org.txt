@@ -9100,9 +9100,13 @@ adds org.nvim's own messages, `-q` hides warnings). Exit codes: 0 done,
 usage, 3 input needed, 4 the file has unsaved changes in a running Neovim.
 
 A write refuses a file that a running Neovim has unsaved changes in (its
-swap file says so), and `--force` writes anyway. Writes go through
-`utils.save_buffer`, so write hooks (|org-crypt| encryption, ...) run,
-and touch the clock stamp file, so a Neovim with the extension enabled
+swap file says so), and `--force` writes anyway. Every file a command
+would write is checked before anything changes, so a refused command
+leaves all of them as they were (`clock in` checks the file of the running
+clock it clocks out of too). Writes go through `utils.save_buffer`, so
+write hooks (|org-crypt| encryption, ...) run, those of all the files
+before any is written, and touch the clock stamp file, so a Neovim with
+the extension enabled
 rereads the files (see below).
 
 JSON                                                *org-extensions-cli-json*

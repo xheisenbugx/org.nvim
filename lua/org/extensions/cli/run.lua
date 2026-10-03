@@ -469,21 +469,43 @@ function M.guard(path, flags)
 end
 
 --- Save every modified buffer (through utils.save_buffer: the write hooks
---- run) and tell a running Neovim.
+--- run) and tell a running Neovim. None is written unless all can be:
+--- no file has unsaved changes in a running Neovim, and no write hook
+--- refuses one (org-crypt without the passphrase it would ask for).
 function M.save_all(flags)
   local utils = require("org.utils")
+  local hooks = require("org.write_hooks")
+  local bufs = {}
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
-      local name = vim.api.nvim_buf_get_name(b)
-      if name ~= "" then
-        M.guard(name, flags or {})
-        local ok, e = utils.save_buffer(b)
-        if not ok then
-          fail("could not save " .. name .. ": " .. tostring(e), "failed", { file = name })
-        end
-        state.touched = true
-      end
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified and vim.api.nvim_buf_get_name(b) ~= "" then
+      bufs[#bufs + 1] = b
     end
+  end
+  local function failed(b, e)
+    -- a prompt a hook couldn't ask (a passphrase) is the reason
+    M.check_prompted()
+    local name = vim.api.nvim_buf_get_name(b)
+    fail("could not save " .. name .. ": " .. tostring(e), "failed", { file = name })
+  end
+  for _, b in ipairs(bufs) do
+    M.guard(vim.api.nvim_buf_get_name(b), flags or {})
+  end
+  -- The pre-write hooks of every buffer run before any file is written.
+  -- What they change (entries org-crypt encrypts) stays for the write;
+  -- the post hooks undo the rest, as after a failed write.
+  for _, b in ipairs(bufs) do
+    local ok, e, run = hooks.run_pre(b, "save_buffer")
+    if not ok then
+      failed(b, e)
+    end
+    hooks.run_post(run, false)
+  end
+  for _, b in ipairs(bufs) do
+    local ok, e = utils.save_buffer(b)
+    if not ok then
+      failed(b, e)
+    end
+    state.touched = true
   end
   if state.touched then
     touch_stamp()
@@ -1425,7 +1447,12 @@ function M.cmd_clock_in(words, flags)
     fail("clock in needs a heading: org clock in TARGET", "usage")
   end
   local hl = M.resolve_target(query, flags)
-  clock.restore()
+  -- clocking in clocks out of the running clock, in its file: that file
+  -- is checked too before anything changes
+  local running = clock.restore()
+  if running and running.path and running.path ~= "" then
+    M.guard(running.path, flags)
+  end
   local bufnr, lnum = M.open_target(hl, flags)
   M.mark_messages()
   local st = clock.clock_in({ bufnr = bufnr, lnum = lnum }, { no_count = true })

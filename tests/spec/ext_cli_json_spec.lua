@@ -802,6 +802,34 @@ describe("cli json: writing", function()
     eq(0, (json(dir, { "set", "todo", "Buy milk", "DONE", "--force" })))
     ok(read(file)[1]:match("^%* DONE Buy milk%s+:errand:$"), read(file)[1])
   end)
+
+  it("checks every file it would write before it changes any", function()
+    if vim.fn.has("win32") == 1 then
+      return
+    end
+    -- clocking in elsewhere clocks out of Buy milk: home.org changes too
+    local d = workspace({ "  clock = { persist = false }," })
+    local yesterday = os.date("%Y-%m-%d %a", os.time() - 86400)
+    vim.fn.writefile({
+      "* TODO Buy milk :errand:",
+      "  :LOGBOOK:",
+      "  CLOCK: [" .. yesterday .. " 10:00]",
+      "  :END:",
+      "* Projects",
+    }, d .. "/home.org")
+    local home, work_before = read(d .. "/home.org"), read(d .. "/work.org")
+    busy_nvim(d, d .. "/home.org")
+    local code, e = json(d, { "clock", "in", "Review pull request" })
+    eq(4, code)
+    eq("file_busy", e.errors[1].code)
+    ok(same_path(d .. "/home.org", e.errors[1].details.file))
+    -- no file changed: one clock, still on Buy milk
+    eq(work_before, read(d .. "/work.org"))
+    eq(home, read(d .. "/home.org"))
+    eq("Buy milk", select(2, json(d, { "clock" })).data.title)
+    stop_busy()
+    vim.fn.delete(d, "rf")
+  end)
 end)
 
 describe("cli json: a running Neovim a spec starts", function()
@@ -828,6 +856,57 @@ describe("cli json: a running Neovim a spec starts", function()
     end
     ok(pid)
     eq(false, alive(pid))
+  end)
+end)
+
+describe("cli: saving the changed files", function()
+  local d
+  after_each(function()
+    require("org.write_hooks").unregister("cli-spec")
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find(d, 1, true) then
+        pcall(vim.api.nvim_buf_delete, b, { force = true })
+      end
+    end
+    vim.fn.delete(d, "rf")
+  end)
+
+  it("writes none of them unless it can write them all", function()
+    d = vim.fs.normalize(vim.fn.tempname())
+    vim.fn.mkdir(d, "p")
+    vim.fn.writefile({ "* A" }, d .. "/a.org")
+    vim.fn.writefile({ "* B" }, d .. "/b.org")
+    local a, b = cli.load_buffer(d .. "/a.org"), cli.load_buffer(d .. "/b.org")
+    vim.api.nvim_buf_set_lines(a, 0, -1, false, { "* A changed" })
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "* B changed" })
+    -- b.org has unsaved changes in a running Neovim
+    local guard = cli.guard
+    cli.guard = function(path)
+      if path:find("b.org", 1, true) then
+        cli.fail("busy", "file_busy")
+      end
+    end
+    local saved, e = pcall(cli.save_all, {})
+    cli.guard = guard
+    eq(false, saved)
+    eq("file_busy", e.ecode)
+    eq({ "* A" }, vim.fn.readfile(d .. "/a.org"))
+    -- a write hook refuses b.org (org-crypt without a passphrase, ...)
+    require("org.write_hooks").register("cli-spec", {
+      pre = function(buf)
+        if vim.api.nvim_buf_get_name(buf):find("b.org", 1, true) then
+          return false, "refused"
+        end
+      end,
+    })
+    saved = pcall(cli.save_all, {})
+    eq(false, saved)
+    eq({ "* A" }, vim.fn.readfile(d .. "/a.org"))
+    eq({ "* B" }, vim.fn.readfile(d .. "/b.org"))
+    require("org.write_hooks").unregister("cli-spec")
+    cli.save_all({})
+    eq({ "* A changed" }, vim.fn.readfile(d .. "/a.org"))
+    eq({ "* B changed" }, vim.fn.readfile(d .. "/b.org"))
   end)
 end)
 
