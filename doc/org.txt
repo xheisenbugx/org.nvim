@@ -7257,6 +7257,10 @@ Differences from Emacs:
   filetype sets one), not Emacs' major modes, and always with spaces.
   `C-c C-c` on a `#+RESULTS[hash]` hash works on the whole hash, which
   is not shortened to 4 characters as Emacs displays it.
+  Running a `:cache yes` block whose result is current shows the result
+  printed like Emacs's `Cached: %S`, with newlines written as `\n` so the
+  message stays on one line (Emacs's echo area grows; a second line in
+  Neovim's would wait for Enter).
 - The ports of |org-babel-languages| run a new process for each block
   where Emacs uses an Emacs package's REPL: gnuplot (gnuplot-mode
   sessions), haskell (inf-haskell: ghci is fed the block and markers),
