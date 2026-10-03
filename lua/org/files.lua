@@ -12,6 +12,24 @@ local M = {}
 local disk_cache = {} -- path -> { mtime, size, file, todo_spec }
 local buf_cache = {} -- bufnr -> { tick, name, cwd, file, todo_spec }
 
+--- Fire the User autocmd `OrgFileLoaded` (scheduled: parsing can happen
+--- where autocommands must not run, such as a fold expression) when a
+--- file is read from disk, or a buffer is parsed for the first time. Only
+--- when someone listens, so a parse costs nothing more otherwise.
+local function loaded(filename, bufnr, source)
+  local ok, acs = pcall(vim.api.nvim_get_autocmds, { event = "User", pattern = "OrgFileLoaded" })
+  if not ok or #acs == 0 then
+    return
+  end
+  vim.schedule(function()
+    pcall(vim.api.nvim_exec_autocmds, "User", {
+      pattern = "OrgFileLoaded",
+      data = { file = filename, bufnr = bufnr, source = source },
+      modeline = false,
+    })
+  end)
+end
+
 --- Parse a buffer (cached by changedtick).
 ---@param bufnr? integer
 ---@return org.File
@@ -44,6 +62,9 @@ function M.get_buffer(bufnr)
   local file = require("org.parser").parse(lines, name ~= "" and vim.fs.normalize(name) or nil, base)
   file.bufnr = bufnr
   buf_cache[bufnr] = { tick = tick, name = name, cwd = cwd, file = file, todo_spec = spec, base = base }
+  if not c or c.name ~= name then
+    loaded(file.filename, bufnr, "buffer")
+  end
   return file
 end
 
@@ -90,6 +111,9 @@ function M.get(path)
   end
   local file = require("org.parser").parse(lines, path)
   disk_cache[path] = { mtime = mtime, size = size, file = file, todo_spec = spec }
+  if not c or c.mtime ~= mtime or c.size ~= size then
+    loaded(file.filename, nil, "disk")
+  end
   return file
 end
 

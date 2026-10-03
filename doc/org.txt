@@ -1002,6 +1002,10 @@ sorted by the comparators after it in the list (by name when none), e.g.
 `require("org.tags").sort_less(a, b)` to hand over to the next ones.
 Without the option, tags keep their order.
 
+Setting or toggling tags fires the User autocmd `OrgTagsChanged`
+(org-after-tags-change-hook) and changing a priority `OrgPriorityChanged`,
+both with `data = { bufnr, lnum, file, from, to }` (|org-api-events|).
+
 Tags are aligned to `tags_column` (negative values right-align them, a
 positive value starts them at that column). `:Org align_tags` realigns every
 headline in the buffer. With `auto_align_tags = false`, edits keep the
@@ -2859,7 +2863,9 @@ when there is one). Retrieval is synchronous, like Emacs.
                 (C-u C-u C-u) clears the target cache (`refile.use_cache`),
                 2 refiles under the running clock and 3 copies
                 (org-refile-keep). With `refile.log = "note"`, the note is
-                typed in the `*Org Note*` buffer (`note_buffer`).
+                typed in the `*Org Note*` buffer (`note_buffer`). The User
+                autocmd `OrgRefile` fires once the entry is in place
+                (org-after-refile-insert-hook, |org-api-events|).
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
@@ -6532,13 +6538,267 @@ mouse_show_overview, mouse_timestamp_today, mouse_transform_to_outline
 ==============================================================================
 29. LUA API                                                          *org-api*
 
+`require("org.api")` is the public Lua API for plugins and configs: files,
+headlines and their changes, agenda queries, capture, links, the clock and
+events. Everything it returns is plain data (tables of strings, numbers
+and booleans) or a headline handle, a plain table with methods.
+
+                                                         *org-api-version*
+`api.version` is the version of the API, `MAJOR.MINOR.PATCH`, separate
+from the plugin's release. Within a major version functions, fields and
+event payloads are only added (a new MINOR), never removed or changed.
+`api.has("1.2")` is true when this API provides version 1.2: the same
+major version, not older. Other modules (`org.parser`, `org.files`,
+`org.agenda`, ...) are internal: they can change in any release. >lua
+    local ok, api = pcall(require, "org.api")
+    if ok and api.has("1.0") then ... end
+<
+Functions that can fail return nil and an error message. They never
+prompt: a prompt the change would show (a log note, a date, a choice)
+answers as if cancelled, so notes are left out and only the time is
+logged unless you pass `note`. Org's messages are not shown either.
+
+Files ~
+                                                           *org-api-files*
+api.agenda_files()          Absolute paths of the agenda files.
+api.load([paths])           Read files: one path returns one file (nil and
+                            an error when it can't be read), a list of
+                            paths, globs or directories returns a list, and
+                            no argument the agenda files. A file loaded in
+                            a buffer is read from the buffer, unsaved
+                            changes included.
+api.current([bufnr])        The file of a buffer (default current), nil
+                            when it isn't an org buffer.
+
+A file is `{ file, bufnr, title, category, filetags, properties,
+todo_keywords = { todo, done }, headlines }`: `file` is the path (nil for a
+buffer without one), `properties` the file-level property drawer and
+`headlines` every headline in document order.
+
+Headlines ~
+                                                       *org-api-headlines*
+api.headlines([query])      Headlines matching every condition of `query`,
+                            in file order (nil and an error for an invalid
+                            match string):
+    files     files, globs or directories (default the agenda files)
+    match     a tags/property match as in agenda tag searches
+              (|org-match-syntax|): `+work-urgent`, `PRIORITY="A"`,
+              `+project/TODO|NEXT`
+    todo      a keyword or a list of them; true: any not-done keyword;
+              false: no keyword
+    done      in a done state (true) or not (false)
+    tags      a tag or a list, all required, inherited ones included
+    property  `{ NAME = "value" | true | false | function(value) }`:
+              true is set, false unset; inheritance follows
+              `use_property_inheritance`
+    level     a number, or `{ min = 2, max = 3 }`
+    title     text the title contains, ignoring case
+    id        the ID property
+    archived  false skips subtrees tagged ARCHIVE (default: included)
+    filter    `function(h)` returning true to keep the handle
+api.headline_at([opts])     The headline containing a line: `opts.bufnr`
+                            (default current) and `opts.lnum` (default the
+                            cursor line), or `opts.file` and `opts.lnum`.
+api.find_by_id(id)          The headline with this ID, found like `id:`
+                            links find it.
+api.date(value)             A date in the form below, from any value the
+                            API accepts as a date.
+
+A headline handle has these fields, a snapshot taken when it was made:
+    title         text without TODO keyword, priority and tags
+    plain_title   `title` with links shown as their description and
+                  statistics cookies removed
+    raw           the whole headline line
+    level, todo, priority (nil without a cookie), category, id
+    todo_type     "todo", "done" or nil;  done  a boolean
+    tags          own tags;  all_tags  with inherited and file tags
+    properties    own properties, names upper-cased
+    scheduled, deadline, closed   dates (nil when not set)
+    file          the path (nil for a buffer without one)
+    line, end_line   the headline line and the last line of its subtree
+    outline_path  titles of the ancestors
+    archived, commented   booleans
+
+A date is `{ year, month, day, hour, min, end_hour, end_min, active,
+repeater, warning, date = "2026-10-02", time = "09:30", timestamp (Unix
+time), text (as org writes it), raw (as written in the file) }`. Where the
+API takes a date it accepts such a table (or any table with year, month,
+day and optionally hour and min), a Unix time, or a string: a timestamp
+(`<2026-10-02 Fri 09:30>`, `2026-10-02`) or what the date prompt reads
+(`+2d`, `fri`).
+
+Methods find the headline again (at its line, else by its ID, else the
+nearest line with the same text), run the same code as the keys, refresh
+the fields and return the handle (or nil and an error):
+    h:set_todo(state, [opts])     C-c C-t; nil removes the keyword.
+                                  `opts.note` is the note the logging asks
+                                  for, `opts.force` ignores blocking
+    h:set_tags(tags)              a list or ":a:b:"; also h:add_tag(tag),
+                                  h:remove_tag(tag)
+    h:set_priority(p)             "A", "10" or a number; nil removes it
+    h:set_property(name, value)   org-entry-put; nil deletes the property
+    h:get_property(name, [inherit])  special properties too (`ALLTAGS`)
+    h:schedule(date)              C-c C-s, nil removes the date; also
+                                  h:set_scheduled(date). The old repeater
+                                  stays unless the date has its own
+    h:set_deadline(date)          C-c C-d (the `deadline` field holds the
+                                  date, so the method has another name)
+    h:clock_in(), h:clock_out()   clock_out returns the minutes
+    h:is_clocked_in()
+    h:refile(dest, [opts])        dest: another handle, a file path, or
+                                  `{ file = path, headline = "Title" }`
+                                  (or an outline path list). `opts.copy`
+                                  keeps the original, `opts.prepend` makes
+                                  it the first child. The handle then
+                                  points to the moved entry
+    h:archive()                   archive per `archive_location`; returns
+                                  the archive file
+    h:open([opts])                show it in a window, cursor on it;
+                                  `opts.split` "split", "vsplit" or "tab".
+                                  `goto` is a LuaJIT keyword: `h:goto()`
+                                  can't be written, `h["goto"](h)` works
+    h:add_id()                    the ID, created when missing (alias
+                                  `id_get_or_create`); h:get_id() only
+                                  reads it
+    h:parent(), h:children()      handles of the parent and children
+    h:reload()                    read the headline again
+                                                          *org-api-saving*
+Changes work whether or not the file is loaded: it's loaded in a hidden
+buffer when needed and written with org's own save (write hooks such as
+encryption run, |org-crypt|). By default the file is saved when its buffer
+had no unsaved changes before the change, so your own unsaved edits are
+never written behind your back; every change method takes `opts.save`
+(true always saves, false never). >lua
+    local api = require("org.api")
+    for _, h in ipairs(api.headlines({ match = "+work", todo = "WAITING" })) do
+      h:set_todo("TODO")
+      h:schedule("+1d")
+    end
+<
+Agenda ~
+                                                          *org-api-agenda*
+The entries of the agenda views as data, without opening the agenda.
+api.agenda.agenda([opts])   Days of an agenda span: `{ { date =
+                            "2026-10-05", day = <date>, items = {...} } }`.
+                            `opts.from` (a date, default today), `span`
+                            ("day", "week", "fortnight", "month", "year"
+                            or a number of days; default `agenda.span`),
+                            `align` (default true: a week starts on
+                            `agenda.start_on_weekday`), `include_empty`
+                            (default true), `log` (clocked and closed
+                            entries, like `l`), `files`.
+api.agenda.todo([opts])     The TODO list; `opts.keywords` a keyword or a
+                            list ("*": any keyword), `opts.files`.
+api.agenda.tags(match, [opts])  A tags/property match; `opts.todo_only`.
+api.agenda.search(query, [opts])  A search view query (|org-agenda-search|).
+
+Items are sorted like the views (`agenda.sorting`) and are `{ type, kind,
+title, todo, priority, category, tags, done, day, date, time, end_time,
+extra, file, line, headline }`: `type` is where the entry comes from
+(scheduled, deadline, timestamp, range, sexp, closed, clock, todo, tags,
+search), `kind` the agenda's finer type (past-scheduled, ...), `day` the
+"YYYY-MM-DD" it's listed on, `date` its timestamp, `time` / `end_time`
+"HH:MM", `extra` the leader ("Scheduled: ", "In   3 d.: ") and `headline`
+a handle. >lua
+    for _, day in ipairs(require("org.api").agenda.agenda({ span = "day" })) do
+      for _, item in ipairs(day.items) do
+        print(item.time or "", item.todo or "", item.title)
+      end
+    end
+<
+Capture ~
+                                                         *org-api-capture*
+api.capture(opts)           Capture without a capture window: the template
+                            is filled in, stored and saved at once.
+    key       a template key of `capture.templates`, or
+    template  template text (with `target`, `headline`, `olp`, `type`,
+              `datetree` as in |org-capture-templates|) or a whole
+              template table
+    values    answers to the `%^` prompts, by label (`{ Title = "x" }`
+              for `%^{Title}`, "Tags" for `%^g`, "Date" for `%^t`) or
+              by position (`{ "x", "y" }`); others take their default
+    initial   the text of `%i`
+    date      the capture date (`%t`, date trees, `time_prompt`)
+Returns `{ file, bufnr, line, headline }` (`headline` for entry
+templates). `OrgCaptureAfterFinalize` fires as for any capture. >lua
+    require("org.api").capture({
+      template = "* TODO %^{Task}\n  %U",
+      target = "~/org/inbox.org",
+      values = { Task = "Call the bank" },
+    })
+<
+Links ~
+                                                           *org-api-links*
+api.links.store(link, [desc])   Add to the stored links (<prefix>li).
+api.links.store_location([where])  Store a link to a handle or `{ bufnr,
+                            lnum }` (default the cursor), like <prefix>ls.
+api.links.stored()          The stored links `{ link, desc }`, newest first.
+api.links.format(link, [desc])  `[[link][desc]]`, escaped.
+api.links.insert(link, [desc], [opts])  Insert at the cursor, or at
+                            `opts.bufnr`, `opts.row` (1-based), `opts.col`
+                            (0-based byte), written for that buffer like
+                            <prefix>li. Returns the inserted text.
+api.links.resolve(link, [opts])  What a link (a target or `[[...]]`) points
+                            to, without following it: `{ type, path,
+                            target, search, file, line, headline, url }`.
+                            Internal links search `opts.bufnr` (default
+                            current); file searches find a line number,
+                            `*heading`, `#custom-id`, `<<target>>` or a
+                            headline title (not regexps).
+
+Clock ~
+                                                           *org-api-clock*
+api.clock.status()          The running clock, or nil: `{ title, file,
+                            start (a date), minutes, clocked, effort,
+                            overrun, headline }` (see |org-clock|).
+api.clock.is_running()
+api.clock.clock_out([opts]) Stop it wherever it runs; returns the minutes.
+api.clock.cancel()          Cancel it (<prefix>xq).
+
+Events ~
+                                                          *org-api-events*
+Org fires `User` autocmds with a `data` table. `api.on(name, fn, [opts])`
+calls `fn(data, ev)` for one (`opts.once`, `opts.group`) and returns an id
+for `api.off(id)`; `api.events` maps each name to a short description.
+    OrgTodoStateChange   bufnr, lnum, from, to, state, done, repeated
+                         (|org-todo-events|)
+    OrgTodoRepeat        same data, a repeating task moved on
+    OrgPriorityChanged   bufnr, lnum, file, from, to (nil: no cookie)
+    OrgTagsChanged       bufnr, lnum, file, from, to (own tags; by C-c C-q,
+                         toggling, the region command and the API)
+    OrgPropertyChanged   bufnr, lnum, name, value
+    OrgClockIn           bufnr, lnum, title
+    OrgClockOut          path, title, minutes, removed
+    OrgClockCancel       path, title
+    OrgCaptureAfterFinalize  bufnr, line (`aborted` when cancelled)
+    OrgRefile            bufnr, lnum, file (where the entry now is), title,
+                         source_bufnr, source_file, copy
+                         (org-after-refile-insert-hook)
+    OrgArchive           bufnr, lnum, title, archive_file (before the
+                         subtree leaves its file); OrgArchiveFinalize: the
+                         same in the archive buffer
+    OrgFileLoaded        file, bufnr, source ("disk" or "buffer"): a file
+                         was read from disk, or a buffer parsed for the
+                         first time. Fires on the next event loop turn.
+Other features fire their own events (clock, capture, agenda, babel, ...;
+see their sections). >lua
+    local api = require("org.api")
+    api.on("OrgTodoStateChange", function(data)
+      if data.done then
+        local h = api.headline_at({ bufnr = data.bufnr, lnum = data.lnum })
+        vim.notify("Done: " .. h.title)
+      end
+    end)
+<
+Other Lua entry points ~
 require("org").setup({opts})        configure (see |org-config|)
 require("org").agenda([key])        open the dispatcher or a view
-require("org").capture([key])       capture
+require("org").capture([key])       capture interactively
 require("org").statusline()         clock and timer string for statuslines
 require("org").action(name)         run an action (|org-keymaps|)
 
-Lower-level modules (stable within a major version):
+The modules below the API are internal and may change between releases;
+use them only for what `org.api` doesn't cover yet:
   org.parser    parse(lines, filename) → file with headlines, planning,
                 properties, clocks and timestamps
   org.files     get(path), get_buffer(bufnr), agenda_files()
@@ -6548,8 +6808,7 @@ Lower-level modules (stable within a major version):
   org.agenda.search  compile(match) → function(headline) → boolean
   org.export    export(format, opts) → output path; to_string(format)
   org.dblock    register(name, fn)
-
-Targets are `{ bufnr = n, lnum = l }`.
+Their targets are `{ bufnr = n, lnum = l }`.
 
 ==============================================================================
 30. IN-BUFFER SETTINGS                               *org-in-buffer-settings*

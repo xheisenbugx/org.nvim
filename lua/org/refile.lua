@@ -583,14 +583,16 @@ function M.remember(bufnr, lnum, kind)
   require("org.bookmarks").set(kind or "last_refile", bufnr, lnum)
 end
 
---- Log a refile note under the moved entry (org-log-refile).
-local function log_refile(bufnr, lnum, mode)
+--- Log a refile note under the moved entry (org-log-refile). `note`: the
+--- note to log in "note" mode (nil asks, false logs the time only).
+local function log_refile(bufnr, lnum, mode, note)
   mode = mode or (config.opts.refile or {}).log
   if not mode then
     return
   end
-  local note
-  if mode == "note" then
+  if mode ~= "note" or note == false then
+    note = nil
+  elseif note == nil then
     note = utils.input_note({ prompt = "Refile note: ", purpose = edit.note_purpose("refile") })
     if note == nil then
       -- C-c C-k in the note buffer: no log entry (org-note-abort)
@@ -646,7 +648,8 @@ end
 --- (C-u C-u C-u) clears the target cache, 2 refiles under the running
 --- clock and 3 copies (org-refile-keep).
 ---@param target? org.Target
----@param opts? table { dest?: org.RefileTarget, save?, copy?, targets?: table[], range?: integer[], count? }
+---@param opts? table { dest?: org.RefileTarget, save?, copy?, targets?: table[], range?: integer[], count?,
+---  note?: string|false } (`note`: the refile log note, see `refile.log`; false logs none)
 function M.refile(target, opts)
   opts = opts or {}
   local count = opts.count
@@ -755,7 +758,7 @@ function M.refile(target, opts)
       end
     end
   else
-    log_refile(dbuf, dline)
+    log_refile(dbuf, dline, nil, opts.note)
   end
   M.remember(dbuf, dline, "last_refile")
   if dbuf ~= bufnr then
@@ -764,8 +767,23 @@ function M.refile(target, opts)
   if opts.save then
     utils.save_buffer_or_warn(bufnr)
   end
-  local where = (dest.path or dest.label):gsub("/$", "")
+  local where = (dest.path or dest.label or ""):gsub("/$", "")
   utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)
+  -- org-after-refile-insert-hook (after the entry is in place and logged)
+  local dname = vim.api.nvim_buf_get_name(dbuf)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgRefile",
+    data = {
+      bufnr = dbuf,
+      lnum = dline,
+      file = dname ~= "" and vim.fs.normalize(dname) or nil,
+      title = title,
+      source_bufnr = bufnr,
+      source_file = file.filename,
+      copy = copy and true or false,
+    },
+    modeline = false,
+  })
   return dbuf, dline
 end
 

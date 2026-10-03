@@ -10,6 +10,26 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.tags.select")
 
+--- Fire the User autocmd `OrgTagsChanged` (org-after-tags-change-hook)
+--- when the own tags of the headline at (bufnr, lnum) changed.
+local function tags_changed(bufnr, lnum, old, new)
+  if vim.deep_equal(old, new) then
+    return
+  end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgTagsChanged",
+    data = {
+      bufnr = bufnr,
+      lnum = lnum,
+      file = name ~= "" and vim.fs.normalize(name) or nil,
+      from = vim.deepcopy(old),
+      to = vim.deepcopy(new),
+    },
+    modeline = false,
+  })
+end
+
 --- Parse a tag input string (":a:b:" / "a b" / "a:b") into a list.
 function M.parse_input(str)
   local out, seen = {}, {}
@@ -718,7 +738,9 @@ function M.set_tags(target, tags, no_fast)
     hl = files.get_buffer(bufnr):headline_at(hl.line)
   end
   tags = M.sort(tags)
+  local old = vim.deepcopy(hl.tags)
   edit.update_headline(bufnr, hl.line, { tags = tags })
+  tags_changed(bufnr, hl.line, old, tags)
   return tags
 end
 --- Add (`op = "add"`) or remove (`op = "remove"`) `tag` on every headline
@@ -740,7 +762,9 @@ function M.change_tag_in_region(bufnr, s, e, op, tag)
         end, tags)
       end
       if #tags ~= #hl.tags then
+        local before = vim.deepcopy(hl.tags)
         edit.update_headline(bufnr, hl.line, { tags = tags })
+        tags_changed(bufnr, hl.line, before, tags)
         changed = changed + 1
       end
     end
@@ -822,6 +846,7 @@ function M.toggle_tag(target, tag)
     tags[#tags + 1] = tag
   end
   edit.update_headline(bufnr, hl.line, { tags = tags })
+  tags_changed(bufnr, hl.line, hl.tags, tags)
   return not idx
 end
 

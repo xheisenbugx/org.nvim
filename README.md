@@ -475,6 +475,7 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 - [Custom agenda commands](#custom-agenda-commands)
 - [Completion](#completion)
 - [Statusline](#statusline)
+- [Lua API](#lua-api)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
 - [Extensions](#-extensions)
@@ -871,6 +872,30 @@ headings (`[[*`), custom IDs (`[[#`) and stored links.
 
 While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`,
 followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
+
+---
+
+## Lua API
+
+`require("org.api")` is a stable, versioned API for plugins and configs:
+read files and headlines as plain data, query them, change them (TODO
+state, tags, priority, properties, dates, clock, refile, archive, IDs),
+run agenda queries without opening the agenda, capture without a window,
+store and resolve links, and listen to events such as `OrgTodoStateChange`,
+`OrgTagsChanged` or `OrgRefile`. Changes work whether or not the file is
+open, and never prompt.
+
+```lua
+local api = require("org.api")
+for _, h in ipairs(api.headlines({ match = "+work", todo = "WAITING" })) do
+  h:set_todo("TODO")
+  h:schedule("+1d")
+end
+api.capture({ template = "* TODO %^{Task}", target = "~/org/inbox.org", values = { Task = "Call the bank" } })
+api.on("OrgClockOut", function(data) print(data.title, data.minutes) end)
+```
+
+See [`:h org-api`](doc/org.txt) for every function, field and event.
 
 ---
 
