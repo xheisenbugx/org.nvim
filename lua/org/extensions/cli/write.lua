@@ -20,11 +20,10 @@ local function need(words, n, usage)
   end
 end
 
---- Is `tag` one tag as org reads it on a headline (org-tag-re: letters
---- and digits of any script, `_ @ # %`)?
+--- Is `tag` a valid tag name (org-tag-re: letters and digits of any
+--- script, `_ @ # %`; see `tags.valid`)?
 local function valid_tag(tag)
-  local parsed = require("org.parser").parse_headline_line("* x :" .. tag .. ":")
-  return parsed ~= nil and #parsed.tags == 1 and parsed.tags[1] == tag
+  return require("org.tags").valid(tag)
 end
 
 --- The heading of words[1], and its buffer target.

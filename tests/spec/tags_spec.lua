@@ -352,3 +352,14 @@ describe("inheritance options", function()
     eq(nil, bar)
   end)
 end)
+
+describe("tags.valid", function()
+  it("accepts letters and digits of any script and _ @ # %, like org-tag-re", function()
+    for _, t in ipairs({ "work", "x_1", "@home", "#n", "50%", "café", "ñandú2", "日本" }) do
+      ok(tags.valid(t), t)
+    end
+    for _, t in ipairs({ "", "follow-up", "two words", "a:b", "x.y", "a—b", "😀", "x\255", 42 }) do
+      ok(not tags.valid(t), tostring(t))
+    end
+  end)
+end)

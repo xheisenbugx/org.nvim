@@ -665,6 +665,10 @@ describe("cli json: writing", function()
     _, e = json(dir, { "set", "tags", "Review", "café:ñandú2" })
     eq({ "café", "ñandú2" }, e.data.new)
     ok(work()[3]:match(":café:ñandú2:$"), work()[3])
+    -- the same rule as the API (tags.valid): no symbols or emoji
+    code, err = json(dir, { "set", "tags", "Review", "😀" })
+    eq(2, code)
+    eq("bad_value", err.errors[1].code)
   end)
 
   it("sets and removes the priority", function()

@@ -11,6 +11,40 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.tags.select")
 
+--- Is `tag` a name org reads back as a tag (org-tag-re `[[:alnum:]_@#%]`):
+--- ASCII letters and digits, `_`, `@`, `#`, `%`, and letters and digits of
+--- other scripts (no punctuation, symbols or emoji)? The API and the
+--- command line check new tag names with it.
+---@param tag any
+---@return boolean
+function M.valid(tag)
+  if type(tag) ~= "string" or tag == "" then
+    return false
+  end
+  local i = 1
+  while i <= #tag do
+    local c = tag:byte(i)
+    local n = c < 0x80 and 1 or c >= 0xF0 and 4 or c >= 0xE0 and 3 or c >= 0xC2 and 2 or 0
+    local ch = n > 0 and tag:sub(i, i + n - 1) or ""
+    if n == 1 then
+      if not ch:match("^[%w_@#%%]$") then
+        return false
+      end
+    elseif n == 0 or c > 0xF4 or #ch ~= n or not ch:match("^.[\128-\191]+$") then
+      return false -- not UTF-8
+    else
+      -- Vim's character class: 2 a word character, above 3 a script's
+      -- letters; 0 blanks, 1 punctuation and symbols, 3 emoji
+      local class = vim.fn.charclass(ch)
+      if class < 2 or class == 3 then
+        return false
+      end
+    end
+    i = i + n
+  end
+  return true
+end
+
 --- Fire the User autocmd `OrgTagsChanged` (org-after-tags-change-hook,
 --- which org-set-tags runs) for the headline at (bufnr, lnum), whose own
 --- tags went from `old` to `new`; nothing when they are equal.
