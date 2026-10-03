@@ -7476,8 +7476,11 @@ Each extension is marked as one of:
 
   stable        used daily and well covered by specs; its options, actions
                 and keys only change with a note in the release notes
-  experimental  works and is tested, but has seen less real use; options
-                and behaviour may still change between minor releases
+  experimental  works and is tested, but has seen less real use, so it is
+                prone to change: its options, commands, keys and output
+                (such as the JSON of |org-extensions-cli|) can change in
+                any release. Read the release notes before you upgrade if
+                a config or a script relies on one.
 
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`

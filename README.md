@@ -1061,6 +1061,12 @@ its options may still change):
 | --- | --- |
 | `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap` |
 
+> [!NOTE]
+> 🧪 Experimental extensions are prone to change. Their options, commands,
+> keys and output (such as the `org` command line's JSON) can change in any
+> release, so read the release notes before you upgrade if a config or a
+> script relies on one.
+
 - ✅ **`present`** ([org-present](https://github.com/rlister/org-present)):
   `:Org present` shows the buffer as a slideshow, one top-level heading per
   slide, in its own tab (`:h org-extensions-present`).

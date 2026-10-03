@@ -456,7 +456,8 @@ squash, so that commit is part of `main`. Afterwards, merge the release
 branch back into `dev` (a pull request from `release/v0.2.0` into `dev`),
 so `dev` gets the changelog and reaches the tag; do the same for any fix
 committed to the release branch itself. Pick the version with
-[semver](https://semver.org): before 1.0, a `feat` or a breaking change
-bumps the minor version, fixes bump the patch.
+[semver](https://semver.org): a breaking change (`feat!:` or a
+`BREAKING CHANGE:` footer, listed first in the changelog) bumps the major
+version, a `feat` the minor version, and fixes the patch.
 
 Thanks again, and happy hacking! 🦄
