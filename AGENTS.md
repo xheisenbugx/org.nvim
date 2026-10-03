@@ -13,6 +13,7 @@ make snapshots                             # rewrite the screen snapshot golden 
 make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
 make format                                # stylua over the same paths
 make site                                  # docs website into site/ (scripts/site/build.lua)
+make typecheck                             # lua-language-server --check with .luarc.json
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
@@ -34,6 +35,12 @@ make site                                  # docs website into site/ (scripts/si
   wrap it in `utils.gsub_escape`), and a `#+KEY:` value's column found again
   with `line:find(value)` (capture it with `()`). An audited safe use takes
   `-- lint: allow <rule>: <reason>` on its line or the line above.
+- `make typecheck` runs lua-language-server (CI pins 3.19.1) over the
+  repo with `.luarc.json`. Any warning or error fails it; the type-system
+  checks the code isn't annotated well enough for yet (`need-check-nil`,
+  `param-type-mismatch`, `undefined-field`, ...) are demoted to hints.
+  Fix a new warning (usually a wrong `---@param`/`---@return`) rather than
+  silencing it.
 
 ## Layout
 

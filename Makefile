@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -15,6 +15,15 @@ snapshots:
 lint:
 	stylua --check lua plugin ftplugin syntax tests scripts/site
 	nvim --headless --clean -l scripts/lint_sources.lua lua
+
+# lua-language-server --check with .luarc.json: the diagnostics it gates on
+# (warnings and errors) must stay at zero. Needs lua-language-server on
+# PATH (CI pins the version) and nvim, for its runtime's type annotations.
+typecheck:
+	@log=$$(mktemp -d) && \
+	rt=$${VIMRUNTIME:-$$(nvim --clean --headless -c 'lua io.stdout:write(vim.env.VIMRUNTIME)' -c 'qa!')} && \
+	VIMRUNTIME=$$rt lua-language-server --check=. --checklevel=Warning --check_format=pretty --logpath=$$log; \
+	s=$$?; rm -rf $$log; exit $$s
 
 # stylua sometimes needs a second pass to settle
 format:

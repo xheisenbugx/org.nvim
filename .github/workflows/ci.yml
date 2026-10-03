@@ -76,6 +76,32 @@ jobs:
           version: 2.5.2
           args: --check lua plugin ftplugin syntax tests scripts/site
 
+  typecheck:
+    name: typecheck (lua-language-server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # bump it together with a `make typecheck` pass: new releases can add
+      # diagnostics
+      LUALS_VERSION: 3.19.1
+    steps:
+      - uses: actions/checkout@v4
+      # the runtime's type annotations (vim.api, vim.uv, ...) come from
+      # VIMRUNTIME
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Install lua-language-server
+        run: |
+          d="$RUNNER_TEMP/luals"
+          mkdir -p "$d"
+          curl -fsSL "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/lua-language-server-$LUALS_VERSION-linux-x64.tar.gz" \
+            | tar -xz -C "$d"
+          echo "$d/bin" >> "$GITHUB_PATH"
+      - run: lua-language-server --version
+      - run: make typecheck
+
   helptags:
     runs-on: ubuntu-latest
     steps:

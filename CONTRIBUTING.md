@@ -31,6 +31,7 @@ make test SPEC=tests/spec/agenda_spec.lua # a single spec
 ORG_TEST_JOBS=1 make test                 # all specs in one Neovim, one after another
 make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
+make typecheck                            # lua-language-server --check
 git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
 
@@ -125,7 +126,8 @@ Some things to know before you start:
    ```
 
 4. Document it in `doc/org.txt` (and in the README if it's user-visible).
-5. Run `make format`, `make test` and `make lint`.
+5. Run `make format`, `make test` and `make lint` (and `make typecheck`
+   if you have lua-language-server).
 
 ### Source lint rules
 
@@ -149,6 +151,23 @@ local jar = vim.fn.expand(o.jar_path)
 
 An allow comment without a reason, or one that no longer allows anything,
 is reported too.
+
+### Type check
+
+`make typecheck` runs [lua-language-server](https://github.com/LuaLS/lua-language-server)
+`--check` over the repository with the settings of `.luarc.json` (LuaJIT,
+the Neovim runtime of `nvim`'s `$VIMRUNTIME`, the spec harness's globals),
+which editors using LuaLS pick up too. CI runs it with lua-language-server
+3.19.1. Every warning or error fails the check: a call with more or fewer
+arguments than the function takes, a `---@return` that disagrees with what
+the function returns, an annotation LuaLS can't parse, an unknown global.
+The checks that need fuller annotations than the code has today
+(`need-check-nil`, `param-type-mismatch`, `assign-type-mismatch`,
+`cast-local-type`, `undefined-field`, `inject-field`,
+`duplicate-set-field`, and `deprecated`, since org.nvim keeps fallbacks
+for Neovim 0.11) are hints: your editor shows them, the check ignores
+them. Fix what the check reports, usually the annotation, instead of
+silencing it.
 
 ## Comparing with Emacs
 
