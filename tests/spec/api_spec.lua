@@ -1031,6 +1031,14 @@ describe("org.api", function()
       eq({ "[[id:abc]]See [[https://x.org][X]] here" }, buf_lines(buf))
     end)
 
+    it("inserts a link whose description has several lines", function()
+      local buf = org_buffer({ "See  here" }, { 1, 4 })
+      eq("[[https://x.org][two\nlines]]", api.links.insert("https://x.org", " two\nlines\n"))
+      eq({ "See [[https://x.org][two", "lines]] here" }, buf_lines(buf))
+      local l = require("org.links").parse_links(table.concat(buf_lines(buf), "\n"))[1]
+      eq({ "https://x.org", "two\nlines" }, { l.target, l.desc })
+    end)
+
     it("resolves links without following them", function()
       local r = api.links.resolve("[[id:report-id]]")
       eq("id", r.type)

@@ -568,7 +568,8 @@ function M.links.insert(link, desc, opts)
     row, col = row or cur[1], col or cur[2]
   end
   local text = links.format_for_buffer(link, desc, { bufnr = bufnr }) or ""
-  vim.api.nvim_buf_set_text(bufnr, row - 1, col, row - 1, col, { text })
+  -- a description keeps its line breaks, as in Emacs (org-link-make-string)
+  vim.api.nvim_buf_set_text(bufnr, row - 1, col, row - 1, col, vim.split(text, "\n", { plain = true }))
   return text
 end
 
