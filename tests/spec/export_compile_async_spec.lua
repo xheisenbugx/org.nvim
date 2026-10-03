@@ -9,7 +9,7 @@ local config = require("org.config")
 local function tmpdir()
   local d = vim.fn.tempname()
   vim.fn.mkdir(d, "p")
-  return vim.uv.fs_realpath(d)
+  return require("org.utils").realpath(d)
 end
 
 local function read(path)
@@ -60,6 +60,8 @@ local cases = {
 }
 
 describe("asynchronous compile with a multi-command process", function()
+  -- the processes are POSIX commands (sh from Git for Windows on Windows)
+  posix_shell()
   for _, c in ipairs(cases) do
     it("runs every " .. c.name .. " command and calls on_done", function()
       local saved = config.opts.export[c.area]
