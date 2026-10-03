@@ -640,11 +640,71 @@ local function last_problem(msgs)
   end
 end
 
+--- The loaded buffers: whether each has unsaved changes, and its text's
+--- version.
+local function snapshot()
+  local s = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) then
+      s[b] = { modified = vim.bo[b].modified, tick = vim.api.nvim_buf_get_changedtick(b) }
+    end
+  end
+  return s
+end
+
+--- Save the files a change touched: the buffers of files it changed and
+--- left unsaved (the headline's, a refile destination, the archive file,
+--- the file whose clock a clock-in stopped). All of them or none: by
+--- default none when one had unsaved changes before the change (`save`
+--- true saves all, false none), so your edits aren't written behind your
+--- back and an entry that moved to another file is never written out of
+--- its file while it's only in a buffer there. The headline's own buffer
+--- `own` goes last: when a save fails, it isn't written.
+---@param own integer
+---@param before table<integer, { modified: boolean, tick: integer }>
+---@param save boolean|nil
+---@return boolean|nil ok, string|nil err
+local function save_touched(own, before, save)
+  local touched, own_touched = {}, false
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local was = before[b]
+    if
+      vim.api.nvim_buf_is_loaded(b)
+      and vim.bo[b].modified
+      and vim.bo[b].buftype == ""
+      and vim.api.nvim_buf_get_name(b) ~= ""
+      and (not was or was.tick ~= vim.api.nvim_buf_get_changedtick(b))
+    then
+      if save == nil and was and was.modified then
+        save = false
+      end
+      if b == own then
+        own_touched = true
+      else
+        touched[#touched + 1] = b
+      end
+    end
+  end
+  if save == false then
+    return true
+  end
+  if own_touched then
+    touched[#touched + 1] = own
+  end
+  for _, b in ipairs(touched) do
+    local ok, err = utils.save_buffer(b)
+    if not ok then
+      return nil, "could not save " .. vim.api.nvim_buf_get_name(b) .. ": " .. tostring(err)
+    end
+  end
+  return true
+end
+
 --- Run `fn(target, hl)` on the handle's headline without prompting, then
---- save its file (see |org-api-saving|) and refresh the handle from the
---- line `fn` returns as its second value (default: where the headline
---- moved to). `fn` returns nil for a failure. Returns fn's first value, or
---- nil and an error message.
+--- save the files it touched (see `save_touched` and |org-api-saving|)
+--- and refresh the handle from the line `fn` returns as its second value
+--- (default: where the headline moved to; false: none). `fn` returns nil
+--- for a failure. Returns fn's first value, or nil and an error message.
 ---@param opts? { save?: boolean }
 ---@return any res, string|nil err
 function M.edit(self, opts, fn)
@@ -653,14 +713,7 @@ function M.edit(self, opts, fn)
   if not bufnr or not hl then
     return nil, err
   end
-  -- buffers with unsaved changes before the change aren't saved; the change
-  -- may land in another buffer than the headline's (refile)
-  local was_modified = {}
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
-      was_modified[b] = true
-    end
-  end
+  local before = snapshot()
   local marks = require("org.marks")
   local mark = marks.set(bufnr, hl.line)
   local ok, msgs, res, where = utils.noninteractive(fn, { bufnr = bufnr, lnum = hl.line }, hl)
@@ -676,23 +729,16 @@ function M.edit(self, opts, fn)
   if type(where) == "table" then
     wbuf, lnum = where.bufnr, where.lnum
   end
-  for _, b in ipairs(vim.fn.uniq({ bufnr, wbuf })) do
-    local save = opts.save
-    if save == nil then
-      save = not was_modified[b]
-    end
-    if save and vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b) ~= "" then
-      local saved, err = utils.save_buffer(b)
-      if not saved then
-        return nil, "could not save " .. vim.api.nvim_buf_get_name(b) .. ": " .. tostring(err)
-      end
-    end
-  end
   if where ~= false and lnum and vim.api.nvim_buf_is_valid(wbuf) then
     local now = files.get_buffer(wbuf):headline_on(lnum)
     if now then
       fill(self, now)
     end
+  end
+  local saved
+  saved, err = save_touched(bufnr, before, opts.save)
+  if not saved then
+    return nil, err
   end
   return res
 end

@@ -6765,13 +6765,18 @@ longer points to an entry.
                                                           *org-api-saving*
 Changes work whether or not the file is loaded: it's loaded in a hidden
 buffer when needed and written with org's own save (write hooks such as
-encryption run, |org-crypt|). By default each file a change touches (for
-a refile, the source and the destination) is saved when its buffer had no
-unsaved changes before the change, so your own unsaved edits are never
-written behind your back; every change method takes `opts.save` (true
-always saves, false never). Like |org-refile|, a refile still saves a
-destination file that isn't shown in any window before it removes the
-entry from the source, so the entry can't be lost. >lua
+encryption run, |org-crypt|). A change saves every file it touched, all of
+them or none: the headline's file and each other file it changed (a
+refile's destination, the archive file whatever
+`archive_subtree_save_file` says, the file whose clock `h:clock_in()`
+stopped), the headline's file last. By default none of them is saved when
+one had unsaved changes before the change: your own unsaved edits are
+never written behind your back, and an entry that moved to another file
+is never written out of its file while it's only in a buffer there. Every
+change method takes `opts.save` (true saves them all, false none). Like
+|org-refile| and |org-archive|, a refile still saves a destination file
+that isn't shown in any window, and archiving the archive file when
+`archive_subtree_save_file` says so, before the entry leaves its file. >lua
     local api = require("org.api")
     for _, h in ipairs(api.headlines({ match = "+work", todo = "WAITING" })) do
       h:set_todo("TODO")

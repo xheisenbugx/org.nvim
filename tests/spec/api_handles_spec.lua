@@ -77,6 +77,122 @@ describe("org.api handles", function()
     return api.headlines({ files = path or work, title = title })[1]
   end
 
+  describe("saving", function()
+    for _, save_file in ipairs({ false, "from_agenda" }) do
+      it(
+        "archive saves the archive file with the source (archive_subtree_save_file " .. tostring(save_file) .. ")",
+        function()
+          setup(dir, { archive_subtree_save_file = save_file })
+          local archive = head("Plan offsite"):archive()
+          ok(archive, "archived")
+          ok(not text(work):find("Plan offsite", 1, true))
+          ok(text(archive):find("Plan offsite", 1, true), "the archived entry is on disk")
+          eq(false, vim.bo[utils.find_buffer(archive)].modified)
+        end
+      )
+    end
+
+    it("archive with save = true saves the archive file too", function()
+      setup(dir, { archive_subtree_save_file = false })
+      local archive = head("Plan offsite"):archive({ save = true })
+      ok(text(archive):find("Plan offsite", 1, true))
+      ok(not text(work):find("Plan offsite", 1, true))
+    end)
+
+    it("archive leaves the source unsaved when the archive file keeps unsaved changes", function()
+      setup(dir, { archive_subtree_save_file = false })
+      local archive = write(dir, "work.org_archive", { "* Old" })
+      local ab = open_file(archive)
+      vim.api.nvim_buf_set_lines(ab, -1, -1, false, { "* Unsaved" })
+      ok(head("Plan offsite"):archive())
+      -- on disk the entry is still in the source, never in neither file
+      ok(text(work):find("Plan offsite", 1, true))
+      eq({ "* Old" }, disk(archive))
+      eq(true, vim.bo[ab].modified)
+      eq(true, vim.bo[utils.find_buffer(work)].modified)
+      ok(table.concat(buf_lines(ab), "\n"):find("Plan offsite", 1, true))
+    end)
+
+    it("refile leaves the source unsaved when the destination keeps unsaved changes", function()
+      local inbox = write(dir, "inbox.org", { "* Inbox" })
+      local ib = open_file(inbox)
+      vim.api.nvim_buf_set_lines(ib, -1, -1, false, { "* Unsaved" })
+      ok(head("Plan offsite"):refile({ file = inbox, headline = "Inbox" }))
+      eq({ "* Inbox" }, disk(inbox))
+      ok(text(work):find("Plan offsite", 1, true), "the entry stays in the source on disk")
+      eq(true, vim.bo[utils.find_buffer(work)].modified)
+    end)
+
+    it("refile saves both files when neither had unsaved changes", function()
+      local inbox = write(dir, "inbox.org", { "* Inbox" })
+      local ib = open_file(inbox)
+      ok(head("Plan offsite"):refile({ file = inbox, headline = "Inbox" }))
+      ok(text(inbox):find("Plan offsite", 1, true))
+      ok(not text(work):find("Plan offsite", 1, true))
+      eq(false, vim.bo[ib].modified)
+    end)
+
+    --- Open and closed CLOCK lines of a file on disk.
+    local function clocks(path)
+      local open, closed = 0, 0
+      for _, l in ipairs(disk(path)) do
+        if l:match("^%s*CLOCK: %[[^%]]+%]%s*$") then
+          open = open + 1
+        elseif l:match("^%s*CLOCK: %[[^%]]+%]%-%-%[[^%]]+%]%s+=>") then
+          closed = closed + 1
+        end
+      end
+      return { open = open, closed = closed }
+    end
+
+    it("clock_in saves the file whose clock it stopped", function()
+      local a = write(dir, "a.org", { "* Task A" })
+      local b = write(dir, "b.org", { "* Task B" })
+      ok(head("Task A", a):clock_in())
+      eq({ open = 1, closed = 0 }, clocks(a))
+      ok(head("Task B", b):clock_in())
+      -- one open clock on disk: A's is closed and saved, B's runs
+      eq({ open = 0, closed = 1 }, clocks(a))
+      eq({ open = 1, closed = 0 }, clocks(b))
+      eq(false, vim.bo[utils.find_buffer(a)].modified)
+    end)
+
+    it("save = false writes none of the files", function()
+      local a = write(dir, "a.org", { "* Task A" })
+      local b = write(dir, "b.org", { "* Task B" })
+      ok(head("Task A", a):clock_in())
+      ok(head("Task B", b):clock_in({ save = false }))
+      eq({ open = 1, closed = 0 }, clocks(a))
+      eq({ open = 0, closed = 0 }, clocks(b))
+      eq(true, vim.bo[utils.find_buffer(a)].modified)
+    end)
+    it("clock_in saves neither file when the other one had unsaved changes", function()
+      local a = write(dir, "a.org", { "* Task A" })
+      local b = write(dir, "b.org", { "* Task B" })
+      ok(head("Task A", a):clock_in())
+      local ab = utils.find_buffer(a)
+      vim.api.nvim_buf_set_lines(ab, -1, -1, false, { "* Unsaved" })
+      ok(head("Task B", b):clock_in())
+      eq({ open = 1, closed = 0 }, clocks(a))
+      eq({ open = 0, closed = 0 }, clocks(b))
+      eq(true, vim.bo[ab].modified)
+      eq(true, vim.bo[utils.find_buffer(b)].modified)
+    end)
+
+    it("a failed save of the archive file leaves the source unsaved", function()
+      skip_on_windows("file modes")
+      setup(dir, { archive_subtree_save_file = false })
+      local archive = write(dir, "work.org_archive", { "* Old" })
+      vim.uv.fs_chmod(archive, tonumber("444", 8))
+      local res, err = head("Plan offsite"):archive()
+      vim.uv.fs_chmod(archive, tonumber("644", 8))
+      eq(nil, res)
+      ok(err:match("could not save"), err)
+      eq({ "* Old" }, disk(archive))
+      ok(text(work):find("Plan offsite", 1, true))
+    end)
+  end)
+
   describe("finding the headline again", function()
     local CALLS = {
       "* TODO Call",
