@@ -1,0 +1,14 @@
+screen 60x12
+|{1:* Links}|
+|A {2:described link} in text.|
+|A bare {2:https://neovim.io} link.|
+|A plain {3:https://example.com/path} link.|
+|A {2:file link} and {4:<<target>>}.|
+|A footnote{5:[fn:1]} and a {6:radio} {4:<<<radio>>>} target.|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgLink -> @markup.link [underline]
+{3} orgLinkPlain -> OrgLink -> @markup.link [underline]
+{4} OrgTarget -> Underlined [underline]
+{5} OrgFootnote -> Underlined [underline]
+{6} orgRadioLink -> OrgLink -> @markup.link [underline]

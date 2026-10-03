@@ -1,0 +1,9 @@
+screen 60x12
+|{1:-} {2:[☐]} open item|
+|{1:-} {3:[☑]} done item|
+|{1:-} {4:[◐]} partial item|
+
+{1} OrgListBullet -> Special
+{2} OrgCheckbox -> Special
+{3} OrgCheckboxChecked -> DiagnosticOk
+{4} OrgCheckboxPartial -> DiagnosticWarn

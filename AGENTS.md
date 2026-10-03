@@ -9,6 +9,7 @@ implementation for Neovim 0.11+ written in pure Lua with no dependencies.
 ```sh
 make test                                  # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua  # one spec (space-separate several)
+make snapshots                             # rewrite the screen snapshot golden files
 make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
 make format                                # stylua over the same paths
 ```
@@ -49,6 +50,7 @@ make format                                # stylua over the same paths
 | `examples/` | per-feature tutorial `.org` files |
 | `tests/run.lua`, `tests/minimal_init.lua` | the test runner and headless init |
 | `tests/spec/*_spec.lua`, `tests/fixtures/` | specs and the fixture org files |
+| `tests/screen.lua`, `tests/fixtures/screen/` | screen snapshot helper and its golden files |
 
 ## How the code fits together
 
@@ -103,6 +105,16 @@ describe("tags", function()
   end)
 end)
 ```
+
+Rendering (syntax, conceal, folds, extmark decorations, the agenda
+buffer) is checked by screen snapshots: `tests/screen.lua` draws a buffer
+in a child Neovim with a fixed-size UI and compares the text and highlight
+groups on screen with `tests/fixtures/screen/<name>.txt`
+(`tests/spec/screen_snapshot_spec.lua`; the format is in CONTRIBUTING.md).
+A rendering bug fix gets a snapshot case. When a snapshot changes on
+purpose, run `make snapshots` (`ORG_UPDATE_SNAPSHOTS=1`) and check the
+golden file diff; never edit golden files by hand, and don't rewrite them
+just to make a failing spec pass.
 
 Every bug fix and feature gets a spec. Tests run headless, so anything that
 prompts (`vim.fn.input`, `vim.ui.select`, confirms) has to be stubbed or

@@ -1,0 +1,21 @@
+screen 60x12
+|{1:* }{2:TODO}{1: }{3:[#A]}{1: Level one }{4::work:}|
+|Body text of level one.|
+|{5:** }{2:NEXT}{5: }{6:[#B]}{5: Level two }{4::home:errand:}|
+|{7:*** }{8:DONE}{7: }{9:[#C]}{7: Level three}|
+|{10:**** Level four with }{3:[#A]}{10: priority }{4::deep:}|
+|{11:***** }{2:TODO}{11: Level five}|
+|{1:* }{12:COMMENT}{1: A commented headline}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgTodo -> @comment.error
+{3} OrgPriorityA -> DiagnosticError
+{4} OrgTags -> @property
+{5} OrgHeadlineLevel2 -> Constant
+{6} OrgPriorityB -> DiagnosticWarn
+{7} OrgHeadlineDone -> Comment
+{8} OrgDone -> @comment.note
+{9} OrgPriorityC -> DiagnosticInfo
+{10} OrgHeadlineLevel4 -> Statement [bold]
+{11} OrgHeadlineLevel5 -> PreProc
+{12} OrgHeadlineComment -> Comment

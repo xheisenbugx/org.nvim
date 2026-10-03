@@ -197,6 +197,61 @@ A failure prints the input as a Lua table. Cut it down to the few lines
 that still fail and add it to `tests/spec/fuzz_regressions_spec.lua` with
 the fix.
 
+## Screen snapshots
+
+Some bugs only show on screen: headline stars drawn as bold markup, a
+folded headline losing the color of its TODO keyword, highlighting that
+stops after a very long line. `tests/spec/screen_snapshot_spec.lua` catches
+those. [`tests/screen.lua`](tests/screen.lua) opens an Org file in a child
+Neovim with a fixed-size screen, attached as a UI over RPC, and writes down
+what is drawn: the text, with concealing, folds and virtual text as they
+appear, and the highlight group of each run of cells. The result is
+compared with a golden file in `tests/fixtures/screen/`:
+
+```
+screen 60x12
+|{1:* }{2:TODO}{1: }{3:[#A]}{1: Level one }{4::work:}|
+|Body text of level one.|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgTodo -> @comment.error
+{3} OrgPriorityA -> DiagnosticError
+{4} OrgTags -> @property
+```
+
+Each screen row is between `|`s, and `{N:text}` is text drawn with
+highlight `N`. The legend names the group, the links it has up to the first
+group that isn't Org's, and the style (bold, italic, underline, ...).
+Colors are left out, so the snapshots don't depend on the colorscheme. A
+cell drawn with several groups, such as a folded headline's keyword, lists
+them as `Folded | OrgTodo -> @comment.error`.
+
+A failing snapshot prints a diff of the golden file and the screen. If the
+change is what you meant, rewrite the golden files and review the result
+before committing it:
+
+```sh
+make snapshots                     # ORG_UPDATE_SNAPSHOTS=1 for the snapshot spec
+git diff tests/fixtures/screen     # check that only what you meant changed
+```
+
+A new case is a few lines:
+
+```lua
+local Screen = require("tests.screen")
+local screen = Screen.new({ width = 60, height = 12, setup = { ui = { hide_emphasis_markers = true } } })
+screen:org({ "*** *bold* title" })  -- opens it as a file, like a user would
+screen:cmd("normal! zM")            -- or screen:lua(code), screen:input(keys)
+screen:expect("my_case")            -- tests/fixtures/screen/my_case.txt
+screen:close()                      -- in an after_each, so a failure closes it too
+```
+
+`setup` goes to `require("org").setup()`, and `now = { year = 2026, month
+= 10, day = 2, hour = 10, min = 0 }` fixes the date for an agenda. Run
+`make snapshots` once to create the golden file. Every wait on the child
+gives up after `ORG_SCREEN_TIMEOUT` ms (10000), so a prompt in the child
+fails the spec instead of hanging it.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.

@@ -1,10 +1,15 @@
-.PHONY: test lint format media publish-media parity-fixtures
+.PHONY: test snapshots lint format media publish-media parity-fixtures
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
 test:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
 	s=$$?; rm -rf $$d; exit $$s
+
+# Rewrite the screen snapshot golden files (tests/fixtures/screen) from
+# what is drawn now; review the changes before committing them.
+snapshots:
+	@ORG_UPDATE_SNAPSHOTS=1 $(MAKE) --no-print-directory test SPEC="$(or $(SPEC),tests/spec/screen_snapshot_spec.lua)"
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:
