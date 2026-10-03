@@ -68,6 +68,8 @@ function M.line_targets(line)
       and not text:match("%s$")
       and line:sub(s - 1, s - 1) ~= "<"
       and line:sub(ce + #close, ce + #close) ~= ">"
+      -- text in a link's description is no target (org-element-context)
+      and not links.in_bracket_link(line, s)
     then
       out[#out + 1] = {
         s = s,

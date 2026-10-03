@@ -1278,9 +1278,10 @@ local function search_headline(file, search)
   end
   if not title then
     -- targets and named elements are valid destinations, but not headlines
+    local links = require("org.links")
     for _, l in ipairs(lines) do
       if
-        l:find("<<" .. search .. ">>", 1, true)
+        links.find_target(l, search)
         or l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]*" .. vim.pesc(search) .. "[ \t]*$")
       then
         return false
