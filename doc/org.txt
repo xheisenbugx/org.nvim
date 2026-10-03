@@ -6782,7 +6782,9 @@ api.capture(opts)           Capture without a capture window: the template
               template table
     values    answers to the `%^` prompts, by label (`{ Title = "x" }`
               for `%^{Title}`, "Tags" for `%^g`, "Date" for `%^t`) or
-              by position (`{ "x", "y" }`); others take their default
+              by position (`{ "x", "y" }`); others take their default.
+              A date prompt takes a date in any form the API takes
+              (|org-api-headlines|); a Unix time keeps its time of day
     initial   the text of `%i`
     date      the capture date (`%t`, date trees, `time_prompt`)
 Returns `{ file, bufnr, line, headline }` (`headline` for entry

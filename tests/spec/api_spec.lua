@@ -899,6 +899,29 @@ describe("org.api", function()
       eq("  <2026-12-25 Fri>", lines[2])
     end)
 
+    it("answers date prompts with any date the API takes", function()
+      local t = os.time({ year = 2026, month = 12, day = 25, hour = 9, min = 30 })
+      local res, err = api.capture({
+        template = "* Event\n  %^{When}t\n  %^{Also}t\n  %^{Then}T",
+        target = dir .. "/d2.org",
+        values = { When = t, Also = { year = 2026, month = 12, day = 26 }, Then = api.date("2026-12-27 10:00-11:30") },
+      })
+      ok(res, err)
+      eq(
+        { "* Event", "  <2026-12-25 Fri 09:30>", "  <2026-12-26 Sat>", "  <2026-12-27 Sun 10:00-11:30>" },
+        disk(dir .. "/d2.org")
+      )
+      local none, err2 =
+        api.capture({ template = "* %^{When}t", target = dir .. "/d3.org", values = { { year = 2026 } } })
+      eq(nil, none)
+      ok(err2:match("year, month and day"), err2)
+      local none2, err3 =
+        api.capture({ template = "* %^{When}t", target = dir .. "/d3.org", values = { "no such day !!" } })
+      eq(nil, none2)
+      ok(err3:match("invalid date"), err3)
+      eq(nil, utils.readfile(dir .. "/d3.org"))
+    end)
+
     it("returns the entry when kill_buffer closed the target's buffer", function()
       local target = write(dir, "killed.org", { "* Old" })
       local events = listen("OrgCaptureAfterFinalize")

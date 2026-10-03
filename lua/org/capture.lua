@@ -296,6 +296,39 @@ local function pick_date(prompt, with_time, default)
   return v and date.read_date(v, default) or nil
 end
 
+--- The date of an answer given in advance to a date prompt (`%^t`, ...;
+--- `opts.answers`), in the forms org.api takes a date in: a date table (an
+--- org.date, or a table with year, month, day and optionally hour and
+--- min), a Unix time, or a string (a timestamp, or what the date prompt
+--- reads, from `base`). Raises an error for anything else.
+local function answer_date(v, base)
+  if type(v) == "number" then
+    return date.from_time(v, true)
+  elseif type(v) == "table" then
+    if getmetatable(v) == date.Date then
+      return v
+    end
+    if not (v.year and v.month and v.day) then
+      error("a date needs year, month and day", 0)
+    end
+    return date.Date.new({
+      year = v.year,
+      month = v.month,
+      day = v.day,
+      hour = v.hour,
+      min = v.hour and v.min or nil,
+      end_hour = v.end_hour,
+      end_min = v.end_min,
+    })
+  end
+  local s = vim.trim(tostring(v))
+  local d = date.parse(s) or date.read_date(s, base)
+  if not d then
+    error("invalid date: " .. s, 0)
+  end
+  return d
+end
+
 local function extend_today_until()
   return tonumber(config.opts.extend_today_until) or 0
 end
@@ -851,11 +884,7 @@ function M.expand(text, ctx)
       local with_time = key == "T" or key == "U"
       local d
       if pre ~= nil then
-        if type(pre) == "table" then
-          d = getmetatable(pre) == date.Date and pre or date.Date.new(pre)
-        else
-          d = date.parse(tostring(pre)) or date.read_date(tostring(pre), base_date)
-        end
+        d = answer_date(pre, base_date)
       elseif batch then
         d = base_date or (with_time and date.now() or date.today())
       else
