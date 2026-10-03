@@ -518,10 +518,16 @@ describe("agenda diary entries (i)", function()
     local file = dir .. "/diary.org"
     utils.writefile(file, { "" })
     open_week({ agenda = { diary_entry_file = file } })
-    local l1 = today_line()
-    local l2
+    -- the first and third days of the week shown: today+2 can be past its end
+    local first = math.huge
+    for _, d in pairs(view.state.day_lines) do
+      first = math.min(first, d)
+    end
+    local l1, l2
     for l, d in pairs(view.state.day_lines) do
-      if d == today:days() + 2 then
+      if d == first then
+        l1 = l
+      elseif d == first + 2 then
         l2 = l
       end
     end
@@ -530,7 +536,8 @@ describe("agenda diary entries (i)", function()
       vim.api.nvim_feedkeys("V" .. (l2 - l1) .. "ji", "mx", false)
     end)
     local lines = vim.api.nvim_buf_get_lines(utils.find_buffer(file), 0, -1, false)
-    eq({ "**** Trip", ts(0) .. "--" .. ts(2) }, vim.list_slice(lines, #lines - 1, #lines))
+    local o = first - today:days()
+    eq({ "**** Trip", ts(o) .. "--" .. ts(o + 2) }, vim.list_slice(lines, #lines - 1, #lines))
   end)
 end)
 

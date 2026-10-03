@@ -185,7 +185,10 @@ describe("timeline", function()
     local st = timeline.open()
     local lines = buf_lines(st.buf)
     local d = date.from_days(st.start)
-    ok(lines[3]:find(date.MONTH_NAMES[d.month], 1, true))
+    -- a month with too little room left (the window starts on its last
+    -- day) has no label: the next month's is the first then
+    local nxt = date.from_days(st.start + 7)
+    ok(lines[3]:find(date.MONTH_NAMES[d.month], 1, true) or lines[3]:find(date.MONTH_NAMES[nxt.month], 1, true))
     ok(chart(lines[4]):find(string.format("%2d", d.day), 1, true))
     ok(chart(lines[5]):find(date.DAY_NAMES[d:weekday()]:sub(1, 2), 1, true))
   end)
