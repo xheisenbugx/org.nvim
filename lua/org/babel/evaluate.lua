@@ -96,7 +96,10 @@ function M.evaluate(bufnr, src, args, opts, cb)
     hash = M.cache_hash(lang, body, args, vars, meta)
     if opts.current_hash and opts.current_hash == hash and opts.read_cached then
       local result = opts.read_cached()
-      utils.notify("Cached: " .. (type(result) == "string" and result or lisp.prin1(result)))
+      -- (format "%S" result), with the newlines escaped as by
+      -- print-escape-newlines: a second line would be a hit-enter prompt
+      local shown = lisp.prin1(result):gsub("\n", "\\n")
+      utils.notify("Cached: " .. shown)
       finish(result, { cached = true, hash = hash })
       return ret_result, ret_info
     end
