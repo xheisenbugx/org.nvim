@@ -47,6 +47,11 @@ Write (never prompt; --force writes over unsaved changes in a running Neovim):
 TARGET: id:ID or an ID, FILE:LINE, FILE::TITLE, FILE::#CUSTOM_ID, or title
 words (an org-ql query with ql); several matches: --pick N.
 
+Arguments are one word each, except a last one of free text (TEXT, QUERY,
+DATE, a property VALUE, a TARGET with nothing after it), which takes the
+remaining words: quote a TARGET of several words that other arguments
+follow. A word left over is an error, never dropped.
+
 Global options:
   --config FILE   Lua file calling require("org").setup(), or returning
                   its options table (also $ORG_NVIM_CONFIG; default
@@ -758,6 +763,11 @@ local function open_agenda(words, flags)
   end
   local span = flags.span and (tonumber(flags.span) or flags.span)
   local label, key = what, vim.NIL
+  local custom = not (what == "todo" or what == "tags" or what == "tags-todo")
+    and type((config.opts.agenda.custom_commands or {})[what]) == "table"
+  if words[2] ~= nil and (what == "agenda" or SPANS[what] or custom) then
+    fail(string.format("agenda %s takes no other argument, not %s", what, words[2]), "usage", { view = what })
+  end
   if what == "agenda" or SPANS[what] then
     span = span or SPANS[what]
     agenda.open({ type = "agenda" }, { span = span, anchor = anchor })
@@ -773,7 +783,7 @@ local function open_agenda(words, flags)
       fail("bad match " .. words[2] .. ": " .. tostring(e), "bad_value", { match = words[2] })
     end
     agenda.open({ type = what == "tags" and "tags" or "tags_todo", match = words[2] })
-  elseif type((config.opts.agenda.custom_commands or {})[what]) == "table" then
+  elseif custom then
     if span then
       config.opts.agenda.span = span
     end
@@ -1680,6 +1690,24 @@ local function find_command(words)
   return c, vim.list_slice(words, 2)
 end
 
+--- The message for words a command has no argument for: nothing is ever
+--- dropped (a TARGET of several words followed by other arguments has
+--- to be quoted).
+local function too_many(cmd, rest, max)
+  local extra = table.concat(vim.list_slice(rest, max + 1), " ")
+  if max == 0 then
+    return string.format("%s takes no arguments, not %s", cmd.name, extra)
+  end
+  local names = vim.tbl_map(function(a)
+    return a.name:upper()
+  end, cmd.args)
+  local msg = string.format("%s takes %s, not also %s", cmd.name, table.concat(names, " "), extra)
+  if cmd.args[1].name == "target" then
+    msg = msg .. " (quote a TARGET of several words)"
+  end
+  return msg
+end
+
 --- The JSON envelope.
 local function envelope(command, ok, payload, errors)
   return {
@@ -1770,6 +1798,10 @@ function M.main(argv)
           }
         )
       end
+    end
+    local max = schema.max_words(cmd)
+    if max and #rest > max then
+      fail(too_many(cmd, rest, max), "usage", { command = command, extra = vim.list_slice(rest, max + 1) })
     end
     if command == "schema" or command == "version" then
       local res = M.COMMANDS[command](rest, flags)

@@ -9003,7 +9003,14 @@ TARGET, the heading a command works on, is one of:
 FILE is an agenda file (a path, a file name or a name without `.org`) or
 any org file. When several headings match, nothing is changed: the
 command lists them (in JSON, `details.candidates`) and `--pick N` takes
-the Nth. Quote a TARGET of several words for `set`, `note` and `refile`.
+the Nth.
+
+Each argument is one word, except a last one of free text: TEXT, QUERY,
+DATE, a property VALUE, or a TARGET with nothing after it (`show`, `id`,
+`clock in`, `archive`) takes the remaining words. So quote a TARGET of
+several words that other arguments follow (`set`, `note`, `refile`):
+`org set todo "Buy milk" DONE`. A word no argument takes is a usage
+error (exit 2), never dropped.
 
 Reading:
 `org agenda [VIEW] [--date DATE] [--span N] [--csv]`

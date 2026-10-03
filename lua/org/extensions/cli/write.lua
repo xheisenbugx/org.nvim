@@ -112,6 +112,9 @@ end
 function M.cmd_set_property(words, flags)
   if flags.delete then
     need(words, 2, "org set property TARGET NAME --delete")
+    if #words > 2 then
+      fail("set property --delete takes TARGET NAME, not also a value", "usage")
+    end
   else
     need(words, 3, "org set property TARGET NAME VALUE")
   end
@@ -120,12 +123,14 @@ function M.cmd_set_property(words, flags)
   if name:find("%s") or name == "" then
     fail("invalid property name " .. name, "bad_value", { name = name })
   end
+  -- the VALUE: the remaining words
+  local value = table.concat(words, " ", 3)
   local hl, bufnr, lnum = open(words, flags)
   local old = hl:get_property(name:upper(), false)
   local target = { bufnr = bufnr, lnum = lnum }
   if flags.delete then
     props.delete_property(target, name)
-  elseif props.set_property(target, name, words[3]) == nil then
+  elseif props.set_property(target, name, value) == nil then
     run.fail_with_messages("could not set " .. name, "bad_value")
   end
   local new = run.headline_at(bufnr, lnum):get_property(name:upper(), false)
@@ -154,7 +159,8 @@ end
 local function set_planning(kind)
   return function(words, flags)
     need(words, 2, "org set " .. kind .. " TARGET DATE")
-    local d = read_planning_date(words[2])
+    -- the DATE: the remaining words (2030-02-03 09:15)
+    local d = read_planning_date(table.concat(words, " ", 2))
     local hl, bufnr, lnum = open(words, flags)
     local old = hl.planning[kind]
     -- like org-schedule / org-deadline: a repeater and warning period stay,
@@ -233,7 +239,8 @@ end
 function M.cmd_archive(words, flags)
   need(words, 1, "org archive TARGET")
   local archive = require("org.archive")
-  local hl = run.resolve_target(words[1], flags)
+  -- the TARGET is the only argument: all the words
+  local hl = run.resolve_target(table.concat(words, " "), flags)
   local from = { file = data.path(hl.file.filename), line = hl.line }
   local title = hl:plain_title()
   local cmd = require("org.config").opts.archive_default_command or "archive_subtree"

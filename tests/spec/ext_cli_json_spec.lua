@@ -715,6 +715,45 @@ describe("cli json: writing", function()
     ok(table.concat(read(dir .. "/home.org"), "\n"):find("piped note", 1, true))
   end)
 
+  it("gives the remaining words to a last argument of free text, and refuses extra words", function()
+    vim.fn.writefile(
+      { "* TODO Buy milk :errand:", "* Projects", "** Garden", "* Notes from the meeting" },
+      dir .. "/home.org"
+    )
+    -- archive's only argument is its TARGET: every word belongs to it
+    -- (work.org has a "* Notes", which "Notes" alone names exactly)
+    local code, e = json(dir, { "archive", "Notes", "from", "the", "meeting" })
+    eq(0, code)
+    eq("Notes from the meeting", e.data.title)
+    ok(table.concat(work(), "\n"):find("\n* Notes\n", 1, true), "work.org's * Notes is gone")
+    -- a DATE, a property VALUE
+    _, e = json(dir, { "set", "scheduled", "Buy milk", "2030-02-03", "09:15" })
+    eq("2030-02-03T09:15", e.data.new.start)
+    _, e = json(dir, { "set", "property", "Buy milk", "Shop", "corner", "store" })
+    eq("corner store", e.data.new)
+    -- words a command has no use for: an error, and nothing changes
+    local before = { work(), read(dir .. "/home.org") }
+    for _, args in ipairs({
+      { "set", "todo", "Buy", "milk", "DONE" },
+      { "set", "priority", "Buy milk", "A", "B" },
+      { "set", "tags", "Buy", "milk", "x" },
+      { "set", "property", "Buy milk", "Shop", "--delete", "extra" },
+      { "refile", "Buy milk", "Projects", "Garden" },
+      { "clock", "status", "extra" },
+      { "clock", "out", "extra" },
+      { "agenda", "day", "extra" },
+      { "agenda", "todo", "TODO", "extra" },
+      { "templates", "extra" },
+      { "export", "work.org", "md", "extra" },
+      { "version", "extra" },
+    }) do
+      code, e = json(dir, args)
+      eq(2, code, vim.inspect(args))
+      eq("usage", e.errors[1].code, vim.inspect(args))
+    end
+    eq(before, { work(), read(dir .. "/home.org") })
+  end)
+
   it("gets or creates an ID", function()
     local _, e = json(dir, { "id", "notes-id" })
     eq("notes-id", e.data.id)

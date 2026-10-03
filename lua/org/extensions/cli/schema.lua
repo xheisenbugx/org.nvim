@@ -296,6 +296,8 @@ local TARGET = {
   required = true,
   desc = "a heading: id:ID or an ID, FILE:LINE, FILE::TITLE, FILE::#CUSTOM_ID, or title words / an org-ql query",
 }
+-- a TARGET with nothing after it, which takes all the words
+local TARGET_REST = vim.tbl_extend("force", TARGET, { rest = true })
 
 local function change(field, value_schema)
   return {
@@ -309,6 +311,8 @@ end
 --- Every command: `name` (words), `summary`, `args`, `flags` (keys of
 --- M.FLAGS besides the global ones), `writes`, `output` (schema of `data`)
 --- and `jsonl` (schema of one `--jsonl` line, when the output is a list).
+--- An argument is one word, except a last one that is `variadic` (a list
+--- of words) or `rest` (free text: the remaining words, joined).
 M.COMMANDS = {
   {
     name = "agenda",
@@ -350,14 +354,14 @@ M.COMMANDS = {
   {
     name = "show",
     summary = "The full data of one heading: properties, planning, clocks, body",
-    args = { TARGET },
+    args = { TARGET_REST },
     flags = { "children", "pick" },
     output = ref("Entry"),
   },
   {
     name = "id",
     summary = "The ID of a heading (--create makes one)",
-    args = { TARGET },
+    args = { TARGET_REST },
     flags = { "create", "pick", "force" },
     writes = true,
     output = obj({ id = NS, created = B, headline = ref("Headline") }),
@@ -371,7 +375,7 @@ M.COMMANDS = {
   {
     name = "clock in",
     summary = "Clock in a heading",
-    args = { TARGET },
+    args = { TARGET_REST },
     flags = { "pick", "force" },
     writes = true,
     output = ref("Clock"),
@@ -460,7 +464,11 @@ M.COMMANDS = {
   {
     name = "set property",
     summary = "Set a property (or --delete it)",
-    args = { TARGET, { name = "name", required = true }, { name = "value", desc = "the value (not with --delete)" } },
+    args = {
+      TARGET,
+      { name = "name", required = true },
+      { name = "value", rest = true, desc = "the value (not with --delete)" },
+    },
     flags = { "delete", "pick", "force" },
     writes = true,
     output = change("property", NS),
@@ -470,7 +478,12 @@ M.COMMANDS = {
     summary = 'Set the SCHEDULED date ("" or none removes it)',
     args = {
       TARGET,
-      { name = "date", required = true, desc = "a date as the date prompt reads it, or a <...> timestamp" },
+      {
+        name = "date",
+        required = true,
+        rest = true,
+        desc = "a date as the date prompt reads it, or a <...> timestamp",
+      },
     },
     flags = { "note", "pick", "force" },
     writes = true,
@@ -481,7 +494,12 @@ M.COMMANDS = {
     summary = 'Set the DEADLINE date ("" or none removes it)',
     args = {
       TARGET,
-      { name = "date", required = true, desc = "a date as the date prompt reads it, or a <...> timestamp" },
+      {
+        name = "date",
+        required = true,
+        rest = true,
+        desc = "a date as the date prompt reads it, or a <...> timestamp",
+      },
     },
     flags = { "note", "pick", "force" },
     writes = true,
@@ -506,7 +524,7 @@ M.COMMANDS = {
   {
     name = "archive",
     summary = "Archive a heading (archive_default_command)",
-    args = { TARGET },
+    args = { TARGET_REST },
     flags = { "pick", "force" },
     writes = true,
     output = obj({
@@ -563,6 +581,18 @@ function M.allowed(cmd)
     ok[k] = true
   end
   return ok
+end
+
+--- The most words a command takes, or nil when its last argument takes
+--- all the remaining ones (`variadic` or `rest`).
+---@return integer|nil
+function M.max_words(cmd)
+  local args = cmd.args or {}
+  local last = args[#args]
+  if last and (last.variadic or last.rest) then
+    return nil
+  end
+  return #args
 end
 
 local function flag_doc(f)
