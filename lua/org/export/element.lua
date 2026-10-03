@@ -3014,25 +3014,48 @@ end
 
 local SIBLING_KEYS = { "contents", "title", "tag", "prefix", "suffix" }
 
--- list -> { [node] = first index }: asked for each object of a paragraph,
--- a search of the list made the transcoders that look at neighbours
--- (footnote references, ...) quadratic in its length. An index is checked
--- against the list before it is used, and built again when the list
--- changed.
+-- node -> where it is among its parent's lists: index * 8 + the number of
+-- the list's key in SIBLING_KEYS. Asked for each object of a paragraph, a
+-- search of the list made the transcoders that look at neighbours
+-- (footnote references, ...) quadratic in its length. An entry is checked
+-- against the list before it is used, and the parent's lists are indexed
+-- again when it is stale. The values are numbers: a weak table whose
+-- values reach their keys (a list's nodes reach the list through
+-- `.parent`) never lets them go, as LuaJIT has no ephemerons, and kept
+-- every exported tree alive.
 local positions = setmetatable({}, { __mode = "k" })
 
-local function index_map(list, fresh)
-  local map = not fresh and positions[list]
-  if not map then
-    map = {}
-    for i, c in ipairs(list) do
-      if map[c] == nil then
-        map[c] = i
+--- Index the nodes of `p`'s lists: the first list and the first index of
+--- a node win, as a search would find them.
+local function index_lists(p)
+  for k = #SIBLING_KEYS, 1, -1 do
+    local list = p[SIBLING_KEYS[k]]
+    if type(list) == "table" then
+      local n = 0
+      while list[n + 1] ~= nil do
+        n = n + 1
+      end
+      for i = n, 1, -1 do
+        local c = list[i]
+        if type(c) == "table" then
+          positions[c] = i * 8 + k
+        end
       end
     end
-    positions[list] = map
   end
-  return map
+end
+
+--- The list of `p` holding `node` and its index there, from `positions`.
+local function lookup(node, p)
+  local code = positions[node]
+  if code then
+    local k = code % 8
+    local list = p[SIBLING_KEYS[k]]
+    local i = (code - k) / 8
+    if type(list) == "table" and list[i] == node then
+      return list, i
+    end
+  end
 end
 
 --- The list containing `node` among its parent's (contents, title, ...)
@@ -3043,17 +3066,12 @@ function M.position(node)
   if not p then
     return nil
   end
-  for pass = 1, 2 do
-    for _, key in ipairs(SIBLING_KEYS) do
-      local list = p[key]
-      if type(list) == "table" then
-        local i = index_map(list, pass == 2)[node]
-        if i and list[i] == node then
-          return list, i
-        end
-      end
-    end
+  local list, i = lookup(node, p)
+  if list then
+    return list, i
   end
+  index_lists(p)
+  return lookup(node, p)
 end
 
 --- Siblings list containing node.

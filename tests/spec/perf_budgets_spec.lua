@@ -6,6 +6,7 @@
 -- them strict when hunting a regression). Growth checks time the same work
 -- at size N and 2N: twice the input may take at most 3x the time, which a
 -- linear algorithm passes on any machine and a quadratic one (4x) fails.
+-- "perf: memory" checks that repeated exports leave the heap flat.
 -- ORG_PERF_REPORT=1 prints every measurement. See CONTRIBUTING.md
 -- "Performance budgets".
 local gen = require("tests.helpers.gen")
@@ -31,9 +32,9 @@ local function time(fn, runs)
   return best
 end
 
-local function report(label, ms, extra)
+local function report(label, value, extra, unit)
   if REPORT then
-    io.stderr:write(("  perf %-52s %9.1f ms%s\n"):format(label, ms, extra or ""))
+    io.stderr:write(("  perf %-52s %9.1f %s%s\n"):format(label, value, unit or "ms", extra or ""))
   end
 end
 
@@ -482,5 +483,69 @@ describe("perf: links and footnotes", function()
     end, function(n)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.links_footnotes(n))
     end, 30)
+  end)
+end)
+
+-- An export keeps nothing of its document once it has returned. A cache
+-- of positions in the exported tree, with weak keys and values that
+-- reached the keys (which LuaJIT never lets go), kept every tree alive:
+-- exporting examples/19-export.org to four formats grew the heap by
+-- 4.7 MB each time.
+describe("perf: memory", function()
+  local ox = require("org.export.ox")
+  local export = require("org.export")
+  local FORMATS = { "html", "md", "latex", "ascii" }
+  local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
+  local file = root .. "/examples/19-export.org"
+  local lines = vim.fn.readfile(file)
+  local saved
+  before_each(function()
+    saved = config.opts.babel.evaluate_on_export
+    config.opts.babel.evaluate_on_export = false
+  end)
+  after_each(function()
+    config.opts.babel.evaluate_on_export = saved
+  end)
+
+  local function heap()
+    collectgarbage("collect")
+    collectgarbage("collect")
+    return collectgarbage("count") / 1024
+  end
+
+  it("frees the tree of each export", function()
+    local trees = setmetatable({}, { __mode = "k" })
+    -- (in a function: its locals are gone when the garbage is collected)
+    local function export_all()
+      for _, fmt in ipairs(FORMATS) do
+        local _, info = ox.export_as(fmt, lines, { filename = file })
+        trees[info.parse_tree] = fmt
+      end
+    end
+    export_all()
+    heap()
+    local kept = {}
+    for _, fmt in pairs(trees) do
+      kept[#kept + 1] = fmt
+    end
+    table.sort(kept)
+    eq({}, kept, "the trees still in memory")
+  end)
+
+  it("keeps the heap flat over repeated exports", function()
+    local function round()
+      for _, fmt in ipairs(FORMATS) do
+        export.to_string(fmt, { lines = lines, filename = file })
+      end
+    end
+    -- (the first round loads the exporters and fills their caches)
+    round()
+    local before = heap()
+    for _ = 1, 5 do
+      round()
+    end
+    local grown = heap() - before
+    report("heap growth over 5 rounds of exports", grown, nil, "MB")
+    ok(grown < 5, ("the heap grew %.1f MB over 5 rounds of exports (%.1f MB before them)"):format(grown, before))
   end)
 end)
