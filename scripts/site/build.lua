@@ -12,6 +12,10 @@
 -- plus a search index (search-index.js) and scripts/site/assets/. Every
 -- internal link and #anchor of the result is checked; a broken one fails
 -- the build.
+--
+-- The output directory (relative to the checkout) is emptied first, so it
+-- must be new, empty or one a build made; anything else, the checkout
+-- above all, is refused before a file is touched (scripts/site/outdir.lua).
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 package.path = root .. "/scripts/?.lua;" .. package.path
 vim.opt.rtp:prepend(root)
@@ -19,6 +23,7 @@ vim.opt.rtp:prepend(root)
 local html = require("site.html")
 local vimdoc = require("site.vimdoc")
 local markdown = require("site.markdown")
+local site_dir = require("site.outdir")
 
 local REPO = "xheisenbugx/org.nvim"
 local GITHUB = "https://github.com/" .. REPO
@@ -27,9 +32,21 @@ local REF = vim.env.ORG_SITE_REF or "main"
 local NVIM_HELP = "https://neovim.io/doc/user/helptag.html?tag="
 local LOGO = "https://raw.githubusercontent.com/" .. REPO .. "/media/logo.png"
 
-local outdir = _G.arg and _G.arg[1] or "site"
-if vim.fn.isabsolutepath(outdir) == 0 then
-  outdir = root .. "/" .. outdir
+--- Stop the build: the output directory can't be used.
+local function refuse(why)
+  io.stderr:write("site: " .. why .. "\n")
+  os.exit(2)
+end
+
+-- (checked before the build, which takes a while, and again before the
+-- directory is emptied)
+local outdir_arg = _G.arg and _G.arg[1]
+if outdir_arg == nil then
+  outdir_arg = "site"
+end
+local outdir, why = site_dir.check(outdir_arg, root)
+if not outdir then
+  return refuse(why)
 end
 
 local errors = {}
@@ -657,7 +674,10 @@ end
 
 -- Write -----------------------------------------------------------------------------
 
-vim.fn.delete(outdir, "rf")
+outdir, why = site_dir.prepare(outdir, root)
+if not outdir then
+  return refuse(why)
+end
 local written = {}
 local function write(path, text)
   local full = outdir .. "/" .. path

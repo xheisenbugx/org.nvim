@@ -52,7 +52,8 @@ format:
 
 # The documentation website (doc/org.txt, README.md, examples/*.org and the
 # parity docs as HTML) in site/; see scripts/site/build.lua. Open
-# site/index.html in a browser.
+# site/index.html in a browser. A build empties site/ first, and refuses a
+# directory no build made (scripts/site/outdir.lua).
 site:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless --clean -l scripts/site/build.lua site; \
 	s=$$?; rm -rf $$d; exit $$s

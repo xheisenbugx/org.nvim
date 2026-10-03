@@ -5,6 +5,7 @@ package.path = root .. "/scripts/?.lua;" .. package.path
 local html = require("site.html")
 local vimdoc = require("site.vimdoc")
 local markdown = require("site.markdown")
+local outdir = require("site.outdir")
 
 local function has(haystack, needle)
   if not haystack:find(needle, 1, true) then
@@ -210,6 +211,105 @@ describe("site", function()
       eq("faq", html.slug("FAQ", seen))
       eq("faq-1", html.slug("FAQ", seen))
       eq("orgnvim-vs-emacs", html.slug("org.nvim vs. Emacs!", seen))
+    end)
+  end)
+
+  -- A build empties its output directory. Only throwaway trees here: a
+  -- fake checkout (with a .git) in a temp directory stands for the
+  -- repository, so a broken check can only empty those.
+  describe("output directory", function()
+    local base, repo
+    local function write(path, text)
+      vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+      vim.fn.writefile({ text or "x" }, path)
+    end
+    local function exists(path)
+      return vim.uv.fs_lstat(path) ~= nil
+    end
+    --- The files of the fake checkout and its neighbours are all there.
+    local function intact()
+      for _, p in ipairs({ repo .. "/.git/HEAD", repo .. "/notes.org", base .. "/parent/sibling/keep.txt" }) do
+        ok(exists(p), p .. " was deleted")
+      end
+    end
+    local function refused(arg, why)
+      local dir, msg = outdir.check(arg, repo)
+      eq(nil, dir, vim.inspect(arg))
+      ok(msg and msg:find(why, 1, true), vim.inspect(arg) .. ": " .. tostring(msg))
+      -- and preparing it changes nothing
+      dir, msg = outdir.prepare(arg, repo)
+      eq(nil, dir, vim.inspect(arg))
+      ok(msg and msg:find(why, 1, true), vim.inspect(arg) .. ": " .. tostring(msg))
+      intact()
+    end
+    before_each(function()
+      base = vim.fn.tempname()
+      repo = base .. "/parent/repo"
+      write(repo .. "/.git/HEAD", "ref: refs/heads/main")
+      write(repo .. "/notes.org", "* uncommitted work")
+      write(base .. "/parent/sibling/keep.txt")
+    end)
+    after_each(function()
+      vim.fn.delete(base, "rf")
+    end)
+
+    it("refuses an empty argument, the checkout and what contains it", function()
+      refused("", "no output directory")
+      refused("  ", "no output directory")
+      refused(".", "the repository itself")
+      refused("./", "the repository itself")
+      refused("site/..", "the repository itself")
+      refused(repo, "the repository itself")
+      refused(repo .. "/", "the repository itself")
+      refused("..", "the repository is inside it")
+      refused("../..", "the repository is inside it")
+      refused(base, "the repository is inside it")
+    end)
+
+    it("refuses a repository, a file and a directory a build didn't make", function()
+      write(base .. "/other/.git", "gitdir: elsewhere")
+      refused(base .. "/other", "holds a .git")
+      refused("notes.org", "not a directory")
+      refused("../sibling", "no site build made it")
+      ok(exists(base .. "/parent/sibling/keep.txt"))
+      if vim.fn.has("win32") == 0 then
+        -- a link to the checkout is the checkout
+        vim.uv.fs_symlink(repo, base .. "/link")
+        refused(base .. "/link", "the repository itself")
+      end
+    end)
+
+    it("creates a new directory, takes an empty one and empties its own", function()
+      local real = vim.fs.normalize(vim.uv.fs_realpath(repo))
+      eq(real .. "/site", outdir.check("site", repo))
+      local dir = outdir.prepare("site", repo)
+      eq(real .. "/site", dir)
+      ok(exists(dir .. "/" .. outdir.MARKER))
+      write(dir .. "/manual/old.html")
+      eq(dir, outdir.prepare(dir, repo))
+      ok(not exists(dir .. "/manual"))
+      ok(exists(dir .. "/" .. outdir.MARKER))
+      vim.fn.mkdir(base .. "/empty", "p")
+      ok(outdir.prepare(base .. "/empty", repo))
+      ok(exists(base .. "/empty/" .. outdir.MARKER))
+      intact()
+    end)
+
+    it("is checked by the builder before anything else", function()
+      -- the builder's scripts in the fake checkout: their root is that one
+      vim.fn.mkdir(repo .. "/scripts/site", "p")
+      for _, f in ipairs(vim.fn.glob(root .. "/scripts/site/*.lua", false, true)) do
+        vim.fn.writefile(vim.fn.readfile(f, "b"), repo .. "/scripts/site/" .. vim.fn.fnamemodify(f, ":t"), "b")
+      end
+      for _, arg in ipairs({ "", ".", "..", "notes.org" }) do
+        local res = vim
+          .system({ vim.v.progpath, "--headless", "--clean", "-l", repo .. "/scripts/site/build.lua", arg }, { text = true })
+          :wait(60000)
+        eq(2, res.code, vim.inspect(arg) .. ": " .. (res.stdout or "") .. (res.stderr or ""))
+        ok((res.stderr or ""):find("site: ", 1, true), res.stderr)
+        intact()
+        ok(exists(repo .. "/scripts/site/build.lua"))
+      end
     end)
   end)
 
