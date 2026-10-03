@@ -318,6 +318,7 @@ function export_as(backend, lines, opts)
   info.table_row_group_cache = {}
   info.table_cell_width_cache = {}
   info.table_cell_alignment_cache = {}
+  info.table_row_index_cache = {}
   info.smart_quote_cache = {}
   info.subtree_props = subtree and subtree.props or nil
   if subtree then
@@ -396,7 +397,10 @@ function export_as(backend, lines, opts)
   if info.with_cite_processors and cite then
     cite.process(info)
   end
-  -- transcode
+  -- transcode (the tree doesn't change from here: footnote numbers can be
+  -- computed once)
+  info.footnote_index_cache = nil
+  info.footnote_index_ready = true
   local body = M.normalize_string(M.data(tree, info) or "") or ""
   local inner = info.translate.inner_template
   local full = apply_filters(info.filters.body, inner and inner(body, info) or body, info)

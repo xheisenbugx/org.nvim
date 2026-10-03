@@ -17,16 +17,9 @@ M.lineage = element.lineage
 M.parent_element = element.parent_element
 
 function M.get_previous_element(blob, info, n)
-  local siblings = element.siblings(blob)
+  local siblings, idx = element.position(blob)
   if not siblings then
     return nil
-  end
-  local idx
-  for i, x in ipairs(siblings) do
-    if x == blob then
-      idx = i
-      break
-    end
   end
   local ignore = info and info.ignore or {}
   local prev = {}
@@ -49,16 +42,9 @@ function M.get_previous_element(blob, info, n)
 end
 
 function M.get_next_element(blob, info, n)
-  local siblings = element.siblings(blob)
+  local siblings, idx = element.position(blob)
   if not siblings then
     return nil
-  end
-  local idx
-  for i, x in ipairs(siblings) do
-    if x == blob then
-      idx = i
-      break
-    end
   end
   local ignore = info and info.ignore or {}
   local nxt = {}

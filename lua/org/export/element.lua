@@ -1767,34 +1767,64 @@ function P:emphasis(s, p)
   if nxt == "" or nxt:match("[ \t\n]") or uspace_at(s, p + 1, 1) then
     return nil
   end
-  -- closing: (not space)(mark)(punct or eol)
-  local k = p + 1
-  while true do
-    local c = s:find(mark, k + 1, true)
-    if not c then
-      return nil
-    end
-    local before = s:sub(c - 1, c - 1)
-    local after_c = s:sub(c + 1, c + 1)
-    if
-      not before:match("[ \t\n]")
-      and not uspace_at(s, c - 1, -1)
-      and (after_c == "" or after_c:match(PUNCT_CLOSE) or uspace_at(s, c + 1, 1))
-    then
-      local inner = s:sub(p + 1, c - 1)
-      local e = c + 1
-      local ws = s:match("^[ \t]*", e)
-      local t = EMPH[mark]
-      local node = M.node(t, { post_blank = #ws })
-      if t == "verbatim" or t == "code" then
-        node.value = inner
-      else
-        node.inner = inner
-      end
-      return node, e + #ws
-    end
-    k = c
+  -- closing: (not space)(mark)(punct or eol). Whether a marker closes
+  -- doesn't depend on the opening one: the last search for this marker in
+  -- `s` answers for any opening between where it started and the closing
+  -- marker it found (or the end, when it found none). Searching from each
+  -- opening marker made a long paragraph of unclosed ones quadratic.
+  local from = p + 2
+  -- (per string: a paragraph's objects are parsed between those of its
+  -- emphasis contents; a few strings at a time are enough)
+  local memos = self.emph_close
+  if not memos or memos.n > 64 then
+    memos = { n = 0, of = {} }
+    self.emph_close = memos
   end
+  local memo = memos.of[s]
+  if not memo then
+    memo = {}
+    memos.of[s] = memo
+    memos.n = memos.n + 1
+  end
+  local last = memo[mark]
+  local c
+  if last and from >= last.from and (not last.at or from <= last.at) then
+    c = last.at
+  else
+    local k = p + 1
+    while true do
+      c = s:find(mark, k + 1, true)
+      if not c then
+        c = false
+        break
+      end
+      local before = s:sub(c - 1, c - 1)
+      local after_c = s:sub(c + 1, c + 1)
+      if
+        not before:match("[ \t\n]")
+        and not uspace_at(s, c - 1, -1)
+        and (after_c == "" or after_c:match(PUNCT_CLOSE) or uspace_at(s, c + 1, 1))
+      then
+        break
+      end
+      k = c
+    end
+    memo[mark] = { from = from, at = c }
+  end
+  if not c then
+    return nil
+  end
+  local inner = s:sub(p + 1, c - 1)
+  local e = c + 1
+  local ws = s:match("^[ \t]*", e)
+  local t = EMPH[mark]
+  local node = M.node(t, { post_blank = #ws })
+  if t == "verbatim" or t == "code" then
+    node.value = inner
+  else
+    node.inner = inner
+  end
+  return node, e + #ws
 end
 
 --- Parse a timestamp at s:sub(p). Returns node, end index (after post-blank).
@@ -2144,7 +2174,18 @@ function P:link_at(s, p)
     if word_char(prev) then
       return nil
     end
-    local t = s:match("^([%w%+%-]+):", p)
+    -- (only as far as the longest link type: from each word of a long run
+    -- of letters, digits, "+" and "-", the pattern went to its end)
+    if not self.max_link_type then
+      local n = 0
+      for _, set in ipairs({ self.link_types, self.opts.extra_link_types or {} }) do
+        for k in pairs(set) do
+          n = math.max(n, type(k) == "string" and #k or 0)
+        end
+      end
+      self.max_link_type = n
+    end
+    local t = s:sub(p, p + self.max_link_type):match("^([%w%+%-]+):")
     if not t or not (self.link_types[t] or (self.opts.extra_link_types and self.opts.extra_link_types[t])) then
       return nil
     end
@@ -2971,22 +3012,53 @@ function M.extract(node)
   return node
 end
 
---- Siblings list containing node.
-function M.siblings(node)
+local SIBLING_KEYS = { "contents", "title", "tag", "prefix", "suffix" }
+
+-- list -> { [node] = first index }: asked for each object of a paragraph,
+-- a search of the list made the transcoders that look at neighbours
+-- (footnote references, ...) quadratic in its length. An index is checked
+-- against the list before it is used, and built again when the list
+-- changed.
+local positions = setmetatable({}, { __mode = "k" })
+
+local function index_map(list, fresh)
+  local map = not fresh and positions[list]
+  if not map then
+    map = {}
+    for i, c in ipairs(list) do
+      if map[c] == nil then
+        map[c] = i
+      end
+    end
+    positions[list] = map
+  end
+  return map
+end
+
+--- The list containing `node` among its parent's (contents, title, ...)
+--- and its index there.
+---@return table|nil list, integer|nil index
+function M.position(node)
   local p = node.parent
   if not p then
     return nil
   end
-  for _, key in ipairs({ "contents", "title", "tag", "prefix", "suffix" }) do
-    local list = p[key]
-    if type(list) == "table" then
-      for _, c in ipairs(list) do
-        if c == node then
-          return list
+  for pass = 1, 2 do
+    for _, key in ipairs(SIBLING_KEYS) do
+      local list = p[key]
+      if type(list) == "table" then
+        local i = index_map(list, pass == 2)[node]
+        if i and list[i] == node then
+          return list, i
         end
       end
     end
   end
+end
+
+--- Siblings list containing node.
+function M.siblings(node)
+  return (M.position(node))
 end
 
 return M

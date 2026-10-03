@@ -48,7 +48,9 @@ function M.table_row_is_special_p(row, _)
   if first == "/" then
     return true
   end
-  if M.table_has_special_column_p(row.parent) and ({ ["^"] = 1, ["_"] = 1, ["$"] = 1, ["!"] = 1 })[first or ""] then
+  -- (the first cell first: the column test reads every row of the table,
+  -- quadratic when asked for each row)
+  if ({ ["^"] = 1, ["_"] = 1, ["$"] = 1, ["!"] = 1 })[first or ""] and M.table_has_special_column_p(row.parent) then
     return true
   end
   local special = "empty"
@@ -215,12 +217,19 @@ function M.table_cell_borders(cell, info)
   local tbl = element.lineage(cell, "table")
   local borders = {}
   local rows = tbl.contents
-  local idx
-  for i, r in ipairs(rows) do
-    if r == row then
-      idx = i
+  -- the row's index, from a map built once per table (a search of the
+  -- rows for each cell was quadratic in the rows)
+  local index = info.table_row_index_cache and info.table_row_index_cache[tbl]
+  if not index or index.n ~= #rows then
+    index = { n = #rows, of = {} }
+    for i, r in ipairs(rows) do
+      index.of[r] = i
+    end
+    if info.table_row_index_cache then
+      info.table_row_index_cache[tbl] = index
     end
   end
+  local idx = index.of[row]
   -- above
   local rule = false
   local found = false
@@ -261,9 +270,19 @@ function M.table_cell_borders(cell, info)
     end
     borders.bottom = true
   end
-  -- column groups
+  -- column groups: the last "/" row (looked up once per table)
   local col = column_of(cell)
-  for i = #rows, 1, -1 do
+  if index.slash == nil then
+    index.slash = false
+    for i = #rows, 1, -1 do
+      local r = rows[i]
+      if r.row_type ~= "rule" and cell_text(r.contents[1]) == "/" then
+        index.slash = i
+        break
+      end
+    end
+  end
+  for i = index.slash or 0, 1, -1 do
     local r = rows[i]
     if r.row_type ~= "rule" and cell_text(r.contents[1]) == "/" then
       local groups = {}

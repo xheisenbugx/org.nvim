@@ -81,10 +81,61 @@ function M.collect_footnote_definitions(info, data, body_first)
   return out
 end
 
+--- The numbers and first references of the footnotes of `data`, from one
+--- walk kept in `info`: a walk for each reference, as
+--- `footnote_first_reference_p` and `get_footnote_number` did (and Emacs
+--- does), took seconds for a few thousand footnotes. Only while
+--- transcoding, when the tree no longer changes (citation processors add
+--- footnotes before). nil when the walk fails (a missing definition): the
+--- callers then walk as before, which may stop before the failing
+--- reference.
+local function footnote_index(info, data, body_first)
+  data = data or info.parse_tree
+  if not data or not info.footnote_index_ready then
+    return nil
+  end
+  local cache = info.footnote_index_cache
+  if not cache then
+    cache = setmetatable({}, { __mode = "k" })
+    info.footnote_index_cache = cache
+  end
+  local per_data = cache[data]
+  if not per_data then
+    per_data = {}
+    cache[data] = per_data
+  end
+  local key = body_first and true or false
+  if per_data[key] == nil then
+    local idx = { number_of_label = {}, number_of_ref = {}, first_of_label = {} }
+    local count = 0
+    local ok = pcall(M.footnote_reference_map, function(f)
+      local l = f.label
+      if not l then
+        count = count + 1
+        idx.number_of_ref[f] = count
+      elseif not idx.first_of_label[l] then
+        count = count + 1
+        idx.number_of_label[l] = count
+        idx.first_of_label[l] = f
+      end
+    end, data, info, body_first)
+    per_data[key] = ok and idx or false
+  end
+  return per_data[key] or nil
+end
+
 function M.footnote_first_reference_p(ref, info, data, body_first)
   local label = ref.label
   if not label then
     return true
+  end
+  local idx = footnote_index(info, data, body_first)
+  if idx then
+    local first = idx.first_of_label[label]
+    if first == nil then
+      return nil
+    end
+    return first == ref
   end
   local result
   local done = false
@@ -102,6 +153,13 @@ function M.footnote_first_reference_p(ref, info, data, body_first)
 end
 
 function M.get_footnote_number(footnote, info, data, body_first)
+  local idx = footnote_index(info, data, body_first)
+  if idx then
+    if footnote.label then
+      return idx.number_of_label[footnote.label]
+    end
+    return idx.number_of_ref[footnote]
+  end
   local count = 0
   local seen = {}
   local label = footnote.label
