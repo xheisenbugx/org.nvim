@@ -164,6 +164,35 @@ describe("org.api events", function()
       }, changes(events))
     end)
 
+    it("C-c C-q keeps to its headline when a TODO key's tag trigger moves it", function()
+      config.opts.todo_state_tags_triggers = { WAIT = { waiting = true } }
+      config.opts.fast_tag_selection_include_todo = true
+      local buf = org_buffer(
+        { "#+TODO: TODO(t) WAIT(w) | DONE(d)", "#+TAGS: x(x)", "* Other", "* TODO Task" },
+        { 4, 0 }
+      )
+      local events = listen("OrgTagsChanged", function(_, n)
+        if n == 1 then
+          vim.api.nvim_buf_set_lines(buf, 2, 2, false, { "#+TITLE: Moved" })
+        end
+      end)
+      -- WAIT by its key in the tag menu, then the tag x
+      local keys = { "w", "x", "\r" }
+      with_stubs({
+        {
+          utils,
+          "getchar",
+          function()
+            return table.remove(keys, 1)
+          end,
+        },
+      }, function()
+        tags.set_tags()
+      end)
+      eq({ "#+TITLE: Moved", "* Other", "* WAIT Task :x:" }, vim.list_slice(buf_lines(buf), 3, 5))
+      eq({ { 4, {}, { "waiting" } }, { 5, { "waiting" }, { "x" } } }, changes(events))
+    end)
+
     it("fires for the ARCHIVE tag, and for the archive sibling it creates", function()
       local archive = require("org.archive")
       local buf = org_buffer({ "* P", "** A :x:", "** B" }, { 2, 0 })

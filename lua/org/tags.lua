@@ -708,6 +708,7 @@ function M.set_tags(target, tags, no_fast)
     return nil
   end
   if not tags then
+    local lnum = hl.line
     local defs = file:tag_definitions()
     local has_keys, has_names = false, false
     for _, d in ipairs(defs) do
@@ -726,7 +727,6 @@ function M.set_tags(target, tags, no_fast)
       end, M.all_tags(bufnr))
     end
     if not no_fast and (mode == true or (mode and has_keys)) then
-      local lnum = hl.line
       local todo_keys
       if config.opts.fast_tag_selection_include_todo then
         todo_keys = {}
@@ -739,7 +739,10 @@ function M.set_tags(target, tags, no_fast)
       tags = M.fast_select(hl.tags, defs, hl:get_inherited_tags(), {
         todo_keys = todo_keys,
         on_todo = function(kw)
-          require("org.todo").change_state({ bufnr = bufnr, lnum = lnum }, kw)
+          -- the OrgTagsChanged handlers of its tag triggers may move the
+          -- headline (Emacs sets the tags at point, which moves with it)
+          local res = require("org.todo").change_state({ bufnr = bufnr, lnum = lnum }, kw)
+          lnum = res and res.lnum or lnum
         end,
         completion = M.all_tags(bufnr),
       })
@@ -751,7 +754,10 @@ function M.set_tags(target, tags, no_fast)
     if not tags then
       return nil
     end
-    hl = files.get_buffer(bufnr):headline_at(hl.line)
+    hl = files.get_buffer(bufnr):headline_at(lnum)
+    if not hl then
+      return nil
+    end
   end
   tags = M.sort(tags)
   edit.update_headline(bufnr, hl.line, { tags = tags })
