@@ -71,17 +71,17 @@ local MIN_MS, NOISE_MS, DOMINANT, MAX_DOUBLINGS = 25, 2, 6, 6
 --- time. Returns { n, t1, t2, small (the time at n/16), limit, measurable,
 --- linear }.
 local function growth(n, fn, setup, max)
+  local function run(size)
+    -- (set up again for each run, outside the timing)
+    local arg = setup and setup(size) or size
+    return time(function()
+      fn(arg)
+    end)
+  end
   local function best(size)
     local t = math.huge
     for _ = 1, 3 do
-      -- (set up again for each run, outside the timing)
-      local arg = setup and setup(size) or size
-      t = math.min(
-        t,
-        time(function()
-          fn(arg)
-        end)
-      )
+      t = math.min(t, run(size))
     end
     return t
   end
@@ -97,26 +97,49 @@ local function growth(n, fn, setup, max)
     n = 2 * n
     doublings = doublings + 1
   end
-  local g = { n = n, t1 = t1, small = small, measurable = measurable }
-  g.t2 = best(2 * n)
+  -- n and 2n in turn, the best of 3 runs each: a burst of load from other
+  -- processes (CI runs the spec files in parallel) then slows both sizes
+  -- alike instead of only the second
+  local t2 = math.huge
+  for _ = 1, 3 do
+    t1 = math.min(t1, run(n))
+    t2 = math.min(t2, run(2 * n))
+  end
+  local g = { n = n, t1 = t1, t2 = t2, small = small, measurable = measurable }
   g.limit = 3 * t1 + NOISE_MS
   g.linear = g.t2 <= g.limit
   return g
 end
 
 --- `fn` must take time linear in the size of its input (`growth`): at 2n
---- at most 3 times its time at n.
+--- at most 3 times its time at n. A check that fails is measured again, up
+--- to 3 times in all: load from elsewhere can still slow one measurement,
+--- but quadratic work fails every time.
 local function linear(label, n, fn, setup, max)
   if not TIMED then
     -- (once, for the lines it runs)
     fn(setup and setup(n) or n)
     return
   end
-  local g = growth(n, fn, setup, max)
+  local g, attempts
+  for attempt = 1, 3 do
+    g = growth(g and g.n or n, fn, setup, max)
+    attempts = attempt
+    if not g.measurable or g.linear then
+      break
+    end
+  end
   report(
     label,
     g.t2,
-    (" (n=%d: %.1f ms, 2n: %.1f ms, limit %.1f, n/16: %.1f ms)"):format(g.n, g.t1, g.t2, g.limit, g.small)
+    (" (n=%d: %.1f ms, 2n: %.1f ms, limit %.1f, n/16: %.1f ms%s)"):format(
+      g.n,
+      g.t1,
+      g.t2,
+      g.limit,
+      g.small,
+      attempts > 1 and (", attempt %d"):format(attempts) or ""
+    )
   )
   ok(
     g.measurable,
@@ -127,7 +150,10 @@ local function linear(label, n, fn, setup, max)
       g.small
     )
   )
-  ok(g.linear, ("%s: %.1f ms at n=%d, %.1f ms at 2n: grows faster than linear"):format(label, g.t1, g.n, g.t2))
+  ok(
+    g.linear,
+    ("%s: %.1f ms at n=%d, %.1f ms at 2n: grows faster than linear (3 attempts)"):format(label, g.t1, g.n, g.t2)
+  )
 end
 
 -- The growth check itself, fed work whose growth is known: it fails
