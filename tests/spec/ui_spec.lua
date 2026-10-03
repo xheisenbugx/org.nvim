@@ -154,6 +154,68 @@ describe("completion", function()
     eq(6, r.start)
     eq("*Heading one", r.items[1].word)
   end)
+
+  describe("omnifunc", function()
+    --- Complete the text before the cursor on line `lnum` the way <C-x><C-o>
+    --- calls the omnifunc: findstart first, then the base, after Vim has
+    --- deleted the base from the line.
+    local function omni(lnum, typed)
+      -- Insert mode puts the cursor after the last character
+      local ve = vim.o.virtualedit
+      vim.o.virtualedit = "onemore"
+      vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { typed })
+      vim.api.nvim_win_set_cursor(0, { lnum, #typed })
+      local start = c.omnifunc(1, "")
+      ok(type(start) == "number" and start >= 0, vim.inspect(start))
+      local base = typed:sub(start + 1)
+      vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { typed:sub(1, start) })
+      vim.api.nvim_win_set_cursor(0, { lnum, start })
+      local out = vim.tbl_map(function(i)
+        return i.word
+      end, c.omnifunc(0, base))
+      vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { typed })
+      vim.o.virtualedit = ve
+      return out
+    end
+
+    it("offers custom IDs after [[#", function()
+      org_buffer({
+        "* A",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: foo",
+        ":END:",
+        "* B",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: bar",
+        ":END:",
+        "",
+      })
+      eq({ "#foo", "#bar" }, omni(9, "[[#"))
+      eq({ "#bar" }, omni(9, "see [[#b"))
+    end)
+
+    it("keeps every other context, with header args and entities", function()
+      org_buffer({ "* A :work:", ":PROPERTIES:", ":Effort: 1:00", ":", ":END:", "" })
+      local function has(lnum, typed, word)
+        local w = omni(lnum, typed)
+        ok(vim.tbl_contains(w, word), typed .. ": " .. vim.inspect(w))
+      end
+      has(6, "* T", "TODO")
+      has(6, "* B :wo", "work:")
+      has(6, "#+TI", "TITLE:")
+      has(6, "#+STARTUP: ov", "overview")
+      has(6, "#+OPTIONS: to", "toc:")
+      has(6, "#+begin_src py", "python")
+      has(6, "#+begin_src python :res", ":results")
+      has(6, "#+BEGIN: clocktable :max", ":maxlevel")
+      has(6, "[[*", "*A")
+      has(6, "[[fi", "file:")
+      has(6, "an \\alp", "\\alpha")
+      has(4, ":", "ID: ")
+      has(4, ":CU", "CUSTOM_ID: ")
+      has(6, ":LOG", "LOGBOOK:")
+    end)
+  end)
 end)
 
 describe("decorations", function()
