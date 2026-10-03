@@ -289,6 +289,63 @@ describe("column view", function()
   end)
 end)
 
+-- Where a stores PROP_ALL when no entry above the row defines it: the top
+-- of the view, like Emacs org-columns-edit-allowed (each case checked
+-- against Emacs 9.8.10, which writes the same drawers).
+describe("column view a: where the allowed values go", function()
+  with_config({ columns_default_format = "%ITEM %Effort" })
+
+  --- Open the view on `lines` at `lnum` (`global`: the whole file), run a
+  --- on view line `row` with answer "1 2"; returns the source lines.
+  local function edit_allowed(lines, lnum, row, global)
+    local src = org_buffer(lines, { lnum, 0 })
+    columns.open({ view = "table", global = global })
+    with_stubs({ input = answers({ "1 2" }) }, function()
+      keys(":" .. row .. "<CR>$a")
+    end)
+    close_view()
+    return buf_lines(src)
+  end
+
+  local drawer = { ":PROPERTIES:", ":Effort_ALL: 1 2", ":END:" }
+  local function with_drawer(before, after)
+    return vim.list_extend(vim.list_extend(vim.list_extend({}, before), drawer), after)
+  end
+
+  it("on the headline the view was opened on", function()
+    eq(with_drawer({ "* Top", "** Mid" }, { "*** Leaf" }), edit_allowed({ "* Top", "** Mid", "*** Leaf" }, 2, 4))
+  end)
+
+  it("on the view's headline when only #+PROPERTY defines them", function()
+    eq(
+      with_drawer({ "#+PROPERTY: Effort_ALL 0 1", "* Top", "** Mid" }, { "*** Leaf" }),
+      edit_allowed({ "#+PROPERTY: Effort_ALL 0 1", "* Top", "** Mid", "*** Leaf" }, 3, 4)
+    )
+  end)
+
+  it("on the entry holding the view's COLUMNS", function()
+    eq(
+      { "* Top", ":PROPERTIES:", ":COLUMNS: %ITEM %Effort", ":Effort_ALL: 1 2", ":END:", "** Mid", "*** Leaf" },
+      edit_allowed({ "* Top", ":PROPERTIES:", ":COLUMNS: %ITEM %Effort", ":END:", "** Mid", "*** Leaf" }, 6, 5)
+    )
+  end)
+
+  it("where an ancestor defines them", function()
+    eq(
+      { "* Top", ":PROPERTIES:", ":Effort_ALL: 1 2", ":END:", "** Mid", "*** Leaf" },
+      edit_allowed({ "* Top", ":PROPERTIES:", ":Effort_ALL: 5", ":END:", "** Mid", "*** Leaf" }, 5, 4)
+    )
+  end)
+
+  it("at the start of the file for the whole file", function()
+    eq(with_drawer({ "* Top" }, { "** Mid", "*** Leaf" }), edit_allowed({ "* Top", "** Mid", "*** Leaf" }, 2, 5, true))
+    eq(
+      with_drawer({}, { "#+TITLE: x", "* Top", "** Mid", "*** Leaf" }),
+      edit_allowed({ "#+TITLE: x", "* Top", "** Mid", "*** Leaf" }, 1, 5)
+    )
+  end)
+end)
+
 describe("columnview dblock :indent", function()
   it("indents by the entry's own level in an :id view (checked against Emacs)", function()
     local buf = org_buffer({

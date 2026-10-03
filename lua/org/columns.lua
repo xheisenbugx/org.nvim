@@ -1384,8 +1384,11 @@ local function edit_cell(state)
 end
 
 --- Edit the allowed values (`PROP_ALL`) of the current column where they
---- are defined, else on the entry that defines the view. Emacs a
---- (org-columns-edit-allowed).
+--- are defined, else at the top of the view: the entry holding its
+--- COLUMNS, the headline it was opened on, or the start of the file for
+--- the whole file (line 1: the file-level drawer, or the headline there).
+--- Emacs a (org-columns-edit-allowed, org-columns-top-level-marker); a
+--- `#+PROPERTY` value does not count as defined, as there.
 local function edit_allowed(state)
   local r, ci = current(state)
   if not r then
@@ -1393,14 +1396,17 @@ local function edit_allowed(state)
   end
   local prop = state.cols[ci].prop
   local key = prop:upper() .. "_ALL"
+  local file = files.get_buffer(state.src)
   local where = r.hl
   while where and not where.properties[key] do
     where = where.parent
   end
-  if not where and files.get_buffer(state.src).properties[key] then
+  if not where and file.properties[key] then
     where = { line = 1 } -- inherited from the file-level drawer
   end
-  where = where or state.holder or r.hl
+  if not where then
+    where = state.holder or (not state.global and file:headline_at(anchor_line(state))) or { line = 1 }
+  end
   -- the raw value keeps quoted items ("Deutsche Grammophon") intact
   local cur = r.hl:get_property(key, true)
   local v = utils.input({ prompt = "Allowed: ", default = cur or "" })

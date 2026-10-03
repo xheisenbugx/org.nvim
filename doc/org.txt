@@ -1139,7 +1139,12 @@ Editing next to hidden ones asks whether to show them
                                   (`columns_checkbox_allowed_values`), days
                   1 .. 9          select the Nth allowed value (digits are
                                   not counts in the view)
-                  a               edit the allowed values (`PROP_ALL`)
+                  a               edit the allowed values (`PROP_ALL`):
+                                  where the entry or an ancestor has
+                                  them, else at the top of the view
+                                  (the entry with its COLUMNS, the
+                                  headline it was opened on, or the
+                                  start of the file)
                   < / >           narrow / widen the column
                   <M-h> <M-l>     move the column left / right (also
                                   <M-Left> / <M-Right>)
