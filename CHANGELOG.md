@@ -8,9 +8,11 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
-## [Unreleased]
+## [v2.0.0] - 2026-10-03
 
-No changes yet.
+### ⚠ Breaking changes
+
+- Public API, pickers, CLI JSON envelope, docs site, CI checks, perf budgets and module splits ([#135](https://github.com/xheisenbugx/org.nvim/pull/135))
 
 ## [v1.2.5] - 2026-10-02
 
@@ -209,7 +211,7 @@ No changes yet.
 
 </details>
 
-[Unreleased]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.5...dev
+[v2.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.5...v2.0.0
 [v1.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.4...v1.2.5
 [v1.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.3...v1.2.4
 [v1.2.3]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.2...v1.2.3
