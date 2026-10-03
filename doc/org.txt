@@ -6724,10 +6724,13 @@ the fields and return the handle (or nil and an error):
                                                           *org-api-saving*
 Changes work whether or not the file is loaded: it's loaded in a hidden
 buffer when needed and written with org's own save (write hooks such as
-encryption run, |org-crypt|). By default the file is saved when its buffer
-had no unsaved changes before the change, so your own unsaved edits are
-never written behind your back; every change method takes `opts.save`
-(true always saves, false never). >lua
+encryption run, |org-crypt|). By default each file a change touches (for
+a refile, the source and the destination) is saved when its buffer had no
+unsaved changes before the change, so your own unsaved edits are never
+written behind your back; every change method takes `opts.save` (true
+always saves, false never). Like |org-refile|, a refile still saves a
+destination file that isn't shown in any window before it removes the
+entry from the source, so the entry can't be lost. >lua
     local api = require("org.api")
     for _, h in ipairs(api.headlines({ match = "+work", todo = "WAITING" })) do
       h:set_todo("TODO")

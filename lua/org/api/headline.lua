@@ -300,7 +300,14 @@ function M.edit(self, opts, fn)
   if not bufnr or not hl then
     return nil, err
   end
-  local was_modified = vim.bo[bufnr].modified
+  -- buffers with unsaved changes before the change aren't saved; the change
+  -- may land in another buffer than the headline's (refile)
+  local was_modified = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
+      was_modified[b] = true
+    end
+  end
   local marks = require("org.marks")
   local mark = marks.set(bufnr, hl.line)
   local ok, msgs, res, where = utils.noninteractive(fn, { bufnr = bufnr, lnum = hl.line }, hl)
@@ -312,15 +319,15 @@ function M.edit(self, opts, fn)
   if res == nil then
     return nil, last_problem(msgs) or "the change was not made"
   end
-  local save = opts.save
-  if save == nil then
-    save = not was_modified
-  end
   local wbuf = bufnr
   if type(where) == "table" then
     wbuf, lnum = where.bufnr, where.lnum
   end
   for _, b in ipairs(vim.fn.uniq({ bufnr, wbuf })) do
+    local save = opts.save
+    if save == nil then
+      save = not was_modified[b]
+    end
     if save and vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b) ~= "" then
       local saved, err = utils.save_buffer(b)
       if not saved then
