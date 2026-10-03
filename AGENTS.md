@@ -54,6 +54,9 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `lua/org/mappings.lua` | default keys, bound to actions |
 | `lua/org/parser.lua`, `element.lua`, `files.lua` | parsing and the per-file cache |
 | `lua/org/agenda/`, `babel/`, `export/`, `table/`, `ui/` | larger subsystems |
+| `lua/org/api/` | the public Lua API (`:h org-api`); everything else is internal |
+| `lua/org/pickers/` | picker sources and the snacks / fzf-lua / telescope / mini.pick / `vim.ui.select` adapters |
+| `lua/org/extensions/` | optional extensions, each enabled under `extensions` in `setup()` |
 | `lua/org/_meta/` | LuaLS type annotations for `setup()` options (no runtime code) |
 | `plugin/`, `ftplugin/`, `syntax/` | Vim runtime files |
 | `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags |
@@ -76,6 +79,10 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 - **Options live in `lua/org/config/`.** A new option needs a default in
   the file of its area there, an entry under `:h org-config` in
   `doc/org.txt`, and a type in `lua/org/_meta/`.
+- **`org.api` is a public contract.** Other plugins and user configs call
+  it, so follow `:h org-api-version`: an added function, field or event
+  payload raises the minor `api.version`; nothing is removed or changed
+  within a major version. Other `org.*` modules are internal.
 - **Org saves through `utils.save_buffer`.** It writes with `:noautocmd`,
   so logic that must run around every write (`:w` or org's own saves)
   registers a hook in `lua/org/write_hooks.lua`, not a

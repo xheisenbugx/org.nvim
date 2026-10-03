@@ -414,9 +414,14 @@ context.
   `release branch` check fails any other pull request into `main`.
 - Pull requests into `dev` and `main` run `make test` on Ubuntu against
   Neovim v0.11.0, stable and nightly (nightly may fail without blocking),
-  and on macOS against stable. CI also checks that `doc/tags` is up to date;
-  after editing `doc/org.txt`, run
-  `nvim --headless -u NONE -c "helptags doc" -c q`. Pushes don't run CI.
+  and on macOS and Windows against stable, plus stylua, `make typecheck`
+  and a helptags check; after editing `doc/org.txt`, run
+  `nvim --headless -u NONE -c "helptags doc" -c q`. A pull request that
+  changes the docs also builds the website. Pushes don't run CI.
+- The Fuzz (nightly) and Coverage (weekly) workflows test `dev`. GitHub
+  starts scheduled workflows from the default branch, `main`, so a change
+  to them takes effect with the next release; both can also be run from
+  the Actions tab, on any branch.
 
 To release, branch from `dev`, update the changelog and open a pull
 request into `main`:

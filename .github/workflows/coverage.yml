@@ -19,6 +19,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          # a scheduled run starts from the default branch (main, the last
+          # release): test dev, where new code lands
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true

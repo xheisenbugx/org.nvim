@@ -32,6 +32,10 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # a scheduled run starts from the default branch (main, the last
+          # release): test dev, where new code lands
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
@@ -52,8 +56,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          sha=$(git rev-parse --short=12 HEAD)
           {
-            echo "The [nightly fuzz run]($RUN_URL) on \`${GITHUB_SHA::12}\` failed."
+            echo "The [nightly fuzz run]($RUN_URL) on \`$sha\` failed."
             echo
             run=$(grep -m1 '^fuzz: ORG_FUZZ' fuzz.log || true)
             echo "Settings: \`${run#fuzz: }\`"
