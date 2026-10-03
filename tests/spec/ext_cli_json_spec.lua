@@ -124,6 +124,55 @@ local function titles(list)
   end, list)
 end
 
+local function alive(pid)
+  return vim.uv.kill(pid, 0) == 0
+end
+
+-- Neovims started by busy_nvim(), stopped by stop_busy()
+local busy = {}
+
+--- A headless Neovim with unsaved changes in `file` (its swap file says
+--- so). Specs starting one call stop_busy() in an after_each, so it is
+--- stopped also when the spec fails; it quits by itself after two minutes
+--- should this Neovim die first.
+local function busy_nvim(dir, file)
+  local job = vim.system({
+    vim.v.progpath,
+    "--headless",
+    "--clean",
+    "--cmd",
+    "set swapfile updatecount=1",
+    "--cmd",
+    "call timer_start(120000, {-> execute('qa!')})",
+    "-c",
+    "edit " .. vim.fn.fnameescape(file),
+    "-c",
+    "call setline(1, getline(1) .. ' (changed in Neovim)')",
+    "-c",
+    "preserve",
+  }, { env = env(dir) })
+  busy[#busy + 1] = job
+  local swapdir = dir .. "/xdg-state/nvim/swap"
+  local found = vim.wait(10000, function()
+    for _, sw in ipairs(vim.fn.glob(swapdir .. "/*", true, true)) do
+      if vim.fn.swapinfo(sw).dirty == 1 then
+        return true
+      end
+    end
+    return false
+  end, 50)
+  ok(found, "no swap file")
+  return job
+end
+
+local function stop_busy()
+  for _, job in ipairs(busy) do
+    pcall(job.kill, job, 9)
+    pcall(job.wait, job, 5000)
+  end
+  busy = {}
+end
+
 describe("cli json: envelope", function()
   local dir
   before_each(function()
@@ -410,6 +459,7 @@ describe("cli json: writing", function()
     dir = workspace()
   end)
   after_each(function()
+    stop_busy()
     vim.fn.delete(dir, "rf")
   end)
 
@@ -635,30 +685,7 @@ describe("cli json: writing", function()
       return
     end
     local file = dir .. "/home.org"
-    local swapdir = dir .. "/xdg-state/nvim/swap"
-    local job = vim.system({
-      vim.v.progpath,
-      "--headless",
-      "--clean",
-      "--cmd",
-      "set swapfile updatecount=1",
-      "-c",
-      "edit " .. vim.fn.fnameescape(file),
-      "-c",
-      "call setline(1, '* TODO Changed in Neovim')",
-      "-c",
-      "preserve",
-    }, { env = env(dir) })
-    local found = vim.wait(10000, function()
-      for _, sw in ipairs(vim.fn.glob(swapdir .. "/*", true, true)) do
-        local info = vim.fn.swapinfo(sw)
-        if info.dirty == 1 then
-          return true
-        end
-      end
-      return false
-    end, 50)
-    ok(found, "no swap file")
+    busy_nvim(dir, file)
     local code, e = json(dir, { "set", "todo", "Buy milk", "DONE" })
     eq(4, code)
     eq("file_busy", e.errors[1].code)
@@ -668,8 +695,33 @@ describe("cli json: writing", function()
     eq(0, (json(dir, { "set", "todo", "notes-id", "DONE" })))
     eq(0, (json(dir, { "set", "todo", "Buy milk", "DONE", "--force" })))
     ok(read(file)[1]:match("^%* DONE Buy milk%s+:errand:$"), read(file)[1])
-    job:kill(9)
-    job:wait(5000)
+  end)
+end)
+
+describe("cli json: a running Neovim a spec starts", function()
+  local dir, pid
+  after_each(function()
+    stop_busy()
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("is stopped after the spec, also one that fails before its end", function()
+    dir = workspace()
+    if vim.fn.has("win32") == 1 then
+      return
+    end
+    pid = busy_nvim(dir, dir .. "/home.org").pid
+    ok(alive(pid))
+    -- nothing stops it here: the after_each does
+  end)
+
+  it("(the previous spec's Neovim is gone)", function()
+    dir = workspace()
+    if vim.fn.has("win32") == 1 then
+      return
+    end
+    ok(pid)
+    eq(false, alive(pid))
   end)
 end)
 
