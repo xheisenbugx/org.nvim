@@ -765,16 +765,13 @@ function M.refile(target, opts)
   else
     log_refile(dbuf, dline, nil, opts.note)
   end
+  -- Emacs's order: the bookmark, then org-after-refile-insert-hook. A
+  -- hidden destination, saved before the source lost the entry, is saved
+  -- again after the hook, with the handler's edits. A handler may move
+  -- the entry: the bookmark and the line returned follow it.
   M.remember(dbuf, dline, "last_refile")
-  if dbuf ~= bufnr then
-    save_if_hidden(dbuf)
-  end
-  if opts.save then
-    utils.save_buffer_or_warn(bufnr)
-  end
-  local where = (dest.path or dest.label or ""):gsub("/$", "")
-  utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)
-  -- org-after-refile-insert-hook (after the entry is in place and logged)
+  local raw = vim.api.nvim_buf_get_lines(dbuf, dline - 1, dline, false)[1]
+  local entry = marks.set(dbuf, dline)
   local dname = vim.api.nvim_buf_get_name(dbuf)
   pcall(vim.api.nvim_exec_autocmds, "User", {
     pattern = "OrgRefile",
@@ -789,6 +786,20 @@ function M.refile(target, opts)
     },
     modeline = false,
   })
+  local now = entry and entry:lnum()
+  marks.del(entry)
+  if now and (now ~= dline or vim.api.nvim_buf_get_lines(dbuf, now - 1, now, false)[1] ~= raw) then
+    dline = now
+    M.remember(dbuf, dline, "last_refile")
+  end
+  if dbuf ~= bufnr then
+    save_if_hidden(dbuf)
+  end
+  if opts.save then
+    utils.save_buffer_or_warn(bufnr)
+  end
+  local where = (dest.path or dest.label or ""):gsub("/$", "")
+  utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)
   return dbuf, dline
 end
 

@@ -6861,7 +6861,11 @@ for `api.off(id)`; `api.events` maps each name to a short description.
     OrgCaptureAfterFinalize  bufnr, line (`aborted` when cancelled)
     OrgRefile            bufnr, lnum, file (where the entry now is), title,
                          source_bufnr, source_file, copy
-                         (org-after-refile-insert-hook)
+                         (org-after-refile-insert-hook). As in Emacs, it
+                         fires after the last-refile bookmark is set; a
+                         destination not shown in a window is saved after
+                         it too, with the handler's edits. Unlike in
+                         Emacs, the entry has already left its old place.
     OrgArchive           bufnr, lnum, title, archive_file (before the
                          subtree leaves its file); OrgArchiveFinalize: the
                          same in the archive buffer
@@ -6870,7 +6874,8 @@ for `api.off(id)`; `api.events` maps each name to a short description.
                          first time. Fires on the next event loop turn.
 Handlers run during the command, like Emacs hooks, and may edit buffers:
 the command follows its entries where a handler moves them (the region
-command its headlines).
+command its headlines; a refile the line it returns, its bookmark and the
+API handle).
 Other features fire their own events (clock, capture, agenda, babel, ...;
 see their sections). >lua
     local api = require("org.api")

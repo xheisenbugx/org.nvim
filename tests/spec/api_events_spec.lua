@@ -1,6 +1,7 @@
--- OrgTagsChanged (org-after-tags-change-hook): every path that changes
--- tags fires, once per change, and handlers that edit the buffer don't
--- make the command lose track of its headlines.
+-- OrgTagsChanged (org-after-tags-change-hook) and OrgRefile
+-- (org-after-refile-insert-hook): every path that changes tags fires,
+-- once per change, and handlers that edit the buffer don't make the
+-- command lose track of its headlines.
 local api = require("org.api")
 local config = require("org.config")
 local tags = require("org.tags")
@@ -276,6 +277,80 @@ describe("org.api events", function()
       eq("* TODO One :x:y:", vim.api.nvim_buf_get_lines(utils.find_buffer(path), 0, -1, false)[2])
       eq({ { 2, { "x" }, { "x", "y" } } }, changes(events))
       cols.quit()
+    end)
+  end)
+
+  describe("OrgRefile", function()
+    local LINES = {
+      "* Inbox",
+      "** TODO Entry",
+      "* Projects",
+      ":PROPERTIES:",
+      ":COUNT: 0",
+      ":END:",
+      "** TODO Existing",
+    }
+
+    it("returns and remembers the entry a handler moved, and the API follows it", function()
+      local path = write(dir, "work.org", LINES)
+      local refile = require("org.refile")
+      local during
+      local events = listen("OrgRefile", function(data)
+        -- Emacs sets the last-refile bookmark before it runs the hook
+        during = vim.deepcopy(refile.last_stored)
+        -- a handler that adds a property line above the entry
+        local parent = api.headline_at({ bufnr = data.bufnr, lnum = data.lnum }):parent()
+        ok(parent:set_property("LAST", "Entry"))
+      end)
+      local h = api.headlines({ files = path, title = "Entry" })[1]
+      local dest = api.headlines({ files = path, title = "Projects" })[1]
+      ok(h:refile(dest))
+      eq(1, #events)
+      eq(7, events[1].lnum)
+      eq({ 7, "** TODO Entry" }, { during.lnum, during.raw })
+      local lines = utils.readfile(path)
+      eq("** TODO Entry", lines[8])
+      eq("** TODO Existing", lines[7])
+      -- the handle, the bookmark and the last stored location are on the entry
+      eq({ "Entry", 8 }, { h.title, h.line })
+      eq({ 8, "** TODO Entry" }, { refile.last_stored.lnum, refile.last_stored.raw })
+      ok(h:set_todo("DONE"))
+      lines = utils.readfile(path)
+      eq("** DONE Entry", lines[8])
+      eq("** TODO Existing", lines[7])
+    end)
+
+    it("returns the entry's line after the handler ran", function()
+      local buf = org_buffer(LINES, { 2, 0 })
+      listen("OrgRefile", function(data)
+        vim.api.nvim_buf_set_lines(data.bufnr, 0, 0, false, { "#+TITLE: Work" })
+      end)
+      local refile = require("org.refile")
+      local dbuf, dline = refile.refile(
+        { bufnr = buf, lnum = 2 },
+        { dest = { bufnr = buf, lnum = 3, label = "Projects" } }
+      )
+      eq(buf, dbuf)
+      eq("** TODO Entry", buf_lines(buf)[dline])
+      eq(8, dline)
+      eq(8, refile.last_stored.lnum)
+    end)
+
+    it("saves a hidden destination with the handler's edits", function()
+      local src = write(dir, "src.org", { "* TODO Entry" })
+      local dest = write(dir, "dest.org", { "* Projects" })
+      local sbuf = open_file(src)
+      listen("OrgRefile", function(data)
+        -- an edit that doesn't save the buffer itself
+        ok(require("org.properties").set_property({ bufnr = data.bufnr, lnum = data.lnum }, "REFILED", "yes"))
+      end)
+      local dbuf = require("org.refile").refile(
+        { bufnr = sbuf, lnum = 1 },
+        { dest = { filename = dest, lnum = 1, label = "Projects" } }
+      )
+      eq(-1, vim.fn.bufwinid(dbuf))
+      eq({ "* Projects", "** TODO Entry", ":PROPERTIES:", ":REFILED:  yes", ":END:" }, utils.readfile(dest))
+      eq(false, vim.bo[dbuf].modified)
     end)
   end)
 end)
