@@ -1,0 +1,25 @@
+screen 60x14
+|{1:#+TITLE:}{2: Hello}|
+||
+|{3:* A}        {4:╭───────}{5: Insert export template }{4:───────╮}|
+|{6:           }{4:│}{7:  }{8:1}{7:  default                          }{4:│}|
+|{6:           }{4:│}{9:  }{10:2}{9:  ascii                            }{4:│}|
+|{6:           }{4:│}{9:  }{10:3}{9:  beamer                           }{4:│}|
+|{6:           }{4:│}{9:  }{10:4}{9:  html                             }{4:│}|
+|{6:           }{4:│}{9:  }{10:5}{9:  icalendar                        }{4:│}|
+|{6:           }{4:│}{9:  }{10:6}{9:  koma-letter                      }{4:│}|
+|{6:           }{4:│}{9:  }{10:7}{9:  latex                            }{4:│}|
+|{6:           }{4:│}{9:  }{10:8}{9:  man                              }{4:│}|
+|{6:           }{4:╰─}{11: j/k move · ↵ select · q/Esc cancel }{4:─╯}|
+
+{1} orgTitleKeyword -> OrgKeyword -> PreProc
+{2} OrgTitle -> Title [bold]
+{3} OrgHeadlineLevel1 -> Title [bold]
+{4} FloatBorder
+{5} FloatTitle [bold]
+{6} NonText
+{7} NormalFloat | CursorLine
+{8} NormalFloat | OrgMenuKey -> Special | CursorLine
+{9} NormalFloat
+{10} NormalFloat | OrgMenuKey -> Special
+{11} FloatFooter [bold]

@@ -141,6 +141,27 @@ describe("ui.choose", function()
       eq(wins, #vim.api.nvim_list_wins())
     end)
 
+    it("is wide enough for its title and footer when the rows are short", function()
+      local cfg
+      with_stub(utils, "getchar", function()
+        cfg = vim.api.nvim_win_get_config(0)
+        return "1"
+      end, function()
+        eq("x", ui.choose({ prompt = "Insert export template: ", items = { "x", "y" } }))
+      end)
+      local function text(chunks)
+        local out = {}
+        for _, c in ipairs(chunks) do
+          out[#out + 1] = c[1]
+        end
+        return table.concat(out)
+      end
+      local title, footer = text(cfg.title), text(cfg.footer)
+      eq(" Insert export template ", title)
+      ok(cfg.width >= vim.fn.strdisplaywidth(title), cfg.width)
+      ok(cfg.width >= vim.fn.strdisplaywidth(footer), cfg.width)
+    end)
+
     it("edits the value at the cursor with e", function()
       local seen
       with_stub(utils, "input_complete", function(prompt, _, default)
