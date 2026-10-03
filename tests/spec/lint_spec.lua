@@ -525,3 +525,16 @@ describe("lint SETUPFILE settings", function()
     eq({ 'Undefined macro "fake"' }, out)
   end)
 end)
+
+describe("lint checkers", function()
+  it("has a function for every registered checker", function()
+    local names = {}
+    for _, c in ipairs(lint.checkers) do
+      names[#names + 1] = c[1]
+    end
+    local buf = org_buffer({ "* TODO Heading", "Text with [[link]] and $x$." })
+    for _, r in ipairs(lint.lint(buf, names)) do
+      ok(not r.message:match("^Checker error"), r.checker .. ": " .. r.message)
+    end
+  end)
+end)

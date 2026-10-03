@@ -1119,12 +1119,12 @@ org-id	org-id-get-create	cmd	done	actions.lua:234 id_get_create; id.lua:264	coun
 org-id	org-id-goto	cmd	done	actions.lua:343 id_goto; id.lua:418	-	-
 org-id	org-id-store-link	cmd	done	actions.lua:345 id_store_link	-	-
 org-id	org-id-update-id-locations	cmd	done	commands.lua:31 id_update_locations; id.lua:352	-	-
-org-lint	org-lint	cmd	done	actions.lua:390 lint; lint.lua:4797 (location list)	-	-
-org-lint	org-lint--hide-checker	cmd	vim	lint.lua:4797 loclist	filter report with :Lfilter! (cfilter)	-
-org-lint	org-lint--ignore-checker	cmd	done	-	lint.lua report_keys h/i/g in loclist; lint_spec. Minor bug: buffer-local nowait 'g' map shadows gg/g_ in the org-lint loclist	S
-org-lint	org-lint--jump-to-source	cmd	vim	lint.lua:4797 loclist	<CR> in location list	-
-org-lint	org-lint--report-mode	cmd	vim	lint.lua:4797 loclist	location list is the report buffer	-
-org-lint	org-lint--show-source	cmd	vim	lint.lua:4797 loclist	location list preview / :ll	-
+org-lint	org-lint	cmd	done	actions.lua:390 lint; lint/init.lua:293 (location list)	-	-
+org-lint	org-lint--hide-checker	cmd	vim	lint/init.lua:293 loclist	filter report with :Lfilter! (cfilter)	-
+org-lint	org-lint--ignore-checker	cmd	done	-	lint/init.lua report_keys h/i/g in loclist; lint_spec. Minor bug: buffer-local nowait 'g' map shadows gg/g_ in the org-lint loclist	S
+org-lint	org-lint--jump-to-source	cmd	vim	lint/init.lua:293 loclist	<CR> in location list	-
+org-lint	org-lint--report-mode	cmd	vim	lint/init.lua:293 loclist	location list is the report buffer	-
+org-lint	org-lint--show-source	cmd	vim	lint/init.lua:293 loclist	location list preview / :ll	-
 org-mobile	org-mobile-apply	cmd	done	commands.lua:47 mobile_apply; mobile.lua:1353	-	-
 org-mobile	org-mobile-create-sumo-agenda	cmd	done	mobile.lua:836 create_sumo_agenda (run by push)	not exposed as separate command	-
 org-mobile	org-mobile-move-capture	cmd	done	mobile.lua:980 move_capture (run by pull)	not exposed as separate command	-
