@@ -7023,7 +7023,10 @@ Differences from Emacs:
   with the default "nc"), as Neovim reveals concealed text there. An image
   shown in place of its link whose line wraps after it, or on the first
   line of a closed fold, is drawn below the line or shown as its link text
-  (Emacs makes that screen line as tall as the image).
+  (Emacs makes that screen line as tall as the image). Vim draws syntax
+  up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
+  ends before that column (with the 'synmaxcol' the buffer had when its
+  syntax was set up), so a long line can't leave the lines below it bold.
 
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or
