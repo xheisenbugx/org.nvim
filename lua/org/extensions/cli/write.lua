@@ -20,6 +20,13 @@ local function need(words, n, usage)
   end
 end
 
+--- Is `tag` one tag as org reads it on a headline (org-tag-re: letters
+--- and digits of any script, `_ @ # %`)?
+local function valid_tag(tag)
+  local parsed = require("org.parser").parse_headline_line("* x :" .. tag .. ":")
+  return parsed ~= nil and #parsed.tags == 1 and parsed.tags[1] == tag
+end
+
 --- The heading of words[1], and its buffer target.
 local function open(words, flags)
   local hl = run.resolve_target(words[1], flags)
@@ -81,7 +88,7 @@ function M.cmd_set_tags(words, flags)
     return not vim.tbl_contains(flags.remove, t)
   end, new)
   for _, t in ipairs(new) do
-    if not t:match("^[%w_@#%%]+$") then
+    if not valid_tag(t) then
       fail("invalid tag " .. t .. " (letters, digits, _ @ # %)", "bad_value", { tag = t })
     end
   end

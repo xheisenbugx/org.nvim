@@ -640,6 +640,10 @@ describe("cli json: writing", function()
     local code, err = json(dir, { "set", "tags", "Review", "bad tag!" })
     eq(2, code)
     eq("bad_value", err.errors[1].code)
+    -- letters and digits of any script, like org-tag-re's [[:alnum:]]
+    _, e = json(dir, { "set", "tags", "Review", "café:ñandú2" })
+    eq({ "café", "ñandú2" }, e.data.new)
+    ok(work()[3]:match(":café:ñandú2:$"), work()[3])
   end)
 
   it("sets and removes the priority", function()

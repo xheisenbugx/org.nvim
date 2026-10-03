@@ -9076,7 +9076,8 @@ Writing (each saves the files it changed):
     else it is logged without one.
 `org set tags TARGET [TAGS] [--add TAG] [--remove TAG]`
     Set the tags (`a:b` or `a,b`; "" removes them all), or add and remove
-    some.
+    some. A tag has letters and digits (of any script, `café`) and
+    `_ @ # %`, as `org-tag-re` says.
 `org set priority TARGET PRIORITY`
     `A`, `B`, ... (a number with numeric `#+PRIORITIES`); `none` removes.
 `org set property TARGET NAME VALUE`, `org set property TARGET NAME --delete`
