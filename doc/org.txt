@@ -9044,9 +9044,14 @@ Writing (each saves the files it changed):
 `org set priority TARGET PRIORITY`
     `A`, `B`, ... (a number with numeric `#+PRIORITIES`); `none` removes.
 `org set property TARGET NAME VALUE`, `org set property TARGET NAME --delete`
-`org set scheduled TARGET DATE`, `org set deadline TARGET DATE`
+`org set scheduled TARGET DATE [--note TEXT]`
+`org set deadline TARGET DATE [--note TEXT]`
     DATE as the date prompt reads it (`2026-10-05 14:00`, `+2d`, `fri`) or
-    a timestamp (`"<2026-10-05 Mon +1w>"`); `none` removes the date.
+    a timestamp (`"<2026-10-05 Mon +1w>"`); `none` removes the date. As
+    when you schedule in Neovim (|org-dates|), the old date's repeater and
+    warning period stay, CLOSED is removed, and the change is logged per
+    `log_reschedule` / `log_redeadline`, with the `--note` text or without
+    a note.
 `org note TARGET TEXT`
     Add a note to the entry's log, like `add_note` (|org-todo|); TEXT `-`
     reads stdin.

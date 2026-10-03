@@ -157,7 +157,13 @@ local function set_planning(kind)
     local d = read_planning_date(words[2])
     local hl, bufnr, lnum = open(words, flags)
     local old = hl.planning[kind]
-    require("org.timestamps").set_date({ bufnr = bufnr, lnum = lnum }, kind, d)
+    -- like org-schedule / org-deadline: a repeater and warning period stay,
+    -- CLOSED goes, and the change is logged (log_reschedule, log_redeadline)
+    -- with the --note text, or without one
+    local target = { bufnr = bufnr, lnum = lnum }
+    if (d or old) and not require("org.timestamps").plan_date(target, kind, d, { note = flags.note or false }) then
+      run.fail_with_messages("could not set the " .. kind .. " date", "failed")
+    end
     local now = run.headline_at(bufnr, lnum).planning[kind]
     return changed(flags, bufnr, lnum, kind, data.timestamp(old), data.timestamp(now))
   end

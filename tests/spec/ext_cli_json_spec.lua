@@ -501,6 +501,27 @@ describe("cli json: writing", function()
     eq("bad_value", err.errors[1].code)
   end)
 
+  it("keeps the repeater and warning period of a rescheduled date, and logs it", function()
+    local d = workspace({ "  log_reschedule = 'time',", "  log_redeadline = 'note'," })
+    vim.fn.writefile(
+      { "* TODO Water plants", "  SCHEDULED: <" .. stamp(2030, 1, 4, " +1w -2d") .. ">" },
+      d .. "/home.org"
+    )
+    local _, e = json(d, { "set", "scheduled", "Water plants", "2030-01-11" })
+    eq("+1w", e.data.new.repeater)
+    eq("-2d", e.data.new.warning)
+    local home = table.concat(read(d .. "/home.org"), "\n")
+    ok(home:find("SCHEDULED: <" .. stamp(2030, 1, 11, " +1w -2d") .. ">", 1, true), home)
+    ok(home:find("Rescheduled from", 1, true), home)
+    -- a "note" log setting takes the --note text instead of prompting
+    json(d, { "set", "deadline", "Water plants", "2030-01-20" })
+    local code = json(d, { "set", "deadline", "Water plants", "2030-01-27", "--note", "moved by a script" })
+    eq(0, code)
+    home = table.concat(read(d .. "/home.org"), "\n")
+    ok(home:find("New deadline from", 1, true), home)
+    ok(home:find("moved by a script", 1, true), home)
+  end)
+
   it("adds a note, from an argument or stdin", function()
     local _, e = json(dir, { "note", "Buy milk", "Out", "of", "milk" })
     eq("Out of milk", e.data.new)

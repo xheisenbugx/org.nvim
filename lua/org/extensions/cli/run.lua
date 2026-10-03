@@ -35,7 +35,8 @@ Write (never prompt; --force writes over unsaved changes in a running Neovim):
   set tags TARGET [TAGS] [--add TAG] [--remove TAG]
   set priority TARGET PRIORITY
   set property TARGET NAME [VALUE] [--delete]
-  set scheduled TARGET DATE | set deadline TARGET DATE   ("none" removes)
+  set scheduled TARGET DATE [--note TEXT]   ("none" removes)
+  set deadline TARGET DATE [--note TEXT]
   note TARGET TEXT
   refile TARGET DESTINATION
   archive TARGET
