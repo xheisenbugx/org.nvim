@@ -341,8 +341,15 @@ function Screen:_describe(id)
     return "?" .. tostring(id)
   end
   local names, prev = {}, nil
-  for _, i in ipairs(a.info or {}) do
+  local info = a.info or {}
+  for k, i in ipairs(info) do
     local n = i.hi_name or i.ui_name
+    -- Neovim versions differ in combining NormalFloat under the border,
+    -- title and footer of a float: leave it out there
+    local next_ = info[k + 1] and (info[k + 1].hi_name or info[k + 1].ui_name)
+    if n == "NormalFloat" and (next_ == "FloatBorder" or next_ == "FloatTitle" or next_ == "FloatFooter") then
+      n = nil
+    end
     if n and n ~= "" and n ~= prev then
       prev = n
       local chain = self.links and self.links[n]

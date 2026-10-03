@@ -15,11 +15,11 @@ screen 60x14
 {1} orgTitleKeyword -> OrgKeyword -> PreProc
 {2} OrgTitle -> Title [bold]
 {3} OrgHeadlineLevel1 -> Title [bold]
-{4} NormalFloat | FloatBorder
-{5} NormalFloat | FloatTitle [bold]
+{4} FloatBorder
+{5} FloatTitle [bold]
 {6} NonText
 {7} NormalFloat | CursorLine
 {8} NormalFloat | OrgMenuKey -> Special | CursorLine
 {9} NormalFloat
 {10} NormalFloat | OrgMenuKey -> Special
-{11} NormalFloat | FloatFooter [bold]
+{11} FloatFooter [bold]
