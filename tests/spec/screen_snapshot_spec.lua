@@ -98,6 +98,19 @@ describe("screen snapshot", function()
     screen:expect("long_line")
   end)
 
+  -- markup that ends past a 'synmaxcol' lowered after the syntax was set
+  -- up isn't drawn, and doesn't go on over the lines below
+  it("follows a lowered 'synmaxcol'", function()
+    new(nil, 60, 8)
+    screen:org({
+      string.rep("word ", 20):sub(1, 96) .. " *starts here and* ends after",
+      "plain text",
+      "* Next *bold*",
+    })
+    screen:cmd("setlocal synmaxcol=110")
+    screen:expect("synmaxcol_lowered")
+  end)
+
   it("conceals link brackets and targets", function()
     new()
     screen:org({
