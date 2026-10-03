@@ -45,6 +45,7 @@ Lexer.__index = Lexer
 
 --- Longest link type (`org-link-types`) followed by ":" at `p`.
 local type_sets = setmetatable({}, { __mode = "k" })
+local colon_s, colon_from, colon_at
 local function link_type_at(types, s, p)
   -- A type holds no ":", so the only candidate is the text up to the
   -- first colon.
@@ -57,7 +58,15 @@ local function link_type_at(types, s, p)
     end
     type_sets[types] = set
   end
-  local colon = s:find(":", p, true)
+  -- the next colon, remembered: asked at each word of a paragraph without
+  -- one, the search went to its end every time (quadratic)
+  local colon
+  if colon_s == s and p >= colon_from and (not colon_at or p <= colon_at) then
+    colon = colon_at
+  else
+    colon = s:find(":", p, true) or false
+    colon_s, colon_from, colon_at = s, p, colon
+  end
   local t = colon and colon - p <= set[0] and s:sub(p, colon - 1)
   return t and set[t] and t or nil
 end
@@ -100,30 +109,56 @@ function Lexer:emphasis(p, a, b)
   if nxt == "" or p + 1 > b or is_space(nxt) or uspace_starting_at(s, p + 1) then
     return nil
   end
-  local q = p + 2
-  while q <= b do
-    if s:sub(q, q) == mark and not is_space(s:sub(q - 1, q - 1)) and not uspace_ending_at(s, q - 1) then
-      local after = s:sub(q + 1, q + 1)
-      if
-        q == b
-        or after == ""
-        or is_space(after)
-        or after:match("[%-%.,;:!%?'\"%)}\\%[]")
-        or uspace_starting_at(s, q + 1)
-      then
-        local post = s:match("^[ \t]*", q + 1)
-        local o = { type = EMPH[mark], b = p, e = q + 1 + #post }
-        if mark ~= "=" and mark ~= "~" then
-          o.cb, o.ce = p + 1, q
-        else
-          o.value = s:sub(p + 1, q - 1)
-        end
-        return o
-      end
-    end
-    q = q + 1
+  -- Whether a marker closes doesn't depend on where the emphasis opened:
+  -- the last scan for this marker and limit answers for any start between
+  -- where it began and the closing marker it found (or `b`, when it found
+  -- none). Without it, a long paragraph with many unclosed markers was
+  -- scanned to its end from each of them (quadratic).
+  local start = p + 2
+  local by_limit = self.emph_close[b]
+  if not by_limit then
+    by_limit = {}
+    self.emph_close[b] = by_limit
   end
-  return nil
+  local last = by_limit[mark]
+  local q
+  if last and start >= last.from and (not last.at or start <= last.at) then
+    q = last.at
+  else
+    q = start
+    while true do
+      q = s:find(mark, q, true)
+      if not q or q > b then
+        q = false
+        break
+      end
+      if not is_space(s:sub(q - 1, q - 1)) and not uspace_ending_at(s, q - 1) then
+        local after = s:sub(q + 1, q + 1)
+        if
+          q == b
+          or after == ""
+          or is_space(after)
+          or after:match("[%-%.,;:!%?'\"%)}\\%[]")
+          or uspace_starting_at(s, q + 1)
+        then
+          break
+        end
+      end
+      q = q + 1
+    end
+    by_limit[mark] = { from = start, at = q }
+  end
+  if not q then
+    return nil
+  end
+  local post = s:match("^[ \t]*", q + 1)
+  local o = { type = EMPH[mark], b = p, e = q + 1 + #post }
+  if mark ~= "=" and mark ~= "~" then
+    o.cb, o.ce = p + 1, q
+  else
+    o.value = s:sub(p + 1, q - 1)
+  end
+  return o
 end
 
 function Lexer:link(p, a, b)
@@ -708,13 +743,21 @@ function Doc:parse_objects(segments, element, restrict)
   if #s == 0 then
     return
   end
+  -- (a binary search: a paragraph can have thousands of lines)
   local function pos(o)
-    for i = #segments, 1, -1 do
-      if o >= starts[i] then
-        return segments[i].line, segments[i].col + (o - starts[i])
+    if o < starts[1] then
+      return segments[1].line, segments[1].col
+    end
+    local lo, hi = 1, #segments
+    while lo < hi do
+      local mid = math.floor((lo + hi + 1) / 2)
+      if starts[mid] <= o then
+        lo = mid
+      else
+        hi = mid - 1
       end
     end
-    return segments[1].line, segments[1].col
+    return segments[lo].line, segments[lo].col + (o - starts[lo])
   end
   local lx = setmetatable({
     s = s,
@@ -722,6 +765,7 @@ function Doc:parse_objects(segments, element, restrict)
     element = element,
     pos = pos,
     expand_abbrev = self.expand_abbrev,
+    emph_close = {},
   }, Lexer)
   lx:parse(1, #s, nil, restrict or {})
 end
@@ -797,10 +841,30 @@ function Doc:element_at(lnum, col)
   local node = self.root
   local found = nil
   while true do
+    -- the last child that covers the position: children come in document
+    -- order, so a binary search finds the last one starting at or before
+    -- it, and going back stops at the first one that ends before it (a
+    -- scan of all children made the checkers that ask for each line
+    -- quadratic in a file of many top-level headlines)
+    local children = node.children
+    local lo, hi = 1, #children
+    while lo <= hi do
+      local mid = math.floor((lo + hi) / 2)
+      if children[mid].begin <= lnum then
+        lo = mid + 1
+      else
+        hi = mid - 1
+      end
+    end
     local next_node
-    for _, ch in ipairs(node.children) do
+    for i = hi, 1, -1 do
+      local ch = children[i]
       if covers(ch) then
         next_node = ch
+        break
+      end
+      if ch.stop <= lnum then
+        break
       end
     end
     if not next_node then

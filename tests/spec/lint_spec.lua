@@ -538,3 +538,40 @@ describe("lint checkers", function()
     end
   end)
 end)
+
+describe("lint objects", function()
+  --- Objects other than plain text that lint finds in `text`, as "type text".
+  local function objects(text)
+    local lines = vim.split(text, "\n", { plain = true })
+    local buf = org_buffer(lines)
+    local out = {}
+    for _, o in ipairs(lint.document(buf, lines).objects) do
+      if o.type ~= "plain-text" then
+        out[#out + 1] = o.type .. " " .. o.s:sub(o.b, o.e - 1)
+      end
+    end
+    return out
+  end
+
+  -- the closing marker found for one opening marker is reused for the next
+  -- ones (a long paragraph of unclosed markers was quadratic): the results
+  -- are those of a search from each opening marker
+  it("finds the emphasis of a search from each opening marker", function()
+    eq({ "bold *b *c d* " }, objects("a *b *c d* e"))
+    eq({ "bold *a *b *c *d e*" }, objects("*a *b *c *d e*"))
+    eq({ "bold *a b* ", "bold *d e* " }, objects("*a b* c *d e* f *g"))
+    eq({ "italic /x *y /z w* q/ ", "bold *y /z w* " }, objects("/x *y /z w* q/ r"))
+    eq({ "verbatim =a =b= " }, objects("=a =b= c= *d *e"))
+    eq({ "bold *a\nb* ", "bold *d\ne *f* " }, objects("*a\nb* c *d\ne *f* g*"))
+    eq({ "bold *a [[https://e.com][*l* ", "link https://e.com" }, objects("x *a [[https://e.com][*l* k]] b* y"))
+  end)
+
+  it("lints a long paragraph of unclosed markers without a colon quickly", function()
+    local buf = org_buffer({ "* H", string.rep("*a /b =c ~d +e _f word ", 4000) })
+    local t = vim.uv.hrtime()
+    lint.lint(buf)
+    local ms = (vim.uv.hrtime() - t) / 1e6
+    -- (9 s before, 60 ms after on a laptop)
+    ok(ms < 1000 * (tonumber(vim.env.ORG_PERF_SCALE or "") or 1), ms .. " ms")
+  end)
+end)
