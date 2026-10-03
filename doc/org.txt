@@ -6786,7 +6786,8 @@ api.capture(opts)           Capture without a capture window: the template
     initial   the text of `%i`
     date      the capture date (`%t`, date trees, `time_prompt`)
 Returns `{ file, bufnr, line, headline }` (`headline` for entry
-templates). `OrgCaptureAfterFinalize` fires as for any capture. >lua
+templates; `bufnr` is nil when the template's `kill_buffer` closed the
+buffer). `OrgCaptureAfterFinalize` fires as for any capture. >lua
     require("org.api").capture({
       template = "* TODO %^{Task}\n  %U",
       target = "~/org/inbox.org",

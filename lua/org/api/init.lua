@@ -344,7 +344,7 @@ end
 
 ---@class org.api.CaptureResult
 ---@field file string|nil
----@field bufnr integer
+---@field bufnr integer|nil the buffer it was stored in (nil when the template's `kill_buffer` closed it)
 ---@field line integer first line of the stored text
 ---@field headline org.api.Headline|nil the captured entry (entry templates)
 
@@ -394,7 +394,7 @@ function M.capture(opts)
       return nil, err
     end
   end
-  local ok, msgs, bufnr, line = utils.noninteractive(capture.capture, tpl, {
+  local ok, msgs, bufnr, line, path = utils.noninteractive(capture.capture, tpl, {
     initial = opts.initial,
     date = d,
     answers = opts.values,
@@ -406,10 +406,15 @@ function M.capture(opts)
   if not bufnr then
     return nil, last_problem(msgs) or "nothing was captured"
   end
-  local name = vim.api.nvim_buf_get_name(bufnr)
-  local result = { file = name ~= "" and vim.fs.normalize(name) or nil, bufnr = bufnr, line = line }
+  -- the template's kill_buffer closes a buffer the capture loaded: the
+  -- entry is saved, read it from the file
+  local loaded = vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)
+  local name = loaded and vim.api.nvim_buf_get_name(bufnr) or path or ""
+  local file = name ~= "" and vim.fs.normalize(name) or nil
+  local result = { file = file, bufnr = loaded and bufnr or nil, line = line }
   if (tpl.type or "entry") == "entry" then
-    local hl = files.get_buffer(bufnr):headline_on(line)
+    local f = loaded and files.get_buffer(bufnr) or (file and files.get(file)) or nil
+    local hl = f and f:headline_on(line)
     result.headline = hl and H.new(hl) or nil
   end
   return result

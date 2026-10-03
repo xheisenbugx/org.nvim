@@ -899,6 +899,24 @@ describe("org.api", function()
       eq("  <2026-12-25 Fri>", lines[2])
     end)
 
+    it("returns the entry when kill_buffer closed the target's buffer", function()
+      local target = write(dir, "killed.org", { "* Old" })
+      local events = listen("OrgCaptureAfterFinalize")
+      local res, err = api.capture({
+        template = { template = "* %^{Title}", target = target, kill_buffer = true },
+        values = { "Fresh" },
+      })
+      ok(res, err)
+      eq(nil, utils.find_buffer(target))
+      eq(nil, res.bufnr)
+      ok(same_file(target, res.file))
+      eq(2, res.line)
+      eq("Fresh", res.headline.title)
+      ok(same_file(target, res.headline.file))
+      eq({ "* Old", "* Fresh" }, disk(target))
+      eq(1, #events)
+    end)
+
     it("fails without a template", function()
       local res, err = api.capture({ key = "nope" })
       eq(nil, res)

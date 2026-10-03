@@ -2719,6 +2719,7 @@ end
 ---@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean }
 ---@return integer|nil buf the capture buffer (or the target buffer with immediate_finish)
 ---@return integer|nil # the capture window, or the line of the stored entry
+---@return string|nil # with immediate_finish, the file of the stored entry (its buffer may be gone: kill_buffer)
 function M.capture(tpl_or_key, opts)
   opts = opts or {}
   local tpl = tpl_or_key
@@ -2781,8 +2782,10 @@ function M.capture(tpl_or_key, opts)
     -- Emacs finalizes immediate captures too: no capture buffer here
     emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)
+    local dfile
     if dbuf then
-      utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
+      dfile = vim.api.nvim_buf_get_name(dbuf)
+      utils.notify("Captured to " .. utils.abbreviate(dfile))
       kill_target(tpl, loc)
       if tpl.jump_to_captured then
         M.goto_last_stored()
@@ -2797,7 +2800,7 @@ function M.capture(tpl_or_key, opts)
         resume_interrupted(vim.tbl_extend("force", tpl, { clock_keep = false }), ctx)
       end
     end
-    return dbuf, dline
+    return dbuf, dline, dfile ~= "" and dfile or nil
   end
   if tpl.unnarrowed then
     return open_unnarrowed(tpl, expanded, ctx)
