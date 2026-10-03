@@ -701,9 +701,9 @@ function M.edit_object(bufnr, lnum, col)
   if ts then
     local t = require("org.timestamps")
     if ts.date and ts.date.active == false then
-      t.insert_inactive()
+      t.insert_inactive({ edit = true })
     else
-      t.insert_active()
+      t.insert_active({ edit = true })
     end
     return true
   end

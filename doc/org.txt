@@ -1175,8 +1175,13 @@ Timestamps:
 <prefix>s       Schedule (SCHEDULED:). A new date removes CLOSED.
 <prefix>d       Deadline (DEADLINE:).
 <prefix>i.      Insert an active timestamp (count: include time; count
-                16: the current time without a prompt). Right after an
-                existing timestamp, this creates a range.
+                16: the current time without a prompt). On a timestamp,
+                it changes that timestamp. Repeated right away (no
+                cursor move or edit in between, like Emacs' repeated
+                org-timestamp), it adds `--` and a second timestamp: a
+                range. <prefix>i! repeated after <prefix>i. (or the
+                other way round) does the same, the second timestamp
+                taking its own type.
 <prefix>i!      Insert an inactive timestamp.
 <C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor, like
                 Emacs org-timestamp-change: year, month, day, hour, minute,

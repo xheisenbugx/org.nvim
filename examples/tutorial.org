@@ -446,8 +446,9 @@ Summary operators: ={+}= sum, ={$}= money, ={:}= time sum, ={X}= checkbox,
 #+end_example
 
 - =<prefix>i.= inserts an active timestamp, =<prefix>i!= an inactive one.
-  With a count (=4<prefix>i.=) the time is included. Right after another
-  timestamp, it makes a range.
+  With a count (=4<prefix>i.=) the time is included. Pressed again right
+  away (before moving the cursor), it adds =--= and a second timestamp: a
+  range.
 - =<C-a>= / =<C-x>= change the part under the cursor: year, month, day,
   hour, minute, repeater or warning. =<S-Right>= / =<S-Left>= move one day.
   On the minutes, =<S-Up>= / =<S-Down>= step by five minutes.
