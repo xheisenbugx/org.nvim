@@ -189,7 +189,8 @@ The fuzz specs (`tests/spec/fuzz_*_spec.lua`) generate random Org text
 from numbered seeds (`tests/helpers/fuzz.lua`) and check what must hold for
 any input: the parser's outline invariants, the incremental fold levels,
 editing commands raising no Lua error and undoing cleanly, the structural
-merge keeping one-sided changes. `make test` runs a few fixed seeds of each.
+merge keeping one-sided changes. The generator is seeded and can be reused
+in new specs. `make test` runs a few fixed seeds of each.
 More seeds come from the environment:
 
 | Variable | Effect |
@@ -259,23 +260,6 @@ explains how to add cases, how the runs are kept deterministic (a fixed
 "now", time zone and locale), and what to do when a comparison fails:
 fix the bug, document an intended difference, or mark the case as a known
 failure.
-
-## Fuzz tests
-
-The `tests/spec/fuzz_*_spec.lua` specs run the parser, the fold levels,
-editing commands and the merge driver on random Org text from
-[`tests/helpers/fuzz.lua`](tests/helpers/fuzz.lua), a seeded generator you
-can reuse in new specs. `make test` runs a few fixed seeds. To look for
-bugs, run many more, or replay the seed a failure names:
-
-```sh
-ORG_FUZZ_ITERATIONS=5000 make test SPEC="tests/spec/fuzz_parser_spec.lua tests/spec/fuzz_ops_spec.lua tests/spec/fuzz_merge_spec.lua"
-ORG_FUZZ_SEED=640 make test SPEC=tests/spec/fuzz_ops_spec.lua
-```
-
-A failure prints the input as a Lua table. Cut it down to the few lines
-that still fail and add it to `tests/spec/fuzz_regressions_spec.lua` with
-the fix.
 
 ## Screen snapshots
 
