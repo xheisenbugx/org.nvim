@@ -9030,7 +9030,8 @@ Reading:
     filter: `--todo KW` (a keyword, or `any`, `open` for not done,
     `done`, `none`; repeatable), `--tag TAG` (own or inherited;
     repeatable, all must match), `--property NAME=VALUE` (`NAME` alone:
-    has the property), `--level N` or `--level 1..2`, `--scheduled
+    has the property; inherited as `use_property_inheritance` says, like
+    a property match), `--level N` or `--level 1..2`, `--scheduled
     FROM..TO` and `--deadline FROM..TO` (dates as `--date` reads them,
     either side optional, a single date for that day, or `any`, `none`),
     `--file FILE` (one of the agenda files), `--match MATCH` and

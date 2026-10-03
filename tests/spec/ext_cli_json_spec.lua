@@ -452,6 +452,21 @@ describe("cli json: reading", function()
     ok(vim.tbl_contains(q({ "--archived" }), "Hidden task"))
   end)
 
+  it("matches inherited properties as use_property_inheritance says", function()
+    -- off by default, as in Emacs
+    local _, e = json(dir, { "headlines", "--property", "OWNER=ann" })
+    eq({ "Write release notes" }, titles(e.data))
+    local subtree = { "Write release notes", "Draft the changelog", "Collect the PRs" }
+    for _, inherit in ipairs({ "true", "{ 'OWNER' }" }) do
+      local d = workspace({ "  use_property_inheritance = " .. inherit .. "," })
+      _, e = json(d, { "headlines", "--property", "OWNER=ann" })
+      eq(subtree, titles(e.data), inherit)
+      _, e = json(d, { "headlines", "--property", "owner" })
+      eq(subtree, titles(e.data), inherit)
+      vim.fn.delete(d, "rf")
+    end
+  end)
+
   it("evaluates code blocks like an export in Neovim, and stops at one that would ask", function()
     local src = dir .. "/code.org"
     vim.fn.writefile({ "* Code", "#+begin_src lua :exports both", "return 1 + 2", "#+end_src" }, src)

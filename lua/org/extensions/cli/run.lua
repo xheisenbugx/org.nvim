@@ -1010,7 +1010,8 @@ function M.headline_filter(flags)
     local name, value = p:match("^([^=]+)=(.*)$")
     name = (name or p):upper()
     preds[#preds + 1] = function(hl)
-      local v = hl:get_property(name, false)
+      -- inherited per use_property_inheritance, like a property match
+      local v = hl:get_property(name)
       if value then
         return v == value
       end
