@@ -6815,7 +6815,9 @@ api.clock.status()          The running clock, or nil: `{ title, file,
                             overrun, headline }` (see |org-clock|).
 api.clock.is_running()
 api.clock.clock_out([opts]) Stop it wherever it runs; returns the minutes.
-api.clock.cancel()          Cancel it (<prefix>xq).
+api.clock.cancel([opts])    Cancel it (<prefix>xq): its CLOCK line is
+                            removed.
+Both save the file of the CLOCK line (|org-api-saving|, `opts.save`).
 
 Events ~
                                                           *org-api-events*

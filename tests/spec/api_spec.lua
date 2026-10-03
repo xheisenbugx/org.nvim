@@ -55,6 +55,15 @@ local function same_file(a, b)
   return a and b and vim.fn.resolve(a) == vim.fn.resolve(b)
 end
 
+--- The open `CLOCK: [...]` line of `lines`, or nil.
+local function open_clock(lines)
+  for _, l in ipairs(lines) do
+    if l:match("^%s*CLOCK: %[[^%]]*%]%s*$") then
+      return l
+    end
+  end
+end
+
 local WORK = {
   "#+TITLE: Work notes",
   "#+FILETAGS: :work:",
@@ -537,9 +546,52 @@ describe("org.api", function()
       local cancel = listen("OrgClockCancel")
       eq(true, api.clock.cancel())
       eq(1, #cancel)
-      ok(not table.concat(disk(work), "\n"):find("CLOCK: %[[^%]]*%]$"))
+      eq(nil, open_clock(disk(work)))
       local _, err2 = api.clock.cancel()
       ok(err2:match("no clock"))
+    end)
+
+    it("cancel saves the file of the cancelled clock", function()
+      setup(dir, { clock = { persist = true, persist_file = dir .. "/clock.json" } })
+      local h = head("Plan offsite")
+      eq(nil, utils.find_buffer(work))
+      ok(h:clock_in())
+      ok(open_clock(disk(work)))
+      eq(true, api.clock.cancel())
+      eq(nil, open_clock(disk(work)))
+      local b = utils.find_buffer(work)
+      eq(false, vim.bo[b].modified)
+      -- the next session doesn't take up the cancelled clock again
+      vim.cmd("bwipeout! " .. b)
+      local clock = require("org.clock")
+      clock.state = nil
+      eq(nil, clock.restore())
+    end)
+
+    it("clock_out saves a clock that is not under a headline", function()
+      local p = write(dir, "loose.org", { "CLOCK: [2026-10-02 Fri 11:00]", "* Task" })
+      require("org.clock").state = { path = p, start = "[2026-10-02 Fri 11:00]", title = "loose" }
+      eq(nil, api.clock.status().headline)
+      eq(60, api.clock.clock_out())
+      eq("CLOCK: [2026-10-02 Fri 11:00]--[2026-10-02 Fri 12:00] =>  1:00", disk(p)[1])
+      eq(false, vim.bo[utils.find_buffer(p)].modified)
+    end)
+
+    it("cancel leaves a buffer with unsaved changes unsaved unless asked", function()
+      open_file(work)
+      local b = vim.api.nvim_get_current_buf()
+      local h = head("Plan offsite")
+      ok(h:clock_in())
+      vim.api.nvim_buf_set_lines(b, -1, -1, false, { "* Unsaved" })
+      eq(true, api.clock.cancel())
+      eq(true, vim.bo[b].modified)
+      ok(open_clock(disk(work)))
+      ok(h:clock_in())
+      eq(true, api.clock.cancel({ save = true }))
+      eq(false, vim.bo[b].modified)
+      eq(nil, open_clock(disk(work)))
+      eq("* Unsaved", disk(work)[#disk(work)])
+      vim.cmd("bwipeout!")
     end)
 
     it("refile moves under a headline and follows the entry", function()

@@ -625,6 +625,35 @@ function M.clock.is_running()
   return require("org.clock").state ~= nil
 end
 
+--- Run `fn(...)`, a change to the running clock's CLOCK line, without
+--- prompting, then save the buffer of that line as |org-api-saving| says:
+--- when it had no unsaved changes before (`opts.save` true: always, false:
+--- never). Returns fn's result and the collected messages, or nil and an
+--- error.
+---@param opts { save?: boolean }
+---@param fn function
+---@return any res, table|string msgs_or_err
+local function clock_change(opts, fn, ...)
+  local found, bufnr = pcall(require("org.clock").find_open_clock)
+  bufnr = found and bufnr or nil
+  local was_modified = bufnr and vim.bo[bufnr].modified
+  local ok, msgs, res = utils.noninteractive(fn, ...)
+  if not ok then
+    return nil, tostring(res)
+  end
+  local save = opts.save
+  if save == nil then
+    save = not was_modified
+  end
+  if save and bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    local saved, err = utils.save_buffer(bufnr)
+    if not saved then
+      return nil, "could not save " .. vim.api.nvim_buf_get_name(bufnr) .. ": " .. tostring(err)
+    end
+  end
+  return res, msgs
+end
+
 --- Stop the running clock (org-clock-out), wherever it runs. Returns the
 --- clocked minutes. The entry's file is saved like other API changes.
 ---@param opts? { note?: string, save?: boolean }
@@ -638,22 +667,24 @@ function M.clock.clock_out(opts)
   if status.headline then
     return status.headline:clock_out(opts)
   end
-  local ok, msgs, minutes = utils.noninteractive(require("org.clock").clock_out, { note = false, quiet = true })
-  if not ok then
-    return nil, tostring(minutes)
+  local minutes, msgs = clock_change(opts, require("org.clock").clock_out, { note = false, quiet = true })
+  if type(msgs) == "string" then
+    return nil, msgs
   end
   return minutes, minutes == nil and last_problem(msgs) or nil
 end
 
---- Cancel the running clock (org-clock-cancel): its CLOCK line is removed.
+--- Cancel the running clock (org-clock-cancel): its CLOCK line is removed
+--- and the file saved like other API changes.
+---@param opts? { save?: boolean }
 ---@return boolean|nil ok, string|nil err
-function M.clock.cancel()
+function M.clock.cancel(opts)
   if not M.clock.is_running() then
     return nil, "no clock is running"
   end
-  local ok, _, res = utils.noninteractive(require("org.clock").clock_cancel)
-  if not ok then
-    return nil, tostring(res)
+  local res, err = clock_change(opts or {}, require("org.clock").clock_cancel)
+  if res == nil then
+    return nil, type(err) == "string" and err or last_problem(err) or "the clock was not cancelled"
   end
   return true
 end
