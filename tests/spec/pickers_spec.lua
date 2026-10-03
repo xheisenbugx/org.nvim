@@ -376,9 +376,9 @@ describe("pickers", function()
   end)
 
   describe("snacks.nvim adapter", function()
-    local captured
+    local captured, previewed
     before_each(function()
-      captured = nil
+      captured, previewed = nil, nil
       fake_global("Snacks", nil)
       fake_module("snacks", {
         picker = {
@@ -386,6 +386,12 @@ describe("pickers", function()
             captured = o
             return {}
           end,
+          preview = {
+            -- the file previewer: the item's `buf` when set, else its `file`
+            file = function(ctx)
+              previewed = { buf = ctx.item.buf, file = ctx.item.file, pos = ctx.item.pos }
+            end,
+          },
         },
       })
       stub(require("org.config").opts, "picker", "snacks")
@@ -409,12 +415,13 @@ describe("pickers", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       require("org.actions").run("pick_headline")
       eq("Headlines", captured.title)
-      eq("file", captured.preview)
       eq(4, #captured.items)
       local it = captured.items[2]
       eq("Projects › TODO [#A] Write report  :urgent:", it.text)
       eq(a_path, it.file)
       eq({ 3, 0 }, it.pos)
+      captured.preview({ item = it })
+      eq({ buf = vim.api.nvim_get_current_buf(), file = a_path, pos = { 3, 0 } }, previewed)
       eq({ "TODO", "OrgTodo" }, captured.format(it, {})[2])
       eq("function", type(captured.actions.confirm))
       -- confirm jumps (once the picker has closed)
@@ -462,6 +469,28 @@ describe("pickers", function()
       fake_picker({}):close()
       settle()
       eq(true, cancelled)
+    end)
+
+    it("previews the buffer of a loaded file, with its unsaved edits", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      local buf = vim.api.nvim_get_current_buf()
+      vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "* Inserted", "" })
+      require("org.actions").run("pick_headline_all")
+      local checked = 0
+      for _, it in ipairs(captured.items) do
+        if it.text:find("Write report", 1, true) then
+          captured.preview({ item = it })
+          eq(buf, previewed.buf)
+          eq("** TODO [#A] Write report :urgent:", vim.api.nvim_buf_get_lines(buf, it.pos[1] - 1, it.pos[1], false)[1])
+          checked = checked + 1
+        elseif it.text:find("Call mom", 1, true) then
+          -- b.org isn't loaded: its file
+          captured.preview({ item = it })
+          eq({ file = b_path, pos = { 1, 0 } }, previewed)
+          checked = checked + 1
+        end
+      end
+      eq(2, checked)
     end)
 
     it("answers again when resumed", function()
@@ -764,9 +793,20 @@ describe("pickers", function()
       eq(2, lnum)
     end)
 
-    it("shows the line of the last entry when an earlier read ends later", function()
+    it("previews the buffer of a loaded file, with its unsaved edits", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      vim.api.nvim_buf_set_lines(0, 0, 0, false, { "* Inserted", "" })
+      local want = buf_lines(0)
       require("org.actions").run("pick_headline")
+      local lines, lnum = preview(conf.finder.results[3])
+      eq(want, lines)
+      eq("** TODO [#A] Write report :urgent:", lines[lnum])
+    end)
+
+    it("shows the line of the last entry when an earlier read ends later", function()
+      -- a.org isn't loaded: its entries preview the file
+      require("org.actions").run("pick_headline_all")
+      eq(a_path, conf.finder.results[3].filename)
       -- the first read is slow; the second entry reuses its buffer, still empty
       local reads = {}
       stub(require("telescope.config").values, "buffer_previewer_maker", function(path, bufnr, o)
@@ -895,8 +935,10 @@ describe("pickers", function()
             end, items)
           )
         end,
+        -- a buffer when the item has one, else its path
         default_preview = function(buf, item)
-          vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "preview of " .. item.path .. ":" .. item.lnum })
+          local what = item.bufnr and ("buffer " .. item.bufnr) or item.path
+          vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "preview of " .. what .. ":" .. item.lnum })
         end,
         get_picker_query = function()
           return typed
@@ -928,10 +970,31 @@ describe("pickers", function()
         return m[4].hl_group
       end, marks)
       eq({ "Comment", "OrgTodo", "OrgPriority", "OrgTags" }, groups)
-      started.source.preview(buf, it)
-      eq({ "preview of " .. a_path .. ":3" }, buf_lines(buf))
       settle()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it("previews the buffer of a loaded file, with its unsaved edits", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      local abuf = vim.api.nvim_get_current_buf()
+      vim.api.nvim_buf_set_lines(abuf, 0, 0, false, { "* Inserted", "" })
+      require("org.actions").run("pick_headline_all")
+      local buf = vim.api.nvim_create_buf(false, true)
+      local checked = 0
+      for _, it in ipairs(started.source.items) do
+        if it.text:find("Write report", 1, true) then
+          started.source.preview(buf, it)
+          eq({ "preview of buffer " .. abuf .. ":5" }, buf_lines(buf))
+          eq("** TODO [#A] Write report :urgent:", vim.api.nvim_buf_get_lines(abuf, 4, 5, false)[1])
+          checked = checked + 1
+        elseif it.text:find("Call mom", 1, true) then
+          -- b.org isn't loaded: its file
+          started.source.preview(buf, it)
+          eq({ "preview of " .. b_path .. ":1" }, buf_lines(buf))
+          checked = checked + 1
+        end
+      end
+      eq(2, checked)
     end)
 
     it("chooses marked items, takes the query from + New, and cancels", function()

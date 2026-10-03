@@ -5275,8 +5275,9 @@ Pickers ~
                                                                 *org-pickers*
 The `pick_*` actions open a fuzzy picker: headlines show their outline
 path, TODO keyword, priority and tags with the Org highlights, and the
-preview shows the entry in its file. Confirming jumps there (and opens the
-folds around it). The `picker` option chooses the picker:
+preview shows the entry in its file (in its buffer, unsaved changes and
+all, when the file is loaded). Confirming jumps there (and opens the folds
+around it). The `picker` option chooses the picker:
 
   "auto"       LazyVim's `vim.g.lazyvim_picker` when it is installed, else
                the first installed of the ones below, else "select"

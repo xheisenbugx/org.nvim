@@ -2,7 +2,6 @@
 --- with the index hidden (`--with-nth=2..`); the builtin previewer is
 --- given the item's file and line through `parse_entry`.
 local pickers = require("org.pickers")
-local utils = require("org.utils")
 
 local M = {}
 
@@ -40,12 +39,9 @@ local function previewer(items)
     if not it then
       return {}
     end
-    local bufnr = it.bufnr
-    if it.filename then
-      -- the buffer of this very file: bufnr() takes a file pattern, which
-      -- finds work.org_archive's buffer for work.org
-      bufnr = utils.find_buffer(it.filename)
-    end
+    -- the buffer when the file is loaded (bufnr() would take the name for
+    -- a pattern: work.org would find work.org_archive)
+    local bufnr = pickers.buffer(it)
     return {
       path = it.filename or (bufnr and vim.api.nvim_buf_get_name(bufnr)) or nil,
       bufnr = bufnr,

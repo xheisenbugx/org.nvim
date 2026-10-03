@@ -35,9 +35,9 @@ local function show_line(self, bufnr)
   end
 end
 
---- The previewer: the item's file at its line, or the lines of its
---- buffer when it has no file (the grep previewer takes the entry's
---- value, an item table, for a path then).
+--- The previewer: the item's file at its line, or the lines of its buffer
+--- when the file is loaded or there is none (the grep previewer reads the
+--- file, and takes the item table for a path when there is none).
 ---@param topts table
 function M.previewer(topts)
   local conf = require("telescope.config").values
@@ -55,8 +55,8 @@ function M.previewer(topts)
     define_preview = function(self, entry)
       local item = entry.value
       self.state.org_lnum = item.lnum or 1
-      local b = not item.filename and item.bufnr or nil
-      if b and vim.api.nvim_buf_is_valid(b) then
+      local b = pickers.buffer(item)
+      if b then
         vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, vim.api.nvim_buf_get_lines(b, 0, -1, false))
         if ok_u then
           putils.highlighter(self.state.bufnr, vim.bo[b].filetype, {})

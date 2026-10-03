@@ -24,7 +24,8 @@ local M = {}
 ---@class org.PickerItem
 ---@field display { [1]: string, [2]: string? }[] chunks of text and highlight group
 ---@field text? string matched text (default: the display chunks joined)
----@field filename? string file previewed and jumped to
+---file previewed (its buffer, when loaded) and jumped to
+---@field filename? string
 ---@field bufnr? integer buffer, for an entry without a file
 ---@field lnum? integer line (1-based)
 ---@field col? integer column (1-based)
@@ -80,6 +81,20 @@ function M.line(item)
     parts[i] = c[1]
   end
   return table.concat(parts)
+end
+
+--- The loaded buffer an item's preview shows: the buffer of its file when
+--- that is loaded (`lnum` counts its lines, unsaved edits included, and
+--- the jump lands there), else its `bufnr`. Nil: preview the file.
+---@param item org.PickerItem
+---@return integer|nil
+function M.buffer(item)
+  if item.filename then
+    return utils.find_buffer(item.filename)
+  end
+  if item.bufnr and vim.api.nvim_buf_is_loaded(item.bufnr) then
+    return item.bufnr
+  end
 end
 
 --- The prompt asking for the text of a `create_label` entry: "+ New tags…"

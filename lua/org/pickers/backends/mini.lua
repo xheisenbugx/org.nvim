@@ -150,7 +150,9 @@ function M.pick(spec, finish)
       end,
       preview = function(buf, x)
         if spec.preview and (x.path or x.bufnr) then
-          return MiniPick.default_preview(buf, x)
+          -- the buffer when the file is loaded
+          local b = pickers.buffer(spec.items[x.org_idx])
+          return MiniPick.default_preview(buf, b and vim.tbl_extend("force", x, { bufnr = b }) or x)
         end
         vim.api.nvim_buf_set_lines(buf, 0, -1, false, { x.create and create_text(query_text() or "") or x.text })
       end,

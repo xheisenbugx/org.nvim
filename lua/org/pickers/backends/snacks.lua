@@ -42,7 +42,13 @@ function M.pick(spec, finish)
   -- each picker answers once; Snacks.picker.resume() opens a new one with
   -- these options
   local answered = setmetatable({}, { __mode = "k" })
-  M.api().pick({
+  local api = M.api()
+  -- snacks' file preview, of the buffer when the file is loaded
+  local function preview(ctx)
+    ctx.item.buf = pickers.buffer(ctx.item.org_item)
+    return api.preview.file(ctx)
+  end
+  api.pick({
     source = "org",
     title = spec.title,
     items = items,
@@ -54,7 +60,7 @@ function M.pick(spec, finish)
       end
       return out
     end,
-    preview = spec.preview and "file" or "none",
+    preview = spec.preview and preview or "none",
     layout = not spec.preview and { preset = "select" } or nil,
     actions = {
       confirm = function(picker, item)
