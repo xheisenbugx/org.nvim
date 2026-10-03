@@ -102,7 +102,10 @@ local function json(dir, args, stdin)
   eq(1, #lines, stdout)
   local okd, env_ = pcall(vim.json.decode, stdout)
   ok(okd, "not JSON: " .. stdout .. stderr)
-  eq("", stderr)
+  if vim.fn.has("win32") == 0 then
+    -- (Windows consoles may add their own noise to stderr)
+    eq("", stderr)
+  end
   eq(1, env_.version)
   return code, env_
 end
