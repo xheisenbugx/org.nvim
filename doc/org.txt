@@ -6864,6 +6864,9 @@ for `api.off(id)`; `api.events` maps each name to a short description.
     OrgFileLoaded        file, bufnr, source ("disk" or "buffer"): a file
                          was read from disk, or a buffer parsed for the
                          first time. Fires on the next event loop turn.
+Handlers run during the command, like Emacs hooks, and may edit buffers:
+the command follows its entries where a handler moves them (the region
+command its headlines).
 Other features fire their own events (clock, capture, agenda, babel, ...;
 see their sections). >lua
     local api = require("org.api")

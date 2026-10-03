@@ -3,6 +3,7 @@
 local config = require("org.config")
 local edit = require("org.edit")
 local files = require("org.files")
+local marks = require("org.marks")
 local parser = require("org.parser")
 local utils = require("org.utils")
 
@@ -743,33 +744,46 @@ function M.set_tags(target, tags, no_fast)
   tags_changed(bufnr, hl.line, old, tags)
   return tags
 end
+
 --- Add (`op = "add"`) or remove (`op = "remove"`) `tag` on every headline
 --- whose line is in [s, e] (org-change-tag-in-region). Returns the
---- number of headlines changed.
+--- number of headlines changed. An OrgTagsChanged handler may edit the
+--- buffer between two headlines, so each one is followed with a mark and
+--- its tags are read just before they change (Emacs follows the entries
+--- of an agenda region with markers).
 function M.change_tag_in_region(bufnr, s, e, op, tag)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
-  local file = files.get_buffer(bufnr)
-  local changed = 0
-  for _, hl in ipairs(file.headlines) do
-    if hl.line >= s and hl.line <= e then
-      local tags = vim.deepcopy(hl.tags)
-      local has = vim.tbl_contains(tags, tag)
-      if op == "add" and not has then
-        tags[#tags + 1] = tag
-      elseif op == "remove" and has then
-        tags = vim.tbl_filter(function(t)
-          return t ~= tag
-        end, tags)
-      end
-      if #tags ~= #hl.tags then
-        local before = vim.deepcopy(hl.tags)
-        edit.update_headline(bufnr, hl.line, { tags = tags })
-        tags_changed(bufnr, hl.line, before, tags)
-        changed = changed + 1
+  return marks.with(function(track)
+    local todo = {}
+    for _, hl in ipairs(files.get_buffer(bufnr).headlines) do
+      if hl.line >= s and hl.line <= e then
+        todo[#todo + 1] = track(bufnr, hl.line)
       end
     end
-  end
-  return changed
+    local changed = 0
+    for _, mark in ipairs(todo) do
+      local lnum = mark:lnum()
+      local hl = lnum and files.get_buffer(bufnr):headline_on(lnum)
+      if hl then
+        local tags = vim.deepcopy(hl.tags)
+        local has = vim.tbl_contains(tags, tag)
+        if op == "add" and not has then
+          tags[#tags + 1] = tag
+        elseif op == "remove" and has then
+          tags = vim.tbl_filter(function(t)
+            return t ~= tag
+          end, tags)
+        end
+        if #tags ~= #hl.tags then
+          local before = vim.deepcopy(hl.tags)
+          edit.update_headline(bufnr, hl.line, { tags = tags })
+          tags_changed(bufnr, hl.line, before, tags)
+          changed = changed + 1
+        end
+      end
+    end
+    return changed
+  end)
 end
 
 --- Set tags (C-c C-q). With a count, realign the tags of every headline
