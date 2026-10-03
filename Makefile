@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -10,6 +10,17 @@ test:
 # what is drawn now; review the changes before committing them.
 snapshots:
 	@ORG_UPDATE_SNAPSHOTS=1 $(MAKE) --no-print-directory test SPEC="$(or $(SPEC),tests/spec/screen_snapshot_spec.lua)"
+
+# The specs with line coverage of lua/org (tests/coverage.lua): the report,
+# lowest coverage first, goes to coverage/report.md (see CONTRIBUTING.md).
+# The JIT is off and every line is counted, so it's several times slower.
+coverage:
+	@d=$$(mktemp -d) && rm -rf coverage && \
+	ORG_COVERAGE_DIR=$(CURDIR)/coverage/counts XDG_DATA_HOME=$$d \
+	nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
+	s=$$?; rm -rf $$d; \
+	nvim --clean --headless -l scripts/coverage_report.lua coverage/counts coverage || s=1; \
+	exit $$s
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:

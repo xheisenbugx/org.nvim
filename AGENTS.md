@@ -14,6 +14,7 @@ make lint                                  # stylua --check, then scripts/lint_s
 make format                                # stylua over the same paths
 make site                                  # docs website into site/ (scripts/site/build.lua)
 make typecheck                             # lua-language-server --check with .luarc.json
+make coverage                              # specs with line coverage; report in coverage/report.md
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the

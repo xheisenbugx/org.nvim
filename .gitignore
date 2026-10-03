@@ -20,3 +20,6 @@ docs/media/*.png
 !docs/media/columns.png
 docs/media/video/
 .DS_Store
+
+# make coverage
+/coverage/

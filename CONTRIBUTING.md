@@ -32,6 +32,7 @@ ORG_TEST_JOBS=1 make test                 # all specs in one Neovim, one after a
 make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
 make typecheck                            # lua-language-server --check
+make coverage                             # specs with line coverage of lua/org
 git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
 
@@ -39,6 +40,18 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatt
 time as there are CPUs (`ORG_TEST_JOBS`), with its own throwaway
 `XDG_DATA_HOME`. A file that runs longer than `ORG_TEST_TIMEOUT` seconds
 (600) is killed and reported as failed.
+
+`make coverage` runs the same specs with line coverage of `lua/org`
+(`SPEC=` works too). A line hook in `tests/coverage.lua`, loaded only
+then, counts the lines each test Neovim runs (with the JIT off, so it's a
+few times slower), and `scripts/coverage_report.lua` merges the counts
+into `coverage/`: `report.md` lists every module, lowest coverage first,
+`summary.md` has the totals and the 20 lowest, and `missed.txt` the line
+ranges no spec runs, a list of what to test next. Nothing extra to
+install, and nothing of it reaches plugin users. The Coverage workflow
+runs it weekly (and from the Actions tab), uploads `coverage/` as an
+artifact and puts the summary on the run's page; it never runs on pull
+requests.
 
 To try your checkout in your own config, point lazy.nvim at it:
 
