@@ -170,13 +170,22 @@ end
 
 --- Entries matching a search view query (org-search-view): words,
 --- `+word`, `-word`, `"a phrase"`, `{regexp}`; a leading `*` searches
---- headlines only.
+--- headlines only. `opts.todo_only` keeps entries with a not-done keyword
+--- (C-u, or `!` after the `*`).
 ---@param query string
 ---@param opts? { todo_only?: boolean, files?: string|string[] }
 ---@return org.api.AgendaItem[]|nil items, string|nil err
 function M.search(query, opts)
   opts = opts or {}
-  local ok, pred = pcall(require("org.agenda.search").compile_text, (opts.todo_only and "!" or "") .. (query or ""))
+  query = query or ""
+  if opts.todo_only then
+    -- org-search-view reads a leading `*`, then `!`
+    local star, rest = query:match("^(%*?)(.*)$")
+    if rest:sub(1, 1) ~= "!" then
+      query = star .. "!" .. rest
+    end
+  end
+  local ok, pred = pcall(require("org.agenda.search").compile_text, query)
   if not ok then
     return nil, tostring(pred)
   end

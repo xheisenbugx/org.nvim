@@ -826,6 +826,25 @@ describe("org.api", function()
       eq("timestamp", it_.type)
     end)
 
+    it("search keeps a headline-only query with todo_only", function()
+      local p = write(dir, "notes.org", {
+        "* TODO Outline the talk",
+        "* TODO Slides",
+        "  an outline in the body",
+        "* Outline without keyword",
+      })
+      local function titles(list)
+        return vim.tbl_map(function(i)
+          return i.title
+        end, list)
+      end
+      eq({ "Outline the talk", "Outline without keyword" }, titles(api.agenda.search("*outline", { files = p })))
+      eq({ "Outline the talk", "Slides" }, titles(api.agenda.search("outline", { todo_only = true, files = p })))
+      eq({ "Outline the talk" }, titles(api.agenda.search("*outline", { todo_only = true, files = p })))
+      eq({ "Outline the talk" }, titles(api.agenda.search("*!outline", { todo_only = true, files = p })))
+      eq({ "Outline the talk", "Slides" }, titles(api.agenda.search("!outline", { todo_only = true, files = p })))
+    end)
+
     it("todo, tags and search lists", function()
       local titles = function(list)
         return vim.tbl_map(function(i)

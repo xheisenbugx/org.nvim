@@ -6756,7 +6756,9 @@ api.agenda.agenda([opts])   Days of an agenda span: `{ { date =
 api.agenda.todo([opts])     The TODO list; `opts.keywords` a keyword or a
                             list ("*": any keyword), `opts.files`.
 api.agenda.tags(match, [opts])  A tags/property match; `opts.todo_only`.
-api.agenda.search(query, [opts])  A search view query (|org-agenda-search|).
+api.agenda.search(query, [opts])  A search view query (|org-agenda-search|);
+                            `opts.todo_only` (like `!`, also with a
+                            leading `*`).
 
 Items are sorted like the views (`agenda.sorting`) and are `{ type, kind,
 title, todo, priority, category, tags, done, day, date, time, end_time,
