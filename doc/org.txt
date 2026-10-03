@@ -6709,7 +6709,9 @@ the fields and return the handle (or nil and an error):
                                   for, `opts.force` ignores blocking
     h:set_tags(tags)              a list or ":a:b:"; also h:add_tag(tag),
                                   h:remove_tag(tag)
-    h:set_priority(p)             "A", "10" or a number; nil removes it
+    h:set_priority(p)             "A", "10" or a number; nil removes it.
+                                  An error (also for nil) when
+                                  `priority_enable_commands` is false
     h:set_property(name, value)   org-entry-put; nil deletes the property
     h:get_property(name, [inherit])  special properties too (`ALLTAGS`)
     h:schedule(date)              C-c C-s, nil removes the date; also

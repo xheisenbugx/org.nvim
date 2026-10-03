@@ -434,6 +434,10 @@ end
 function Headline:set_priority(priority, opts)
   local res, err = M.edit(self, opts, function(t)
     local prio = require("org.priority")
+    if not prio.enabled() then
+      -- removing fails too, like (org-priority 'remove)
+      return nil
+    end
     if priority == nil or priority == "" or priority == " " then
       prio.set(t, " ")
       return true
