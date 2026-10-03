@@ -9045,7 +9045,11 @@ Reading:
 `org export FILE BACKEND [-o OUTPUT|--stdout]`
     Export FILE with a back-end of `:Org export` (`html`, `md`, `latex`,
     `pdf`, `ascii`, ...) and print the output path, or write the text to
-    stdout.
+    stdout. Code blocks are evaluated as in `:Org export`, but one that
+    would ask first (`babel.confirm_evaluate`, `:eval query`) stops the
+    export with exit code 3 and nothing written, as in Emacs's batch
+    export; `babel.confirm_evaluate = false` in the CLI's configuration
+    runs them without asking (for files you trust).
 
 Writing (each saves the files it changed):
 `org capture [-t KEY] [--field NAME=VALUE] [--input FILE] [--id] TEXT...`

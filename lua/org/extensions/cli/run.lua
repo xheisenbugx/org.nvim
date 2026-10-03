@@ -112,6 +112,15 @@ end
 
 M.out = out
 
+-- tostring() of a failure is its message: org.nvim code that catches an
+-- error and reports it (code blocks evaluated during an export, ...)
+-- then says what went wrong
+local Failure = {
+  __tostring = function(e)
+    return e.msg
+  end,
+}
+
 --- An error that ends the command. `ecode` is one of `schema.ERRORS`
 --- (its exit code is used), or a number (an exit code, error code
 --- `usage` for 2, else `failed`).
@@ -127,7 +136,7 @@ local function fail(msg, ecode, details)
     ecode = ecode or "failed"
     code = (schema.ERRORS[ecode] or schema.ERRORS.failed).exit
   end
-  error({ cli = true, msg = msg, code = code, ecode = ecode, details = details }, 0)
+  error(setmetatable({ cli = true, msg = msg, code = code, ecode = ecode, details = details }, Failure), 0)
 end
 M.fail = fail
 
@@ -170,10 +179,14 @@ local function ask(prompt)
   )
 end
 
+--- A prompt `--field` doesn't answer (a confirmation, a passphrase, a
+--- key press): fail with `input_needed`, naming its question (else `what`).
 local function no_input(what)
-  return function()
-    state.prompted = state.prompted or what
-    fail("interactive input needed (" .. what .. "); not available in the CLI", "input_needed", { prompt = what })
+  return function(prompt)
+    local label = type(prompt) == "string" and M.prompt_label(prompt) or ""
+    label = label ~= "" and label or what
+    state.prompted = state.prompted or label
+    fail("interactive input needed (" .. label .. "); not available in the CLI", "input_needed", { prompt = label })
   end
 end
 
@@ -1475,6 +1488,22 @@ end
 -- export
 ---------------------------------------------------------------------------
 
+--- Stop the export at a code block that would ask before it runs
+--- (`babel.confirm_evaluate`, `:eval query`): nothing is exported, as in
+--- Emacs's batch export, and the command fails with `input_needed`. The
+--- before-parsing hooks run right after the blocks are evaluated, and an
+--- export that fails there writes nothing.
+local function stop_export_at_prompt()
+  local o = require("org.config").opts.export
+  o.hooks = o.hooks or {}
+  local before = o.hooks.before_parsing
+  local list = type(before) == "table" and vim.list_slice(before) or { before }
+  table.insert(list, 1, function()
+    M.check_prompted()
+  end)
+  o.hooks.before_parsing = list
+end
+
 function M.cmd_export(words, flags)
   local file, backend = words[1], words[2]
   if not file or not backend then
@@ -1487,8 +1516,11 @@ function M.cmd_export(words, flags)
   local export = require("org.export")
   local bufnr = load_buffer(file)
   vim.api.nvim_set_current_buf(bufnr)
+  stop_export_at_prompt()
+  M.mark_messages()
   if flags.stdout or flags.output == "-" then
     local ok, text = pcall(export.to_string, backend, { bufnr = bufnr })
+    M.check_prompted()
     if not ok then
       fail(tostring(text), "failed")
     end
@@ -1498,11 +1530,11 @@ function M.cmd_export(words, flags)
     }
   end
   local output = flags.output and arg_path(flags.output) or nil
-  M.mark_messages()
   local res = export.export(backend, { bufnr = bufnr, output = output, async = false })
   if not res then
     M.fail_with_messages("export failed")
   end
+  M.check_prompted()
   res = vim.fs.normalize(res)
   return { data = { file = file, backend = backend, output = data.path(res), text = vim.NIL }, text = { res } }
 end

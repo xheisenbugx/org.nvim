@@ -425,6 +425,32 @@ describe("cli json: reading", function()
     ok(vim.tbl_contains(q({ "--archived" }), "Hidden task"))
   end)
 
+  it("evaluates code blocks like an export in Neovim, and stops at one that would ask", function()
+    local src = dir .. "/code.org"
+    vim.fn.writefile({ "* Code", "#+begin_src lua :exports both", "return 1 + 2", "#+end_src" }, src)
+    -- babel.confirm_evaluate (on by default) asks before running the block:
+    -- nothing is exported, as in Emacs's batch export
+    local code, e = json(dir, { "export", src, "md", "--stdout" })
+    eq(3, code)
+    eq("input_needed", e.errors[1].code)
+    local prompt = e.errors[1].details.prompt
+    ok(prompt:find("Evaluate this lua code block", 1, true), prompt)
+    for _, w in ipairs(e.warnings) do
+      ok(not w:find("table: 0x", 1, true), w)
+    end
+    code = json(dir, { "export", src, "md", "-o", dir .. "/code.md" })
+    eq(3, code)
+    eq(0, vim.fn.filereadable(dir .. "/code.md"))
+    -- without the question, the result is exported
+    local d = workspace({ "  babel = { confirm_evaluate = false }," })
+    vim.fn.writefile(read(src), d .. "/code.org")
+    code, e = json(d, { "export", d .. "/code.org", "md", "--stdout" })
+    eq(0, code)
+    eq({}, e.warnings)
+    ok(e.data.text:find("\n    3\n", 1, true), e.data.text)
+    vim.fn.delete(d, "rf")
+  end)
+
   it("searches text and tags matches", function()
     local _, e = json(dir, { "search", "zebra" })
     eq({ "Notes" }, titles(e.data))
