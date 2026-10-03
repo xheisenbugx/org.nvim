@@ -1630,7 +1630,10 @@ place entries without a time or an effort.
 Agenda keys                                                  *org-agenda-keys*
 
 All configurable under `mappings.agenda`:
-  f / b / .       later / earlier / today
+  f / b / .       later / earlier / today (`.` moves to today when the
+                  view shows it, else shows the span holding today: the
+                  week from `start_on_weekday`, the month from the 1st,
+                  the year from January 1st)
   vd vw vt vm vy  day / week / fortnight / month / year view (the span
                   starts at the day, week, month or year at point)
   v<Space>        reset the span to the default
