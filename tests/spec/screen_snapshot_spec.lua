@@ -241,6 +241,19 @@ describe("screen snapshot", function()
     vim.fn.delete(dir, "rf")
   end)
 
+  it("a picker wider than its rows for its title and footer", function()
+    -- the export dispatcher's # (insert template) picker: short rows, a
+    -- longer title and footer that used to be cut off at the rows' width
+    new(nil, 60, 14)
+    screen:org({ "#+TITLE: Hello", "", "* A" })
+    screen:input(" oe")
+    screen:request("nvim_eval", "1")
+    screen:input("#")
+    screen:request("nvim_eval", "1")
+    screen:expect("choose_title_footer")
+    screen:input("<Esc>")
+  end)
+
   it("fails with a diff when the screen differs, and on a missing golden file", function()
     local dir, update = Screen.dir, vim.env.ORG_UPDATE_SNAPSHOTS
     Screen.dir = vim.fn.tempname()

@@ -25,12 +25,14 @@ function M.float(lines, opts)
     for _, l in ipairs(lines) do
       width = math.max(width, utils.width(l) + 2)
     end
-    if opts.title then
-      width = math.max(width, utils.width(opts.title) + 4)
-    end
-    if opts.footer then
-      width = math.max(width, utils.width(opts.footer) + 4)
-    end
+  end
+  -- the title and footer sit in the border, padded by a space on each side:
+  -- a window narrower than them cuts them off, even with an explicit width
+  if opts.title then
+    width = math.max(width, utils.width(opts.title) + 4)
+  end
+  if opts.footer then
+    width = math.max(width, utils.width(opts.footer) + 4)
   end
   width = math.min(width, vim.o.columns - 4)
   local height = math.min(opts.height or #lines, vim.o.lines - 4)
@@ -486,14 +488,11 @@ function M.help(title, rows)
     width = width,
     height = math.min(#lines, vim.o.lines - 6),
     cursorline = true,
+    footer = "q/Esc close  / search  { } sections",
   })
   for _, h in ipairs(hls) do
     vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], { end_col = h[3], hl_group = h[4] })
   end
-  pcall(vim.api.nvim_win_set_config, win, {
-    footer = " q/Esc close  / search  { } sections ",
-    footer_pos = "center",
-  })
   for _, k in ipairs({ "q", "<Esc>", "g?" }) do
     vim.keymap.set("n", k, function()
       if vim.api.nvim_win_is_valid(win) then
