@@ -673,8 +673,19 @@ describe("pickers", function()
           grep_previewer = function()
             return "grep_previewer"
           end,
+          -- reads the file into the preview buffer
+          buffer_previewer_maker = function(path, bufnr, o)
+            vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.fn.readfile(path))
+            o.callback(bufnr)
+          end,
         },
       })
+      fake_module("telescope.previewers", {
+        new_buffer_previewer = function(o)
+          return o
+        end,
+      })
+      fake_module("telescope.previewers.utils", { highlighter = function() end })
       fake_module("telescope.actions", {
         select_default = {
           replace = function(_, fn)
@@ -704,12 +715,27 @@ describe("pickers", function()
       stub(require("org.config").opts, "picker", "telescope")
     end)
 
+    --- What the previewer shows for an item: the preview buffer's lines and
+    --- the line of its window's cursor.
+    local function preview(item)
+      local pbuf = vim.api.nvim_create_buf(false, true)
+      local pwin = vim.api.nvim_open_win(pbuf, false, { relative = "editor", row = 0, col = 0, width = 30, height = 3 })
+      local self = { state = { bufnr = pbuf, winid = pwin } }
+      conf.previewer.define_preview(self, conf.finder.entry_maker(item), {})
+      settle()
+      local lines, lnum = buf_lines(pbuf), vim.api.nvim_win_get_cursor(pwin)[1]
+      vim.api.nvim_win_close(pwin, true)
+      return lines, lnum
+    end
+
     it("builds entries with display highlights and jumps on select", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       require("org.actions").run("pick_headline")
       eq("Headlines", conf.prompt_title)
       eq("sorter", conf.sorter)
-      eq("grep_previewer", conf.previewer)
+      local lines, lnum = preview(conf.finder.results[2])
+      eq(utils.readfile(a_path), lines)
+      eq(3, lnum)
       local entry = conf.finder.entry_maker(conf.finder.results[2])
       eq("Projects › TODO [#A] Write report  :urgent:", entry.ordinal)
       eq(a_path, entry.filename)
@@ -728,6 +754,35 @@ describe("pickers", function()
       eq(conf.prompt_bufnr, closed)
       settle()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it("previews an entry of a buffer without a file", function()
+      org_buffer({ "* First", "* Second" }, { 1, 0 })
+      require("org.actions").run("pick_headline")
+      local lines, lnum = preview(conf.finder.results[2])
+      eq({ "* First", "* Second" }, lines)
+      eq(2, lnum)
+    end)
+
+    it("shows the line of the last entry when an earlier read ends later", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline")
+      -- the first read is slow; the second entry reuses its buffer, still empty
+      local reads = {}
+      stub(require("telescope.config").values, "buffer_previewer_maker", function(path, bufnr, o)
+        reads[#reads + 1] = function()
+          vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.fn.readfile(path))
+          o.callback(bufnr)
+        end
+      end)
+      local pbuf = vim.api.nvim_create_buf(false, true)
+      local pwin = vim.api.nvim_open_win(pbuf, false, { relative = "editor", row = 0, col = 0, width = 30, height = 3 })
+      local self = { state = { bufnr = pbuf, winid = pwin } }
+      conf.previewer.define_preview(self, conf.finder.entry_maker(conf.finder.results[1]), {})
+      conf.previewer.define_preview(self, conf.finder.entry_maker(conf.finder.results[3]), {})
+      reads[2]()
+      reads[1]()
+      eq(5, vim.api.nvim_win_get_cursor(pwin)[1])
     end)
 
     it("returns the multi-selection, a bare query, or cancels when wiped", function()
