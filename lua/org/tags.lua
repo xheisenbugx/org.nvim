@@ -11,13 +11,25 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.tags.select")
 
---- Fire the User autocmd `OrgTagsChanged` (org-after-tags-change-hook)
---- when the own tags of the headline at (bufnr, lnum) changed.
-local function tags_changed(bufnr, lnum, old, new)
+--- Fire the User autocmd `OrgTagsChanged` (org-after-tags-change-hook,
+--- which org-set-tags runs) for the headline at (bufnr, lnum), whose own
+--- tags went from `old` to `new`; nothing when they are equal.
+--- `edit.update_headline` calls it for every change of tags, so that each
+--- change fires once, whichever command made it. A handler may edit the
+--- buffer: returns the line the headline is on afterwards.
+---@param bufnr integer
+---@param lnum integer
+---@param old string[]
+---@param new string[]
+---@return integer lnum
+function M.changed(bufnr, lnum, old, new)
   if vim.deep_equal(old, new) then
-    return
+    return lnum
   end
   local name = vim.api.nvim_buf_get_name(bufnr)
+  -- set once the headline line is rewritten (a rewrite leaves a mark at
+  -- column 0, where lines inserted above no longer move it)
+  local mark = marks.set(bufnr, lnum)
   pcall(vim.api.nvim_exec_autocmds, "User", {
     pattern = "OrgTagsChanged",
     data = {
@@ -29,6 +41,9 @@ local function tags_changed(bufnr, lnum, old, new)
     },
     modeline = false,
   })
+  local now = mark and mark:lnum()
+  marks.del(mark)
+  return now or lnum
 end
 
 --- Parse a tag input string (":a:b:" / "a b" / "a:b") into a list.
@@ -739,9 +754,7 @@ function M.set_tags(target, tags, no_fast)
     hl = files.get_buffer(bufnr):headline_at(hl.line)
   end
   tags = M.sort(tags)
-  local old = vim.deepcopy(hl.tags)
   edit.update_headline(bufnr, hl.line, { tags = tags })
-  tags_changed(bufnr, hl.line, old, tags)
   return tags
 end
 
@@ -775,9 +788,7 @@ function M.change_tag_in_region(bufnr, s, e, op, tag)
           end, tags)
         end
         if #tags ~= #hl.tags then
-          local before = vim.deepcopy(hl.tags)
           edit.update_headline(bufnr, hl.line, { tags = tags })
-          tags_changed(bufnr, hl.line, before, tags)
           changed = changed + 1
         end
       end
@@ -860,7 +871,6 @@ function M.toggle_tag(target, tag)
     tags[#tags + 1] = tag
   end
   edit.update_headline(bufnr, hl.line, { tags = tags })
-  tags_changed(bufnr, hl.line, hl.tags, tags)
   return not idx
 end
 

@@ -6848,8 +6848,12 @@ for `api.off(id)`; `api.events` maps each name to a short description.
                          (|org-todo-events|)
     OrgTodoRepeat        same data, a repeating task moved on
     OrgPriorityChanged   bufnr, lnum, file, from, to (nil: no cookie)
-    OrgTagsChanged       bufnr, lnum, file, from, to (own tags; by C-c C-q,
-                         toggling, the region command and the API)
+    OrgTagsChanged       bufnr, lnum, file, from, to: the own tags of a
+                         headline changed, whatever changed them (C-c C-q,
+                         the region command, `todo_state_tags_triggers`
+                         once per tag, the ARCHIVE, ORDERED and ATTACH
+                         tags, the agenda, the column views, the API, ...;
+                         org-after-tags-change-hook)
     OrgPropertyChanged   bufnr, lnum, name, value
     OrgClockIn           bufnr, lnum, title
     OrgClockOut          path, title, minutes, removed

@@ -423,11 +423,15 @@ local function repeat_to_state(hl, todo_cfg, old)
   return seq and seq[1].name or nil
 end
 
---- Apply `todo_state_tags_triggers` for `state` (org-todo-trigger-tag-changes).
+--- Apply `todo_state_tags_triggers` for `state` (org-todo-trigger-tag-changes):
+--- each tag is turned on or off by itself, like org-toggle-tag, so that
+--- every change fires `OrgTagsChanged`. Its handlers may move the
+--- headline: returns the line it is on afterwards.
+---@return integer lnum
 local function trigger_tags(bufnr, lnum, todo_cfg, state)
   local triggers = config.opts.todo_state_tags_triggers
   if type(triggers) ~= "table" or vim.tbl_isempty(triggers) then
-    return
+    return lnum
   end
   local changes = {}
   local function collect(key)
@@ -446,16 +450,13 @@ local function trigger_tags(bufnr, lnum, todo_cfg, state)
   elseif todo_cfg:is_done(state) then
     collect("done")
   end
-  if #changes == 0 then
-    return
-  end
-  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
-  local p = require("org.parser").parse_headline_line(line, todo_cfg)
-  if not p then
-    return
-  end
-  local tags = vim.deepcopy(p.tags or {})
   for _, c in ipairs(changes) do
+    local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+    local p = line and require("org.parser").parse_headline_line(line, todo_cfg)
+    if not p then
+      return lnum
+    end
+    local tags = vim.deepcopy(p.tags or {})
     local idx
     for i, t in ipairs(tags) do
       if t == c[1] then
@@ -467,8 +468,12 @@ local function trigger_tags(bufnr, lnum, todo_cfg, state)
     elseif not c[2] and idx then
       table.remove(tags, idx)
     end
+    if #tags ~= #(p.tags or {}) then
+      local _, now = edit.update_headline(bufnr, lnum, { tags = tags })
+      lnum = now
+    end
   end
-  edit.update_headline(bufnr, lnum, { tags = tags })
+  return lnum
 end
 
 ---@class org.TodoChangeResult
@@ -597,12 +602,12 @@ function M.change_state(target, new, opts)
     local final = repeat_to_state(hl, todo_cfg, old)
     local has_clock = #hl.clocks > 0
     shift_repeaters(bufnr, hl, date.now(), today)
-    trigger_tags(bufnr, lnum, todo_cfg, new)
+    lnum = trigger_tags(bufnr, lnum, todo_cfg, new)
     edit.update_headline(bufnr, lnum, { todo = final or false })
     if hl.planning.closed then
       edit.set_planning(bufnr, lnum, "closed", nil)
     end
-    trigger_tags(bufnr, lnum, todo_cfg, final)
+    lnum = trigger_tags(bufnr, lnum, todo_cfg, final)
     if log_repeat or has_clock then
       edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive:to_string())
     end
@@ -644,7 +649,7 @@ function M.change_state(target, new, opts)
         edit.set_planning(bufnr, lnum, "closed", nil)
       end
     end
-    trigger_tags(bufnr, lnum, todo_cfg, new)
+    lnum = trigger_tags(bufnr, lnum, todo_cfg, new)
     if new and state_log and not aborted then
       edit.add_log_entry(bufnr, lnum, state_entry(new, old, note, now_eff))
     elseif becomes_done and log_done == "note" and not aborted then
@@ -669,8 +674,10 @@ function M.change_state(target, new, opts)
     end
   end
   if cfg.provide_todo_statistics ~= false then
-    update_parent_statistics(bufnr, hl)
+    -- (an OrgTagsChanged handler may have moved the entry)
+    update_parent_statistics(bufnr, files.get_buffer(bufnr):headline_on(lnum) or hl)
   end
+  result.lnum = lnum
   -- org-after-todo-state-change-hook / org-trigger-hook / org-todo-repeat-hook
   local data = {
     bufnr = bufnr,
