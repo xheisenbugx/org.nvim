@@ -5,7 +5,9 @@
 -- runners; ORG_PERF_SCALE=3 multiplies them (and ORG_PERF_SCALE=0.2 makes
 -- them strict when hunting a regression). Growth checks time the same work
 -- at size N and 2N: twice the input may take at most 3x the time, which a
--- linear algorithm passes on any machine and a quadratic one (4x) fails.
+-- linear algorithm passes on any machine and a quadratic one (4x) fails;
+-- N is first doubled until the work, not the timer or a fixed cost, makes
+-- the time ("perf: growth checks" feeds them work of known growth).
 -- "perf: memory" checks that repeated exports leave the heap flat.
 -- ORG_PERF_REPORT=1 prints every measurement. See CONTRIBUTING.md
 -- "Performance budgets".
@@ -53,32 +55,152 @@ local function budget(label, ms, fn)
   return dt
 end
 
---- `fn(n)` at 2n may take at most 3x its time at n (plus `slack` ms, 10 by
---- default, for timer noise on fast operations). `setup(n)` (optional)
---- prepares untimed state and returns the argument for `fn`.
-local function linear(label, n, fn, setup, slack)
-  local function run(size)
-    return time(function()
-      fn(setup and setup(size) or size)
-    end, 1)
+-- Growth checks: twice the work takes twice the time when it is linear, 4
+-- times when it is quadratic; the limit is 3 times, plus NOISE_MS. That
+-- tells them apart only when the time measured is the work's: at least
+-- MIN_MS (the noise of the timer is then a few percent of it), and
+-- DOMINANT times the time at n/16, so that a fixed cost (setting up the
+-- syntax, a buffer) doesn't drown the work: what grows is then at least
+-- 5 times what doesn't, and quadratic work takes 3.5 times as long at 2n.
+-- n is doubled until it is, at most MAX_DOUBLINGS times.
+local MIN_MS, NOISE_MS, DOMINANT, MAX_DOUBLINGS = 25, 2, 6, 6
+
+--- The time of `fn` at n and at 2n (the best of 3 runs; `setup(size)`
+--- prepares untimed state and returns the argument for `fn`), n doubled
+--- first, up to `max` (default: no limit), until the work dominates the
+--- time. Returns { n, t1, t2, small (the time at n/16), limit, measurable,
+--- linear }.
+local function growth(n, fn, setup, max)
+  local function best(size)
+    local t = math.huge
+    for _ = 1, 3 do
+      -- (set up again for each run, outside the timing)
+      local arg = setup and setup(size) or size
+      t = math.min(
+        t,
+        time(function()
+          fn(arg)
+        end)
+      )
+    end
+    return t
   end
+  local t1, small, measurable
+  local doublings = 0
+  while true do
+    t1 = best(n)
+    small = best(math.max(1, math.floor(n / 16)))
+    measurable = t1 >= MIN_MS and t1 >= DOMINANT * small
+    if measurable or doublings == MAX_DOUBLINGS or (max and 2 * n > max) then
+      break
+    end
+    n = 2 * n
+    doublings = doublings + 1
+  end
+  local g = { n = n, t1 = t1, small = small, measurable = measurable }
+  g.t2 = best(2 * n)
+  g.limit = 3 * t1 + NOISE_MS
+  g.linear = g.t2 <= g.limit
+  return g
+end
+
+--- `fn` must take time linear in the size of its input (`growth`): at 2n
+--- at most 3 times its time at n.
+local function linear(label, n, fn, setup, max)
   if not TIMED then
     -- (once, for the lines it runs)
-    run(n)
+    fn(setup and setup(n) or n)
     return
   end
-  -- (setup outside the timing: run separately and keep the best of two)
-  local function best(size)
-    local a = run(size)
-    local b = run(size)
-    return math.min(a, b)
-  end
-  local t1 = best(n)
-  local t2 = best(2 * n)
-  local limit = 3 * t1 + (slack or 10) * SCALE
-  report(label, t2, (" (n: %.1f ms, 2n: %.1f ms, limit %.1f)"):format(t1, t2, limit))
-  ok(t2 <= limit, ("%s: %.1f ms at n=%d, %.1f ms at 2n: grows faster than linear"):format(label, t1, n, t2))
+  local g = growth(n, fn, setup, max)
+  report(
+    label,
+    g.t2,
+    (" (n=%d: %.1f ms, 2n: %.1f ms, limit %.1f, n/16: %.1f ms)"):format(g.n, g.t1, g.t2, g.limit, g.small)
+  )
+  ok(
+    g.measurable,
+    ("%s: %.1f ms at n=%d, %.1f ms at n/16: too little of it grows with n to tell linear from quadratic"):format(
+      label,
+      g.t1,
+      g.n,
+      g.small
+    )
+  )
+  ok(g.linear, ("%s: %.1f ms at n=%d, %.1f ms at 2n: grows faster than linear"):format(label, g.t1, g.n, g.t2))
 end
+
+-- The growth check itself, fed work whose growth is known: it fails
+-- quadratic work, also behind a fixed cost, passes linear work behind
+-- one, and doesn't judge work that doesn't grow.
+describe("perf: growth checks", function()
+  --- Busy for `ms` milliseconds: work of a known time.
+  local function busy(ms)
+    local t = now()
+    while now() - t < ms do
+    end
+  end
+  --- 1..n
+  local function list_of(n)
+    local l = {}
+    for i = 1, n do
+      l[i] = i
+    end
+    return l
+  end
+  --- Each element looked up by a search of the list, as the exporters
+  --- did for each footnote reference: quadratic.
+  local function search_each(list)
+    local found = 0
+    for _, x in ipairs(list) do
+      for _, y in ipairs(list) do
+        if y == x then
+          found = found + 1
+          break
+        end
+      end
+    end
+    return found
+  end
+  --- (timing: not under `make coverage`)
+  local function timed(name, fn)
+    it(name, function()
+      if TIMED then
+        fn()
+      end
+    end)
+  end
+
+  timed("fails quadratic work", function()
+    local g = growth(1000, search_each, list_of)
+    ok(g.measurable and not g.linear, vim.inspect(g))
+    g = growth(100, function(n)
+      busy(n * n / 1e4)
+    end)
+    ok(g.measurable and not g.linear, vim.inspect(g))
+  end)
+
+  timed("fails quadratic work behind a fixed cost", function()
+    local g = growth(100, function(n)
+      busy(10 + n * n / 1e4)
+    end)
+    ok(g.measurable and not g.linear, vim.inspect(g))
+  end)
+
+  timed("passes linear work behind a fixed cost", function()
+    local g = growth(1000, function(n)
+      busy(10 + n / 10)
+    end)
+    ok(g.measurable and g.linear, vim.inspect(g))
+  end)
+
+  timed("doesn't judge work that doesn't grow", function()
+    local g = growth(100, function()
+      busy(30)
+    end)
+    ok(not g.measurable, vim.inspect(g))
+  end)
+end)
 
 local function messages()
   return vim.api.nvim_exec2("messages", { output = true }).output
@@ -112,12 +234,15 @@ end
 
 describe("perf: long lines", function()
   setup()
-  --- A file with one `kind` of long line between two headlines.
-  local function file(kind, n)
-    local line = ({
+  --- A line of `kind` of `n` characters.
+  local function line(kind, n)
+    return ({
       prose = gen.prose,
       marked = gen.marked,
       markers = gen.markers,
+      bold = function(k)
+        return string.rep("*a* ", math.ceil(k / 4)):sub(1, k)
+      end,
       list = function(k)
         return "- " .. gen.prose(k) .. " :: term"
       end,
@@ -128,7 +253,11 @@ describe("perf: long lines", function()
         return "** TODO " .. gen.marked(k) .. " :tag:"
       end,
     })[kind](n)
-    return { "* Before", line, "* After *bold*" }
+  end
+
+  --- A file with one `kind` of long line between two headlines.
+  local function file(kind, n)
+    return { "* Before", line(kind, n), "* After *bold*" }
   end
 
   --- Draw the buffer again from scratch (the syntax state of every line
@@ -154,24 +283,13 @@ describe("perf: long lines", function()
     end)
   end
 
-  for _, kind in ipairs({ "prose", "marked", "list", "table", "headline" }) do
-    it(kind .. ": drawing time grows linearly with the line", function()
-      local buf = open(file(kind, 100))
-      vim.cmd("messages clear")
-      linear("draw a " .. kind .. " line", 20000, redraw_fresh, function(n)
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, file(kind, n))
-      end)
-      -- ('redrawtime' caps a drawing that turns syntax off)
-      local m = messages()
-      ok(not m:find("redrawtime"), m)
-    end)
-  end
-
-  -- Lines shorter than 'synmaxcol' are drawn to their end: a screen of
-  -- them shows what each marker costs. A look-behind for a table row on
-  -- each emphasis marker went back to the start of the line: 20 lines of
-  -- 2,900 characters of bold took 1.4 s to draw, 3.7x the time of 1,450.
-  describe("a screen of lines of markup", function()
+  -- How drawing grows with the length of the lines, on a screen of 20 of
+  -- them shorter than 'synmaxcol', where every column is drawn (past it
+  -- nothing more is, so a line twice as long there is no more work). A
+  -- look-behind for a table row on each emphasis marker went back to the
+  -- start of the line: 20 lines of 2,900 characters of bold took 1.4 s to
+  -- draw, 3.7x the time of 1,450.
+  describe("a screen of lines", function()
     local wrap
     before_each(function()
       wrap = vim.wo.wrap
@@ -179,26 +297,39 @@ describe("perf: long lines", function()
     after_each(function()
       vim.wo.wrap = wrap
     end)
+    -- (2n and what a kind adds to a line within 'synmaxcol')
+    local max = math.floor(vim.o.synmaxcol / 2) - 50
 
-    it("draws in time linear in their length", function()
-      local buf = open({ "" })
-      -- (a screen row per line: all 20 are drawn)
-      vim.wo.wrap = false
-      local function screen(n)
-        local lines = { "* Before" }
-        for _ = 1, 20 do
-          lines[#lines + 1] = string.rep("*a* ", math.ceil(n / 4)):sub(1, n)
+    for _, kind in ipairs({ "prose", "marked", "bold", "list", "table", "headline" }) do
+      it(kind .. ": drawing time grows linearly with the lines", function()
+        local buf = open({ "" })
+        -- (a screen row per line: all 20 are drawn)
+        vim.wo.wrap = false
+        local function screen(n)
+          local lines = { "* Before" }
+          for _ = 1, 20 do
+            lines[#lines + 1] = line(kind, n)
+          end
+          lines[#lines + 1] = "* After *bold*"
+          return lines
         end
-        lines[#lines + 1] = "* After *bold*"
-        return lines
-      end
-      linear("draw 20 lines of bold", 1450, redraw_fresh, function(n)
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, screen(n))
+        vim.cmd("messages clear")
+        -- (3 times: n can't grow past 'synmaxcol', the time must be well
+        -- above the timer's noise on a fast machine too)
+        linear("draw 20 " .. kind .. " lines 3x", math.floor(max / 2), function()
+          for _ = 1, 3 do
+            redraw_fresh()
+          end
+        end, function(n)
+          vim.api.nvim_buf_set_lines(buf, 0, -1, false, screen(n))
+        end, max)
+        -- ('redrawtime' caps a drawing that turns syntax off)
+        local m = messages()
+        ok(not m:find("redrawtime"), m)
+        eq("OrgHeadlineLevel1", syn(22, 1))
+        eq("OrgBold", syn(22, 11))
       end)
-      eq("OrgBold", syn(2, 2))
-      eq("OrgBold", syn(21, 2))
-      eq("OrgHeadlineLevel1", syn(22, 1))
-    end)
+    end
   end)
 
   it("typing in a 10,000-character line", function()
@@ -280,7 +411,7 @@ describe("perf: 10,000 headlines", function()
     budget("parse 10,000 headlines", 1500, function()
       require("org.parser").parse(lines)
     end)
-    linear("parse headlines", 2000, function(l)
+    linear("parse headlines", 20000, function(l)
       require("org.parser").parse(l)
     end, gen.headlines)
   end)
@@ -384,20 +515,20 @@ describe("perf: export and lint grow linearly", function()
   -- (Markdown asked for each headline whether a link refers to it, by
   -- walking the whole tree: minutes for 5,000 headlines)
   it("headlines", function()
-    linear("export headlines to Markdown", 500, export("md"), gen.headlines, 30)
-    linear("export headlines to HTML", 500, export("html"), gen.headlines, 30)
+    linear("export headlines to Markdown", 500, export("md"), gen.headlines)
+    linear("export headlines to HTML", 500, export("html"), gen.headlines)
   end)
 
   -- (emphasis looked for its end from each opening marker, plain links
   -- for a colon over each long word)
   it("long lines", function()
-    linear("export long lines to HTML", 20000, export("html"), gen.long_lines, 30)
+    linear("export long lines to HTML", 20000, export("html"), gen.long_lines)
   end)
 
   it("table rows", function()
     linear("export table rows to HTML", 500, export("html"), function(n)
       return gen.table(n, 20)
-    end, 30)
+    end)
   end)
 
   it("top-level headlines with planning lines", function()
@@ -410,7 +541,7 @@ describe("perf: export and lint grow linearly", function()
         vim.list_extend(lines, { "* H" .. i, "SCHEDULED: <2026-05-13 Wed>", ":LOGBOOK:", ":END:" })
       end
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    end, 30)
+    end)
   end)
 end)
 
@@ -432,7 +563,7 @@ describe("perf: decorations", function()
   it("of long lines grow linearly", function()
     local deco = require("org.ui.decorations")
     local buf = open({ "" })
-    linear("decorations of long lines", 10000, function()
+    linear("decorations of long lines", 40000, function()
       deco.compute(buf, 0, vim.api.nvim_buf_line_count(buf) - 1, deco.ui_options(buf))
     end, function(n)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.long_lines(n))
@@ -457,7 +588,7 @@ describe("perf: tables", function()
     eq(#row, #vim.fn.getline(4))
     eq(#row, #vim.fn.getline(2002))
     local buf = vim.api.nvim_get_current_buf()
-    linear("realign rows", 500, function()
+    linear("realign rows", 1000, function()
       vim.api.nvim_win_set_cursor(0, { 10, 2 })
       require("org.table").align()
     end, function(n)
@@ -482,12 +613,12 @@ describe("perf: tables", function()
   it("recalculates formulas linearly", function()
     local buf = open({ "" })
     local n
-    linear("recalculate a table", 300, function()
+    linear("recalculate a table", 600, function()
       require("org.table").recalc(buf, 3)
     end, function(size)
       n = size
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.table(n, 6, { formula = "$6=$1+$2+$3::@2$5=vsum(@3..@>)" }))
-    end, 50)
+    end)
     -- the column formula ran on every row
     eq(tostring(6 * n), vim.fn.getline(n + 3):match("(%d+)%s*|$"))
   end)
@@ -522,13 +653,13 @@ describe("perf: links and footnotes", function()
   it("export and lint grow linearly", function()
     linear("export links and footnotes", 1000, function(l)
       require("org.export").to_string("html", { lines = l })
-    end, gen.links_footnotes, 30)
+    end, gen.links_footnotes)
     local buf = open({ "" })
     linear("lint links and footnotes", 1000, function()
       require("org.lint").lint(buf)
     end, function(n)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.links_footnotes(n))
-    end, 30)
+    end)
   end)
 end)
 
