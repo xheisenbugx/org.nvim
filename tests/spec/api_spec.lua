@@ -1215,6 +1215,49 @@ describe("org.api", function()
       eq(buf, prio[1].bufnr)
     end)
 
+    it("fires OrgFileLoaded for listeners with patterns that match it", function()
+      local got = {}
+      local function on(pattern)
+        return vim.api.nvim_create_autocmd("User", {
+          pattern = pattern,
+          callback = function(ev)
+            got[#got + 1] = pattern .. " " .. ev.match
+          end,
+        })
+      end
+      local fic = vim.o.fileignorecase
+      local ids = {}
+      local ok_, err = pcall(function()
+        vim.o.fileignorecase = false
+        ids = { on("Org*"), on("*Loaded"), on("Org[EF]ile?oaded"), on("orgfileloaded"), on("OrgTodo*") }
+        api.load(write(dir, "glob.org", { "* Glob" }))
+        vim.wait(200, function()
+          return #got >= 3
+        end)
+        table.sort(got)
+        eq({ "*Loaded OrgFileLoaded", "Org* OrgFileLoaded", "Org[EF]ile?oaded OrgFileLoaded" }, got)
+        -- autocmd patterns ignore case with 'fileignorecase'
+        got = {}
+        vim.o.fileignorecase = true
+        api.load(write(dir, "case.org", { "* Case" }))
+        vim.wait(200, function()
+          return #got >= 4
+        end)
+        table.sort(got)
+        eq({
+          "*Loaded OrgFileLoaded",
+          "Org* OrgFileLoaded",
+          "Org[EF]ile?oaded OrgFileLoaded",
+          "orgfileloaded OrgFileLoaded",
+        }, got)
+      end)
+      vim.o.fileignorecase = fic
+      for _, id in ipairs(ids) do
+        vim.api.nvim_del_autocmd(id)
+      end
+      ok(ok_, err)
+    end)
+
     it("fires OrgFileLoaded once per read", function()
       local events = listen("OrgFileLoaded")
       local p = write(dir, "fresh.org", { "* Fresh" })

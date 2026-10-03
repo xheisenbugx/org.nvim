@@ -12,13 +12,49 @@ local M = {}
 local disk_cache = {} -- path -> { mtime, size, file, todo_spec }
 local buf_cache = {} -- bufnr -> { tick, name, cwd, file, todo_spec }
 
+-- autocmd pattern -> its regex (false: none), per 'fileignorecase'
+local pattern_regex = { [true] = {}, [false] = {} }
+
+--- Does a User autocmd listen to `name`? Its pattern is matched the way
+--- Neovim matches autocmd patterns: a file pattern (`Org*`, `Org?ile*`,
+--- `{A,B}`), ignoring case with 'fileignorecase'. A buffer-local one may.
+---@param name string
+---@return boolean
+local function listened(name)
+  local ok, acs = pcall(vim.api.nvim_get_autocmds, { event = "User" })
+  if not ok then
+    return false
+  end
+  local fic = vim.o.fileignorecase
+  local cache = pattern_regex[fic]
+  for _, ac in ipairs(acs) do
+    local pat = ac.pattern
+    if ac.buflocal or pat == name then
+      return true
+    end
+    if pat and pat ~= "" then
+      local re = cache[pat]
+      if re == nil then
+        local rok, r = pcall(function()
+          return vim.regex((fic and "\\c" or "\\C") .. vim.fn.glob2regpat(pat))
+        end)
+        re = rok and r or false
+        cache[pat] = re
+      end
+      if re and re:match_str(name) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 --- Fire the User autocmd `OrgFileLoaded` (scheduled: parsing can happen
 --- where autocommands must not run, such as a fold expression) when a
 --- file is read from disk, or a buffer is parsed for the first time. Only
 --- when someone listens, so a parse costs nothing more otherwise.
 local function loaded(filename, bufnr, source)
-  local ok, acs = pcall(vim.api.nvim_get_autocmds, { event = "User", pattern = "OrgFileLoaded" })
-  if not ok or #acs == 0 then
+  if not listened("OrgFileLoaded") then
     return
   end
   vim.schedule(function()
