@@ -267,7 +267,7 @@ describe("cli (bin/org)", function()
     local dir = workspace()
     local code, stdout = run(dir, { "agenda", "week", "--json" })
     eq(0, code)
-    local data = vim.json.decode(stdout)
+    local data = vim.json.decode(stdout).data
     eq("agenda", data.view)
     local by_title = {}
     for _, it in ipairs(data.items) do
@@ -291,7 +291,7 @@ describe("cli (bin/org)", function()
   it("moves the agenda with --date and lists TODOs", function()
     local dir = workspace()
     local _, stdout = run(dir, { "agenda", "day", "--date", "+1", "--json" })
-    local data = vim.json.decode(stdout)
+    local data = vim.json.decode(stdout).data
     eq(os.date("%Y-%m-%d", os.time() + 86400), data.start)
     eq("Plan the offsite", data.items[1].title)
     local code, todo = run(dir, { "agenda", "todo" })
@@ -331,7 +331,7 @@ describe("cli (bin/org)", function()
     eq(0, code)
     eq({ "* From a pipe" }, read(dir .. "/notes.org"))
     local _, stdout = run(dir, { "capture", "--list", "--json" })
-    local list = vim.json.decode(stdout)
+    local list = vim.json.decode(stdout).data
     local keys = {}
     for _, t in ipairs(list) do
       keys[#keys + 1] = t.key
@@ -360,7 +360,7 @@ describe("cli (bin/org)", function()
     local lines = read(dir .. "/work.org")
     ok(table.concat(lines, "\n"):match("CLOCK: %[[^%]]+%]\n"))
     local _, js = run(dir, { "clock", "status", "--json" })
-    local st = vim.json.decode(js)
+    local st = vim.json.decode(js).data
     eq(true, st.active)
     eq("Write release notes", st.title)
     eq(vim.fs.normalize(vim.fn.resolve(dir .. "/work.org")), vim.fs.normalize(vim.fn.resolve(st.file)))
@@ -383,7 +383,7 @@ describe("cli (bin/org)", function()
     run(dir, { "clock", "in", "Review" })
     vim.fn.delete(dir .. "/clock.json")
     local _, js = run(dir, { "clock", "status", "--json" })
-    eq("Review pull request", vim.json.decode(js).title)
+    eq("Review pull request", vim.json.decode(js).data.title)
     vim.fn.delete(dir, "rf")
   end)
 
@@ -404,7 +404,7 @@ describe("cli (bin/org)", function()
     eq(0, code)
     ok(stdout:match("work%.org:11: %* Notes"))
     local _, js = run(dir, { "search", "release", "--json" })
-    local res = vim.json.decode(js)
+    local res = vim.json.decode(js).data
     eq(1, #res)
     eq("Write release notes", res[1].title)
     eq("TODO", res[1].todo)
