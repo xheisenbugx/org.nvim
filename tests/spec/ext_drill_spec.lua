@@ -1,3 +1,4 @@
+---@diagnostic disable: missing-fields -- partial records on purpose
 local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local date = require("org.date")

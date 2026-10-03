@@ -304,7 +304,8 @@ end
 ---@param in_table boolean the variant for table cells (contained in
 --- orgTable): never across a "|" (Emacs: "Do not span over cells in table
 --- rows"), one line
-local function emphasis(in_table, conceal_emph)
+---@param synmaxcol integer the buffer's 'synmaxcol' (0: no limit)
+local function emphasis(in_table, conceal_emph, synmaxcol)
   -- org-emphasis-regexp-components: allowed characters before and after
   -- the markers, the characters the text cannot start or end with (only
   -- blanks), and at most one newline inside (Emacs `org-emph-re`).
@@ -312,29 +313,61 @@ local function emphasis(in_table, conceal_emph)
   local post = [=[\%($\|[[:space:].,:!?;'")}\[-]\)]=]
   local border = in_table and [=[[^[:space:]|]]=] or [=[\S]=]
   local any = in_table and "[^|]" or "."
+  -- Markup is drawn only when it ends before 'synmaxcol': past it Vim
+  -- doesn't look for the end of a region, which then went on over the
+  -- following lines (`apply` defines the syntax again when the option
+  -- changes). The text is matched only up to that column too: each
+  -- opening marker looks ahead for its closing one, and a long line with
+  -- many unclosed markers took time quadratic in its length (400 ms to
+  -- draw a 10,000-character one; at 100,000 "'redrawtime' exceeded" turned
+  -- syntax off). So markup over two lines whose part on the first line is
+  -- longer than 'synmaxcol' isn't drawn either (:h org-differences).
+  local before_max, upto_max, count = "", "", [=[\{-}]=]
+  if synmaxcol > 0 then
+    before_max = string.format([=[\%%<%dc]=], synmaxcol)
+    upto_max = string.format([=[\%%<%dc]=], synmaxcol + 1)
+    -- (cheaper than testing the column at each character)
+    count = string.format([=[\{-,%d}]=], synmaxcol)
+  end
+  local function chars(c)
+    return c .. count
+  end
   -- the newline cannot be followed by a line that ends the paragraph
-  local nl = in_table and "" or string.format([=[\%%(\n\%%(%s\)\@!.\{-}\)\=]=], PARA_SEP)
-  local body = string.format([=[\%%(%s\|%s%s\{-}%s%s\)]=], border, border, any, nl, border)
-  -- (the general regions don't start on table rows, where the cell
-  -- variant applies)
-  local not_table = in_table and "" or [=[\%(^\s*|.*\)\@<!]=]
+  local nl = in_table and "" or string.format([=[\%%(\n\%%(%s\)\@!%s\)\=]=], PARA_SEP, chars("."))
+  local body = string.format([=[\%%(%s\|%s%s%s%s\)%s]=], border, border, chars(any), nl, border, upto_max)
   local function emph(i, char)
     local group = MARKUP[i]
     local c = esc(char)
     -- headline stars never open bold markup (Emacs `org-do-emphasis-faces`),
     -- or "*** Title" would be bold "*" with both outer stars concealed
     local not_stars = char == "*" and [=[\%(^\*\+ \)\@!]=] or ""
-    local contains
-    if char == "=" or char == "~" then
-      contains = ""
-    else
-      local others = {}
-      for j, g in ipairs(MARKUP) do
-        -- (not the group itself: "*a *b *c ..." would nest without end)
-        if j ~= i then
-          others[#others + 1] = g
+    local verbatim = char == "=" or char == "~"
+    -- the other kinds: markup holds them (verbatim and code hold none;
+    -- not its own kind: "*a *b *c ..." would nest without end)
+    local others, holders = {}, { "orgTable" }
+    for j, g in ipairs(MARKUP) do
+      if j ~= i then
+        others[#others + 1] = g
+        if j <= 4 then
+          holders[#holders + 1] = g
         end
       end
+    end
+    local contains
+    if in_table then
+      -- Table rows (orgTable) get the cell variant item by item
+      -- (containedin): a contains= of orgTable takes group names, and
+      -- with them the general regions, which run over the cells. (Those
+      -- had a look-behind for the start of a table row instead, which
+      -- went back to the start of the line from every marker: quadratic
+      -- in the length of a line of markup.) Markup in a cell holds the
+      -- cell variants of the other kinds the same way.
+      contains = (verbatim and "" or ("contains=" .. list("@Spell", OBJECTS) .. " "))
+        .. "containedin="
+        .. table.concat(holders, ",")
+    elseif verbatim then
+      contains = ""
+    else
       contains = "contains=" .. list("@Spell", OBJECTS, others)
     end
     -- The end is the first marker after a non-blank that is not the
@@ -346,10 +379,10 @@ local function emphasis(in_table, conceal_emph)
         [=[syntax region %s matchgroup=%sDelimiter start=/\%%#=1%s%s%s%s\ze%s%s%s/ end=/\%%#=1%s\@4<=\%%(\%%(^\|[[:space:]('"{-]\)%s\)\@2<!%s\ze%s/ keepend%s%s %s]=],
         group,
         group,
+        before_max,
         not_stars,
         pre,
         c,
-        not_table,
         body,
         c,
         post,
@@ -447,9 +480,56 @@ local function watch_languages(bufnr)
   })
 end
 
+--- Define the syntax of `buf` again when its 'synmaxcol' is no longer the
+--- one its emphasis patterns were made for: with a lower one, markup that
+--- ends past it would start a region Vim never ends.
+local function follow_synmaxcol(buf)
+  if
+    vim.api.nvim_buf_is_valid(buf)
+    and vim.b[buf].current_syntax == "org"
+    and vim.b[buf].org_synmaxcol ~= nil
+    and vim.b[buf].org_synmaxcol ~= vim.bo[buf].synmaxcol
+  then
+    vim.api.nvim_buf_call(buf, function()
+      M.apply(buf)
+    end)
+  end
+end
+
+local following = false
+
+--- Follow changes of 'synmaxcol' (once per session): OptionSet sees
+--- :set, :setlocal, modelines and Lua; BufWinEnter the changes made by
+--- other autocommands while a file opens (FileType, BufEnter), for which
+--- OptionSet doesn't fire.
+local function watch_synmaxcol()
+  if following then
+    return
+  end
+  following = true
+  local group = vim.api.nvim_create_augroup("org.syntax.synmaxcol", { clear = true })
+  vim.api.nvim_create_autocmd("OptionSet", {
+    group = group,
+    pattern = "synmaxcol",
+    callback = function()
+      follow_synmaxcol(vim.api.nvim_get_current_buf())
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    callback = function(ev)
+      follow_synmaxcol(ev.buf)
+    end,
+  })
+end
+
 function M.apply(bufnr)
   require("org.highlights").ensure()
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  -- emphasis is matched up to the buffer's 'synmaxcol' (see `emphasis`)
+  local synmaxcol = vim.bo[bufnr].synmaxcol
+  vim.b[bufnr].org_synmaxcol = synmaxcol
+  watch_synmaxcol()
   local config = require("org.config").opts
   local file = require("org.files").get_buffer(bufnr)
   local todo = file.settings.todo
@@ -570,45 +650,71 @@ function M.apply(bufnr)
   cmd([=[syntax match orgInlineSrcBody /{\@1<=[^}]\+/ contained]=])
 
   -- Emphasis -----------------------------------------------------------------
-  emphasis(false, conceal_emph)
+  emphasis(false, conceal_emph, synmaxcol)
 
   -- Links --------------------------------------------------------------------
   M.links(bufnr, conceal_links)
 
   -- Description list terms (defined after the markup, links and timestamps,
   -- so a term that starts with one of them is still a term) ------------------
-  -- \%#=1: the backtracking engine tests the look-behind first; the NFA
-  -- engine tried the lazy \{-} from every column of every line first,
-  -- which was most of the first redraw of a file with long lines, and on a
-  -- paragraph line of a few hundred characters ran out of 'maxmempattern'
-  -- (E363), which turned off highlighting below it (#121)
+  -- The term is looked for only inside orgListTermLine, a transparent match
+  -- of the whole item up to " ::" from the start of the line. On its own,
+  -- the term's look-behind for the bullet ran at every column of every
+  -- line: with the NFA engine, a paragraph line of a few hundred
+  -- characters ran out of 'maxmempattern' (E363), which turned off
+  -- highlighting below it (#121); with the backtracking engine each column
+  -- went back to the start of the line, quadratic in its length (110 ms to
+  -- draw a 3,000-character line; at 30,000 "'redrawtime' exceeded" turned
+  -- syntax off). \%#=1: the lazy \{-} is cheaper with backtracking.
+  local item = [=[^\s*\%([-+]\|\s\*\)\s\+\%(\[[ X-]\]\s\+\)\=]=]
+  local term = [=[\%(\[[ X-]\]\%(\s\|$\)\)\@!\S.\{-}\ze\s::\%(\s\|$\)]=]
   cmd(
     string.format(
-      [=[syntax match orgListTerm /\%%#=1\(^\s*\([-+]\|\s\*\)\s\+\(\[[ X-]\]\s\+\)\?\)\@<=\%%(\[[ X-]\]\%%(\s\|$\)\)\@!\S.\{-}\ze\s::\(\s\|$\)/ contains=%s]=],
+      [=[syntax match orgListTermLine /\%%#=1%s%s/ transparent contains=orgListBullet,orgCheckbox,orgCheckboxChecked,orgCheckboxPartial,orgListTerm]=],
+      item,
+      term
+    )
+  )
+  cmd(
+    string.format(
+      [=[syntax match orgListTerm /\%%#=1\%%(%s\)\@<=%s/ contained contains=%s]=],
+      item,
+      term,
       list(MARKUP, OBJECTS)
     )
   )
 
   -- Tables -------------------------------------------------------------------
+  -- (markup in cells: the cell variant of emphasis, below, names orgTable
+  -- in its containedin)
   cmd(
-    string.format(
-      [=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgTableFormula,%s,@orgLinks,orgTimestamp,orgTimestampInactive,orgFootnote,orgMacro,orgTarget,orgStatistic,orgStatisticDone,orgExportSnippet]=],
-      table.concat(MARKUP, ",")
-    )
+    [=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgTableFormula,@orgLinks,orgTimestamp,orgTimestampInactive,orgFootnote,orgMacro,orgTarget,orgStatistic,orgStatisticDone,orgExportSnippet]=]
   )
   cmd([=[syntax match orgTableSeparator /|/ contained]=])
   -- table internals (org-formula): alignment cookies, field formulas and
-  -- the marking column
-  cmd([=[syntax match orgTableFormula /\%(| *\)\@<=<[lrc]\=\d*>/ contained]=])
-  cmd([=[syntax match orgTableFormula /\%(|\s*\)\@<=:\==[^|]*/ contained]=])
-  cmd([=[syntax match orgTableFormula /\%(^\s*| *\)\@<=[#*]\ze *|/ contained]=])
-  cmd([=[syntax match orgTableFormula /\%(^\s*|\)\@<= *[$!_^\/] *|.*\ze|/ contained contains=orgTableSeparator]=])
+  -- the marking column. \%#=1: on a long cell the NFA engine ran out of
+  -- 'maxmempattern' (E363) and highlighting was turned off. The
+  -- backtracking engine matches what follows a look-behind before the
+  -- look-behind itself, so each pattern starts with characters that fail
+  -- fast: the marking column takes the bar before it as leading context
+  -- (lc=1) instead of a look-behind, which tried " *" at every column of a
+  -- padded cell (quadratic in its width).
+  cmd([=[syntax match orgTableFormula /\%#=1\%(| *\)\@<=<[lrc]\=\d*>/ contained]=])
+  cmd([=[syntax match orgTableFormula /\%#=1\%(|\s*\)\@<=:\==[^|]*/ contained]=])
+  cmd([=[syntax match orgTableFormula /\%#=1\%(^\s*| *\)\@<=[#*]\ze *|/ contained]=])
+  cmd(
+    [=[syntax match orgTableFormula /\%#=1\%(^\s*\)\@<=| *[$!_^\/] *|.*\ze|/lc=1 contained contains=orgTableSeparator]=]
+  )
   -- table.el borders (`+--+---+`), fontified like table lines in Emacs
-  cmd([=[syntax match orgTable /^\s*+-[-+].*$/]=])
+  cmd([=[syntax match orgTable /^\s*+-[-+].*$/ contains=orgTableBorder]=])
   cmd([=[syntax match orgTableHline /^\s*|[-+]\+|\?\s*$/ contained]=])
   cmd([=[syntax match orgTableFormula /^\s*#+\ctblfm:.*$/]=])
   -- markup in cells (after the formulas, so "| =v= |" is verbatim)
-  emphasis(true, conceal_emph)
+  emphasis(true, conceal_emph, synmaxcol)
+  -- (a border is an orgTable too: what it holds, defined after the cell
+  -- markup so it wins at the start of the line, keeps "+--+" from being
+  -- struck through)
+  cmd([=[syntax match orgTableBorder /.*$/ contained transparent contains=NONE]=])
 
   -- Blocks -------------------------------------------------------------------
   -- A block always ends at a headline (org-fontify-meta-lines-and-blocks),
@@ -631,7 +737,7 @@ function M.apply(bufnr)
   cmd(
     "syntax cluster orgQuoteContents contains="
       .. list(
-        "@Spell,orgComment,orgKeyword,orgTitle,orgInfoKeyword,orgListBullet,orgListTerm",
+        "@Spell,orgComment,orgKeyword,orgTitle,orgInfoKeyword,orgListBullet,orgListTermLine",
         "orgCheckbox,orgCheckboxChecked,orgCheckboxPartial,orgPlanning,orgClock,orgClockDuration",
         "orgDrawer,orgPropertyKey,orgFixedWidth,orgHorizontalRule,orgTable,orgTableFormula",
         "orgBlockDelimiter,orgBlock,orgQuoteBlock",
@@ -818,15 +924,22 @@ function M.apply(bufnr)
       )
     )
   end
-  -- headlines tagged ARCHIVE: dimmed after the stars (org-archived)
+  -- headlines tagged ARCHIVE: dimmed after the stars (org-archived).
+  -- \%#=1: the NFA engine ran out of 'maxmempattern' (E363) on a headline
+  -- of a thousand characters and turned highlighting off; the backtracking
+  -- one gives up at once on a line without ":ARCHIVE:", and on one with it
+  -- matches right after the stars.
   cmd(
     string.format(
-      [=[syntax match orgHeadlineArchived /\(^\*\+ \)\@<=.*:ARCHIVE:.*$/ contained contains=orgTodo,orgDone,orgPriority,orgTags,%s,orgHeadlineComment,@Spell]=],
+      [=[syntax match orgHeadlineArchived /\%%#=1\(^\*\+ \)\@<=.*:ARCHIVE:.*$/ contained contains=orgTodo,orgDone,orgPriority,orgTags,%s,orgHeadlineComment,@Spell]=],
       list(MARKUP, OBJECTS)
     )
   )
 
   require("org.highlights").apply_todo_faces()
+  -- (`:syntax clear` above deleted it: without it the syntax would no
+  -- longer be defined again for a new src language or 'synmaxcol')
+  vim.b[bufnr].current_syntax = "org"
 end
 
 return M

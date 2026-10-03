@@ -1,0 +1,73 @@
+name: Pages
+
+# The documentation website (make site, scripts/site/build.lua): the manual,
+# README, examples and parity docs as HTML, deployed to GitHub Pages
+# (https://org-nvim.com/) for every release. A release
+# published by release.yml can't start this workflow through its `release`
+# event (events made with GITHUB_TOKEN don't run workflows), so release.yml
+# runs it with workflow_dispatch instead; `release` covers a release
+# published by hand. Pull requests that touch the sources only check that
+# the site builds, with every internal link resolving.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag or commit to build (default: the branch it runs on)"
+        required: false
+        default: ""
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - doc/**
+      - examples/**
+      - scripts/site/**
+      - README.md
+      - docs/parity-review.md
+      - docs/parity/**
+      - lua/org/export/**
+      - .github/workflows/pages.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # what the site's links to repository files point at
+      REF: ${{ inputs.ref || github.event.release.tag_name || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.event.release.tag_name || github.ref }}
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Build the site
+        run: ORG_SITE_REF="$REF" make site
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

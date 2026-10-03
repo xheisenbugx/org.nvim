@@ -567,7 +567,7 @@ end
 
 --- `literate_health`: compile every Lua block (without running it) and show
 --- the syntax errors as diagnostics.
----@return table[] errors
+---@return table[]|nil errors (nil outside an org buffer)
 function M.health_check()
   if not utils.ensure_org() then
     return

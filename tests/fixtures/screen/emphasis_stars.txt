@@ -1,0 +1,25 @@
+screen 60x12
+|{1:* }{2:*}{3:bold}{2:*}{1: one}|
+|{4:** }{2:*}{3:bold}{2:*}{4: two}|
+|{5:*** }{2:*}{3:bold}{2:*}{5: three}|
+|{6:**** }{7:/}{8:italic}{7:/}{6: and }{2:*}{3:bold}{2:*}{6: four}|
+|{9:***** }{10:_}{11:under}{10:_}{9: }{12:=}{13:verbatim}{12:=}{9: }{14:~}{15:code}{14:~}{9: }{16:+}{17:strike}{16:+}{9: five}|
+|Body with {2:*}{3:bold}{2:*}, {7:/}{8:italic}{7:/} and {12:=}{13:verbatim}{12:=}.|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} orgBoldDelimiter -> OrgBold [bold]
+{3} OrgBold [bold]
+{4} OrgHeadlineLevel2 -> Constant
+{5} OrgHeadlineLevel3 -> Identifier
+{6} OrgHeadlineLevel4 -> Statement [bold]
+{7} orgItalicDelimiter -> OrgItalic [italic]
+{8} OrgItalic [italic]
+{9} OrgHeadlineLevel5 -> PreProc
+{10} orgUnderlineDelimiter -> OrgUnderline [underline]
+{11} OrgUnderline [underline]
+{12} orgVerbatimDelimiter -> OrgVerbatim -> String
+{13} OrgVerbatim -> String
+{14} orgCodeDelimiter -> OrgCode -> String
+{15} OrgCode -> String
+{16} orgStrikethroughDelimiter -> OrgStrikethrough [strikethrough]
+{17} OrgStrikethrough [strikethrough]

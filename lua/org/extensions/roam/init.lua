@@ -25,11 +25,11 @@ M.defaults = {
   --- Order of the node candidates: "title", "mtime" (recently changed
   --- files first) or "none" (file order).
   sort = "mtime",
-  --- How nodes are chosen (org-roam-node-read): "auto" (snacks.nvim's
-  --- picker when it is loaded, else `vim.ui.select`), "snacks", "select"
-  --- (`vim.ui.select` with a "+ New node" entry) or "input" (type a title,
-  --- <Tab> completes). With snacks and "input", a title that matches no
-  --- node creates one.
+  --- How nodes are chosen (org-roam-node-read): "auto" (org's `picker`
+  --- option: LazyVim's picker, else snacks.nvim's first), "snacks",
+  --- "fzf-lua", "telescope", "mini", "select" (`vim.ui.select` with a
+  --- "+ New node" entry) or "input" (type a title, <Tab> completes). With
+  --- a fuzzy picker and "input", a title that matches no node creates one.
   picker = "auto",
   --- Show the outline path before headline nodes in the candidates.
   display_olp = false,

@@ -296,6 +296,39 @@ local function pick_date(prompt, with_time, default)
   return v and date.read_date(v, default) or nil
 end
 
+--- The date of an answer given in advance to a date prompt (`%^t`, ...;
+--- `opts.answers`), in the forms org.api takes a date in: a date table (an
+--- org.date, or a table with year, month, day and optionally hour and
+--- min), a Unix time, or a string (a timestamp, or what the date prompt
+--- reads, from `base`). Raises an error for anything else.
+local function answer_date(v, base)
+  if type(v) == "number" then
+    return date.from_time(v, true)
+  elseif type(v) == "table" then
+    if getmetatable(v) == date.Date then
+      return v
+    end
+    if not (v.year and v.month and v.day) then
+      error("a date needs year, month and day", 0)
+    end
+    return date.Date.new({
+      year = v.year,
+      month = v.month,
+      day = v.day,
+      hour = v.hour,
+      min = v.hour and v.min or nil,
+      end_hour = v.end_hour,
+      end_min = v.end_min,
+    })
+  end
+  local s = vim.trim(tostring(v))
+  local d = date.parse(s) or date.read_date(s, base)
+  if not d then
+    error("invalid date: " .. s, 0)
+  end
+  return d
+end
+
 local function extend_today_until()
   return tonumber(config.opts.extend_today_until) or 0
 end
@@ -593,7 +626,8 @@ end
 --- cursor marker. Must run inside a coroutine when it prompts.
 ---@param text string
 ---@param ctx org.Config.CaptureContext|table
----@return string text with CURSOR marker, table ctx
+---@return string text with the CURSOR marker
+---@return table ctx
 function M.expand(text, ctx)
   ctx = ctx or {}
   ctx.properties = ctx.properties or {}
@@ -720,8 +754,24 @@ function M.expand(text, ctx)
     return M.eval_sexp(expand_simple(exprs[tonumber(idx)], true), ctx)
   end)
 
-  -- prompts
+  -- prompts; `ctx.answers` answers them by label (the text before `|` in
+  -- `%^{...}`, "Tags" / "Date" without one) or by position, and with
+  -- `ctx.noninteractive` the others take their default
   local strings, strings_all = {}, {}
+  local nprompt = 0
+  local batch = ctx.noninteractive
+  local function preset(label)
+    nprompt = nprompt + 1
+    local answers = ctx.answers
+    if type(answers) ~= "table" then
+      return nil
+    end
+    local a = label and answers[label]
+    if a == nil then
+      a = answers[nprompt]
+    end
+    return a
+  end
   text = scan(text, function(s, p)
     if s:sub(p + 1, p + 1) ~= "^" then
       return nil
@@ -740,9 +790,18 @@ function M.expand(text, ctx)
     local items = d.label and vim.split(d.label, "|", { plain = true }) or {}
     local prompt, default = items[1], items[2]
     local key = d.key
+    local dates = key and key ~= "g" and key ~= "G" and key ~= "C" and key ~= "L" and key ~= "p"
+    local pre = preset(prompt or (key == "g" or key == "G") and "Tags" or dates and "Date" or nil)
     if key == "g" or key == "G" then
-      local candidates = tag_candidates(ctx.target_file, key == "G")
-      local answer = utils.input_complete((prompt or "Tags") .. ": ", candidates)
+      local answer
+      if pre ~= nil then
+        answer = type(pre) == "table" and table.concat(pre, ":") or tostring(pre)
+      elseif batch then
+        answer = ""
+      else
+        local candidates = tag_candidates(ctx.target_file, key == "G")
+        answer = utils.input_complete((prompt or "Tags") .. ": ", candidates)
+      end
       if answer == nil then
         utils.abort()
       end
@@ -788,7 +847,9 @@ function M.expand(text, ctx)
         end
       end
       local val = clips[1]
-      if #clips > 1 then
+      if pre ~= nil then
+        val = tostring(pre)
+      elseif #clips > 1 and not batch then
         val = utils.input_complete("Clipboard/kill value: ", clips, clips[1])
         if val == nil then
           utils.abort()
@@ -800,7 +861,11 @@ function M.expand(text, ctx)
       prompt = prompt or "Property"
       local allowed = ctx.target_hl and ctx.target_hl:get_allowed_values(prompt or "")
       local answer
-      if allowed and #allowed > 0 then
+      if pre ~= nil then
+        answer = tostring(pre)
+      elseif batch then
+        answer = default or ""
+      elseif allowed and #allowed > 0 then
         answer = utils.input_complete(prompt .. ": ", allowed, default)
       else
         answer = utils.input({ prompt = prompt .. ": ", default = default or "" })
@@ -817,7 +882,14 @@ function M.expand(text, ctx)
     elseif key then
       -- t T u U
       local with_time = key == "T" or key == "U"
-      local d = pick_date(prompt or "Date", with_time, base_date)
+      local d
+      if pre ~= nil then
+        d = answer_date(pre, base_date)
+      elseif batch then
+        d = base_date or (with_time and date.now() or date.today())
+      else
+        d = pick_date(prompt or "Date", with_time, base_date)
+      end
       if not d then
         utils.abort()
       end
@@ -828,7 +900,11 @@ function M.expand(text, ctx)
     local completions = vim.list_slice(items, 3)
     local label = (prompt or "Enter string") .. (default and default ~= "" and (" [" .. default .. "]") or "")
     local answer
-    if #completions > 0 then
+    if pre ~= nil then
+      answer = tostring(pre)
+    elseif batch then
+      answer = default or ""
+    elseif #completions > 0 then
       answer = utils.input_complete(label .. ": ", completions)
     else
       answer = utils.input({ prompt = label .. ": " })
@@ -2666,8 +2742,13 @@ end
 
 --- Start a capture.
 ---@param tpl_or_key string|table template key or template table
----@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean }
----@return integer|nil capture buffer (or target buffer with immediate_finish)
+--- `opts.answers` answers the template's `%^` prompts, by label or by
+--- position; with `opts.noninteractive` the other prompts take their
+--- default and a `time_prompt` date is now.
+---@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean }
+---@return integer|nil buf the capture buffer (or the target buffer with immediate_finish)
+---@return integer|nil # the capture window, or the line of the stored entry
+---@return string|nil # with immediate_finish, the file of the stored entry (its buffer may be gone: kill_buffer)
 function M.capture(tpl_or_key, opts)
   opts = opts or {}
   local tpl = tpl_or_key
@@ -2681,6 +2762,12 @@ function M.capture(tpl_or_key, opts)
   local ctx = origin_context(opts)
   ctx.date = opts.date
   ctx.here = opts.here
+  ctx.answers = opts.answers
+  ctx.noninteractive = opts.noninteractive
+  if opts.noninteractive and tpl.time_prompt and not ctx.date then
+    -- nobody to ask: the capture date is now
+    ctx.date = date.now()
+  end
   if (tpl.time_prompt or (opts.date_prompt and tpl.datetree)) and not ctx.date then
     ctx.date = pick_date(tpl.time_prompt and "Capture date" or "Date for tree entry", false, date.today())
     if not ctx.date then
@@ -2724,8 +2811,10 @@ function M.capture(tpl_or_key, opts)
     -- Emacs finalizes immediate captures too: no capture buffer here
     emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)
+    local dfile
     if dbuf then
-      utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
+      dfile = vim.api.nvim_buf_get_name(dbuf)
+      utils.notify("Captured to " .. utils.abbreviate(dfile))
       kill_target(tpl, loc)
       if tpl.jump_to_captured then
         M.goto_last_stored()
@@ -2740,7 +2829,7 @@ function M.capture(tpl_or_key, opts)
         resume_interrupted(vim.tbl_extend("force", tpl, { clock_keep = false }), ctx)
       end
     end
-    return dbuf, dline
+    return dbuf, dline, dfile ~= "" and dfile or nil
   end
   if tpl.unnarrowed then
     return open_unnarrowed(tpl, expanded, ctx)

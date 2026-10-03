@@ -1002,6 +1002,10 @@ sorted by the comparators after it in the list (by name when none), e.g.
 `require("org.tags").sort_less(a, b)` to hand over to the next ones.
 Without the option, tags keep their order.
 
+Setting or toggling tags fires the User autocmd `OrgTagsChanged`
+(org-after-tags-change-hook) and changing a priority `OrgPriorityChanged`,
+both with `data = { bufnr, lnum, file, from, to }` (|org-api-events|).
+
 Tags are aligned to `tags_column` (negative values right-align them, a
 positive value starts them at that column). `:Org align_tags` realigns every
 headline in the buffer. With `auto_align_tags = false`, edits keep the
@@ -1461,7 +1465,7 @@ Use |org-api| `require("org").statusline()` in your statusline.
 
 The agenda follows Emacs Org 9.8: the same entries, line layout, sorting
 and default options (the Emacs variable is named next to each option in
-`lua/org/config.lua` and |org-config|).
+`lua/org/config/agenda.lua` and |org-config|).
 
 <prefix>a opens the dispatcher (org-agenda):
 
@@ -2859,7 +2863,9 @@ when there is one). Retrieval is synchronous, like Emacs.
                 (C-u C-u C-u) clears the target cache (`refile.use_cache`),
                 2 refiles under the running clock and 3 copies
                 (org-refile-keep). With `refile.log = "note"`, the note is
-                typed in the `*Org Note*` buffer (`note_buffer`).
+                typed in the `*Org Note*` buffer (`note_buffer`). The User
+                autocmd `OrgRefile` fires once the entry is in place
+                (org-after-refile-insert-hook, |org-api-events|).
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
@@ -5265,6 +5271,72 @@ blink.cmp: >lua
 <nvim-cmp: >lua
     require("cmp").register_source("org", require("org.completion.cmp").new())
 <
+Pickers ~
+                                                                *org-pickers*
+The `pick_*` actions open a fuzzy picker: headlines show their outline
+path, TODO keyword, priority and tags with the Org highlights, and the
+preview shows the entry in its file (in its buffer, unsaved changes and
+all, when the file is loaded). Confirming jumps there (and opens the folds
+around it). The `picker` option chooses the picker:
+
+  "auto"       LazyVim's picker when it is installed (`vim.g.lazyvim_picker`,
+               or with its "auto" the picker extra enabled in
+               :LazyExtras), else the first installed of the ones below,
+               else "select" (default)
+  "snacks"     snacks.nvim (`Snacks.picker`)
+  "fzf-lua"    fzf-lua (`fzf_exec`, the builtin previewer)
+  "telescope"  telescope.nvim
+  "mini"       mini.pick, once `require("mini.pick").setup()` has run
+  "select"     |vim.ui.select()|: one item, no preview
+
+None of these plugins is required: a picker is looked for (with `require`)
+when an action runs, never at startup, and one that isn't installed falls
+back to "select" with a warning.
+
+  pick_headline          a headline of this file
+  pick_headline_all      a headline of the agenda files (and this file)
+  pick_tag               a tag of the agenda files (with how many headlines
+                         carry it), then a headline with it, its own or
+                         inherited
+  pick_set_tags          the tags of the headline at the cursor: the tags
+                         chosen (several with multi-select) are toggled, ✓
+                         marks the ones it has; text that matches no tag
+                         is added as new tags (`a:b` adds two). mini.pick
+                         lists "+ New tags: <text>" below the matches;
+                         with "select", "+ New tags…" asks for the text.
+  pick_agenda            an entry of today's agenda
+  pick_agenda_week       an entry of the agenda of the next 7 days
+  pick_todo              an open TODO entry (the global TODO list, in
+                         the order of its view: `agenda.sorting`)
+  pick_agenda_file       an agenda file
+  pick_capture_template  a capture template, then capture with it (from
+                         the agenda, at the date at the cursor with
+                         `capture.use_agenda_date`, as the capture menu)
+
+Multi-select: <Tab> in snacks.nvim, fzf-lua and telescope, <C-x> then
+<M-CR> in mini.pick. The actions have no default keys; bind them in any
+action section (|org-keymaps|), e.g. >lua
+    mappings = {
+      global = { pick_headline_all = "<leader>fo", pick_todo = "<leader>ft" },
+    }
+<or run `:Org pick_todo`. telescope.nvim also gets an extension: >lua
+    require("telescope").load_extension("org")
+<then `:Telescope org headlines` (also `headlines_all`, `tags`, `set_tags`,
+`agenda`, `agenda_week`, `todo`, `agenda_files`, `capture_templates`;
+`:Telescope org` alone is `headlines_all`). These use telescope whatever
+`picker` says. The roam extension's node finder uses the same pickers
+(|org-extensions-roam|).
+
+Resuming (`Snacks.picker.resume()`, `:FzfLua resume`, `:Telescope resume`,
+`:Pick resume`) reopens the last picker as it was left, and choosing there
+acts again: jumps, toggles the tags, captures. A resumed roam node finder
+closes without effect.
+
+From Lua, `require("org.pickers").pick(spec)` shows any list: `spec.items`
+are `{ display = { { text, hl_group }, ... }, filename?, bufnr?, lnum?,
+value? }` and `spec.on_choice(items, query)` gets the chosen ones; see
+`lua/org/pickers/init.lua`.
+
 ==============================================================================
 25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
@@ -5664,7 +5736,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
 ==============================================================================
 26. CONFIGURATION REFERENCE                                       *org-config*
 
-Every option and its default is listed in `lua/org/config.lua`. Lists
+Every option and its default is listed in `lua/org/config/`. Lists
 replace the default, tables are merged, and `capture.templates` replaces the
 default template. Summary:
 
@@ -5824,6 +5896,10 @@ Structure and visibility ~
                                       "outline-path-completion"
   goto_max_level            5         deepest headlines offered (completion)
   goto_auto_isearch         true      typing searches the headlines
+  picker                    "auto"    picker of the `pick_*` actions:
+                                      "auto"|"snacks"|"fzf-lua"|
+                                      "telescope"|"mini"|"select"
+                                      (|org-pickers|)
   bookmark_names            { last_capture = "org-capture-last-stored",
                               last_refile = "org-refile-last-stored",
                               last_capture_marker =
@@ -6119,8 +6195,8 @@ export ~                                                   *org-config-export*
   coding_system nil, process_citations, replace_macros true,
   smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, koma_letter, man, publish, cite;
-  pandoc { cmd, args }. See the comments in config.lua for every key and
-  its Emacs variable.
+  pandoc { cmd, args }. See the comments in lua/org/config/export.lua for
+  every key and its Emacs variable.
   Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
   value): html allow_name_attribute_in_anchors, coding_system "utf-8",
   datetime_formats { "%F", "%FT%T" }, indent false, divs, footnotes_section,
@@ -6459,7 +6535,7 @@ With `ui.choice_prompt = "input"` these prompts are the command line with
                         to the clocked task).
                                                             *org-customize*
 :Org customize          A buffer listing every option with its value, in the
-                        order and sections of lua/org/config.lua
+                        order and sections of lua/org/config/
                         (org-customize); "[changed]" marks values that
                         differ from the default. <CR> or K shows the
                         option's documentation with its default and value,
@@ -6532,13 +6608,335 @@ mouse_show_overview, mouse_timestamp_today, mouse_transform_to_outline
 ==============================================================================
 29. LUA API                                                          *org-api*
 
+`require("org.api")` is the public Lua API for plugins and configs: files,
+headlines and their changes, agenda queries, capture, links, the clock and
+events. Everything it returns is plain data (tables of strings, numbers
+and booleans) or a headline handle, a plain table with methods.
+
+                                                         *org-api-version*
+`api.version` is the version of the API, `MAJOR.MINOR.PATCH`, separate
+from the plugin's release. Within a major version functions, fields and
+event payloads are only added (a new MINOR), never removed or changed.
+`api.has("1.2")` is true when this API provides version 1.2: the same
+major version, not older. Other modules (`org.parser`, `org.files`,
+`org.agenda`, ...) are internal: they can change in any release. >lua
+    local ok, api = pcall(require, "org.api")
+    if ok and api.has("1.0") then ... end
+<
+Functions that can fail return nil and an error message. They never
+prompt: a prompt the change would show (a log note, a date, a choice)
+answers as if cancelled, so notes are left out and only the time is
+logged unless you pass `note`. Org's messages are not shown either.
+
+Files ~
+                                                           *org-api-files*
+api.agenda_files()          Absolute paths of the agenda files.
+api.load([paths])           Read files: one path returns one file (nil and
+                            an error when it can't be read), a list of
+                            paths, globs or directories returns a list, and
+                            no argument the agenda files. A file loaded in
+                            a buffer is read from the buffer, unsaved
+                            changes included.
+api.current([bufnr])        The file of a buffer (default current), nil
+                            when it isn't an org buffer.
+
+A file is `{ file, bufnr, title, category, filetags, properties,
+todo_keywords = { todo, done }, headlines }`: `file` is the path (nil for a
+buffer without one), `properties` the file-level property drawer and
+`headlines` every headline in document order.
+
+Headlines ~
+                                                       *org-api-headlines*
+api.headlines([query])      Headlines matching every condition of `query`,
+                            in file order (nil and an error for an invalid
+                            match string):
+    files     files, globs or directories (default the agenda files)
+    match     a tags/property match as in agenda tag searches
+              (|org-match-syntax|): `+work-urgent`, `PRIORITY="A"`,
+              `+project/TODO|NEXT`
+    todo      a keyword or a list of them; true: any not-done keyword;
+              false: no keyword
+    done      in a done state (true) or not (false)
+    tags      a tag or a list, all required, inherited ones included
+    property  `{ NAME = "value" | true | false | function(value) }`:
+              true is set, false unset; inheritance follows
+              `use_property_inheritance`
+    level     a number, or `{ min = 2, max = 3 }`
+    title     text the title contains, ignoring case (`été` finds `ÉTÉ`)
+    id        the ID property
+    archived  false skips subtrees tagged ARCHIVE (default: included)
+    filter    `function(h)` returning true to keep the handle
+api.headline_at([opts])     The headline containing a line: `opts.bufnr`
+                            (default current) and `opts.lnum` (default the
+                            cursor line), or `opts.file` and `opts.lnum`.
+                            A buffer's cursor is the current window's when
+                            it shows the buffer, else that of the first
+                            window showing it; a buffer no window shows
+                            has none (give `lnum`, else nil and an error).
+api.find_by_id(id)          The headline with this ID, found like `id:`
+                            links find it.
+api.date(value)             A date in the form below, from any value the
+                            API accepts as a date.
+
+A headline handle has these fields, a snapshot taken when it was made:
+    title         text without TODO keyword, priority and tags
+    plain_title   `title` with links shown as their description and
+                  statistics cookies removed
+    raw           the whole headline line
+    level, todo, priority (nil without a cookie), category, id
+    todo_type     "todo", "done" or nil;  done  a boolean
+    tags          own tags;  all_tags  with inherited and file tags
+    properties    own properties, names upper-cased
+    scheduled, deadline, closed   dates (nil when not set)
+    file          the path (nil for a buffer without one)
+    line, end_line   the headline line and the last line of its subtree
+    outline_path  titles of the ancestors
+    archived, commented   booleans
+
+A date is `{ year, month, day, hour, min, end_hour, end_min, active,
+repeater, warning, date = "2026-10-02", time = "09:30", timestamp (Unix
+time), text (as org writes it), raw (as written in the file) }`; for a
+range `<2026-10-02 Fri>--<2026-10-04 Sun>` the fields are its start, and
+`text` and `raw` the whole range. Where the API takes a date it accepts
+such a table (or any table with year, month, day and optionally hour and
+min), a Unix time, or a string: a timestamp (`<2026-10-02 Fri 09:30>`,
+`2026-10-02`) or what the date prompt reads (`+2d`, `fri`). Fields out of
+range roll over like `os.time()`: day 32 of October is November 1, hour 25
+is 1:00 the next day, and so is a timestamp's day its month doesn't have
+(`2026-02-30` is March 2). A field that isn't an integer, a year outside
+1-9999, an end time outside the day or a repeater or warning that isn't
+`{ type, value, unit }` is an error.
+
+Methods find the headline again, run the same code as the keys, refresh
+the fields and return the handle (or nil and an error). A handle with an
+ID finds the entry with that ID wherever it went; when no entry has it, or
+several do, that's an error, never another entry. While the file is loaded
+in a buffer (a change loads it), an extmark follows the headline's line
+through every edit, yours and the API's, so all the handles of a query
+stay on their entries while you change them one by one (a line replaced
+by another change, for its keyword, tags or a statistics cookie, stays
+the handle's while no other headline has its title). A file changed
+outside Neovim leaves only the text: the one headline with the handle's
+text. When the headline can't be told apart (its line was deleted, its
+subtree moved, several headlines have its text), a method returns nil and
+"the headline moved; get a new handle". After h:archive() the handle no
+longer points to an entry.
+    h:set_todo(state, [opts])     C-c C-t; nil removes the keyword.
+                                  `opts.note` is the note the logging asks
+                                  for, `opts.force` ignores blocking
+    h:set_tags(tags)              a list or ":a:b:". A tag is letters and
+                                  digits (of any script), `_`, `@`, `#`
+                                  and `%` (org-tag-re); another name
+                                  (`follow-up`) is an error, as org
+                                  wouldn't read it back as a tag
+    h:add_tag(tag), h:remove_tag(tag)  add or remove one of the tags the
+                                  headline has now (also those added
+                                  after the handle was made), like
+                                  org-toggle-tag
+    h:set_priority(p)             "A", "10" or a number; nil removes it.
+                                  An error (also for nil) when
+                                  `priority_enable_commands` is false
+    h:set_property(name, value)   org-entry-put; nil deletes the property
+    h:get_property(name, [inherit])  special properties too (`ALLTAGS`)
+    h:schedule(date)              C-c C-s, nil removes the date; also
+                                  h:set_scheduled(date). The old repeater
+                                  stays unless the date has its own
+    h:set_deadline(date)          C-c C-d (the `deadline` field holds the
+                                  date, so the method has another name)
+    h:clock_in(), h:clock_out()   clock_out returns the minutes
+    h:is_clocked_in()
+    h:refile(dest, [opts])        dest: another handle, a file path, or
+                                  `{ file = path, headline = "Title" }`
+                                  (or an outline path list). `opts.copy`
+                                  keeps the original, `opts.prepend` makes
+                                  it the first child. The handle then
+                                  points to the moved entry
+    h:archive()                   archive per `archive_location`; returns
+                                  the archive file
+    h:open([opts])                show it in a window, cursor on it;
+                                  `opts.split` "split", "vsplit" or "tab".
+                                  `goto` is a LuaJIT keyword: `h:goto()`
+                                  can't be written, `h["goto"](h)` works
+    h:add_id()                    the ID, created when missing (alias
+                                  `id_get_or_create`); h:get_id() only
+                                  reads it
+    h:parent(), h:children()      handles of the parent and children
+    h:reload()                    read the headline again
+                                                          *org-api-saving*
+Changes work whether or not the file is loaded: it's loaded in a hidden
+buffer when needed and written with org's own save (write hooks such as
+encryption run, |org-crypt|). A change saves every file it touched, all of
+them or none: the headline's file and each other file it changed (a
+refile's destination, the archive file whatever
+`archive_subtree_save_file` says, the file whose clock `h:clock_in()`
+stopped), the headline's file last. By default none of them is saved when
+one had unsaved changes before the change: your own unsaved edits are
+never written behind your back, and an entry that moved to another file
+is never written out of its file while it's only in a buffer there. Every
+change method takes `opts.save` (true saves them all, false none). Like
+|org-refile| and |org-archive|, a refile still saves a destination file
+that isn't shown in any window, and archiving the archive file when
+`archive_subtree_save_file` says so, before the entry leaves its file. >lua
+    local api = require("org.api")
+    for _, h in ipairs(api.headlines({ match = "+work", todo = "WAITING" })) do
+      h:set_todo("TODO")
+      h:schedule("+1d")
+    end
+<
+Agenda ~
+                                                          *org-api-agenda*
+The entries of the agenda views as data, without opening the agenda.
+api.agenda.agenda([opts])   Days of an agenda span: `{ { date =
+                            "2026-10-05", day = <date>, items = {...} } }`.
+                            `opts.from` (a date, default today), `span`
+                            ("day", "week", "fortnight", "month", "year"
+                            or a number of days; default `agenda.span`),
+                            `align` (default true: a week starts on
+                            `agenda.start_on_weekday`), `include_empty`
+                            (default true), `log` (clocked and closed
+                            entries, like `l`), `files`.
+api.agenda.todo([opts])     The TODO list; `opts.keywords` a keyword or a
+                            list ("*": any keyword), `opts.files`.
+api.agenda.tags(match, [opts])  A tags/property match; `opts.todo_only`.
+api.agenda.search(query, [opts])  A search view query (|org-agenda-search|);
+                            `opts.todo_only` (like `!`, also with a
+                            leading `*`).
+
+Items are sorted like the views (`agenda.sorting`) and are `{ type, kind,
+title, todo, priority, category, tags, done, day, date, time, end_time,
+extra, file, line, headline }`: `type` is where the entry comes from
+(scheduled, deadline, timestamp, range, sexp, closed, clock, todo, tags,
+search), `kind` the agenda's finer type (past-scheduled, ...), `day` the
+"YYYY-MM-DD" it's listed on, `date` its timestamp, `time` / `end_time`
+"HH:MM", `extra` the leader ("Scheduled: ", "In   3 d.: ") and `headline`
+a handle. >lua
+    for _, day in ipairs(require("org.api").agenda.agenda({ span = "day" })) do
+      for _, item in ipairs(day.items) do
+        print(item.time or "", item.todo or "", item.title)
+      end
+    end
+<
+Capture ~
+                                                         *org-api-capture*
+api.capture(opts)           Capture without a capture window: the template
+                            is filled in, stored and saved at once.
+    key       a template key of `capture.templates`, or
+    template  template text (with `target`, `headline`, `olp`, `type`,
+              `datetree` as in |org-capture-templates|) or a whole
+              template table
+    values    answers to the `%^` prompts, by label (`{ Title = "x" }`
+              for `%^{Title}`, "Tags" for `%^g`, "Date" for `%^t`) or
+              by position (`{ "x", "y" }`); others take their default.
+              A date prompt takes a date in any form the API takes
+              (|org-api-headlines|); a Unix time keeps its time of day
+    initial   the text of `%i`
+    date      the capture date (`%t`, date trees, `time_prompt`)
+Returns `{ file, bufnr, line, headline }` (`headline` for entry
+templates; `bufnr` is nil when the template's `kill_buffer` closed the
+buffer). `OrgCaptureAfterFinalize` fires as for any capture. >lua
+    require("org.api").capture({
+      template = "* TODO %^{Task}\n  %U",
+      target = "~/org/inbox.org",
+      values = { Task = "Call the bank" },
+    })
+<
+Links ~
+                                                           *org-api-links*
+api.links.store(link, [desc])   Add to the stored links (<prefix>li).
+api.links.store_location([where], [opts])  Store a link to a handle or
+                            `{ bufnr, lnum }` (default the cursor, as for
+                            `api.headline_at`), like <prefix>ls. An ID it
+                            creates (`links.use_id`) is saved like other
+                            changes (|org-api-saving|, `opts.save`).
+api.links.stored()          The stored links `{ link, desc }`, newest first.
+api.links.format(link, [desc])  `[[link][desc]]`, escaped.
+api.links.insert(link, [desc], [opts])  Insert at the cursor, or at
+                            `opts.bufnr`, `opts.row` (1-based), `opts.col`
+                            (0-based byte), written for that buffer like
+                            <prefix>li. What isn't given comes from the
+                            buffer's cursor (as for `api.headline_at`: nil
+                            and an error when no window shows the buffer).
+                            Returns the inserted text.
+api.links.resolve(link, [opts])  What a link (a target or `[[...]]`) points
+                            to, without following it: `{ type, path,
+                            target, search, file, line, headline, url }`.
+                            It finds what following the link finds (the
+                            searches of |org-links|, ignoring case and
+                            blanks: `*heading`, `#custom-id`, `(coderef)`,
+                            a line number, `<<target>>`, `#+NAME:`, a
+                            headline title, text). Internal links search
+                            `opts.bufnr` (default current). `headline` is
+                            set when the line is a headline. Not resolved:
+                            `/regexp/` searches, BibTeX keys and what
+                            `links.search_functions` or org-ctags answer.
+
+Clock ~
+                                                           *org-api-clock*
+api.clock.status()          The running clock, or nil: `{ title, file,
+                            start (a date), minutes, clocked, effort,
+                            overrun, headline }` (see |org-clock|).
+api.clock.is_running()
+api.clock.clock_out([opts]) Stop it wherever it runs; returns the minutes.
+api.clock.cancel([opts])    Cancel it (<prefix>xq): its CLOCK line is
+                            removed.
+Both save the file of the CLOCK line (|org-api-saving|, `opts.save`).
+
+Events ~
+                                                          *org-api-events*
+Org fires `User` autocmds with a `data` table. `api.on(name, fn, [opts])`
+calls `fn(data, ev)` for one (`opts.once`, `opts.group`) and returns an id
+for `api.off(id)`; `api.events` maps each name to a short description.
+    OrgTodoStateChange   bufnr, lnum, from, to, state, done, repeated
+                         (|org-todo-events|)
+    OrgTodoRepeat        same data, a repeating task moved on
+    OrgPriorityChanged   bufnr, lnum, file, from, to (nil: no cookie)
+    OrgTagsChanged       bufnr, lnum, file, from, to: the own tags of a
+                         headline changed, whatever changed them (C-c C-q,
+                         the region command, `todo_state_tags_triggers`
+                         once per tag, the ARCHIVE, ORDERED and ATTACH
+                         tags, the agenda, the column views, the API, ...;
+                         org-after-tags-change-hook)
+    OrgPropertyChanged   bufnr, lnum, name, value
+    OrgClockIn           bufnr, lnum, title
+    OrgClockOut          path, title, minutes, removed
+    OrgClockCancel       path, title
+    OrgCaptureAfterFinalize  bufnr, line (`aborted` when cancelled)
+    OrgRefile            bufnr, lnum, file (where the entry now is), title,
+                         source_bufnr, source_file, copy
+                         (org-after-refile-insert-hook). As in Emacs, it
+                         fires after the last-refile bookmark is set; a
+                         destination not shown in a window is saved after
+                         it too, with the handler's edits. Unlike in
+                         Emacs, the entry has already left its old place.
+    OrgArchive           bufnr, lnum, title, archive_file (before the
+                         subtree leaves its file); OrgArchiveFinalize: the
+                         same in the archive buffer
+    OrgFileLoaded        file, bufnr, source ("disk" or "buffer"): a file
+                         was read from disk, or a buffer parsed for the
+                         first time. Fires on the next event loop turn.
+Handlers run during the command, like Emacs hooks, and may edit buffers:
+the command follows its entries where a handler moves them (the region
+command its headlines; a refile the line it returns, its bookmark and the
+API handle).
+Other features fire their own events (clock, capture, agenda, babel, ...;
+see their sections). >lua
+    local api = require("org.api")
+    api.on("OrgTodoStateChange", function(data)
+      if data.done then
+        local h = api.headline_at({ bufnr = data.bufnr, lnum = data.lnum })
+        vim.notify("Done: " .. h.title)
+      end
+    end)
+<
+Other Lua entry points ~
 require("org").setup({opts})        configure (see |org-config|)
 require("org").agenda([key])        open the dispatcher or a view
-require("org").capture([key])       capture
+require("org").capture([key])       capture interactively
 require("org").statusline()         clock and timer string for statuslines
 require("org").action(name)         run an action (|org-keymaps|)
 
-Lower-level modules (stable within a major version):
+The modules below the API are internal and may change between releases;
+use them only for what `org.api` doesn't cover yet:
   org.parser    parse(lines, filename) → file with headlines, planning,
                 properties, clocks and timestamps
   org.files     get(path), get_buffer(bufnr), agenda_files()
@@ -6548,8 +6946,7 @@ Lower-level modules (stable within a major version):
   org.agenda.search  compile(match) → function(headline) → boolean
   org.export    export(format, opts) → output path; to_string(format)
   org.dblock    register(name, fn)
-
-Targets are `{ bufnr = n, lnum = l }`.
+Their targets are `{ bufnr = n, lnum = l }`.
 
 ==============================================================================
 30. IN-BUFFER SETTINGS                               *org-in-buffer-settings*
@@ -6705,7 +7102,13 @@ Differences from Emacs:
   with the default "nc"), as Neovim reveals concealed text there. An image
   shown in place of its link whose line wraps after it, or on the first
   line of a closed fold, is drawn below the line or shown as its link text
-  (Emacs makes that screen line as tall as the image).
+  (Emacs makes that screen line as tall as the image). Vim draws syntax
+  up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
+  ends before that column, so a long line can't leave the lines below it
+  bold. Emphasis over two lines is highlighted only when its part on the
+  first line is at most 'synmaxcol' characters long: looking further for
+  the end of every marker would make drawing a long line take time
+  quadratic in its length.
 
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or
@@ -7107,7 +7510,7 @@ Differences from Emacs:
     dropped on the buffer arrives as a paste, so org-mouse's insertion of
     dropped text as a list item (org-mouse-punctuation) has no
     counterpart.
-- Customize (|org-customize|) lists lua/org/config.lua's options and sets
+- Customize (|org-customize|) lists lua/org/config/'s options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
 - org-lint (|org-lint|): invalid-id-link reports an ID found neither in
@@ -7152,8 +7555,11 @@ Each extension is marked as one of:
 
   stable        used daily and well covered by specs; its options, actions
                 and keys only change with a note in the release notes
-  experimental  works and is tested, but has seen less real use; options
-                and behaviour may still change between minor releases
+  experimental  works and is tested, but has seen less real use, so it is
+                prone to change: its options, commands, keys and output
+                (such as the JSON of |org-extensions-cli|) can change in
+                any release. Read the release notes before you upgrade if
+                a config or a script relies on one.
 
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`
@@ -7623,9 +8029,14 @@ The `:Org` forms of these take the value as an argument, e.g.
 Choosing a node ~
 `picker` sets how nodes are chosen:
 
-  "auto"    snacks.nvim's picker when it is loaded, else "select" (default)
+  "auto"    the picker of org's `picker` option (|org-pickers|), whose
+            "auto" takes LazyVim's picker, else snacks.nvim's first
+            (default)
   "snacks"  fuzzy search; confirming a query that matches no node creates a
             node with that title (like completing-read in Emacs)
+  "fzf-lua", "telescope", "mini"
+            the same with that picker, previewing the node (mini.pick:
+            "+ New node: <text>", below the matches, takes the typed text)
   "select"  |vim.ui.select()|, with a "+ New node" candidate that asks for
             the title
   "input"   type the title, <Tab> completes titles and aliases; a title
@@ -7753,7 +8164,8 @@ Options ~
   `index_file`             the JSON index
                          (stdpath("data")/org/roam-index.json)
   `update_on_save`         re-index a roam file when it is written (true)
-  `picker`                 "auto", "snacks", "select" or "input" (see above)
+  `picker`                 "auto", "snacks", "fzf-lua", "telescope", "mini",
+                           "select" or "input" (see above)
   `sort`                   candidates: "mtime" (recent files first),
                          "title" or "none"
   `display_olp`            show the outline path of headline nodes (false)
@@ -8589,8 +9001,9 @@ Stability: experimental (|org-extensions-stability|)
 
 `bin/org` is a shell command that runs org.nvim in a headless Neovim
 (`nvim --headless -l`), to print the agenda, capture, clock in and out,
-search and export from a terminal, a status bar, cron or a launcher such as
-Raycast. Link it onto your $PATH:
+query, change and export headings from a terminal, a status bar, cron, a
+launcher such as Raycast, a script or an AI agent (every command has JSON
+output, |org-extensions-cli-json|). Link it onto your $PATH:
 >sh
     ln -s /path/to/org.nvim/bin/org ~/.local/bin/org
 <
@@ -8634,57 +9047,226 @@ resolution are turned off, and a command that would need to ask (a capture
 template with `%^{...}`, say) fails with exit code 3.
 
 Commands ~
-`org agenda [VIEW] [--date DATE] [--span N] [--json|--csv]`
+TARGET, the heading a command works on, is one of:
+  `id:ID` or a bare ID         the heading with that ID
+  `FILE:LINE`                  the entry containing that line of FILE
+  `FILE::TITLE`                a title in FILE (`home.org::*Groceries`, as
+                               in a link)
+  `FILE::#CUSTOM_ID`           the heading with that CUSTOM_ID
+  title words                  a heading of the agenda files whose title
+                               contains them (ignoring case; an exact
+                               title wins), or an org-ql query when the
+                               `ql` extension is enabled
+FILE is an agenda file (a path, a file name or a name without `.org`) or
+any org file. When several headings match, nothing is changed: the
+command lists them (in JSON, `details.candidates`) and `--pick N` takes
+the Nth.
+
+Each argument is one word, except a last one of free text: TEXT, QUERY,
+DATE, a property VALUE, or a TARGET with nothing after it (`show`, `id`,
+`clock in`, `archive`) takes the remaining words. So quote a TARGET of
+several words that other arguments follow (`set`, `note`, `refile`):
+`org set todo "Buy milk" DONE`. A word no argument takes is a usage
+error (exit 2), never dropped.
+
+Reading:
+`org agenda [VIEW] [--date DATE] [--span N] [--csv]`
     The agenda as text, like `org-batch-agenda`. VIEW is `day`, `week`,
     `fortnight`, `month`, `year` (the date agenda with that span),
-    `todo [KEYWORD]`, `tags MATCH` or the key of one of your
-    `agenda.custom_commands`; without it, the date agenda with your
-    `agenda.span`. `--date` takes anything the date prompt reads
+    `todo [KEYWORD]`, `tags MATCH`, `tags-todo MATCH` or the key of one
+    of your `agenda.custom_commands`; without it, the date agenda with
+    your `agenda.span`. `--date` takes anything the date prompt reads
     (`2026-10-01`, `+1`, `fri`). `--csv` is `org-batch-agenda-csv`.
-`org capture [-t KEY] TEXT...`
-    Capture TEXT with template KEY (default: `capture_template`, else `t`,
-    else the first). The template finishes at once, the text taking the
-    place of `%?` (or filling `%i` when the template has one). TEXT `-`
-    reads stdin. `--list` prints the templates.
-`org clock status [--short] [--format FMT] [--json]`
+`org search [QUERY...] [--match MATCH] [--limit N]`
+    Headings of the agenda files matching QUERY, as `file:line: heading`:
+    the agenda search syntax (|org-agenda-search|), or org-ql queries
+    when `ql` is enabled. `--match` takes a tags/property match
+    (`+work-boss`, `PRIORITY="A"`, |org-match-syntax|) instead.
+`org headlines [FILE...] [filters]`                   (also `org query`)
+    Headings of the agenda files (or of the FILEs given) passing every
+    filter: `--todo KW` (a keyword, or `any`, `open` for not done,
+    `done`, `none`; repeatable), `--tag TAG` (own or inherited;
+    repeatable, all must match), `--property NAME=VALUE` (`NAME` alone:
+    has the property; inherited as `use_property_inheritance` says, like
+    a property match), `--level N` or `--level 1..2`, `--scheduled
+    FROM..TO` and `--deadline FROM..TO` (dates as `--date` reads them,
+    either side optional, a single date for that day, or `any`, `none`),
+    `--file FILE` (one of the agenda files), `--match MATCH` and
+    `--limit N`. Archived and commented subtrees are left out unless
+    `--archived`.
+`org show TARGET [--children]`
+    A heading with its properties, planning, clocks, plain timestamps
+    and body text; `--children` adds the child entries.
+`org clock [status] [--short] [--format FMT]`
     The running clock: the one saved in `clock.persist_file` (with
     `clock.persist`), else the first open CLOCK line in the agenda files.
     `--format` expands %e (elapsed), %t (heading), %T (total with earlier
     clocks), %E (effort), %f (file) and %s (start), and prints nothing
     without a clock; `--short` uses `status_format`.
-`org clock in [--pick N] QUERY`
-    Clock in the agenda-file heading whose title contains QUERY (ignoring
-    case; an exact title wins), whose ID is QUERY (or `id:ID`), or an
-    org-ql query when the `ql` extension is enabled. `FILE::HEADING`
-    looks only in that agenda file (a path, a file name or a name without
-    `.org`; `home.org::*Groceries` as in a link). Several matches are
-    listed with numbers and nothing is clocked; `--pick N` takes the Nth.
-`org clock out` / `org clock cancel`
-    Clock out of (or cancel) the running clock.
-`org search QUERY... [--json]`
-    Headings of the agenda files matching QUERY, as `file:line: heading`:
-    the agenda search syntax (|org-agenda-search|), or org-ql queries
-    when `ql` is enabled.
+`org templates`, `org files`, `org tags`, `org keywords`
+    The capture templates (also `org capture --list`), the agenda files,
+    the tags used in the agenda files or defined in `tags`, and the TODO
+    keyword sequences with the priority range.
 `org export FILE BACKEND [-o OUTPUT|--stdout]`
     Export FILE with a back-end of `:Org export` (`html`, `md`, `latex`,
     `pdf`, `ascii`, ...) and print the output path, or write the text to
-    stdout.
-`org help`, `org version`
+    stdout. Code blocks are evaluated as in `:Org export`, but one that
+    would ask first (`babel.confirm_evaluate`, `:eval query`) stops the
+    export with exit code 3 and nothing written, as in Emacs's batch
+    export; `babel.confirm_evaluate = false` in the CLI's configuration
+    runs them without asking (for files you trust).
+
+Writing (each saves the files it changed):
+`org capture [-t KEY] [--field NAME=VALUE] [--input FILE] [--id] TEXT...`
+    Capture TEXT with template KEY (default: `capture_template`, else `t`,
+    else the first). The template finishes at once, the text taking the
+    place of `%?` (or filling `%i` when the template has one). TEXT `-`
+    reads stdin. `--field` answers a prompt of the template by its name,
+    the text before any `|`: `%^{Title}` and `%^{Title}p` by `Title`,
+    `%^{Size [cm]|10}` by `Size [cm]`, `%^g` by `Tags`, a date prompt by
+    its name or `Date` (names ignore case). `--input FILE`
+    (`-` for stdin) reads a JSON object `{ "template", "text", "fields" }`
+    instead. `--id` gives the new entry an ID.
+`org clock in [--pick N] TARGET`, `org clock out`, `org clock cancel`
+    Clock in a heading, clock out of the running clock, or cancel it.
+`org set todo TARGET STATE [--note TEXT]`
+    Set the TODO keyword (`none` or "" removes it), with org.nvim's
+    logging, blocking and repeaters. A note the change logs gets TEXT,
+    else it is logged without one.
+`org set tags TARGET [TAGS] [--add TAG] [--remove TAG]`
+    Set the tags (`a:b` or `a,b`; "" removes them all), or add and remove
+    some. A tag has letters and digits (of any script, `café`) and
+    `_ @ # %`, as `org-tag-re` says.
+`org set priority TARGET PRIORITY`
+    `A`, `B`, ... (a number with numeric `#+PRIORITIES`); `none` removes.
+`org set property TARGET NAME VALUE`, `org set property TARGET NAME --delete`
+`org set scheduled TARGET DATE [--note TEXT]`
+`org set deadline TARGET DATE [--note TEXT]`
+    DATE as the date prompt reads it (`2026-10-05 14:00`, `+2d`, `fri`) or
+    a timestamp (`"<2026-10-05 Mon +1w>"`); `none` removes the date. As
+    when you schedule in Neovim (|org-dates|), the old date's repeater and
+    warning period stay, CLOSED is removed, and the change is logged per
+    `log_reschedule` / `log_redeadline`, with the `--note` text or without
+    a note.
+`org note TARGET TEXT`
+    Add a note to the entry's log, like `add_note` (|org-todo|); TEXT `-`
+    reads stdin.
+`org refile TARGET DESTINATION`
+    Move the subtree under DESTINATION, a TARGET, or to the end of an org
+    file given by its path.
+`org archive TARGET`
+    Archive the subtree with `archive_default_command`.
+`org id TARGET [--create]`
+    The heading's ID; `--create` makes one when it has none.
+
+`org schema [COMMAND]`, `org help [--json]`, `org version`
 
 Every command writes its result to stdout and messages to stderr (`-v`
 adds org.nvim's own messages, `-q` hides warnings). Exit codes: 0 done,
 1 failed or nothing found (`search`, `clock out` without a clock), 2 bad
-usage, 3 input needed.
+usage, 3 input needed, 4 the file has unsaved changes in a running Neovim.
 
-JSON ~
-`org agenda --json` prints `{ view, start, end, items }`; each item has
-`date`, `time`, `end_time`, `type` (scheduled, deadline, timestamp, todo,
-...), `todo`, `priority`, `title`, `tags`, `category`, `file`, `line`,
-`extra`, `done` and `text` (the agenda line). `org clock status --json`
-prints `{ active, title, file, start, minutes, elapsed, total, effort }`
-(just `{ "active": false }` without a clock); `org search --json` a list
-of headings with `file`, `line`, `level`, `todo`, `priority`, `title`,
-`tags`, `category`, `scheduled`, `deadline`, `closed` and `id`.
+A write refuses a file that a running Neovim has unsaved changes in (its
+swap file says so), and `--force` writes anyway. Every file a command
+would write is checked before anything changes, so a refused command
+leaves all of them as they were (`clock in` checks the file of the running
+clock it clocks out of too). Writes go through `utils.save_buffer`, so
+the write hooks run: with `crypt.encrypt_on_save` the entries tagged
+`crypt` are encrypted, as when Neovim saves them (|org-crypt|). The
+hooks of all the files run before any is written; one that needs input,
+such as the passphrase of symmetric encryption, fails the command with
+exit code 3 and writes nothing, so give `crypt.key` (or `CRYPTKEY`) a
+public key for writes from the shell. Every write, a capture too,
+touches the clock stamp file, so a Neovim with the extension enabled
+rereads the files (see below).
+
+JSON                                                *org-extensions-cli-json*
+`--json` makes every command print one JSON object, the envelope:
+>json
+    { "version": 1, "ok": true, "command": "set todo",
+      "data": { ... }, "warnings": [], "errors": [] }
+<
+`version` is the version of the JSON output: it changes only when a key
+is removed or changes meaning (new keys can appear). `command` is the
+command's full name (`clock status`, `set tags`, ...), or null for an
+error found before the command is known (an unknown command or option,
+a flag without its value), `data` its result, `warnings` org.nvim's
+warnings during the command. An error makes `ok` false, `data` null and
+`errors` one object `{ code, message, details }`, still on stdout, with
+the exit code of the error:
+
+  `usage` (2)            bad or missing arguments
+  `unknown_command` (2)  no such command
+  `unknown_option` (2)   no such option, or not one of this command
+  `bad_value` (2)        a date, keyword, priority, template, file, match
+                         or JSON that cannot be read or names nothing
+  `config` (2)           the configuration file is missing or fails
+  `not_found` (1)        no heading matches the target
+  `ambiguous` (1)        several headings match: `details.candidates`
+  `no_clock` (1)         no running clock
+  `failed` (1)           org.nvim refused (`details.messages` says why)
+  `internal` (1)         an unexpected error
+  `input_needed` (3)     the command would have to ask: `details.prompt`
+                         names the question (answer a capture prompt
+                         with `--field`; a confirmation or a passphrase
+                         can't be answered)
+  `file_busy` (4)        unsaved changes in a running Neovim:
+                         `details.file`, `details.pid`
+
+In JSON mode stdout holds nothing but that object and stderr stays empty
+unless `-v`, so `2>&1` is safe. A command that finds nothing exits 0
+with an empty list. `--jsonl` prints one result per line instead (the
+items of `agenda`, the headings of `search` and `headlines`, the entries
+of `templates`, `files` and `tags`; other commands print their `data` on
+one line), and an error as the envelope line.
+
+The `data` of each command:
+  `agenda`        `{ view, key, start, end, items }`; an item has `date`,
+                  `time`, `end_time`, `type` (scheduled, deadline,
+                  timestamp, todo, tagsmatch, ...), `todo`, `priority`,
+                  `title`, `tags`, `category`, `file`, `line`, `id`,
+                  `level`, `timestamp`, `extra`, `done` and `text` (the
+                  agenda line)
+  `search`, `headlines`
+                  a list of headings
+  `show`          an entry: a heading plus `properties` (an object),
+                  `effort_minutes`, `clock` (`count`, `running`,
+                  `minutes`, `total`, `subtree_minutes`, `subtree_total`,
+                  `entries` of `{ start, end, minutes, line }`),
+                  `timestamps`, `body` and `children` (entries, or null
+                  without `--children`)
+  `clock ...`     `{ active, title, file, line, id, start, start_iso,
+                  minutes, elapsed, total, effort }`; `clock out` and
+                  `cancel`: `{ active, title, file, minutes, duration,
+                  canceled }`
+  `capture`       `{ file, line, template, type, id, headline }`
+  `set ...`, `note`
+                  `{ headline, field, old, new }` (and `repeated` for
+                  `set todo`, `name` for `set property`)
+  `refile`        `{ headline, from: { file, line } }`
+  `archive`       `{ title, from, archive_file, headline }`
+  `id`            `{ id, created, headline }`
+  `templates`     a list of `{ key, description, type, target, group }`
+  `files`         a list of `{ file, title, category, headlines }`
+  `tags`          a list of `{ name, count, defined }`
+  `keywords`      `{ sequences, todo, done, priority }`
+  `export`        `{ file, backend, output, text }`
+
+A heading is `{ file, line, end_line, level, id, custom_id, todo,
+todo_type ("todo", "done" or null), priority, title, raw_title, tags
+(with inherited ones), local_tags, category, outline_path, scheduled,
+deadline, closed, archived, commented }`. A timestamp is `{ raw, date,
+time, end_time, start, end, active, repeater, warning }`, where `raw` is
+the org text (`<2026-10-02 Fri 10:00-11:00 +1w>`) and `start` and `end`
+are ISO 8601 in local time (`2026-10-02T10:00`, `2026-10-02` without a
+time). Paths are absolute; a missing value is null.
+
+`org schema` prints all of this as JSON: every command with its usage,
+arguments, flags, an `input_schema` (a JSON Schema of its arguments and
+flags) and the JSON Schema of its `data`, the error and exit codes, and
+the shared types under `$defs`. `org schema set todo` describes one
+command; `org help --json` (or `org COMMAND --help --json`) is the same
+in an envelope.
 
 Examples ~
 The running clock in the tmux status line (refreshed every 15 seconds):
@@ -8700,14 +9282,60 @@ every hour, with cron:
 <
 Next three timed items for a status bar (SketchyBar, waybar, ...):
 >sh
-    org agenda --json |
-      jq -r '.items[] | select(.time) | "\(.time) \(.title)"' | head -3
+    org agenda --jsonl | jq -r 'select(.time) | "\(.time) \(.title)"' | head -3
 <
-Capture from a launcher or a shell alias:
+More jq one-liners:
+>sh
+    # overdue deadlines, oldest first
+    org headlines --todo open --deadline ..yesterday --json |
+      jq -r '.data | sort_by(.deadline.start)[] | "\(.deadline.date) \(.title)"'
+    # minutes clocked on a task
+    org show id:4f1c... --json | jq '.data.clock.subtree_minutes'
+    # mark the first NEXT of a project done, by its ID
+    id=$(org headlines --todo NEXT --file projects --limit 1 --json | jq -r '.data[0].id')
+    org set todo "id:$id" DONE
+    # what failed, and why
+    org set todo "Write report" DONE --json | jq -r '.errors[] | "\(.code): \(.message)"'
+<
+Capture from a launcher or a shell alias, or with the answers of a
+template's prompts:
 >sh
     org capture -t t "Call the dentist"
     pbpaste | org capture -t n -
+    org capture -t m --field Who=Ann --field When=fri "Talk about the offsite"
+    echo '{"template":"t","text":"Renew passport"}' | org capture --input - --json
 <
+An agent tool ~
+The CLI makes a small tool interface for an AI agent: the agent runs
+`org ... --json`, reads `ok`, `data` and `errors`, and retries an
+`ambiguous` target with `--pick N` or an ID. `org schema` gives the
+`input_schema` of every command, ready to pass as a tool definition, for
+example to the Anthropic API:
+>json
+    {
+      "name": "org_set_todo",
+      "description": "Set the TODO keyword of an org heading (org set todo).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string", "description": "id:ID, FILE:LINE, FILE::TITLE or title words" },
+          "state": { "type": "string", "description": "a TODO keyword, or none" },
+          "note": { "type": "string", "description": "--note: text of a log note" }
+        },
+        "required": ["target", "state"]
+      }
+    }
+<
+The tool's handler runs `org set todo TARGET STATE [--note NOTE] --json`
+(the arguments as separate words, not through a shell) and returns the
+envelope. To generate one tool per command:
+>sh
+    org schema | jq '[.commands[] | select(.name != "help") | {
+      name: ("org_" + (.name | gsub(" "; "_"))),
+      description: .summary, input_schema: .input_schema }]'
+<
+A read-only agent gets the commands whose `writes` is false.
+
 Options (`extensions.cli`) ~
   `install_dir`        where `cli_install` links `org` ("~/.local/bin")
   `capture_template`   template key of `org capture` without `-t` (nil)
@@ -8715,7 +9343,8 @@ Options (`extensions.cli`) ~
   `watch_clock`        a running Neovim follows the shell's clock (true)
 
 Clock in the shell and in Neovim ~
-`org clock in`, `out` and `cancel` touch `stdpath("data")/org/cli-clock.stamp`.
+Every write (`org clock in`, `out` and `cancel`, `capture`, `set`, ...)
+touches `stdpath("data")/org/cli-clock.stamp`.
 A Neovim with the extension enabled (and `watch_clock`) checks that file
 every two seconds and on |FocusGained|; when it changed, Neovim rereads
 changed files (|:checktime|), drops its running clock when the open CLOCK
@@ -8729,8 +9358,12 @@ Limits ~
     parse cache would gain little), fine for a status bar every few
     seconds, not for a tight loop.
   - The CLI edits files on disk. A Neovim that has the same file open
-    sees the change as a file changed outside it ('autoread'); a buffer
-    with unsaved changes asks as usual.
+    sees the change as a file changed outside it ('autoread'), at once
+    with the extension enabled (it watches the stamp file). The CLI does
+    not write a file with unsaved changes in a running Neovim (exit 4),
+    but finds those only through the swap file in the default
+    'directory'; with swap files off, or on Windows, a Neovim buffer with
+    unsaved changes asks as usual.
 
 ------------------------------------------------------------------------------
 Diagrams (ob-mermaid, ob-dot, ob-plantuml)           *org-extensions-diagrams*

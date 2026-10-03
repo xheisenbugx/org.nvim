@@ -13,6 +13,11 @@ M.augroup = vim.api.nvim_create_augroup("org.nvim", { clear = false })
 ---------------------------------------------------------------------------
 
 function M.notify(msg, level, opts)
+  if M._messages then
+    -- inside `M.noninteractive`: collected for the caller instead of shown
+    table.insert(M._messages, { msg = msg, level = level or vim.log.levels.INFO })
+    return
+  end
   vim.notify(msg, level or vim.log.levels.INFO, vim.tbl_extend("force", { title = "org" }, opts or {}))
 end
 
@@ -22,6 +27,38 @@ end
 
 function M.error(msg)
   M.notify(msg, vim.log.levels.ERROR)
+end
+
+---------------------------------------------------------------------------
+-- Non-interactive calls (org.api)
+---------------------------------------------------------------------------
+
+--- Depth of `M.noninteractive` calls: while positive, prompts (`input`,
+--- `input_note`, `input_complete`, `select`, `confirm`, `getchar`, the
+--- date picker) answer as if cancelled instead of waiting for the user.
+M._noninteractive = 0
+--- Messages collected by `M.noninteractive` (nil outside of it).
+M._messages = nil
+
+--- Is a prompt to be answered as cancelled (inside `M.noninteractive`)?
+function M.is_noninteractive()
+  return M._noninteractive > 0
+end
+
+--- Call `fn(...)` without prompting and without showing messages: prompts
+--- answer as if cancelled and `notify` / `warn` / `error` messages are
+--- collected. Returns `ok, messages, results...` (`results` is the error
+--- when `ok` is false).
+---@return boolean ok, { msg: string, level: integer }[] messages, any ...
+function M.noninteractive(fn, ...)
+  local saved = M._messages
+  local msgs = {}
+  M._messages = msgs
+  M._noninteractive = M._noninteractive + 1
+  local res = { pcall(fn, ...) }
+  M._noninteractive = M._noninteractive - 1
+  M._messages = saved
+  return res[1], msgs, unpack(res, 2, table.maxn(res))
 end
 
 ---------------------------------------------------------------------------
@@ -95,6 +132,9 @@ function M.input(opts)
   if type(opts) == "string" then
     opts = { prompt = opts }
   end
+  if M._noninteractive > 0 then
+    return nil
+  end
   if not in_coroutine() then
     local ok, v = pcall(vim.fn.input, opts)
     return ok and v or nil
@@ -114,6 +154,9 @@ end
 function M.input_note(opts)
   if type(opts) == "string" then
     opts = { prompt = opts }
+  end
+  if M._noninteractive > 0 then
+    return nil
   end
   local ok_cfg, config = pcall(require, "org.config")
   local use_buffer = not (ok_cfg and config.opts.note_buffer == false)
@@ -183,6 +226,9 @@ end
 ---@param candidates string[]|fun(arglead:string):string[]
 ---@param default? string
 function M.input_complete(prompt, candidates, default)
+  if M._noninteractive > 0 then
+    return nil
+  end
   M._complete_candidates = candidates
   local ok, value = pcall(vim.fn.input, {
     prompt = prompt,
@@ -214,9 +260,9 @@ end
 
 --- Choose from a list. Returns item, index (nil when cancelled).
 ---@param items any[]
----@param opts? { prompt?: string, format_item?: fun(item:any):string, kind?: string }
+---@param opts? { prompt?: string, format_item?: (fun(item:any):string), kind?: string }
 function M.select(items, opts)
-  if #items == 0 then
+  if #items == 0 or M._noninteractive > 0 then
     return nil
   end
   if not in_coroutine() then
@@ -229,6 +275,9 @@ end
 
 --- Yes/no confirmation (synchronous).
 function M.confirm(msg)
+  if M._noninteractive > 0 then
+    return false
+  end
   local ok, c = pcall(vim.fn.confirm, msg, "&Yes\n&No", 2)
   return ok and c == 1
 end
@@ -249,6 +298,9 @@ function M.start_insert()
 end
 
 function M.getchar(prompt)
+  if M._noninteractive > 0 then
+    return nil
+  end
   if prompt then
     vim.api.nvim_echo({ { prompt, "Question" } }, false, {})
   end

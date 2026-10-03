@@ -354,6 +354,7 @@ end
 
 --- Generate a new id according to `id.method` and `id.prefix`
 --- (org-id-new).
+---@return string
 function M.new_id()
   local cfg = config.opts.id or {}
   local method = cfg.method or "uuid"
@@ -361,7 +362,7 @@ function M.new_id()
   if method == "ts" then
     local sec, usec = vim.uv.gettimeofday()
     local fmt = (cfg.ts_format or "%Y%m%dT%H%M%S.%6N"):gsub("%%6N", string.format("%06d", usec))
-    unique = os.date(fmt, sec)
+    unique = os.date(fmt, sec) --[[@as string]]
   elseif method == "org" then
     -- the time (HI LO USEC) in base 36, reversed
     local sec, usec = vim.uv.gettimeofday()

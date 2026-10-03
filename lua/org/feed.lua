@@ -489,7 +489,7 @@ end
 
 --- Read Lisp data: lists, strings, symbols (`t`, `nil`) and numbers.
 ---@param s string
----@return any value, string? err
+---@return any value, any err
 function M.read_lisp(s)
   local i, n = 1, #s
   local function skip()

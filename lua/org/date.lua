@@ -14,6 +14,18 @@
 
 local M = {}
 
+---@class org.Date
+---@field year integer
+---@field month integer
+---@field day integer
+---@field hour? integer
+---@field min? integer
+---@field end_hour? integer
+---@field end_min? integer
+---@field active boolean
+---@field repeater? table
+---@field warning? table
+---@field range_end? org.Date
 local Date = {}
 Date.__index = Date
 M.Date = Date
@@ -1165,7 +1177,7 @@ end
 --- "(=>F)" by the live date prompt).
 ---@param input string
 ---@param default? table
----@return table|nil date, boolean futurep
+---@return table|nil date, boolean? futurep
 function M.read_date_analyze(input, default)
   local now = M.now()
   local prefer = require("org.config").opts.read_date_prefer_future

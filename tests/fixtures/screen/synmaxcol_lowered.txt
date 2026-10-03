@@ -1,0 +1,8 @@
+screen 60x8
+|word word word word word word word word word word word word|
+|plain text|
+|{1:* Next }{2:*}{3:bold}{2:*}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} orgBoldDelimiter -> OrgBold [bold]
+{3} OrgBold [bold]

@@ -18,6 +18,11 @@ local M = {}
 ---@field log_leave "time"|"note"|nil
 
 ---@class org.TodoConfig
+---@field keywords org.TodoKeyword[] every keyword, in order
+---@field by_name table<string, org.TodoKeyword>
+---@field sequences org.TodoKeyword[][]
+---@field has_fast_keys boolean
+---@field has_log_flags boolean
 local TodoConfig = {}
 TodoConfig.__index = TodoConfig
 

@@ -53,15 +53,33 @@ local function make_tag_string(tags)
   return ":" .. table.concat(tags, ":") .. ":"
 end
 
+--- The headlines of `list` as a set.
+local function set_of(list)
+  local set = {}
+  for _, x in ipairs(list) do
+    set[x] = true
+  end
+  return set
+end
+
+--- (org-md--headline-referred-p) The tables of contents and the links are
+--- collected once per export and kept in `info`: asked for each headline,
+--- walking the whole tree each time took minutes for 5,000 headlines.
 local function headline_referred_p(h, info)
   if h.footnote_section_p then
     return false
   end
+  local memo = info.md_referred
+  if not memo then
+    memo = { sections = {} }
+    info.md_referred = memo
+  end
   if info.with_toc then
-    for _, x in ipairs(ox.collect_headlines(info, type(info.with_toc) == "number" and info.with_toc or nil)) do
-      if x == h then
-        return true
-      end
+    if not memo.toc then
+      memo.toc = set_of(ox.collect_headlines(info, type(info.with_toc) == "number" and info.with_toc or nil))
+    end
+    if memo.toc[h] then
+      return true
     end
   end
   local p = h.parent
@@ -69,33 +87,41 @@ local function headline_referred_p(h, info)
     if p.type == "headline" or p.type == "org-data" then
       local section = p.contents[1]
       if section and section.type == "section" then
-        local hit = element.map(section, "keyword", function(k)
-          if k.key == "TOC" then
-            local v = k.value:lower()
-            if v:match("%f[%w]headlines%f[%W]") then
-              local n = tonumber(k.value:match("%f[%d](%d+)%f[%D]"))
-              local localp = v:match("%f[%w]local%f[%W]")
-              for _, x in ipairs(ox.collect_headlines(info, n, localp and k or nil)) do
-                if x == h then
-                  return true
-                end
+        -- the headlines of the section's TOC keywords, one set each
+        local tocs = memo.sections[section]
+        if not tocs then
+          tocs = {}
+          element.map(section, "keyword", function(k)
+            if k.key == "TOC" then
+              local v = k.value:lower()
+              if v:match("%f[%w]headlines%f[%W]") then
+                local n = tonumber(k.value:match("%f[%d](%d+)%f[%D]"))
+                local localp = v:match("%f[%w]local%f[%W]")
+                tocs[#tocs + 1] = set_of(ox.collect_headlines(info, n, localp and k or nil))
               end
             end
+          end, { ignore = info.ignore })
+          memo.sections[section] = tocs
+        end
+        for _, toc in ipairs(tocs) do
+          if toc[h] then
+            return true
           end
-        end, { first_match = true, ignore = info.ignore })
-        if hit then
-          return true
         end
       end
     end
     p = p.parent
   end
-  return element.map(info.parse_tree, "link", function(l)
-    local ok, dest = pcall(ox.resolve_id_link, l, info)
-    if ok and dest == h then
-      return true
-    end
-  end, { first_match = true, ignore = info.ignore }) == true
+  if not memo.links then
+    memo.links = {}
+    element.map(info.parse_tree, "link", function(l)
+      local ok, dest = pcall(ox.resolve_id_link, l, info)
+      if ok and type(dest) == "table" then
+        memo.links[dest] = true
+      end
+    end, { ignore = info.ignore })
+  end
+  return memo.links[h] == true
 end
 
 local function headline_title(style, level, title, anchor, tags)

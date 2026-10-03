@@ -1,5 +1,11 @@
 -- Minimal init for headless tests: only this plugin on the runtimepath.
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+-- `make coverage`: count the lines of lua/org that run, from the first
+-- module loaded on (tests/coverage.lua)
+if (vim.env.ORG_COVERAGE_DIR or "") ~= "" then
+  package.loaded["tests.coverage"] = dofile(root .. "/tests/coverage.lua")
+  package.loaded["tests.coverage"].start(vim.env.ORG_COVERAGE_DIR)
+end
 vim.opt.rtp = { root, vim.env.VIMRUNTIME }
 vim.opt.swapfile = false
 vim.opt.hidden = true

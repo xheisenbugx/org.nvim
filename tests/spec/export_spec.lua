@@ -288,3 +288,101 @@ describe("export", function()
     end)
   end)
 end)
+
+-- What the exporters ask for each headline, reference or row is computed
+-- once per export (asked again and again, it made exports of a few
+-- thousand headlines, footnotes or table rows take seconds to minutes);
+-- the results are those of asking each time.
+describe("export: answers computed once", function()
+  before_each(function()
+    config.opts.babel.evaluate_on_export = false
+  end)
+
+  it("anchors the Markdown headlines a table of contents or a link refers to", function()
+    local doc = {
+      "#+OPTIONS: toc:nil",
+      "* A",
+      "#+TOC: headlines 1 local",
+      "** A1",
+      "*** A1x",
+      "** A2",
+      "* B",
+      ":PROPERTIES:",
+      ":CUSTOM_ID: bee",
+      ":END:",
+      "* C",
+      "See [[#bee][B]] and [[*D][d]].",
+      "* D",
+      ":PROPERTIES:",
+      ":ID: dee",
+      ":END:",
+      "* E",
+      "[[id:dee]]",
+    }
+    local function anchored(md)
+      local out = {}
+      for title in md:gmatch('<a id="[^"]+"></a>\n\n#+ ([^\n]+)') do
+        out[#out + 1] = title
+      end
+      return out
+    end
+    eq({ "A1", "A2", "B", "D" }, anchored(body("md", doc)))
+    -- the global table of contents refers to every top-level headline
+    doc[1] = "#+OPTIONS: toc:1"
+    local with_toc = anchored(body("md", doc))
+    for _, title in ipairs({ "A", "B", "C", "D", "E" }) do
+      ok(vim.tbl_contains(with_toc, title), title)
+    end
+  end)
+
+  it("finds the emphasis of a search from each opening marker", function()
+    local function objects(s)
+      local out = {}
+      local function walk(nodes)
+        for _, n in ipairs(nodes or {}) do
+          if type(n) == "table" and n.type ~= "plain-text" then
+            out[#out + 1] = n.type .. " " .. tostring(n.value or n.raw_link or "")
+            walk(n.contents)
+          end
+        end
+      end
+      walk(element.parse_secondary(s, "paragraph"))
+      return out
+    end
+    eq({ "bold ", "bold " }, objects("*a b* c *d e* f *g"))
+    eq({ "bold " }, objects("a *b *c d* e"))
+    eq({ "italic ", "bold " }, objects("/x *y /z w* q/ r"))
+    eq({ "verbatim a =b" }, objects("=a =b= c= *d *e"))
+    eq({ "bold ", "bold " }, objects("*a\nb* c *d\ne *f* g*"))
+    -- a plain link type is at most as long as the longest type
+    eq({ "link https://x.org" }, objects("a1b2c3-d4 https://x.org"))
+    eq({ "link https://x.org" }, objects(string.rep("a+b-", 50) .. "https://x.org"))
+  end)
+
+  it("numbers footnotes in the order of their first reference", function()
+    local html = body("html", {
+      "One[fn:b] two[fn:a] inline[fn:: anonymous] again[fn:b] nested[fn:n].",
+      "",
+      "[fn:a] A.",
+      "[fn:b] B.",
+      "[fn:n] N, see[fn:a] and[fn:c].",
+      "[fn:c] C.",
+    })
+    local refs = {}
+    for n in html:gmatch('class="footref"[^>]*>(%d+)</a>') do
+      refs[#refs + 1] = tonumber(n)
+    end
+    -- b=1, a=2, the anonymous one 3, b again 1, n=4; inside n: a=2, c=5
+    eq({ 1, 2, 3, 1, 4, 2, 5 }, refs)
+    -- a definition only once, at its first reference
+    local _, defs = html:gsub('class="footnum"', "")
+    eq(5, defs)
+  end)
+
+  it("draws the rule borders of table rows", function()
+    local html = body("html", { "| a | b |", "|---+---|", "| 1 | 2 |", "| 3 | 4 |", "|---+---|", "| 5 | 6 |" })
+    local _, groups = html:gsub("<tbody>", "")
+    eq(2, groups)
+    has(html, "<thead>")
+  end)
+end)

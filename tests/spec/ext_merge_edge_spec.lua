@@ -188,7 +188,7 @@ describe("merge extension: edge cases", function()
     local ms = (vim.uv.hrtime() - t0) / 1e6
     eq(0, res.conflicts)
     eq(15000, #res.lines)
-    ok(ms < 1000, string.format("took %.0f ms", ms))
+    ok(ms < 1000 or under_coverage(), string.format("took %.0f ms", ms))
   end)
 end)
 

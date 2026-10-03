@@ -9,11 +9,34 @@ local fold = require("org.fold")
 
 local SEEDS = fuzz.seeds(25)
 
---- Fail with the seed and the input, ready to paste into a regression spec.
-local function check(cond, seed, lines, msg)
+--- Fail a check of the input being verified: `verify` reports it with the
+--- seed and the input.
+local function check(cond, msg)
   if not cond then
-    error(("seed %d: %s\ninput = %s"):format(seed, msg, fuzz.dump(lines)), 2)
+    error({ fuzz = msg }, 2)
   end
+end
+
+local function failure(err)
+  return type(err) == "table" and err.fuzz or tostring(err)
+end
+
+--- Run `body(lines)`, which checks invariants. When one fails, shrink
+--- `lines` to a smaller input failing the same way and fail with the seed,
+--- the replay command and both inputs, ready to paste into
+--- fuzz_regressions_spec.lua.
+local function verify(seed, lines, body)
+  local ok_, err = pcall(body, lines)
+  if ok_ then
+    return
+  end
+  local msg = failure(err)
+  local kind = fuzz.kind(msg)
+  local small = fuzz.shrink(lines, function(cand)
+    local o, e = pcall(body, cand)
+    return not o and fuzz.kind(failure(e)) == kind
+  end)
+  error(fuzz.report(seed, msg, lines, small), 0)
 end
 
 --- A plain-data copy of a parse (no back references), to compare parses.
@@ -98,51 +121,44 @@ local function reference(lines)
   return hls
 end
 
-local function check_outline(seed, lines, file, inline)
+local function check_outline(lines, file, inline)
   local n = #lines
   local hls = file.headlines
   local outline = {}
   for i, hl in ipairs(hls) do
-    check(hl.index == i, seed, lines, "index of headline " .. i)
-    check(i == 1 or hls[i - 1].line < hl.line, seed, lines, "headlines out of order at " .. hl.line)
-    check(parser.headline_level(lines[hl.line]) == hl.level, seed, lines, "level of line " .. hl.line)
-    check(hl.raw == lines[hl.line], seed, lines, "raw of line " .. hl.line)
+    check(hl.index == i, "index of headline " .. i)
+    check(i == 1 or hls[i - 1].line < hl.line, "headlines out of order at " .. hl.line)
+    check(parser.headline_level(lines[hl.line]) == hl.level, "level of line " .. hl.line)
+    check(hl.raw == lines[hl.line], "raw of line " .. hl.line)
     check(
       hl.line <= hl.body_end and hl.body_end <= hl.end_line and hl.end_line <= n,
-      seed,
-      lines,
       ("ranges of %d: body_end %d end_line %d"):format(hl.line, hl.body_end, hl.end_line)
     )
     if hl.parent then
       local p = hl.parent
-      check(p.level < hl.level, seed, lines, "parent level of " .. hl.line)
-      check(p.line < hl.line and hl.end_line <= p.end_line, seed, lines, "child outside parent at " .. hl.line)
+      check(p.level < hl.level, "parent level of " .. hl.line)
+      check(p.line < hl.line and hl.end_line <= p.end_line, "child outside parent at " .. hl.line)
     end
     for _, c in ipairs(hl.children) do
-      check(c.parent == hl, seed, lines, "child's parent at " .. c.line)
-      check(not c.inlinetask, seed, lines, "inline task among children at " .. c.line)
+      check(c.parent == hl, "child's parent at " .. c.line)
+      check(not c.inlinetask, "inline task among children at " .. c.line)
     end
     if not hl.inlinetask then
       outline[#outline + 1] = hl
     end
   end
   for _, c in ipairs(file.children) do
-    check(c.parent == nil, seed, lines, "top-level entry with a parent at " .. c.line)
+    check(c.parent == nil, "top-level entry with a parent at " .. c.line)
   end
   if not inline then
     local ref = reference(lines)
-    check(#ref == #hls, seed, lines, ("%d headlines, expected %d"):format(#hls, #ref))
+    check(#ref == #hls, ("%d headlines, expected %d"):format(#hls, #ref))
     for k, r in ipairs(ref) do
       local hl = hls[k]
-      check(hl.line == r.line, seed, lines, "headline line " .. r.line)
-      check(
-        hl.end_line == r.end_line,
-        seed,
-        lines,
-        ("end_line of %d: %d, expected %d"):format(r.line, hl.end_line, r.end_line)
-      )
-      check(hl.body_end == r.body_end, seed, lines, "body_end of " .. r.line)
-      check((hl.parent and hl.parent.index) == r.parent, seed, lines, "parent of " .. r.line)
+      check(hl.line == r.line, "headline line " .. r.line)
+      check(hl.end_line == r.end_line, ("end_line of %d: %d, expected %d"):format(r.line, hl.end_line, r.end_line))
+      check(hl.body_end == r.body_end, "body_end of " .. r.line)
+      check((hl.parent and hl.parent.index) == r.parent, "parent of " .. r.line)
     end
     -- every line belongs to the nearest headline above it
     local k = 0
@@ -151,34 +167,34 @@ local function check_outline(seed, lines, file, inline)
         k = k + 1
       end
       local at = file:headline_at(l)
-      check((at and at.index) == (k > 0 and k or nil), seed, lines, "headline_at(" .. l .. ")")
+      check((at and at.index) == (k > 0 and k or nil), "headline_at(" .. l .. ")")
     end
-    check(file.preamble_end == (ref[1] and ref[1].line - 1 or n), seed, lines, "preamble_end")
+    check(file.preamble_end == (ref[1] and ref[1].line - 1 or n), "preamble_end")
   else
     for l = 1, n do
       local at = file:headline_at(l)
-      check(not at or (at.line <= l and l <= at.end_line), seed, lines, "headline_at(" .. l .. ") outside its entry")
+      check(not at or (at.line <= l and l <= at.end_line), "headline_at(" .. l .. ") outside its entry")
     end
   end
   -- the section of an outline entry: the lines up to the next outline headline
   for k, hl in ipairs(outline) do
     local nxt = outline[k + 1]
-    check(hl.body_end == (nxt and nxt.line - 1 or n), seed, lines, "body_end with inline tasks at " .. hl.line)
+    check(hl.body_end == (nxt and nxt.line - 1 or n), "body_end with inline tasks at " .. hl.line)
   end
 end
 
-local function check_sections(seed, lines, file)
+local function check_sections(lines, file)
   for _, hl in ipairs(file.headlines) do
     local ok_, err = pcall(function()
       return hl.todo, hl.title, hl.tags, hl.planning, hl.properties, hl.drawers, hl.clocks, hl.timestamps
     end)
-    check(ok_, seed, lines, "lazy fields of " .. hl.line .. ": " .. tostring(err))
+    check(ok_, "lazy fields of " .. hl.line .. ": " .. tostring(err))
     local s, e = hl.line + 1, hl.body_end
     if hl.planning_line then
-      check(hl.planning_line >= s and hl.planning_line <= e, seed, lines, "planning line of " .. hl.line)
+      check(hl.planning_line >= s and hl.planning_line <= e, "planning line of " .. hl.line)
     end
     local function within(r, what)
-      check(r[1] >= s and r[2] <= e and r[1] <= r[2], seed, lines, what .. " of " .. hl.line)
+      check(r[1] >= s and r[2] <= e and r[1] <= r[2], what .. " of " .. hl.line)
     end
     if hl.properties_range then
       within(hl.properties_range, "properties_range")
@@ -190,32 +206,32 @@ local function check_sections(seed, lines, file)
       within({ hl.logbook.start, hl.logbook["end"] }, "logbook")
     end
     for _, c in ipairs(hl.clocks) do
-      check(c.line >= s and c.line <= e, seed, lines, "clock line of " .. hl.line)
+      check(c.line >= s and c.line <= e, "clock line of " .. hl.line)
     end
     for _, t in ipairs(hl.timestamps) do
-      check(t.line >= hl.line and t.line <= e, seed, lines, "timestamp line of " .. hl.line)
-      check(t.start_col >= 1 and t.end_col <= #lines[t.line], seed, lines, "timestamp cols on " .. t.line)
+      check(t.line >= hl.line and t.line <= e, "timestamp line of " .. hl.line)
+      check(t.start_col >= 1 and t.end_col <= #lines[t.line], "timestamp cols on " .. t.line)
     end
   end
 end
 
 --- Elements of [s, e]: in order, not overlapping, inside their parent.
-local function check_elements(seed, lines, els, s, e, where)
+local function check_elements(lines, els, s, e, where)
   local prev = s - 1
   for _, el in ipairs(els) do
     local tag = ("%s %s %d-%d"):format(where, el.type, el.first, el.last or -1)
-    check(el.first > prev, seed, lines, "elements overlap: " .. tag)
-    check(el.first <= el.post and el.post <= el.clast and el.clast <= el.last, seed, lines, "element bounds: " .. tag)
-    check(el.last <= e, seed, lines, "element past its container: " .. tag)
+    check(el.first > prev, "elements overlap: " .. tag)
+    check(el.first <= el.post and el.post <= el.clast and el.clast <= el.last, "element bounds: " .. tag)
+    check(el.last <= e, "element past its container: " .. tag)
     if el.children and #el.children > 0 then
-      check(el.cfirst and el.cend, seed, lines, "children without contents: " .. tag)
-      check_elements(seed, lines, el.children, el.cfirst, el.cend, tag)
+      check(el.cfirst and el.cend, "children without contents: " .. tag)
+      check_elements(lines, el.children, el.cfirst, el.cend, tag)
     end
     prev = el.last
   end
 end
 
-local function check_element_parse(seed, lines, file)
+local function check_element_parse(lines, file)
   local sections = { { 1, file.preamble_end } }
   for _, hl in ipairs(file.headlines) do
     if not hl.inlinetask then
@@ -224,20 +240,20 @@ local function check_element_parse(seed, lines, file)
   end
   for _, r in ipairs(sections) do
     local ok_, els = pcall(element.parse, lines, r[1], r[2])
-    check(ok_, seed, lines, ("element.parse(%d, %d): %s"):format(r[1], r[2], tostring(els)))
-    check_elements(seed, lines, els, r[1], r[2], "section " .. r[1])
+    check(ok_, ("element.parse(%d, %d): %s"):format(r[1], r[2], tostring(els)))
+    check_elements(lines, els, r[1], r[2], "section " .. r[1])
   end
 end
 
 local function run_parse(inline)
   for _, seed in ipairs(SEEDS) do
-    local rng = fuzz.rng(seed)
-    local lines = fuzz.doc(rng)
-    local ok_, file = pcall(parser.parse, lines)
-    check(ok_, seed, lines, "parse error: " .. tostring(file))
-    check_outline(seed, lines, file, inline)
-    check_sections(seed, lines, file)
-    check_element_parse(seed, lines, file)
+    verify(seed, fuzz.doc(fuzz.rng(seed)), function(lines)
+      local ok_, file = pcall(parser.parse, lines)
+      check(ok_, "parse error: " .. tostring(file))
+      check_outline(lines, file, inline)
+      check_sections(lines, file)
+      check_element_parse(lines, file)
+    end)
   end
 end
 
@@ -256,24 +272,34 @@ describe("fuzz parser", function()
   it("gives the same parse for a buffer and its file on disk", function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
-    for _, seed in ipairs(SEEDS) do
-      local lines = fuzz.doc(fuzz.rng(seed))
-      if #lines > 0 then
-        local path = dir .. "/f" .. seed .. ".org"
-        local fd = assert(io.open(path, "wb"))
-        fd:write(table.concat(lines, "\n"), "\n")
-        fd:close()
-        files.invalidate(path)
-        local disk = summary(files.get(path))
-        vim.cmd("silent edit " .. vim.fn.fnameescape(path))
-        local buf = vim.api.nvim_get_current_buf()
+    local n = 0
+    local function same_parse(lines)
+      if #lines == 0 then
+        return
+      end
+      n = n + 1
+      local path = dir .. "/f" .. n .. ".org"
+      local fd = assert(io.open(path, "wb"))
+      fd:write(table.concat(lines, "\n"), "\n")
+      fd:close()
+      files.invalidate(path)
+      local disk = summary(files.get(path))
+      vim.cmd("silent edit " .. vim.fn.fnameescape(path))
+      local buf = vim.api.nvim_get_current_buf()
+      local ok_, err = pcall(function()
         local inbuf = summary(files.get_buffer(buf))
-        check(vim.deep_equal(disk, inbuf), seed, lines, "disk and buffer parses differ")
+        check(vim.deep_equal(disk, inbuf), "disk and buffer parses differ")
         -- a no-op edit makes a new parse, which must be the same
         vim.api.nvim_buf_set_lines(buf, 0, 1, false, vim.api.nvim_buf_get_lines(buf, 0, 1, false))
-        check(vim.deep_equal(inbuf, summary(files.get_buffer(buf))), seed, lines, "re-parse after a no-op edit")
-        vim.cmd("silent bwipeout!")
+        check(vim.deep_equal(inbuf, summary(files.get_buffer(buf))), "re-parse after a no-op edit")
+      end)
+      vim.cmd("silent bwipeout! " .. buf)
+      if not ok_ then
+        error(err, 0)
       end
+    end
+    for _, seed in ipairs(SEEDS) do
+      verify(seed, fuzz.doc(fuzz.rng(seed)), same_parse)
     end
     vim.fn.delete(dir, "rf")
   end)
@@ -296,10 +322,20 @@ describe("fuzz parser", function()
           lnums[k] = nil
         end
       end
-      for _, l in ipairs(lnums) do
-        local ok_, err = pcall(element.at, buf, l)
-        check(ok_, seed, lines, ("element.at(%d): %s"):format(l, tostring(err)))
-      end
+      verify(seed, lines, function(cand)
+        if cand ~= lines then
+          -- shrinking: every line of the smaller text
+          buf = org_buffer(cand)
+          lnums = {}
+          for l = 1, #cand do
+            lnums[l] = l
+          end
+        end
+        for _, l in ipairs(lnums) do
+          local ok_, err = pcall(element.at, buf, l)
+          check(ok_, ("element.at(%d): %s"):format(l, tostring(err)))
+        end
+      end)
     end
   end)
 end)
@@ -326,17 +362,20 @@ describe("fuzz fold levels", function()
               break
             end
           end
-          check(
-            false,
-            seed,
-            lines,
-            ("%s: incremental fold level of line %s is %s, full compute %s\nedits: %s"):format(
-              what,
-              tostring(first),
-              tostring(first and got[first]),
-              tostring(first and want[first]),
-              table.concat(hist, " | ")
-            )
+          error(
+            fuzz.report(
+              seed,
+              ("%s: incremental fold level of line %s is %s, full compute %s"):format(
+                what,
+                tostring(first),
+                tostring(first and got[first]),
+                tostring(first and want[first])
+              ),
+              lines,
+              nil,
+              "edits: " .. table.concat(hist, " | ")
+            ),
+            0
           )
         end
       end

@@ -2,10 +2,6 @@
 -- LuaLS type definitions for `require("org").setup({ extensions = { drill = ... } })`.
 -- Annotations only; never loaded at runtime.
 
----@class org.Config.Extensions
----Spaced repetition flashcards, like org-drill (`:h org-extensions-drill`).
----@field drill? org.Config.Extensions.Drill|boolean
-
 ---@class org.Config.Extensions.Drill
 ---`false` keeps the extension off.
 ---@field enabled? boolean

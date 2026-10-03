@@ -84,7 +84,7 @@ local function client_of(buf)
   local c
   vim.wait(2000, function()
     c = vim.lsp.get_clients({ bufnr = buf, name = "org" })[1]
-    return c ~= nil and c.initialized
+    return c ~= nil and c.initialized == true
   end, 5)
   return c
 end

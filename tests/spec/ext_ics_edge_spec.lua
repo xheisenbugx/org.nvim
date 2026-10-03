@@ -268,7 +268,7 @@ describe("ics extension: agenda, cache, fetch, import", function()
     ics_mod.agenda_items(from, from + 364)
     local second = (vim.uv.hrtime() - t0) / 1e6
     ok(n > 50000, n)
-    ok(first < 10000, string.format("first %.0f ms", first))
+    ok(first < 10000 or under_coverage(), string.format("first %.0f ms", first))
     ok(second < first, string.format("cached %.0f ms, first %.0f ms", second, first))
   end)
 

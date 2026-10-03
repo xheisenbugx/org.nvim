@@ -315,7 +315,7 @@ end
 
 --- Parse the section containing `lnum` (the lines after its headline,
 --- or the text before the first headline).
----@return org.Element[] elements, integer from, integer to, org.Headline|nil
+---@return org.Element[] elements, integer from, integer to, org.Headline|nil hl, string[] lines
 function M.section(bufnr, lnum)
   local file = files.get_buffer(bufnr)
   local hl = file:headline_at(lnum)

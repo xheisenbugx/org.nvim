@@ -1,9 +1,9 @@
 ---@mod org.customize Browsing and setting options (org-customize)
 ---
 --- `:Org customize` opens a buffer listing every option with its value, in
---- the order and sections of `lua/org/config.lua`, like Emacs's
+--- the order and sections of the files of `lua/org/config/`, like Emacs's
 --- customize-browse of the org group. Keys: <CR> or K shows the option's
---- documentation (the comment above it in config.lua) with its default and
+--- documentation (the comment above it in lua/org/config/) with its default and
 --- current value, `c` changes the value for this session (a Lua
 --- expression, Emacs's "Set for Current Session"), `R` resets it to the
 --- default, `q` closes the buffer. Options that differ from their default
@@ -22,14 +22,21 @@ local M = {}
 ---@field doc string[]
 ---@field section boolean a table of options (shown as a heading)
 
---- The options of config.lua in source order, with their documentation.
+--- The options of lua/org/config/ in source order, with their documentation.
 ---@type org.CustomizeOption[]|nil
 M._options = nil
 
-local function config_source()
-  local src = debug.getinfo(config.lhs_list, "S").source:sub(2)
-  local ok, lines = pcall(vim.fn.readfile, src)
-  return ok and lines or {}
+--- The lines of each file of the defaults (lua/org/config/<part>.lua), in
+--- the order of `config.parts`.
+---@return string[][]
+local function config_sources()
+  local dir = vim.fs.dirname(debug.getinfo(config.lhs_list, "S").source:sub(2))
+  local out = {}
+  for _, part in ipairs(config.parts) do
+    local ok, lines = pcall(vim.fn.readfile, dir .. "/" .. part .. ".lua")
+    out[#out + 1] = ok and lines or {}
+  end
+  return out
 end
 
 local function get(tbl, path)
@@ -47,56 +54,63 @@ local function is_dict(v)
   return type(v) == "table" and next(v) ~= nil and not vim.islist(v)
 end
 
---- Read the option tree from config.lua's `M.defaults = { ... }`: a line
---- `key = value` at the indentation of its table is an option, `key = {`
---- opens a section when the default is a table of options.
+--- Read the option tree from the `local defaults = { ... }` of each file
+--- of the defaults: a line `key = value` at the indentation of its table
+--- is an option, `key = {` opens a section when the default is a table of
+--- options.
 ---@return org.CustomizeOption[]
 function M.options()
   if M._options then
     return M._options
   end
   local out, stack, doc = {}, {}, {}
-  local inside = false
-  for _, line in ipairs(config_source()) do
-    if not inside then
-      inside = line:match("^M%.defaults = {") ~= nil
-    elseif line:match("^}") then
-      break
-    else
-      local indent, key, rest = line:match("^(%s*)([%a_][%w_]*) = (.*)$")
-      local c = line:match("^%s*%-%-%-%s?(.*)$")
-      if line:match("^%s*%-%-%-%-") or (not c and line:match("^%s*%-%-")) then
-        -- a rule or a section comment
-        doc = {}
-      elseif c then
-        doc[#doc + 1] = c
-      elseif key then
-        local depth = #indent / 2
-        while #stack >= depth and #stack > 0 do
-          table.remove(stack)
-        end
-        if #stack == depth - 1 then
-          local path = vim.list_extend(vim.deepcopy(stack), { key })
-          local parent = #stack == 0 and config.defaults or get(config.defaults, stack)
-          if is_dict(parent) or #stack == 0 then
-            local trailing = rest:match("%-%-%s*(.-)%s*$")
-            if trailing and trailing ~= "" then
-              doc[#doc + 1] = trailing
-            end
-            local section = rest:match("^{%s*$") ~= nil and is_dict(get(config.defaults, path))
-            out[#out + 1] = { path = path, doc = doc, section = section }
-            if rest:match("^{%s*$") then
-              stack[#stack + 1] = key
+  local function read(lines)
+    local inside = false
+    for _, line in ipairs(lines) do
+      if not inside then
+        inside = line:match("^local defaults = {") ~= nil
+      elseif line:match("^}") then
+        return
+      else
+        local indent, key, rest = line:match("^(%s*)([%a_][%w_]*) = (.*)$")
+        local c = line:match("^%s*%-%-%-%s?(.*)$")
+        if line:match("^%s*%-%-%-%-") or (not c and line:match("^%s*%-%-")) then
+          -- a rule or a section comment
+          doc = {}
+        elseif c then
+          doc[#doc + 1] = c
+        elseif key then
+          local depth = #indent / 2
+          while #stack >= depth and #stack > 0 do
+            table.remove(stack)
+          end
+          if #stack == depth - 1 then
+            local path = vim.list_extend(vim.deepcopy(stack), { key })
+            local parent = #stack == 0 and config.defaults or get(config.defaults, stack)
+            if is_dict(parent) or #stack == 0 then
+              local trailing = rest:match("%-%-%s*(.-)%s*$")
+              if trailing and trailing ~= "" then
+                doc[#doc + 1] = trailing
+              end
+              local section = rest:match("^{%s*$") ~= nil and is_dict(get(config.defaults, path))
+              out[#out + 1] = { path = path, doc = doc, section = section }
+              if rest:match("^{%s*$") then
+                stack[#stack + 1] = key
+              end
             end
           end
-        end
-        doc = {}
-      elseif not line:match("^%s*$") then
-        if not line:match("^%s*%-%-") then
           doc = {}
+        elseif not line:match("^%s*$") then
+          if not line:match("^%s*%-%-") then
+            doc = {}
+          end
         end
       end
     end
+  end
+  for _, lines in ipairs(config_sources()) do
+    stack, doc = {}, {}
+    read(lines)
   end
   M._options = out
   return out

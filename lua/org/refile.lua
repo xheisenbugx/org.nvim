@@ -18,12 +18,15 @@ local utils = require("org.utils")
 local M = {}
 
 ---@class org.RefileTarget
----@field filename string
+---@field filename? string the target file (or `bufnr`)
+---@field bufnr? integer the target buffer
 ---@field lnum integer|nil headline line; nil = file top level
----@field olp string[] outline path including the target itself
+---@field raw? string the headline's text, to find it again when lines moved
+---@field olp? string[] outline path including the target itself
 ---@field level integer|nil
----@field label string label shown in the prompt
+---@field label? string label shown in the prompt
 ---@field path? string outline path label (used to complete in steps)
+---@field prepend? boolean insert as the first child instead of the last
 
 --- Files for a `refile.targets` spec: "agenda", "current", a path/glob or
 --- a list of them, or a function returning paths (nil = current file).
@@ -520,7 +523,8 @@ end
 --- Move a subtree (or given lines, or the region `src.range`) to `dest`.
 ---@param src { bufnr?: integer, lnum?: integer, lines?: string[], range?: integer[], save_destination?: boolean }
 ---@param dest org.RefileTarget
----@return integer bufnr, integer lnum of the moved headline
+---@return integer bufnr
+---@return integer lnum of the moved headline
 function M.move(src, dest)
   dest = check_position(dest)
   if src.lines then
@@ -535,7 +539,7 @@ function M.move(src, dest)
       error("Cannot refile to position inside the tree or region", 0)
     end
     -- the copy may land above or below the source: follow both
-    return marks.with(function(track)
+    local mb, ml = marks.with(function(track)
       local source = track.range(sbuf, s, e)
       local b, l = M.insert_subtree(lines, { bufnr = dbuf, lnum = dest.lnum, prepend = dest.prepend })
       local moved = track(b, l)
@@ -543,6 +547,7 @@ function M.move(src, dest)
       vim.api.nvim_buf_set_lines(sbuf, s1 - 1, e1, false, {})
       return b, moved:lnum()
     end)
+    return mb, ml
   end
   local before = vim.api.nvim_buf_get_lines(dbuf, 0, -1, false)
   local modified = vim.bo[dbuf].modified
@@ -583,14 +588,16 @@ function M.remember(bufnr, lnum, kind)
   require("org.bookmarks").set(kind or "last_refile", bufnr, lnum)
 end
 
---- Log a refile note under the moved entry (org-log-refile).
-local function log_refile(bufnr, lnum, mode)
+--- Log a refile note under the moved entry (org-log-refile). `note`: the
+--- note to log in "note" mode (nil asks, false logs the time only).
+local function log_refile(bufnr, lnum, mode, note)
   mode = mode or (config.opts.refile or {}).log
   if not mode then
     return
   end
-  local note
-  if mode == "note" then
+  if mode ~= "note" or note == false then
+    note = nil
+  elseif note == nil then
     note = utils.input_note({ prompt = "Refile note: ", purpose = edit.note_purpose("refile") })
     if note == nil then
       -- C-c C-k in the note buffer: no log entry (org-note-abort)
@@ -646,7 +653,8 @@ end
 --- (C-u C-u C-u) clears the target cache, 2 refiles under the running
 --- clock and 3 copies (org-refile-keep).
 ---@param target? org.Target
----@param opts? table { dest?: org.RefileTarget, save?, copy?, targets?: table[], range?: integer[], count? }
+---@param opts? table { dest?: org.RefileTarget, save?, copy?, targets?: table[], range?: integer[], count?,
+---  note?: string|false } (`note`: the refile log note, see `refile.log`; false logs none)
 function M.refile(target, opts)
   opts = opts or {}
   local count = opts.count
@@ -755,16 +763,42 @@ function M.refile(target, opts)
       end
     end
   else
-    log_refile(dbuf, dline)
+    log_refile(dbuf, dline, nil, opts.note)
   end
+  -- Emacs's order: the bookmark, then org-after-refile-insert-hook. A
+  -- hidden destination, saved before the source lost the entry, is saved
+  -- again after the hook, with the handler's edits. A handler may move
+  -- the entry: the bookmark and the line returned follow it.
   M.remember(dbuf, dline, "last_refile")
+  local raw = vim.api.nvim_buf_get_lines(dbuf, dline - 1, dline, false)[1]
+  local entry = marks.set(dbuf, dline)
+  local dname = vim.api.nvim_buf_get_name(dbuf)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgRefile",
+    data = {
+      bufnr = dbuf,
+      lnum = dline,
+      file = dname ~= "" and vim.fs.normalize(dname) or nil,
+      title = title,
+      source_bufnr = bufnr,
+      source_file = file.filename,
+      copy = copy and true or false,
+    },
+    modeline = false,
+  })
+  local now = entry and entry:lnum()
+  marks.del(entry)
+  if now and (now ~= dline or vim.api.nvim_buf_get_lines(dbuf, now - 1, now, false)[1] ~= raw) then
+    dline = now
+    M.remember(dbuf, dline, "last_refile")
+  end
   if dbuf ~= bufnr then
     save_if_hidden(dbuf)
   end
   if opts.save then
     utils.save_buffer_or_warn(bufnr)
   end
-  local where = (dest.path or dest.label):gsub("/$", "")
+  local where = (dest.path or dest.label or ""):gsub("/$", "")
   utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)
   return dbuf, dline
 end

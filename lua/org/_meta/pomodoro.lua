@@ -2,10 +2,6 @@
 -- LuaLS type definitions for `require("org").setup({ extensions = { pomodoro = ... } })`.
 -- Annotations only; never loaded at runtime.
 
----@class org.Config.Extensions
----Pomodoro timer on top of the clock (`:h org-extensions-pomodoro`).
----@field pomodoro? org.Config.Extensions.Pomodoro|boolean
-
 ---@class org.Config.Extensions.Pomodoro
 ---`false` keeps the extension off.
 ---@field enabled? boolean

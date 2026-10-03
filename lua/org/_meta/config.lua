@@ -324,7 +324,7 @@
 ---@field plot_gnuplot_term_extra? string
 ---Extra (or replaced) `#+PLOT: type:NAME` plot types.
 ---(Emacs `org-plot/preset-plot-types`, default: `{}`; 2d, 3d, grid and radar are built in)
----@field plot_preset_plot_types? table<string, { plot_func?: fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string[], plot_cmd?: string, plot_str?: string, plot_pre?: string|fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string?, data_dump?: fun(rows: table, data_file: string, ncols: integer, opts: table): string?, check_ind_type?: boolean }>
+---@field plot_preset_plot_types? table<string, { plot_func?: (fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string[]), plot_cmd?: string, plot_str?: string, plot_pre?: string|(fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string?), data_dump?: (fun(rows: table, data_file: string, ncols: integer, opts: table): string?), check_ind_type?: boolean }>
 ---Radio table templates inserted by `orgtbl_insert_radio_table`, per
 ---filetype (`tex`, `texinfo`, `html`, `org`); `%n` is the table name.
 ---(Emacs `orgtbl-radio-table-templates`)
@@ -477,6 +477,12 @@
 ---when `false`, n p f b u move and q quits. (Emacs `org-goto-auto-isearch`,
 ---default: `true`)
 ---@field goto_auto_isearch? boolean
+---The picker of the `pick_*` actions (`:h org-pickers`): `"auto"` uses
+---LazyVim's picker (`vim.g.lazyvim_picker`, or the picker extra chosen in
+---`:LazyExtras` when that is "auto"), else the first installed of
+---snacks.nvim, fzf-lua, telescope.nvim and mini.pick, else vim.ui.select.
+---(default: `"auto"`)
+---@field picker? "auto"|"snacks"|"fzf-lua"|"telescope"|"mini"|"select"
 ---How sorting (entries, lists, tables, the agenda) compares text:
 ---`"collate"` with the collation locale (`:language collate`; character
 ---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`

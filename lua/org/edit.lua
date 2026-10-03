@@ -167,13 +167,17 @@ end
 --- `changes` keys: todo, priority, title, tags, level, commented.
 --- Use `false` to remove todo/priority. New tags are sorted with
 --- `tags_sort_function`. With `auto_align_tags` off, the space before the
---- tags is kept, and new tags follow the title after one space.
+--- tags is kept, and new tags follow the title after one space. A change
+--- of the tags fires `OrgTagsChanged` (org-set-tags runs
+--- org-after-tags-change-hook), whose handlers may move the headline: the
+--- second value is the line it is on afterwards.
+---@return boolean ok, integer lnum
 function M.update_headline(bufnr, lnum, changes)
   local file = files.get_buffer(bufnr)
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local p = parser.parse_headline_line(line, file.settings.todo)
   if not p then
-    return false
+    return false, lnum
   end
   local old_tags = p.tags or {}
   if changes.tags then
@@ -199,7 +203,10 @@ function M.update_headline(bufnr, lnum, changes)
   if new ~= line then
     vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { new })
   end
-  return true
+  if changes.tags then
+    lnum = require("org.tags").changed(bufnr, lnum, old_tags, p.tags or {})
+  end
+  return true, lnum
 end
 
 ---------------------------------------------------------------------------
@@ -368,6 +375,7 @@ end
 --- With a headline, `#+STARTUP: logdrawer|nologdrawer` and the (inherited)
 --- LOG_INTO_DRAWER property override `log_into_drawer`.
 ---@param hl? org.Headline
+---@return string|nil
 function M.log_drawer_name(hl)
   local d = require("org.config").opts.log_into_drawer
   if hl then
@@ -391,7 +399,7 @@ function M.log_drawer_name(hl)
   if d == true then
     return "LOGBOOK"
   end
-  return d or nil
+  return type(d) == "string" and d or nil
 end
 
 --- Vim regex (very nomagic) matching a state-change note item, built from
@@ -664,7 +672,7 @@ end
 -- Subtrees
 ---------------------------------------------------------------------------
 
----@return integer start, integer end (1-based, inclusive)
+---@return integer? start, integer? end (1-based and inclusive)
 function M.subtree_range(bufnr, lnum)
   local file = files.get_buffer(bufnr)
   local hl = file:headline_at(lnum)

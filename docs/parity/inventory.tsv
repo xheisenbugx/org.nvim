@@ -54,7 +54,7 @@ org	org-ctrl-c-minus	cmd	done	action ctrl_c_minus (context.lua:580)	-	-
 org	org-ctrl-c-ret	cmd	done	action ctrl_c_ret (context.lua:593)	-	-
 org	org-ctrl-c-star	cmd	done	action ctrl_c_star (context.lua:571)	-	-
 org	org-ctrl-c-tab	cmd	done	action show_children (context.lua:561)	-	-
-org	org-customize	cmd	done	lua/org/customize.lua; action customize; tests/spec/customize_spec.lua	Options buffer in config.lua order with values, [changed] marks, K/<CR> docs (from config.lua comments) with default/value, c sets for the session (Lua expr), R resets; no Save (documented in org-differences)	-
+org	org-customize	cmd	done	lua/org/customize.lua; action customize; tests/spec/customize_spec.lua	Options buffer in lua/org/config/ order with values, [changed] marks, K/<CR> docs (from lua/org/config/ comments) with default/value, c sets for the session (Lua expr), R resets; no Save (documented in org-differences)	-
 org	org-cut-special	cmd	done	action cut_special (context.lua:613)	-	-
 org	org-cut-subtree	cmd	done	action cut_subtree (structure.lua:1179)	-	-
 org	org-cycle-agenda-files	cmd	done	action cycle_agenda_files	-	-
@@ -293,131 +293,131 @@ org-persist	org-persist-gc:url	cmd	na	-	org-persist cache internals	-
 org-persist	org-persist-gc:version	cmd	na	-	org-persist cache internals	-
 org-persist	org-persist-write:elisp-data	cmd	na	-	org-persist cache internals	-
 org-persist	org-persist-write:version	cmd	na	-	org-persist cache internals	-
-org	org-M-RET-may-split-line	opt	done	meta_return_split_line (config.lua:290)	-	-
+org	org-M-RET-may-split-line	opt	done	meta_return_split_line (config/tables.lua:87)	-	-
 org	org-activate-links	opt	vim	syntax.lua link highlighting (OrgLink)	all link types highlighted; per-type switch via highlight groups only	-
 org	org-adapt-indentation	opt	done	-	'headline-data' read by indent.lua/structure relevel; demote/promote + indent fixtures from Emacs; also probed odd-level relevel	S
 org	org-after-note-stored-hook	opt	done	edit.note_stored	fixed after verification: clock-out notes fire OrgNoteStored (e095b28)	S
 org	org-after-todo-state-change-hook	opt	done	User autocmd OrgTodoStateChange (todo.lua:637)	-	-
-org	org-agenda-file-regexp	opt	done	utils.lua:429; agenda_files globs (config.lua:24)	fixed ^[^.].*\.org$ for dirs; glob patterns give custom matching	-
-org	org-agenda-files	opt	done	agenda_files (config.lua:24)	-	-
+org	org-agenda-file-regexp	opt	done	utils.lua:429; agenda_files globs (config/todo.lua:17)	fixed ^[^.].*\.org$ for dirs; glob patterns give custom matching	-
+org	org-agenda-files	opt	done	agenda_files (config/todo.lua:17)	-	-
 org	org-agenda-ignore-properties	opt	na	-	Emacs agenda performance knob	-
 org	org-agenda-inhibit-startup	opt	na	-	Emacs agenda performance knob	-
 org	org-agenda-jump-prefer-future	opt	done	agenda goto_date via read_date_prefer_future (agenda/view.lua:2188)	follows read_date_prefer_future = Emacs default	-
 org	org-agenda-multi-occur-extra-files	opt	done	-	agenda.occur adds text_search_extra_files (defvaralias in Emacs); spec checks 2 matches; agenda-archives accepted anywhere, Emacs only as car	S
 org	org-agenda-skip-archived-trees	opt	done	agenda/items.lua:295; agenda va archives mode	skipped by default; va toggles instead of an option	-
 org	org-agenda-skip-unavailable-files	opt	done	-	check_agenda_files prompts R/A like org-check-agenda-file, silent with option; spec covers both; iterates list from the end	S
-org	org-agenda-text-search-extra-files	opt	done	agenda.text_search_extra_files (config.lua:586)	-	-
+org	org-agenda-text-search-extra-files	opt	done	agenda.text_search_extra_files (config/buffer.lua:241)	-	-
 org	org-allow-promoting-top-level-subtree	opt	done	-	PROBED: promote subtree with adapt t -> '# A', body kept, children promoted: identical to Emacs; spec	S
-org	org-archive-location	opt	done	archive_location (config.lua:378)	-	-
+org	org-archive-location	opt	done	archive_location (config/buffer.lua:33)	-	-
 org	org-auto-align-tags	opt	done	-	PROBED: org-toggle-tag with nil on "* Head     :a:" collapses to "* Head :a:b:" in both; read in edit/structure/capture	S
-org	org-babel-load-languages	opt	done	babel.languages (config.lua:1222)	-	-
-org	org-blank-before-new-entry	opt	done	blank_before_new_entry (config.lua:286)	-	-
+org	org-babel-load-languages	opt	done	babel.languages (config/capture.lua:21)	-	-
+org	org-blank-before-new-entry	opt	done	blank_before_new_entry (config/tables.lua:83)	-	-
 org	org-bookmark-names-plist	opt	done	-	bookmark_names read by bookmarks.set; refile/capture save + goto_last fallback + bookmark_jump; spec	S
 org	org-calendar-follow-timestamp-change	opt	emacs-only	-	org.nvim's calendar (goto_calendar, date prompts) is a modal picker (getcharstr loop): it can never be visible while a timestamp is changed with S-arrows, so there is nothing to follow; documented under org-differences	-
 org	org-cdlatex-mode-hook	opt	emacs-only	-	cdlatex is an Emacs package	-
-org	org-clone-delete-id	opt	done	clone_delete_id (config.lua:293)	-	-
-org	org-closed-keep-when-no-todo	opt	done	closed_keep_when_no_todo (config.lua:78)	-	-
-org	org-columns-default-format	opt	done	columns_default_format (config.lua:252)	-	-
+org	org-clone-delete-id	opt	done	clone_delete_id (config/tables.lua:90)	-	-
+org	org-closed-keep-when-no-todo	opt	done	closed_keep_when_no_todo (config/todo.lua:71)	-	-
+org	org-columns-default-format	opt	done	columns_default_format (config/tables.lua:49)	-	-
 org	org-columns-default-format-for-agenda	opt	done	agenda.overriding_columns_format (agenda/columns.lua:43)	same precedence over file COLUMNS	-
 org	org-columns-ellipses	opt	done	-	columns.lua add_ellipses reads columns_ellipses, same 3 cases as org-columns-add-ellipses; used by agenda columns too; columns_ellipses_spec	S
 org	org-columns-skip-archived-trees	opt	na	-	Only the defcustom exists in Org 9.8.10 (grep of all .el); nothing reads it, so no behaviour to match	S
-org	org-complete-tags-always-offer-all-agenda-tags	opt	done	complete_tags_always_offer_all_agenda_tags (config.lua:141)	-	-
+org	org-complete-tags-always-offer-all-agenda-tags	opt	done	complete_tags_always_offer_all_agenda_tags (config/tags.lua:12)	-	-
 org	org-ctrl-k-protect-subtree	opt	done	-	error/confirm on closed fold with Emacs message; kill of hidden subtree; spec	S
 org	org-custom-properties	opt	done	-	PROBED with toggle: config.custom_properties read by properties.lua/fold.lua; case-insensitive match like Emacs	S
-org	org-deadline-warning-days	opt	done	deadline_warning_days (config.lua:360)	-	-
-org	org-default-notes-file	opt	done	default_notes_file (config.lua:27)	-	-
-org	org-default-priority	opt	done	priority_default (config.lua:128)	obsolete alias	-
-org	org-directory	opt	done	org_directory (config.lua:18)	-	-
-org	org-display-custom-times	opt	done	display_custom_times (config.lua:374)	-	-
+org	org-deadline-warning-days	opt	done	deadline_warning_days (config/buffer.lua:15)	-	-
+org	org-default-notes-file	opt	done	default_notes_file (config/todo.lua:20)	-	-
+org	org-default-priority	opt	done	priority_default (config/todo.lua:121)	obsolete alias	-
+org	org-directory	opt	done	org_directory (config/todo.lua:11)	-	-
+org	org-display-custom-times	opt	done	display_custom_times (config/buffer.lua:29)	-	-
 org	org-edit-keep-region	opt	done	-	keep_region read for meta_left/right (context) and meta_up/down (move_region); t/nil/per-command like org--deactivate-mark; spec	S
 org	org-edit-timestamp-down-means-later	opt	done	-	PROBED: with t S-Down on hour -> 11:00, S-Up on year -> 2025 in both; priorities unaffected; spec	S
-org	org-ellipsis	opt	done	ellipsis (config.lua:283)	-	-
+org	org-ellipsis	opt	done	ellipsis (config/tables.lua:80)	-	-
 org	org-emphasis-alist	opt	vim	OrgBold/OrgItalic... highlight groups	faces via highlight groups; markers fixed (Emacs discourages changing them)	-
 org	org-enable-priority-commands	opt	done	-	obsolete alias of org-priority-enable-commands; same option priority_enable_commands, read in priority.enabled	S
-org	org-enforce-todo-checkbox-dependencies	opt	done	enforce_todo_checkbox_dependencies (config.lua:49)	-	-
-org	org-enforce-todo-dependencies	opt	done	enforce_todo_dependencies (config.lua:47)	-	-
+org	org-enforce-todo-checkbox-dependencies	opt	done	enforce_todo_checkbox_dependencies (config/todo.lua:42)	-	-
+org	org-enforce-todo-dependencies	opt	done	enforce_todo_dependencies (config/todo.lua:40)	-	-
 org	org-export-backends	opt	na	-	load-time back-end selection; all back-ends always available	-
-org	org-extend-today-until	opt	done	extend_today_until (config.lua:112)	-	-
+org	org-extend-today-until	opt	done	extend_today_until (config/todo.lua:105)	-	-
 org	org-fast-tag-selection-maximum-tags	opt	done	-	fast_table counts keyed/grouped tags and decrements before display exactly like org-fast-tag-selection; spec checks shown tags	S
-org	org-fast-tag-selection-single-key	opt	done	fast_tag_selection_single_key (config.lua:135)	-	-
-org	org-file-apps	opt	done	links.file_apps (config.lua:999)	-	-
-org	org-fontify-done-headline	opt	done	ui.fontify_done_headline (config.lua:1612)	-	-
+org	org-fast-tag-selection-single-key	opt	done	fast_tag_selection_single_key (config/todo.lua:128)	-	-
+org	org-file-apps	opt	done	links.file_apps (config/agenda.lua:260)	-	-
+org	org-fontify-done-headline	opt	done	ui.fontify_done_headline (config/links.lua:122)	-	-
 org	org-fontify-emphasized-text	opt	vim	OrgBold etc. highlight groups	link groups to Normal to disable	-
 org	org-fontify-todo-headline	opt	done	syntax.lua orgHeadlineTodo	fixed after verification: covers priority, cookies, tags, links (aaa64fa)	S
 org	org-fontify-whole-block-delimiter-line	opt	vim	OrgBlockDelimiter highlight group	fontification knob	-
 org	org-fontify-whole-heading-line	opt	vim	OrgHeadlineLevelN highlight groups	fontification knob	-
-org	org-format-latex-header	opt	done	ui.latex_preview.header (config.lua:1697)	-	-
-org	org-format-latex-options	opt	done	ui.latex_preview.scale/foreground/background (config.lua:1686)	-	-
+org	org-format-latex-header	opt	done	ui.latex_preview.header (config/links.lua:207)	-	-
+org	org-format-latex-options	opt	done	ui.latex_preview.scale/foreground/background (config/links.lua:196)	-	-
 org	org-format-latex-signal-error	opt	na	-	agree: only the defcustom in org.el:3386, never read in Org 9.8.10	S
 org	org-get-priority-function	opt	done	-	obsolete alias of org-priority-get-priority-function; same option	S
-org	org-global-properties	opt	done	global_properties (config.lua:158)	-	-
-org	org-group-tags	opt	done	group_tags (config.lua:132)	-	-
+org	org-global-properties	opt	done	global_properties (config/tags.lua:29)	-	-
+org	org-group-tags	opt	done	group_tags (config/todo.lua:125)	-	-
 org	org-hidden-keywords	opt	done	-	PROBED: '#+title:' and '#+AUTHOR:' concealed up to the colon, space/value shown, identical to Emacs	S
-org	org-hide-emphasis-markers	opt	done	ui.hide_emphasis_markers (config.lua:1575)	-	-
-org	org-hide-leading-stars	opt	done	ui.hide_leading_stars (config.lua:1578)	-	-
+org	org-hide-emphasis-markers	opt	done	ui.hide_emphasis_markers (config/links.lua:85)	-	-
+org	org-hide-leading-stars	opt	done	ui.hide_leading_stars (config/links.lua:88)	-	-
 org	org-hide-macro-markers	opt	done	-	PROBED: {{{ and }}} concealed, macro name/args shown with macro face, identical to Emacs	S
-org	org-hierarchical-todo-statistics	opt	done	hierarchical_todo_statistics (config.lua:75)	-	-
-org	org-highest-priority	opt	done	priority_highest (config.lua:126)	obsolete alias	-
+org	org-hierarchical-todo-statistics	opt	done	hierarchical_todo_statistics (config/todo.lua:68)	-	-
+org	org-highest-priority	opt	done	priority_highest (config/todo.lua:119)	obsolete alias	-
 org	org-highlight-latex-and-related	opt	done	-	latex/native/script/entities read in syntax.lua, default {} like Emacs; spec per kind	S
 org	org-highlight-links	opt	vim	OrgLink highlight group	all link types highlighted	-
 org	org-highlight-sparse-tree-matches	opt	vim	OrgSparseMatch (agenda/sparse.lua:75)	link group to Normal to disable	-
-org	org-image-actual-width	opt	done	ui.images.actual_width (config.lua:1650)	-	-
+org	org-image-actual-width	opt	done	ui.images.actual_width (config/links.lua:160)	-	-
 org	org-indirect-buffer-display	opt	done	structure.tree_to_indirect_buffer	fixed after verification: dedicated-frame narrows, other-window reuses (8e5f474)	S
 org	org-insert-heading-hook	opt	done	-	User OrgInsertHeading at end of insert_heading_at_point, like run-hooks at end of org-insert-heading; spec	S
 org	org-insert-heading-respect-content	opt	done	-	PROBED: M-RET from child heading and from body text insert after subtree, identical to Emacs	S
 org	org-insert-mode-line-in-empty-file	opt	done	-	inserts Emacs mode line on empty non-.org buffer set to org; modeline detection in plugin/org.lua; spec (Emacs: interactive only)	S
-org	org-latex-default-packages-alist	opt	done	export.latex.default_packages (config.lua:1380)	-	-
+org	org-latex-default-packages-alist	opt	done	export.latex.default_packages (config/misc.lua:13)	-	-
 org	org-latex-mathml-directory	opt	done	-	odt.mathml_cache_file read by latex_to_mathml_cached; sha1 of prin1 (frag cmd) checked in Emacs (058282f5...); spec covers cache hit/miss	S
-org	org-latex-packages-alist	opt	done	export.latex.packages (config.lua:1381)	-	-
+org	org-latex-packages-alist	opt	done	export.latex.packages (config/misc.lua:14)	-	-
 org	org-latex-to-html-convert-command	opt	done	-	PROBED: tex:html with echo command: body HTML identical to Emacs 9.8.10 (fragments converted, environments verbatim in equation span)	S
-org	org-latex-to-mathml-convert-command	opt	done	export.odt.latex_to_mathml_convert_command (config.lua:1535)	-	-
-org	org-latex-to-mathml-jar-file	opt	done	export.odt.latex_to_mathml_jar_file (config.lua:1536)	-	-
+org	org-latex-to-mathml-convert-command	opt	done	export.odt.latex_to_mathml_convert_command (config/links.lua:45)	-	-
+org	org-latex-to-mathml-jar-file	opt	done	export.odt.latex_to_mathml_jar_file (config/links.lua:46)	-	-
 org	org-level-color-stars-only	opt	done	-	PROBED: '** ' level colour, TODO/tags keep faces, title uncoloured, like Emacs	S
 org	org-log-buffer-setup-hook	opt	done	-	User OrgLogBufferSetup fired in utils.input_note when *Org Note* opens; spec checks bufnr/purpose	S
-org	org-log-done	opt	done	log_done (config.lua:80)	-	-
+org	org-log-done	opt	done	log_done (config/todo.lua:73)	-	-
 org	org-log-done-with-time	opt	done	-	todo.change_state drops time from CLOSED only (as org-add-planning-info); spec	S
-org	org-log-into-drawer	opt	done	log_into_drawer (config.lua:89)	-	-
-org	org-log-note-clock-out	opt	done	log_note_clock_out (config.lua:87)	-	-
-org	org-log-note-headings	opt	done	log_note_headings (config.lua:99)	-	-
-org	org-log-redeadline	opt	done	log_redeadline (config.lua:85)	-	-
-org	org-log-repeat	opt	done	log_repeat (config.lua:82)	-	-
-org	org-log-reschedule	opt	done	log_reschedule (config.lua:84)	-	-
+org	org-log-into-drawer	opt	done	log_into_drawer (config/todo.lua:82)	-	-
+org	org-log-note-clock-out	opt	done	log_note_clock_out (config/todo.lua:80)	-	-
+org	org-log-note-headings	opt	done	log_note_headings (config/todo.lua:92)	-	-
+org	org-log-redeadline	opt	done	log_redeadline (config/todo.lua:78)	-	-
+org	org-log-repeat	opt	done	log_repeat (config/todo.lua:75)	-	-
+org	org-log-reschedule	opt	done	log_reschedule (config/todo.lua:77)	-	-
 org	org-log-state-notes-insert-after-drawers	opt	done	-	log_beginning ports org-log-beginning incl. blank lines/non-reversed; spec expectations from Emacs probes	S
-org	org-log-state-notes-into-drawer	opt	done	log_into_drawer (config.lua:89)	obsolete alias	-
-org	org-log-states-order-reversed	opt	done	log_states_order_reversed (config.lua:91)	-	-
-org	org-loop-over-headlines-in-active-region	opt	done	loop_over_headlines_in_active_region (config.lua:121)	-	-
-org	org-lowest-priority	opt	done	priority_lowest (config.lua:127)	obsolete alias	-
+org	org-log-state-notes-into-drawer	opt	done	log_into_drawer (config/todo.lua:82)	obsolete alias	-
+org	org-log-states-order-reversed	opt	done	log_states_order_reversed (config/todo.lua:84)	-	-
+org	org-loop-over-headlines-in-active-region	opt	done	loop_over_headlines_in_active_region (config/todo.lua:114)	-	-
+org	org-lowest-priority	opt	done	priority_lowest (config/todo.lua:120)	obsolete alias	-
 org	org-mark-ring-length	opt	vim	action mark_ring_goto uses the jumplist (links.lua:2937)	Vim jumplist length	-
 org	org-mode-hook	opt	vim	FileType org autocmd / after/ftplugin	stock Neovim mechanism	-
 org	org-modules	opt	na	-	load-time module list; features have their own options (tempo, inlinetask_min_level, attach.git...)	-
 org	org-occur-case-fold-search	opt	done	-	t/nil/smart (isearch-no-upper-case-p style, \W ignored) read by sparse.regexp; spec	S
 org	org-occur-hook	opt	done	-	OrgOccur fired after occur-type searches only, like run-hooks in org-occur; spec	S
-org	org-odd-levels-only	opt	done	odd_levels_only (config.lua:296)	-	-
+org	org-odd-levels-only	opt	done	odd_levels_only (config/tables.lua:93)	-	-
 org	org-open-directory-means-index-dot-org	opt	done	-	open_file_link appends /index.org to directories like org-open-file; spec	S
 org	org-open-non-existing-files	opt	done	-	"No such file" for non-Emacs apps only, as org-open-file (Emacs opener never errors); spec	S
 org	org-popup-calendar-for-date-prompt	opt	done	-	obsolete alias honoured in calendar.popup_calendar; spec	S
-org	org-pretty-entities	opt	done	ui.pretty_entities (config.lua:1588)	-	-
-org	org-pretty-entities-include-sub-superscripts	opt	done	ui.pretty_entities_include_sub_superscripts (config.lua:1591)	-	-
-org	org-preview-latex-default-process	opt	done	ui.latex_preview.process (config.lua:1679)	-	-
-org	org-preview-latex-image-directory	opt	done	ui.latex_preview.image_directory (config.lua:1701)	-	-
-org	org-preview-latex-process-alist	opt	done	ui.latex_preview.processes (config.lua:1685)	-	-
-org	org-priority-default	opt	done	priority_default (config.lua:128)	-	-
+org	org-pretty-entities	opt	done	ui.pretty_entities (config/links.lua:98)	-	-
+org	org-pretty-entities-include-sub-superscripts	opt	done	ui.pretty_entities_include_sub_superscripts (config/links.lua:101)	-	-
+org	org-preview-latex-default-process	opt	done	ui.latex_preview.process (config/links.lua:189)	-	-
+org	org-preview-latex-image-directory	opt	done	ui.latex_preview.image_directory (config/links.lua:211)	-	-
+org	org-preview-latex-process-alist	opt	done	ui.latex_preview.processes (config/links.lua:195)	-	-
+org	org-priority-default	opt	done	priority_default (config/todo.lua:121)	-	-
 org	org-priority-enable-commands	opt	done	-	priority.set/shift refuse with warning, S-Up falls back; spec	S
 org	org-priority-get-priority-function	opt	done	-	used by priority.get_priority/show and agenda priority_value; gets headline not agenda line (documented difference)	S
-org	org-priority-highest	opt	done	priority_highest (config.lua:126)	-	-
-org	org-priority-lowest	opt	done	priority_lowest (config.lua:127)	-	-
+org	org-priority-highest	opt	done	priority_highest (config/todo.lua:119)	-	-
+org	org-priority-lowest	opt	done	priority_lowest (config/todo.lua:120)	-	-
 org	org-priority-start-cycle-with-default	opt	done	-	PROBED: default A up -> "default can not be set" error, down -> [#B]; same logic as org-priority source	S
 org	org-properties-postprocess-alist	opt	done	-	applied in properties.set_property, name matched case-insensitively like assoc-string; spec	S
-org	org-property-format	opt	done	property_format (config.lua:156)	-	-
+org	org-property-format	opt	done	property_format (config/tags.lua:27)	-	-
 org	org-property-separators	opt	done	-	parser.property_separator, lists and regexps; spec values from Emacs probe	S
-org	org-provide-todo-statistics	opt	done	provide_todo_statistics (config.lua:72)	-	-
+org	org-provide-todo-statistics	opt	done	provide_todo_statistics (config/todo.lua:65)	-	-
 org	org-read-date-display-live	opt	done	-	PROBED: read_date_analyze futurep matched org-read-date-analyze for 14 inputs; live redraw on CmdlineChanged; spec	S
 org	org-read-date-force-compatible-dates	opt	na	-	Emacs time-representation compat limits (1970-2037)	-
 org	org-read-date-popup-calendar	opt	done	-	plain "Date+time [default]: " input prompt, empty = default; spec	S
-org	org-read-date-prefer-future	opt	done	read_date_prefer_future (config.lua:368)	-	-
+org	org-read-date-prefer-future	opt	done	read_date_prefer_future (config/buffer.lua:23)	-	-
 org	org-remove-highlights-with-change	opt	done	-	gates clear-on-change for occur and clock display (Emacs: org-occur + org-clock); spec	S
 org	org-resource-download-policy	opt	done	-	should_fetch mirrors org--should-fetch-remote-resource-p for #+INCLUDE URLs; remote SETUPFILE unsupported (documented); spec	S
-org	org-reverse-note-order	opt	done	refile.reverse_note_order (config.lua:808)	-	-
+org	org-reverse-note-order	opt	done	refile.reverse_note_order (config/agenda.lua:69)	-	-
 org	org-safe-remote-resources	opt	done	-	matched against URL or file:// of requester like org--safe-remote-resource-p; Vim regex syntax, saved answers; spec	S
 org	org-scheduled-delay-days	opt	done	-	PROBED: value 1 hides today/yesterday-1d cases, cookie -4d wins: only 'Sched. 1x: T1' in both; org-get-wdays negative override coded	S
 org	org-self-insert-cluster-for-undo	opt	vim	Vim undo per Insert session	stock undo granularity	-
@@ -427,44 +427,44 @@ org	org-special-ctrl-a	opt	done	-	agree: defvaralias of org-special-ctrl-a/e in 
 org	org-special-ctrl-a/e	opt	done	-	t/reversed/per-key read in lineedit.lua; columns match Emacs in spec; no default keys (Vim keys taken), actions exist	S
 org	org-special-ctrl-k	opt	done	-	PROBED: kill mid-title (tags realigned) and before tags, text + kill ring identical to Emacs	S
 org	org-special-ctrl-o	opt	done	actions table_insert_row / shift_meta_down	row insertion exists (not on open-line)	-
-org	org-src-fontify-natively	opt	done	ui.src_highlight (config.lua:1615)	-	-
+org	org-src-fontify-natively	opt	done	ui.src_highlight (config/links.lua:125)	-	-
 org	org-startup-align-all-tables	opt	done	-	table.lua attach reads option and #+STARTUP align/noalign; spec covers #+STARTUP: align (option shares the same line of code)	S
-org	org-startup-folded	opt	done	startup_folded (config.lua:259)	-	-
-org	org-startup-indented	opt	done	ui.indent_mode (config.lua:1585)	-	-
-org	org-startup-numerated	opt	done	ui.num (config.lua:1597)	-	-
-org	org-startup-shrink-all-tables	opt	done	startup_shrink_all_tables (config.lua:188)	-	-
+org	org-startup-folded	opt	done	startup_folded (config/tables.lua:56)	-	-
+org	org-startup-indented	opt	done	ui.indent_mode (config/links.lua:95)	-	-
+org	org-startup-numerated	opt	done	ui.num (config/links.lua:107)	-	-
+org	org-startup-shrink-all-tables	opt	done	startup_shrink_all_tables (config/tags.lua:59)	-	-
 org	org-startup-truncated	opt	vim	'wrap' option	stock Neovim option	-
 org	org-startup-with-beamer-mode	opt	done	-	buffer.lua attach calls beamer_mode.setup_buffer; option and #+STARTUP: beamer both spec'd	M
-org	org-startup-with-inline-images	opt	done	ui.images.startup (config.lua:1663)	obsolete alias	-
-org	org-startup-with-latex-preview	opt	done	ui.latex_preview.startup (config.lua:1706)	-	-
-org	org-startup-with-link-previews	opt	done	ui.images.startup (config.lua:1663)	-	-
-org	org-structure-template-alist	opt	done	structure_template_alist (config.lua:329)	-	-
+org	org-startup-with-inline-images	opt	done	ui.images.startup (config/links.lua:173)	obsolete alias	-
+org	org-startup-with-latex-preview	opt	done	ui.latex_preview.startup (config/links.lua:216)	-	-
+org	org-startup-with-link-previews	opt	done	ui.images.startup (config/links.lua:173)	-	-
+org	org-structure-template-alist	opt	done	structure_template_alist (config/tables.lua:126)	-	-
 org	org-support-shift-select	opt	vim	Visual mode / 'keymodel'	selection is Visual mode in Neovim	-
-org	org-tag-alist	opt	done	tags (config.lua:144)	-	-
+org	org-tag-alist	opt	done	tags (config/tags.lua:15)	-	-
 org	org-tag-persistent-alist	opt	done	-	PROBED: persistent @home(h) work + #+TAGS work(w) misc -> @home(h) work(w) misc in both; noptag honoured	S
-org	org-tags-column	opt	done	tags_column (config.lua:146)	-	-
-org	org-tags-exclude-from-inheritance	opt	done	tags_exclude_from_inheritance (config.lua:151)	-	-
-org	org-tags-match-list-sublevels	opt	done	agenda.tags_match_list_sublevels (config.lua:455)	-	-
+org	org-tags-column	opt	done	tags_column (config/tags.lua:17)	-	-
+org	org-tags-exclude-from-inheritance	opt	done	tags_exclude_from_inheritance (config/tags.lua:22)	-	-
+org	org-tags-match-list-sublevels	opt	done	agenda.tags_match_list_sublevels (config/buffer.lua:110)	-	-
 org	org-tags-sort-function	opt	done	tags_sort_function	fixed after verification: "hierarchy", string</>, org-tags-sort hand-off (4c21559)	S
-org	org-time-stamp-custom-formats	opt	done	time_stamp_custom_formats (config.lua:375)	obsolete alias	-
-org	org-time-stamp-rounding-minutes	opt	done	time_stamp_rounding_minutes (config.lua:364)	-	-
-org	org-timestamp-custom-formats	opt	done	time_stamp_custom_formats (config.lua:375)	-	-
-org	org-timestamp-rounding-minutes	opt	done	time_stamp_rounding_minutes (config.lua:364)	-	-
+org	org-time-stamp-custom-formats	opt	done	time_stamp_custom_formats (config/buffer.lua:30)	obsolete alias	-
+org	org-time-stamp-rounding-minutes	opt	done	time_stamp_rounding_minutes (config/buffer.lua:19)	-	-
+org	org-timestamp-custom-formats	opt	done	time_stamp_custom_formats (config/buffer.lua:30)	-	-
+org	org-timestamp-rounding-minutes	opt	done	time_stamp_rounding_minutes (config/buffer.lua:19)	-	-
 org	org-todo-interpretation	opt	na	-	obsolete compat knob superseded by todo_keywords types	-
-org	org-todo-keywords	opt	done	todo_keywords (config.lua:36)	-	-
+org	org-todo-keywords	opt	done	todo_keywords (config/todo.lua:29)	-	-
 org	org-todo-repeat-hook	opt	done	User autocmd OrgTodoRepeat (todo.lua:637)	-	-
-org	org-todo-repeat-to-state	opt	done	todo_repeat_to_state (config.lua:40)	-	-
-org	org-todo-state-tags-triggers	opt	done	todo_state_tags_triggers (config.lua:45)	-	-
+org	org-todo-repeat-to-state	opt	done	todo_repeat_to_state (config/todo.lua:33)	-	-
+org	org-todo-state-tags-triggers	opt	done	todo_state_tags_triggers (config/todo.lua:38)	-	-
 org	org-track-ordered-property-with-tag	opt	done	-	properties.toggle_ordered adds/removes tag (t -> ORDERED or custom string); spec	S
 org	org-treat-S-cursor-todo-selection-as-state-change	opt	done	-	todo.shift skips logging/CLOSED/blocking but keeps repeat handling; spec	S
 org	org-treat-insert-todo-heading-as-state-change	opt	done	-	structure.meta_return_heading logs via change_state; spec	S
-org	org-use-effective-time	opt	done	use_effective_time (config.lua:115)	-	-
+org	org-use-effective-time	opt	done	use_effective_time (config/todo.lua:108)	-	-
 org	org-use-fast-tag-selection	opt	done	-	auto needs a keyed tag, t uses buffer tags when none defined (matches org-set-tags-command); spec	S
-org	org-use-fast-todo-selection	opt	done	use_fast_todo_selection (config.lua:67)	-	-
+org	org-use-fast-todo-selection	opt	done	use_fast_todo_selection (config/todo.lua:60)	-	-
 org	org-use-last-clock-out-time-as-effective-time	opt	done	-	date.effective_now/last_clock_out used for CLOSED, notes; spec incl. child clock	S
-org	org-use-property-inheritance	opt	done	use_property_inheritance (config.lua:154)	-	-
-org	org-use-sub-superscripts	opt	done	ui.use_sub_superscripts (config.lua:1594)	-	-
-org	org-use-tag-inheritance	opt	done	use_tag_inheritance (config.lua:149)	-	-
+org	org-use-property-inheritance	opt	done	use_property_inheritance (config/tags.lua:25)	-	-
+org	org-use-sub-superscripts	opt	done	ui.use_sub_superscripts (config/links.lua:104)	-	-
+org	org-use-tag-inheritance	opt	done	use_tag_inheritance (config/tags.lua:20)	-	-
 org	org-yank-adjusted-subtrees	opt	done	-	PROBED: adjusted level before next headline unfolded, before headline folded, identical to Emacs; spec	S
 org	org-yank-dnd-default-attach-method	opt	done	-	yank.lua attach_file reads dnd_default_attach_method for 'private' action, else attach.method; yank_media_spec drop test (mv) matches org--dnd-attach-file	M
 org	org-yank-dnd-method	opt	done	-	handle_file attach/open/file-link/ask like org--dnd-local-file-handler; vim.paste hook; yank_media_spec covers ask, attach, file-link	M
@@ -474,34 +474,34 @@ org	org-yank-image-save-method	opt	done	-	image_dir attach|dir|function, dir exp
 org-compat	org-calendar-insert-diary-entry-key	opt	done	config calendar_insert_diary_entry_key; calendar.calendar_keys + diary_entry.calendar_entry; tests/spec/imenu_calendar_keys_spec.lua	key in the goto_calendar picker, active when agenda.diary_entry_file is an Org file (like Emacs); `t` still types dates	-
 org-compat	org-calendar-to-agenda-key	opt	done	config calendar_to_agenda_key ("default" = c / key / false); calendar.pick; imenu_calendar_keys_spec		-
 org-compat	org-imenu-depth	opt	done	config ui.imenu_depth; goto.imenu_index/imenu; action imenu on gO; imenu_calendar_keys_spec (Emacs probe p4.el)	imenu index shown in the location list like gO in help/markdown; reduced levels, headline text as org-get-heading t t t t	-
-org-cycle	org-cycle-emulate-tab	opt	done	cycle_emulate_tab (config.lua:308)	-	-
+org-cycle	org-cycle-emulate-tab	opt	done	cycle_emulate_tab (config/tables.lua:105)	-	-
 org-cycle	org-cycle-global-at-bob	opt	done	-	bob, col 0, not on headline -> global cycle like Emacs; messages/hooks in spec	S
-org-cycle	org-cycle-hide-block-startup	opt	done	hide_block_startup (config.lua:265)	-	-
-org-cycle	org-cycle-hide-drawer-startup	opt	done	hide_drawer_startup (config.lua:262)	-	-
+org-cycle	org-cycle-hide-block-startup	opt	done	hide_block_startup (config/tables.lua:62)	-	-
+org-cycle	org-cycle-hide-drawer-startup	opt	done	hide_drawer_startup (config/tables.lua:59)	-	-
 org-cycle	org-cycle-hook	opt	done	-	OrgCycle with Emacs states for local and global cycling; spec	S
-org-cycle	org-cycle-inline-images-display	opt	done	ui.images.cycle_display (config.lua:1666)	obsolete alias	-
+org-cycle	org-cycle-inline-images-display	opt	done	ui.images.cycle_display (config/links.lua:176)	obsolete alias	-
 org-cycle	org-cycle-level-after-item/entry-creation	opt	done	action insert_tab (context.lua:253)	-	-
-org-cycle	org-cycle-link-previews-display	opt	done	ui.images.cycle_display (config.lua:1666)	-	-
+org-cycle	org-cycle-link-previews-display	opt	done	ui.images.cycle_display (config/links.lua:176)	-	-
 org-cycle	org-cycle-max-level	opt	done	-	deeper headlines treated as text, inlinetask default, positive int check; spec. odd_levels_only only from config, not #+STARTUP	S
-org-cycle	org-cycle-open-archived-trees	opt	done	cycle_open_archived_trees (config.lua:268)	-	-
+org-cycle	org-cycle-open-archived-trees	opt	done	cycle_open_archived_trees (config/tables.lua:65)	-	-
 org-cycle	org-cycle-pre-hook	opt	done	-	OrgCyclePre incl. 'empty', same call sites as org-cycle.el; spec	S
-org-cycle	org-cycle-separator-lines	opt	done	cycle_separator_lines (config.lua:311)	-	-
+org-cycle	org-cycle-separator-lines	opt	done	cycle_separator_lines (config/tables.lua:108)	-	-
 org-cycle	org-cycle-skip-children-state-if-no-children	opt	done	-	PROBED: headline without body/children and CHILDREN/SUBTREE/FOLDED sequence match Emacs	S
-org-cycle	org-hide-block-startup	opt	done	hide_block_startup (config.lua:265)	-	-
-org-cycle	org-hide-drawer-startup	opt	done	hide_drawer_startup (config.lua:262)	-	-
+org-cycle	org-hide-block-startup	opt	done	hide_block_startup (config/tables.lua:62)	-	-
+org-cycle	org-hide-drawer-startup	opt	done	hide_drawer_startup (config/tables.lua:59)	-	-
 org-cycle	org-pre-cycle-hook	opt	done	-	agree: defvaralias of org-cycle-pre-hook; same OrgCyclePre event	S
-org-duration	org-duration-format	opt	done	duration_format (config.lua:247)	-	-
-org-duration	org-duration-units	opt	done	duration_units (config.lua:251)	-	-
+org-duration	org-duration-format	opt	done	duration_format (config/tables.lua:44)	-	-
+org-duration	org-duration-units	opt	done	duration_units (config/tables.lua:48)	-	-
 org-entities	org-entities-user	opt	done	-	apply_user patches display/completion/export tables; HTML/ASCII export and removal in spec	S
 org-faces	org-agenda-deadline-faces	opt	done	-	PROBED: D0/D-2 imminent, D3/D7 upcoming, D8/D14/-5d cookie distant in Emacs and nvim; assoc-default <= logic identical	S
 org-faces	org-cycle-level-faces	opt	vim	OrgHeadlineLevel1..8 (highlights.lua:159)	faces cycle over 8 groups; relink groups to change	-
 org-faces	org-faces-easy-properties	opt	vim	highlights.lua hl_from_face	face specs are highlight tables/groups	-
 org-faces	org-fontify-quote-and-verse-blocks	opt	vim	OrgQuoteBlock / OrgVerse groups	fontification via highlight groups	-
 org-faces	org-n-level-faces	opt	vim	OrgHeadlineLevel1..8	link groups to reduce distinct faces	-
-org-faces	org-priority-faces	opt	done	ui.priority_faces (config.lua:1621)	-	-
-org-faces	org-tag-faces	opt	done	ui.tag_faces (config.lua:1624)	-	-
-org-faces	org-todo-keyword-faces	opt	done	ui.todo_keyword_faces (config.lua:1618)	-	-
-org-fold	org-fold-catch-invisible-edits	opt	done	catch_invisible_edits (config.lua:315)	-	-
+org-faces	org-priority-faces	opt	done	ui.priority_faces (config/links.lua:131)	-	-
+org-faces	org-tag-faces	opt	done	ui.tag_faces (config/links.lua:134)	-	-
+org-faces	org-todo-keyword-faces	opt	done	ui.todo_keyword_faces (config/links.lua:128)	-	-
+org-fold	org-fold-catch-invisible-edits	opt	done	catch_invisible_edits (config/tables.lua:112)	-	-
 org-fold	org-fold-catch-invisible-edits-commands	opt	done	-	per-command kinds read by fold.check_invisible_edit_command; spec; Normal-mode edits limitation documented	S
 org-fold	org-fold-show-context-detail	opt	done	fold_show_context_detail	fixed after verification: org-goto context in goto.lua (71b8ecd)	S
 org-fold-core	org-fold-core-style	opt	na	-	Emacs folding implementation (text props vs overlays)	-
@@ -514,166 +514,166 @@ org-indent	org-indent-mode-hook	opt	done	-	OrgIndentMode User autocmd on toggle/
 org-indent	org-indent-mode-turns-off-org-adapt-indentation	opt	done	-	decorations.adapt_indentation read by edit/indent/structure; spec	S
 org-indent	org-indent-mode-turns-on-hiding-stars	opt	done	ui/decorations.lua:66	always on, like the Emacs default	-
 org-indent	org-indent-post-buffer-init-functions	opt	na	-	org-indent async init internals	-
-org-inlinetask	org-inlinetask-default-state	opt	done	inlinetask_default_state (config.lua:326)	-	-
-org-inlinetask	org-inlinetask-min-level	opt	done	inlinetask_min_level (config.lua:324)	-	-
+org-inlinetask	org-inlinetask-default-state	opt	done	inlinetask_default_state (config/tables.lua:123)	-	-
+org-inlinetask	org-inlinetask-min-level	opt	done	inlinetask_min_level (config/tables.lua:121)	-	-
 org-inlinetask	org-inlinetask-show-first-star	opt	done	-	first star with OrgInlinetaskFirstStar, rest hidden, indent-mode prefix; spec	S
 org-keys	org-CUA-compatible	opt	vim	mappings.* config	any key can be remapped; obsolete alias	-
 org-keys	org-disputed-keys	opt	vim	mappings.* config	any key can be remapped	-
 org-keys	org-follow-link-hook	opt	done	-	OrgFollowLink from context.open_at_point, entry links, TAB, mouse (no double firing); spec	S
 org-keys	org-mouse-1-follows-link	opt	done	-	mouse.attach maps per setting (ms/t/double/nil); timing logic unit-tested; real clicks untestable headless	S
 org-keys	org-replace-disputed-keys	opt	vim	mappings.* config	any key can be remapped	-
-org-keys	org-return-follows-link	opt	done	mappings.org.open_at_point <CR> (config.lua:1733)	<CR> follows links in Normal mode	-
+org-keys	org-return-follows-link	opt	done	mappings.org.open_at_point <CR> (config/mobile.lua:31)	<CR> follows links in Normal mode	-
 org-keys	org-speed-command-hook	opt	done	-	hook list of Emacs names or Lua fns tried in order; Babel keys at #+begin_src; spec	S
 org-keys	org-speed-commands	opt	done	speed_commands (speed.lua:60)	-	-
 org-keys	org-tab-follows-link	opt	done	-	fold.cycle follows the link at point via context.open_at_point; spec	S
 org-keys	org-use-extra-keys	opt	vim	mappings.* config	alternative keys configurable	-
-org-keys	org-use-speed-commands	opt	done	use_speed_commands (config.lua:318)	-	-
+org-keys	org-use-speed-commands	opt	done	use_speed_commands (config/tables.lua:115)	-	-
 org-macs	org-sort-function	opt	done	-	utils.string_lessp used by entry/list sort, table sort, agenda; fallback = compare-strings (upcase); function; spec	S
 org-mouse	org-mouse-features	opt	done	config mouse.features (Emacs default list); org_mouse.feature; org_mouse_spec	org-mouse itself gated by mouse.org_mouse=false (Emacs module is opt-in)	-
 org-mouse	org-mouse-punctuation	opt	emacs-only	-	only used when text is dropped on the buffer (dnd-insert-text advice); Neovim has no text-drop event (a drop in a terminal arrives as a paste indistinguishable from any paste), so there is nothing to hook; documented in org-differences	-
 org-num	org-num-face	opt	done	ui.num_face (ui/decorations.lua:327)	undocumented option	-
-org-num	org-num-format-function	opt	done	ui.num_format_function (config.lua:1610)	-	-
-org-num	org-num-max-level	opt	done	ui.num_max_level (config.lua:1599)	-	-
+org-num	org-num-format-function	opt	done	ui.num_format_function (config/links.lua:120)	-	-
+org-num	org-num-max-level	opt	done	ui.num_max_level (config/links.lua:109)	-	-
 org-num	org-num-mode-hook	opt	done	-	OrgNumMode User autocmd on toggle; spec	S
-org-num	org-num-skip-commented	opt	done	ui.num_skip_commented (config.lua:1601)	-	-
-org-num	org-num-skip-footnotes	opt	done	ui.num_skip_footnotes (config.lua:1603)	-	-
-org-num	org-num-skip-tags	opt	done	ui.num_skip_tags (config.lua:1605)	-	-
-org-num	org-num-skip-unnumbered	opt	done	ui.num_skip_unnumbered (config.lua:1607)	-	-
+org-num	org-num-skip-commented	opt	done	ui.num_skip_commented (config/links.lua:111)	-	-
+org-num	org-num-skip-footnotes	opt	done	ui.num_skip_footnotes (config/links.lua:113)	-	-
+org-num	org-num-skip-tags	opt	done	ui.num_skip_tags (config/links.lua:115)	-	-
+org-num	org-num-skip-unnumbered	opt	done	ui.num_skip_unnumbered (config/links.lua:117)	-	-
 org-persist	org-persist-default-expiry	opt	na	-	org-persist cache internals	-
 org-persist	org-persist-directory	opt	na	-	org-persist cache internals	-
 org-persist	org-persist-remote-files	opt	na	-	org-persist cache internals	-
-org-tempo	org-tempo-keywords-alist	opt	done	tempo_keywords (config.lua:346)	-	-
+org-tempo	org-tempo-keywords-alist	opt	done	tempo_keywords (config/tables.lua:143)	-	-
 org-agenda	org-agenda	cmd	done	actions.agenda / agenda/init.lua:543	dispatcher with a t T m M s S n # / e ? * < > and custom commands	-
-org-agenda	org-agenda-Quit	cmd	done	mappings.agenda.quit_kill (config.lua:2074)	Q	-
-org-agenda	org-agenda-add-note	cmd	done	mappings.agenda.add_note (config.lua:2126)	z	-
-org-agenda	org-agenda-append-agenda	cmd	done	mappings.agenda.append (config.lua:2167)	A	-
-org-agenda	org-agenda-archive	cmd	done	mappings.agenda.archive (config.lua:2120)	$	-
+org-agenda	org-agenda-Quit	cmd	done	mappings.agenda.quit_kill (config/export.lua:71)	Q	-
+org-agenda	org-agenda-add-note	cmd	done	mappings.agenda.add_note (config/export.lua:123)	z	-
+org-agenda	org-agenda-append-agenda	cmd	done	mappings.agenda.append (config/export.lua:164)	A	-
+org-agenda	org-agenda-archive	cmd	done	mappings.agenda.archive (config/export.lua:117)	$	-
 org-agenda	org-agenda-archive-default	cmd	done	-	archive_default runs archive_default_command without asking, a asks 'Archive this subtree or entry? '; matches org-agenda-archive-with; spec	S
-org-agenda	org-agenda-archive-default-with-confirmation	cmd	done	mappings.agenda.archive_default (config.lua:2121)	a (archives subtree)	-
-org-agenda	org-agenda-archive-to-archive-sibling	cmd	done	mappings.agenda.archive_sibling (config.lua:2122)	C-c C-x A	-
+org-agenda	org-agenda-archive-default-with-confirmation	cmd	done	mappings.agenda.archive_default (config/export.lua:118)	a (archives subtree)	-
+org-agenda	org-agenda-archive-to-archive-sibling	cmd	done	mappings.agenda.archive_sibling (config/export.lua:119)	C-c C-x A	-
 org-agenda	org-agenda-archive-with	cmd	na	-	internal helper taking a command argument; user-facing archive keys are covered	-
-org-agenda	org-agenda-archives-mode	cmd	done	mappings.agenda.archives_mode (config.lua:2132)	va / vA	-
-org-agenda	org-agenda-backward-block	cmd	done	mappings.agenda.backward_block (config.lua:2164)	C-Up	-
-org-agenda	org-agenda-bulk-action	cmd	done	mappings.agenda.bulk_action (config.lua:2158)	B	-
-org-agenda	org-agenda-bulk-mark	cmd	done	mappings.agenda.mark (config.lua:2151)	m	-
-org-agenda	org-agenda-bulk-mark-all	cmd	done	mappings.agenda.mark_all (config.lua:2155)	*	-
-org-agenda	org-agenda-bulk-mark-regexp	cmd	done	mappings.agenda.mark_regexp (config.lua:2157)	%	-
+org-agenda	org-agenda-archives-mode	cmd	done	mappings.agenda.archives_mode (config/export.lua:129)	va / vA	-
+org-agenda	org-agenda-backward-block	cmd	done	mappings.agenda.backward_block (config/export.lua:161)	C-Up	-
+org-agenda	org-agenda-bulk-action	cmd	done	mappings.agenda.bulk_action (config/export.lua:155)	B	-
+org-agenda	org-agenda-bulk-mark	cmd	done	mappings.agenda.mark (config/export.lua:148)	m	-
+org-agenda	org-agenda-bulk-mark-all	cmd	done	mappings.agenda.mark_all (config/export.lua:152)	*	-
+org-agenda	org-agenda-bulk-mark-regexp	cmd	done	mappings.agenda.mark_regexp (config/export.lua:154)	%	-
 org-agenda	org-agenda-bulk-remove-overlays	cmd	na	-	removes mark overlays but keeps markers; internal display helper	-
-org-agenda	org-agenda-bulk-toggle	cmd	done	mappings.agenda.toggle_mark (config.lua:2154)	M-m	-
-org-agenda	org-agenda-bulk-toggle-all	cmd	done	mappings.agenda.toggle_mark_all (config.lua:2156)	M-*	-
-org-agenda	org-agenda-bulk-unmark	cmd	done	mappings.agenda.unmark (config.lua:2152)	u	-
-org-agenda	org-agenda-bulk-unmark-all	cmd	done	mappings.agenda.unmark_all (config.lua:2153)	U	-
-org-agenda	org-agenda-capture	cmd	done	mappings.agenda.capture (config.lua:2175)	K (Emacs k) with the date at point	-
-org-agenda	org-agenda-clock-cancel	cmd	done	mappings.agenda.clock_cancel (config.lua:2111)	X	-
-org-agenda	org-agenda-clock-goto	cmd	done	mappings.agenda.clock_goto (config.lua:2112)	J	-
-org-agenda	org-agenda-clock-in	cmd	done	mappings.agenda.clock_in (config.lua:2109)	I	-
-org-agenda	org-agenda-clock-out	cmd	done	mappings.agenda.clock_out (config.lua:2110)	O	-
-org-agenda	org-agenda-clockreport-mode	cmd	done	mappings.agenda.clockreport_mode (config.lua:2130)	C / vR (Emacs R)	-
-org-agenda	org-agenda-convert-date	cmd	done	mappings.agenda.convert_date (config.lua:2170)	gC (Emacs C)	-
-org-agenda	org-agenda-ctrl-c-ctrl-c	cmd	done	mappings.agenda.set_tags (config.lua:2101)	C-c C-c sets tags	-
+org-agenda	org-agenda-bulk-toggle	cmd	done	mappings.agenda.toggle_mark (config/export.lua:151)	M-m	-
+org-agenda	org-agenda-bulk-toggle-all	cmd	done	mappings.agenda.toggle_mark_all (config/export.lua:153)	M-*	-
+org-agenda	org-agenda-bulk-unmark	cmd	done	mappings.agenda.unmark (config/export.lua:149)	u	-
+org-agenda	org-agenda-bulk-unmark-all	cmd	done	mappings.agenda.unmark_all (config/export.lua:150)	U	-
+org-agenda	org-agenda-capture	cmd	done	mappings.agenda.capture (config/export.lua:172)	K (Emacs k) with the date at point	-
+org-agenda	org-agenda-clock-cancel	cmd	done	mappings.agenda.clock_cancel (config/export.lua:108)	X	-
+org-agenda	org-agenda-clock-goto	cmd	done	mappings.agenda.clock_goto (config/export.lua:109)	J	-
+org-agenda	org-agenda-clock-in	cmd	done	mappings.agenda.clock_in (config/export.lua:106)	I	-
+org-agenda	org-agenda-clock-out	cmd	done	mappings.agenda.clock_out (config/export.lua:107)	O	-
+org-agenda	org-agenda-clockreport-mode	cmd	done	mappings.agenda.clockreport_mode (config/export.lua:127)	C / vR (Emacs R)	-
+org-agenda	org-agenda-convert-date	cmd	done	mappings.agenda.convert_date (config/export.lua:167)	gC (Emacs C)	-
+org-agenda	org-agenda-ctrl-c-ctrl-c	cmd	done	mappings.agenda.set_tags (config/export.lua:98)	C-c C-c sets tags	-
 org-agenda	org-agenda-cycle-show	cmd	done	agenda cycle_show	fixed after verification: fold.show_level (e714902)	S
-org-agenda	org-agenda-date-earlier	cmd	done	mappings.agenda.date_earlier (config.lua:2107)	S-Left with count	-
+org-agenda	org-agenda-date-earlier	cmd	done	mappings.agenda.date_earlier (config/export.lua:104)	S-Left with count	-
 org-agenda	org-agenda-date-earlier-hours	cmd	done	-	action shifts n*60 min via shift_item; range/midnight/date-only cases in spec	S
 org-agenda	org-agenda-date-earlier-minutes	cmd	done	-	PROBED: 16<S-Left> on 10:03-11:07 -> 09:58-11:02 in both (no rounding of start, like Emacs)	S
-org-agenda	org-agenda-date-later	cmd	done	mappings.agenda.date_later (config.lua:2106)	S-Right with count	-
+org-agenda	org-agenda-date-later	cmd	done	mappings.agenda.date_later (config/export.lua:103)	S-Right with count	-
 org-agenda	org-agenda-date-later-hours	cmd	done	-	action + count; spec 3gH 10:00->13:00	S
 org-agenda	org-agenda-date-later-minutes	cmd	done	-	PROBED: 16<S-Right> 10:03 -> 10:08 in Emacs and nvim	S
-org-agenda	org-agenda-date-prompt	cmd	done	mappings.agenda.date_prompt (config.lua:2108)	>	-
-org-agenda	org-agenda-day-view	cmd	done	mappings.agenda.day_view (config.lua:2082)	vd	-
-org-agenda	org-agenda-deadline	cmd	done	mappings.agenda.deadline (config.lua:2105)	C-c C-d / d	-
+org-agenda	org-agenda-date-prompt	cmd	done	mappings.agenda.date_prompt (config/export.lua:105)	>	-
+org-agenda	org-agenda-day-view	cmd	done	mappings.agenda.day_view (config/export.lua:79)	vd	-
+org-agenda	org-agenda-deadline	cmd	done	mappings.agenda.deadline (config/export.lua:102)	C-c C-d / d	-
 org-agenda	org-agenda-diary-entry	cmd	done	-	diary_entry.lua: diary-file d w m y a b c + Org file d a b j, Visual block; prompts match Emacs; 4 specs from probes	M
-org-agenda	org-agenda-dim-blocked-tasks	cmd	done	agenda.dim_blocked_tasks (config.lua:620)		-
+org-agenda	org-agenda-dim-blocked-tasks	cmd	done	agenda.dim_blocked_tasks (config/buffer.lua:275)		-
 org-agenda	org-agenda-do-date-earlier	cmd	done	-	PROBED: do_date_shift mirrors cond order (16/minutes last-command before 4/hours); results match Emacs	S
 org-agenda	org-agenda-do-date-later	cmd	done	-	PROBED: same as do-date-earlier; repeat keeps unit via last_command, spec	S
-org-agenda	org-agenda-drag-line-backward	cmd	done	mappings.agenda.drag_line_backward (config.lua:2166)	M-Up	-
-org-agenda	org-agenda-drag-line-forward	cmd	done	mappings.agenda.drag_line_forward (config.lua:2165)	M-Down	-
-org-agenda	org-agenda-earlier	cmd	done	mappings.agenda.earlier (config.lua:2079)	b	-
+org-agenda	org-agenda-drag-line-backward	cmd	done	mappings.agenda.drag_line_backward (config/export.lua:163)	M-Up	-
+org-agenda	org-agenda-drag-line-forward	cmd	done	mappings.agenda.drag_line_forward (config/export.lua:162)	M-Down	-
+org-agenda	org-agenda-earlier	cmd	done	mappings.agenda.earlier (config/export.lua:76)	b	-
 org-agenda	org-agenda-end-of-line	cmd	vim	$	stock $ motion	-
-org-agenda	org-agenda-entry-text-mode	cmd	done	mappings.agenda.entry_text_mode (config.lua:2131)	E / vE	-
+org-agenda	org-agenda-entry-text-mode	cmd	done	mappings.agenda.entry_text_mode (config/export.lua:128)	E / vE	-
 org-agenda	org-agenda-entry-text-show	cmd	done	agenda/render.lua:674	done as part of entry text mode	-
 org-agenda	org-agenda-execute	cmd	done	actions.agenda (global)	agenda dispatcher key works from the agenda buffer	-
-org-agenda	org-agenda-exit	cmd	done	mappings.agenda.exit (config.lua:2075)	x	-
-org-agenda	org-agenda-filter	cmd	done	mappings.agenda.filter (config.lua:2139)	/	-
-org-agenda	org-agenda-filter-by-category	cmd	done	mappings.agenda.filter_category (config.lua:2141)	<	-
-org-agenda	org-agenda-filter-by-effort	cmd	done	mappings.agenda.filter_effort (config.lua:2143)	_	-
-org-agenda	org-agenda-filter-by-regexp	cmd	done	mappings.agenda.filter_regexp (config.lua:2142)	=	-
-org-agenda	org-agenda-filter-by-tag	cmd	done	mappings.agenda.filter_tag (config.lua:2140)	\	-
-org-agenda	org-agenda-filter-by-top-headline	cmd	done	mappings.agenda.filter_top_headline (config.lua:2144)	^	-
-org-agenda	org-agenda-filter-remove-all	cmd	done	mappings.agenda.filter_remove (config.lua:2145)	|	-
-org-agenda	org-agenda-follow-mode	cmd	done	mappings.agenda.follow_mode (config.lua:2094)	F / vf	-
+org-agenda	org-agenda-exit	cmd	done	mappings.agenda.exit (config/export.lua:72)	x	-
+org-agenda	org-agenda-filter	cmd	done	mappings.agenda.filter (config/export.lua:136)	/	-
+org-agenda	org-agenda-filter-by-category	cmd	done	mappings.agenda.filter_category (config/export.lua:138)	<	-
+org-agenda	org-agenda-filter-by-effort	cmd	done	mappings.agenda.filter_effort (config/export.lua:140)	_	-
+org-agenda	org-agenda-filter-by-regexp	cmd	done	mappings.agenda.filter_regexp (config/export.lua:139)	=	-
+org-agenda	org-agenda-filter-by-tag	cmd	done	mappings.agenda.filter_tag (config/export.lua:137)	\	-
+org-agenda	org-agenda-filter-by-top-headline	cmd	done	mappings.agenda.filter_top_headline (config/export.lua:141)	^	-
+org-agenda	org-agenda-filter-remove-all	cmd	done	mappings.agenda.filter_remove (config/export.lua:142)	|	-
+org-agenda	org-agenda-follow-mode	cmd	done	mappings.agenda.follow_mode (config/export.lua:91)	F / vf	-
 org-agenda	org-agenda-fontify-priorities	cmd	done	-	cookies/t/nil/table handled, line-extent for t; spec	S
-org-agenda	org-agenda-fortnight-view	cmd	done	mappings.agenda.fortnight_view (config.lua:2084)	vt	-
-org-agenda	org-agenda-forward-block	cmd	done	mappings.agenda.forward_block (config.lua:2163)	C-Down	-
-org-agenda	org-agenda-goto	cmd	done	mappings.agenda.goto (config.lua:2088)	Tab	-
-org-agenda	org-agenda-goto-calendar	cmd	done	mappings.agenda.calendar (config.lua:2169)	c opens the date picker at the date at point	-
-org-agenda	org-agenda-goto-date	cmd	done	mappings.agenda.goto_date (config.lua:2081)	gd (Emacs j)	-
+org-agenda	org-agenda-fortnight-view	cmd	done	mappings.agenda.fortnight_view (config/export.lua:81)	vt	-
+org-agenda	org-agenda-forward-block	cmd	done	mappings.agenda.forward_block (config/export.lua:160)	C-Down	-
+org-agenda	org-agenda-goto	cmd	done	mappings.agenda.goto (config/export.lua:85)	Tab	-
+org-agenda	org-agenda-goto-calendar	cmd	done	mappings.agenda.calendar (config/export.lua:166)	c opens the date picker at the date at point	-
+org-agenda	org-agenda-goto-date	cmd	done	mappings.agenda.goto_date (config/export.lua:78)	gd (Emacs j)	-
 org-agenda	org-agenda-goto-mouse	cmd	done	-	<MiddleMouse> -> mouse_set_point + goto; spec stubs getmousepos	S
-org-agenda	org-agenda-goto-today	cmd	done	mappings.agenda.today (config.lua:2080)	.	-
-org-agenda	org-agenda-holidays	cmd	done	mappings.agenda.holidays (config.lua:2173)	H	-
-org-agenda	org-agenda-kill	cmd	done	mappings.agenda.kill (config.lua:2124)	C-k with agenda.confirm_kill	-
+org-agenda	org-agenda-goto-today	cmd	done	mappings.agenda.today (config/export.lua:77)	.	-
+org-agenda	org-agenda-holidays	cmd	done	mappings.agenda.holidays (config/export.lua:170)	H	-
+org-agenda	org-agenda-kill	cmd	done	mappings.agenda.kill (config/export.lua:121)	C-k with agenda.confirm_kill	-
 org-agenda	org-agenda-kill-all-agenda-buffers	cmd	done	-	kills every orgagenda buffer; sticky toggle kills first like org-toggle-sticky-agenda; spec	S
-org-agenda	org-agenda-later	cmd	done	mappings.agenda.later (config.lua:2078)	f	-
-org-agenda	org-agenda-limit-interactively	cmd	done	mappings.agenda.limit (config.lua:2146)	~	-
+org-agenda	org-agenda-later	cmd	done	mappings.agenda.later (config/export.lua:75)	f	-
+org-agenda	org-agenda-limit-interactively	cmd	done	mappings.agenda.limit (config/export.lua:143)	~	-
 org-agenda	org-agenda-list	cmd	done	agenda/init.lua:398 open_agenda	:Org agenda a	-
 org-agenda	org-agenda-list-stuck-projects	cmd	done	agenda/init.lua:427 open_stuck	dispatcher #	-
-org-agenda	org-agenda-log-mode	cmd	done	mappings.agenda.log_mode (config.lua:2127)	l / vl / vL	-
-org-agenda	org-agenda-manipulate-query-add	cmd	done	mappings.agenda.query_add (config.lua:2147)	[	-
-org-agenda	org-agenda-manipulate-query-add-re	cmd	done	mappings.agenda.query_add_re (config.lua:2149)	{	-
-org-agenda	org-agenda-manipulate-query-subtract	cmd	done	mappings.agenda.query_subtract (config.lua:2148)	]	-
-org-agenda	org-agenda-manipulate-query-subtract-re	cmd	done	mappings.agenda.query_subtract_re (config.lua:2150)	}	-
+org-agenda	org-agenda-log-mode	cmd	done	mappings.agenda.log_mode (config/export.lua:124)	l / vl / vL	-
+org-agenda	org-agenda-manipulate-query-add	cmd	done	mappings.agenda.query_add (config/export.lua:144)	[	-
+org-agenda	org-agenda-manipulate-query-add-re	cmd	done	mappings.agenda.query_add_re (config/export.lua:146)	{	-
+org-agenda	org-agenda-manipulate-query-subtract	cmd	done	mappings.agenda.query_subtract (config/export.lua:145)	]	-
+org-agenda	org-agenda-manipulate-query-subtract-re	cmd	done	mappings.agenda.query_subtract_re (config/export.lua:147)	}	-
 org-agenda	org-agenda-menu	cmd	done	lua/org/menu_defs.lua agenda(); menu_spec "adds the Agenda menu"	"Agenda" menu in orgagenda buffers; Agenda Files dynamic; TODO set / Show Priority via view.on_item	-
 org-agenda	org-agenda-mode	cmd	done	agenda/view.lua:603	orgagenda filetype buffer	-
-org-agenda	org-agenda-month-view	cmd	done	mappings.agenda.month_view (config.lua:2085)	vm	-
-org-agenda	org-agenda-next-date-line	cmd	done	mappings.agenda.next_date_line (config.lua:2161)	C-c C-n	-
-org-agenda	org-agenda-next-item	cmd	done	mappings.agenda.next_item (config.lua:2159)	n	-
+org-agenda	org-agenda-month-view	cmd	done	mappings.agenda.month_view (config/export.lua:82)	vm	-
+org-agenda	org-agenda-next-date-line	cmd	done	mappings.agenda.next_date_line (config/export.lua:158)	C-c C-n	-
+org-agenda	org-agenda-next-item	cmd	done	mappings.agenda.next_item (config/export.lua:156)	n	-
 org-agenda	org-agenda-next-line	cmd	vim	agenda/view.lua:622	j; CursorMoved runs follow mode and outline-path echo	-
-org-agenda	org-agenda-open-link	cmd	done	mappings.agenda.open_link (config.lua:2125)	C-c C-o	-
-org-agenda	org-agenda-phases-of-moon	cmd	done	mappings.agenda.phases_of_moon (config.lua:2171)	M	-
-org-agenda	org-agenda-previous-date-line	cmd	done	mappings.agenda.prev_date_line (config.lua:2162)	C-c C-p	-
-org-agenda	org-agenda-previous-item	cmd	done	mappings.agenda.prev_item (config.lua:2160)	p	-
+org-agenda	org-agenda-open-link	cmd	done	mappings.agenda.open_link (config/export.lua:122)	C-c C-o	-
+org-agenda	org-agenda-phases-of-moon	cmd	done	mappings.agenda.phases_of_moon (config/export.lua:168)	M	-
+org-agenda	org-agenda-previous-date-line	cmd	done	mappings.agenda.prev_date_line (config/export.lua:159)	C-c C-p	-
+org-agenda	org-agenda-previous-item	cmd	done	mappings.agenda.prev_item (config/export.lua:157)	p	-
 org-agenda	org-agenda-previous-line	cmd	vim	agenda/view.lua:622	k; CursorMoved runs follow mode and outline-path echo	-
-org-agenda	org-agenda-priority	cmd	done	mappings.agenda.priority (config.lua:2098)	,	-
-org-agenda	org-agenda-priority-down	cmd	done	mappings.agenda.priority_down (config.lua:2100)	- / S-Down	-
-org-agenda	org-agenda-priority-up	cmd	done	mappings.agenda.priority_up (config.lua:2099)	+ / S-Up	-
-org-agenda	org-agenda-quit	cmd	done	mappings.agenda.quit (config.lua:2073)	q	-
-org-agenda	org-agenda-recenter	cmd	done	mappings.agenda.recenter (config.lua:2092)	L	-
-org-agenda	org-agenda-redo	cmd	done	mappings.agenda.redo (config.lua:2076)	r	-
-org-agenda	org-agenda-redo-all	cmd	done	mappings.agenda.redo_all (config.lua:2077)	gr (Emacs g)	-
-org-agenda	org-agenda-refile	cmd	done	mappings.agenda.refile (config.lua:2119)	C-c C-w / R	-
-org-agenda	org-agenda-remove-filter	cmd	done	mappings.agenda.filter_remove (config.lua:2145)	filters cleared via | or by re-pressing the filter key	-
-org-agenda	org-agenda-remove-restriction-lock	cmd	done	mappings.agenda.remove_restriction_lock (config.lua:2118)	C-c C-x >	-
-org-agenda	org-agenda-reset-view	cmd	done	mappings.agenda.reset_view (config.lua:2087)	v SPC	-
-org-agenda	org-agenda-schedule	cmd	done	mappings.agenda.schedule (config.lua:2104)	C-c C-s / s	-
-org-agenda	org-agenda-set-effort	cmd	done	mappings.agenda.set_effort (config.lua:2114)	e	-
-org-agenda	org-agenda-set-property	cmd	done	mappings.agenda.set_property (config.lua:2103)	C-c C-x p	-
+org-agenda	org-agenda-priority	cmd	done	mappings.agenda.priority (config/export.lua:95)	,	-
+org-agenda	org-agenda-priority-down	cmd	done	mappings.agenda.priority_down (config/export.lua:97)	- / S-Down	-
+org-agenda	org-agenda-priority-up	cmd	done	mappings.agenda.priority_up (config/export.lua:96)	+ / S-Up	-
+org-agenda	org-agenda-quit	cmd	done	mappings.agenda.quit (config/export.lua:70)	q	-
+org-agenda	org-agenda-recenter	cmd	done	mappings.agenda.recenter (config/export.lua:89)	L	-
+org-agenda	org-agenda-redo	cmd	done	mappings.agenda.redo (config/export.lua:73)	r	-
+org-agenda	org-agenda-redo-all	cmd	done	mappings.agenda.redo_all (config/export.lua:74)	gr (Emacs g)	-
+org-agenda	org-agenda-refile	cmd	done	mappings.agenda.refile (config/export.lua:116)	C-c C-w / R	-
+org-agenda	org-agenda-remove-filter	cmd	done	mappings.agenda.filter_remove (config/export.lua:142)	filters cleared via | or by re-pressing the filter key	-
+org-agenda	org-agenda-remove-restriction-lock	cmd	done	mappings.agenda.remove_restriction_lock (config/export.lua:115)	C-c C-x >	-
+org-agenda	org-agenda-reset-view	cmd	done	mappings.agenda.reset_view (config/export.lua:84)	v SPC	-
+org-agenda	org-agenda-schedule	cmd	done	mappings.agenda.schedule (config/export.lua:101)	C-c C-s / s	-
+org-agenda	org-agenda-set-effort	cmd	done	mappings.agenda.set_effort (config/export.lua:111)	e	-
+org-agenda	org-agenda-set-property	cmd	done	mappings.agenda.set_property (config/export.lua:100)	C-c C-x p	-
 org-agenda	org-agenda-set-restriction-lock	cmd	done	actions.agenda_set_restriction_lock (agenda/init.lua:272)	C-c C-x < in org buffers	-
-org-agenda	org-agenda-set-restriction-lock-from-agenda	cmd	done	mappings.agenda.restriction_lock (config.lua:2117)	C-c C-x < in the agenda	-
-org-agenda	org-agenda-set-tags	cmd	done	mappings.agenda.set_tags (config.lua:2101)	: / C-c C-q	-
-org-agenda	org-agenda-show	cmd	done	mappings.agenda.show (config.lua:2090)	SPC shows entry in other window	-
+org-agenda	org-agenda-set-restriction-lock-from-agenda	cmd	done	mappings.agenda.restriction_lock (config/export.lua:114)	C-c C-x < in the agenda	-
+org-agenda	org-agenda-set-tags	cmd	done	mappings.agenda.set_tags (config/export.lua:98)	: / C-c C-q	-
+org-agenda	org-agenda-show	cmd	done	mappings.agenda.show (config/export.lua:87)	SPC shows entry in other window	-
 org-agenda	org-agenda-show-1	cmd	done	agenda show_1	fixed after verification: fold.show_level, probed levels 0-4 (e714902)	S
 org-agenda	org-agenda-show-and-scroll-up	cmd	done	-	repeat scrolls show window, count keeps drawers folded, <BS> scrolls back; spec	S
-org-agenda	org-agenda-show-clocking-issues	cmd	done	mappings.agenda.clockcheck_mode (config.lua:2129)	vc; agenda/render.lua:826	-
+org-agenda	org-agenda-show-clocking-issues	cmd	done	mappings.agenda.clockcheck_mode (config/export.lua:126)	vc; agenda/render.lua:826	-
 org-agenda	org-agenda-show-mouse	cmd	done	-	<RightMouse> -> mouse_set_point + show_item(false); no own spec but shares tested mouse_set_point	S
-org-agenda	org-agenda-show-scroll-down	cmd	done	mappings.agenda.show_scroll_down (config.lua:2091)	BS	-
-org-agenda	org-agenda-show-tags	cmd	done	mappings.agenda.show_tags (config.lua:2102)	T	-
-org-agenda	org-agenda-show-the-flagging-note	cmd	done	mappings.agenda.show_flagging_note (config.lua:2178)	?	-
-org-agenda	org-agenda-sunrise-sunset	cmd	done	mappings.agenda.sunrise_sunset (config.lua:2172)	S	-
-org-agenda	org-agenda-switch-to	cmd	done	mappings.agenda.switch_to (config.lua:2089)	RET	-
+org-agenda	org-agenda-show-scroll-down	cmd	done	mappings.agenda.show_scroll_down (config/export.lua:88)	BS	-
+org-agenda	org-agenda-show-tags	cmd	done	mappings.agenda.show_tags (config/export.lua:99)	T	-
+org-agenda	org-agenda-show-the-flagging-note	cmd	done	mappings.agenda.show_flagging_note (config/export.lua:175)	?	-
+org-agenda	org-agenda-sunrise-sunset	cmd	done	mappings.agenda.sunrise_sunset (config/export.lua:169)	S	-
+org-agenda	org-agenda-switch-to	cmd	done	mappings.agenda.switch_to (config/export.lua:86)	RET	-
 org-agenda	org-agenda-to-appt	cmd	done	agenda/notifications.lua:1	appointment reminders from timed entries	-
-org-agenda	org-agenda-todo	cmd	done	mappings.agenda.todo (config.lua:2095)	t	-
-org-agenda	org-agenda-todo-nextset	cmd	done	mappings.agenda.todo_next (config.lua:2096)	C-S-Right	-
-org-agenda	org-agenda-todo-previousset	cmd	done	mappings.agenda.todo_prev (config.lua:2097)	C-S-Left	-
+org-agenda	org-agenda-todo	cmd	done	mappings.agenda.todo (config/export.lua:92)	t	-
+org-agenda	org-agenda-todo-nextset	cmd	done	mappings.agenda.todo_next (config/export.lua:93)	C-S-Right	-
+org-agenda	org-agenda-todo-previousset	cmd	done	mappings.agenda.todo_prev (config/export.lua:94)	C-S-Left	-
 org-agenda	org-agenda-todo-yesterday	cmd	done	-	binds use_effective_time + extend_today_until=hour+1 exactly like Emacs let; spec checks CLOSED/LAST_REPEAT 23:59	S
-org-agenda	org-agenda-toggle-archive-tag	cmd	done	mappings.agenda.toggle_archive_tag (config.lua:2123)	C-c C-x a	-
-org-agenda	org-agenda-toggle-deadlines	cmd	done	mappings.agenda.toggle_deadlines (config.lua:2136)	! / v!	-
-org-agenda	org-agenda-toggle-diary	cmd	done	mappings.agenda.toggle_diary (config.lua:2137)	D	-
-org-agenda	org-agenda-toggle-time-grid	cmd	done	mappings.agenda.time_grid (config.lua:2135)	G / vG	-
+org-agenda	org-agenda-toggle-archive-tag	cmd	done	mappings.agenda.toggle_archive_tag (config/export.lua:120)	C-c C-x a	-
+org-agenda	org-agenda-toggle-deadlines	cmd	done	mappings.agenda.toggle_deadlines (config/export.lua:133)	! / v!	-
+org-agenda	org-agenda-toggle-diary	cmd	done	mappings.agenda.toggle_diary (config/export.lua:134)	D	-
+org-agenda	org-agenda-toggle-time-grid	cmd	done	mappings.agenda.time_grid (config/export.lua:132)	G / vG	-
 org-agenda	org-agenda-tree-to-indirect-buffer	cmd	done	agenda <C-c><C-x>b	fixed after verification: count = target level like Emacs's arg (3944070)	S
 org-agenda	org-agenda-undo	cmd	done	-	per-command remote undo list via undotree seq, r clears; differences (refuse after later edits, no redo) documented	M
-org-agenda	org-agenda-view-mode-dispatch	cmd	done	mappings.agenda.day_view (config.lua:2082)	v is a prefix for vd vw vt vm vy vl vL vc vR vE va vA v[ vG v! vf	-
-org-agenda	org-agenda-week-view	cmd	done	mappings.agenda.week_view (config.lua:2083)	vw	-
-org-agenda	org-agenda-write	cmd	done	mappings.agenda.export (config.lua:2176)	C-x C-w; agenda/export.lua:344	-
-org-agenda	org-agenda-year-view	cmd	done	mappings.agenda.year_view (config.lua:2086)	vy	-
+org-agenda	org-agenda-view-mode-dispatch	cmd	done	mappings.agenda.day_view (config/export.lua:79)	v is a prefix for vd vw vt vm vy vl vL vc vR vE va vA v[ vG v! vf	-
+org-agenda	org-agenda-week-view	cmd	done	mappings.agenda.week_view (config/export.lua:80)	vw	-
+org-agenda	org-agenda-write	cmd	done	mappings.agenda.export (config/export.lua:173)	C-x C-w; agenda/export.lua:344	-
+org-agenda	org-agenda-year-view	cmd	done	mappings.agenda.year_view (config/export.lua:83)	vy	-
 org-agenda	org-calendar-goto-agenda	cmd	done	calendar.goto_agenda (key c in the goto_calendar picker); imenu_calendar_keys_spec (Emacs probe: 2026-10-07 -> week from Mon 5 Oct)		-
 org-agenda	org-search-view	cmd	done	agenda/init.lua:423 open_search	dispatcher s / S	-
 org-agenda	org-store-agenda-views	cmd	done	agenda/export.lua store_views	dispatcher e	-
@@ -684,136 +684,136 @@ org-habit	org-habit-toggle-display-in-agenda	cmd	done	-	vh / count vh mirror org
 org-habit	org-habit-toggle-habits	cmd	done	-	toggles show_habits, redo, 'Habits turned off', check-type error outside agenda; spec	S
 org-agenda	org-agenda-add-entry-text-descriptive-links	opt	na	-	org-agenda-get-some-entry-text strips link properties right after org-activate-links, so the option has no effect on written text	S
 org-agenda	org-agenda-add-entry-text-maxlines	opt	done	-	export.lua adds body lines on write; spec from probe	S
-org-agenda	org-agenda-align-tags-to-column	opt	done	agenda.tags_column (config.lua:504)	obsolete alias of org-agenda-tags-column	-
-org-agenda	org-agenda-auto-exclude-function	opt	done	agenda.auto_exclude_function (config.lua:540)		-
+org-agenda	org-agenda-align-tags-to-column	opt	done	agenda.tags_column (config/buffer.lua:159)	obsolete alias of org-agenda-tags-column	-
+org-agenda	org-agenda-auto-exclude-function	opt	done	agenda.auto_exclude_function (config/buffer.lua:195)		-
 org-agenda	org-agenda-before-write-hook	opt	done	-	Lua fn may edit lines + User OrgAgendaBeforeWrite; spec	S
-org-agenda	org-agenda-block-separator	opt	done	agenda.block_separator (config.lua:573)		-
-org-agenda	org-agenda-breadcrumbs-separator	opt	done	agenda.breadcrumbs_separator (config.lua:509)		-
-org-agenda	org-agenda-bulk-custom-functions	opt	done	agenda.bulk_custom_functions (config.lua:545)		-
+org-agenda	org-agenda-block-separator	opt	done	agenda.block_separator (config/buffer.lua:228)		-
+org-agenda	org-agenda-breadcrumbs-separator	opt	done	agenda.breadcrumbs_separator (config/buffer.lua:164)		-
+org-agenda	org-agenda-bulk-custom-functions	opt	done	agenda.bulk_custom_functions (config/buffer.lua:200)		-
 org-agenda	org-agenda-bulk-mark-char	opt	done	-	render_marks uses it; spec checks virt_text '*'	S
-org-agenda	org-agenda-category-icon-alist	opt	done	agenda.category_icons (config.lua:506)		-
-org-agenda	org-agenda-clock-consistency-checks	opt	done	agenda.clock_consistency_checks (config.lua:611)		-
-org-agenda	org-agenda-clock-report-header	opt	done	agenda.clock_report_header (config.lua:607)		-
-org-agenda	org-agenda-clockreport-parameter-plist	opt	done	agenda.clockreport_parameters (config.lua:605)		-
-org-agenda	org-agenda-cmp-user-defined	opt	done	agenda.cmp_user_defined (config.lua:519)		-
+org-agenda	org-agenda-category-icon-alist	opt	done	agenda.category_icons (config/buffer.lua:161)		-
+org-agenda	org-agenda-clock-consistency-checks	opt	done	agenda.clock_consistency_checks (config/buffer.lua:266)		-
+org-agenda	org-agenda-clock-report-header	opt	done	agenda.clock_report_header (config/buffer.lua:262)		-
+org-agenda	org-agenda-clockreport-parameter-plist	opt	done	agenda.clockreport_parameters (config/buffer.lua:260)		-
+org-agenda	org-agenda-cmp-user-defined	opt	done	agenda.cmp_user_defined (config/buffer.lua:174)		-
 org-agenda	org-agenda-columns-add-appointments-to-effort-sum	opt	done	-	columns value() uses duration when no Effort; spec	S
 org-agenda	org-agenda-columns-compute-summary-properties	opt	na	agenda/columns.lua:123	Emacs perf knob; summaries are always computed	-
-org-agenda	org-agenda-columns-show-summaries	opt	done	agenda.columns_show_summaries (config.lua:583)		-
-org-agenda	org-agenda-compact-blocks	opt	done	agenda.compact_blocks (config.lua:547)		-
-org-agenda	org-agenda-confirm-kill	opt	done	agenda.confirm_kill (config.lua:595)		-
-org-agenda	org-agenda-current-time-string	opt	done	agenda.current_time_string (config.lua:467)		-
-org-agenda	org-agenda-custom-commands	opt	done	agenda.custom_commands (config.lua:577)		-
+org-agenda	org-agenda-columns-show-summaries	opt	done	agenda.columns_show_summaries (config/buffer.lua:238)		-
+org-agenda	org-agenda-compact-blocks	opt	done	agenda.compact_blocks (config/buffer.lua:202)		-
+org-agenda	org-agenda-confirm-kill	opt	done	agenda.confirm_kill (config/buffer.lua:250)		-
+org-agenda	org-agenda-current-time-string	opt	done	agenda.current_time_string (config/buffer.lua:122)		-
+org-agenda	org-agenda-custom-commands	opt	done	agenda.custom_commands (config/buffer.lua:232)		-
 org-agenda	org-agenda-custom-commands-contexts	opt	done	-	agenda.custom_commands() filters/remaps per rules; spec from org-contextualize-keys probe	S
 org-agenda	org-agenda-day-face-function	opt	done	-	render day header uses function's group; spec	S
-org-agenda	org-agenda-deadline-leaders	opt	done	agenda.deadline_leaders (config.lua:481)		-
-org-agenda	org-agenda-default-appointment-duration	opt	done	agenda.default_appointment_duration (config.lua:492)		-
+org-agenda	org-agenda-deadline-leaders	opt	done	agenda.deadline_leaders (config/buffer.lua:136)		-
+org-agenda	org-agenda-default-appointment-duration	opt	done	agenda.default_appointment_duration (config/buffer.lua:147)		-
 org-agenda	org-agenda-diary-file	opt	done	-	agenda.diary_entry_file read by diary_entry.lua ('diary-file' default); rename documented; spec	S
 org-agenda	org-agenda-diary-sexp-prefix	opt	done	-	items.lua moves case-sensitive match to leader; spec	S
-org-agenda	org-agenda-dim-blocked-tasks	opt	done	agenda.dim_blocked_tasks (config.lua:620)		-
+org-agenda	org-agenda-dim-blocked-tasks	opt	done	agenda.dim_blocked_tasks (config/buffer.lua:275)		-
 org-agenda	org-agenda-entry-text-exclude-regexps	opt	done	-	render.entry_text removes matches; spec	S
 org-agenda	org-agenda-entry-text-leaders	opt	done	-	leader read in add_item; spec	S
-org-agenda	org-agenda-entry-text-maxlines	opt	done	agenda.entry_text_maxlines (config.lua:592)		-
+org-agenda	org-agenda-entry-text-maxlines	opt	done	agenda.entry_text_maxlines (config/buffer.lua:247)		-
 org-agenda	org-agenda-export-html-style	opt	done	-	replaces <style> in HTML write; spec	S
 org-agenda	org-agenda-exporter-settings	opt	done	agenda.exporter_settings (agenda/export.lua:350)	documented doc/org.txt:1445	-
 org-agenda	org-agenda-filter-hook	opt	done	-	User OrgAgendaFilter when filters changed; spec (on redo Emacs runs both hooks, nvim only Finalize - minor)	S
 org-agenda	org-agenda-finalize-hook	opt	done	-	User OrgAgendaFinalize on each build; spec	S
 org-agenda	org-agenda-follow-indirect	opt	done	-	follow_show uses tree_to_indirect_buffer like org-agenda-do-context-action; spec	S
 org-agenda	org-agenda-fontify-priorities	opt	done	-	cookies/t/nil/table handled, line-extent for t; spec	S
-org-agenda	org-agenda-format-date	opt	done	agenda.format_date (config.lua:497)		-
-org-agenda	org-agenda-hide-tags-regexp	opt	done	agenda.hide_tags_regexp (config.lua:501)		-
-org-agenda	org-agenda-inactive-leader	opt	done	agenda.inactive_leader (config.lua:484)		-
-org-agenda	org-agenda-include-deadlines	opt	done	agenda.include_deadlines (config.lua:417)		-
-org-agenda	org-agenda-include-diary	opt	done	agenda.include_diary (config.lua:637)		-
+org-agenda	org-agenda-format-date	opt	done	agenda.format_date (config/buffer.lua:152)		-
+org-agenda	org-agenda-hide-tags-regexp	opt	done	agenda.hide_tags_regexp (config/buffer.lua:156)		-
+org-agenda	org-agenda-inactive-leader	opt	done	agenda.inactive_leader (config/buffer.lua:139)		-
+org-agenda	org-agenda-include-deadlines	opt	done	agenda.include_deadlines (config/buffer.lua:72)		-
+org-agenda	org-agenda-include-diary	opt	done	agenda.include_diary (config/buffer.lua:292)		-
 org-agenda	org-agenda-insert-diary-extract-time	opt	done	-	extract_time moves time into stamp; spec (time normalized to HH:MM, Emacs copies match verbatim)	S
 org-agenda	org-agenda-insert-diary-strategy	opt	done	-	date-tree / date-tree-last / top-level; spec	S
-org-agenda	org-agenda-log-mode-add-notes	opt	done	agenda.log_mode_add_notes (config.lua:599)		-
-org-agenda	org-agenda-log-mode-items	opt	done	agenda.log_mode_items (config.lua:548)		-
+org-agenda	org-agenda-log-mode-add-notes	opt	done	agenda.log_mode_add_notes (config/buffer.lua:254)		-
+org-agenda	org-agenda-log-mode-items	opt	done	agenda.log_mode_items (config/buffer.lua:203)		-
 org-agenda	org-agenda-loop-over-headlines-in-active-region	opt	done	-	Visual maps loop LOOP_ACTIONS (same list as org-agenda-maybe-loop), t/start-level/regexp anchored; spec covers t only	S
-org-agenda	org-agenda-max-effort	opt	done	agenda.max_effort (config.lua:528)		-
-org-agenda	org-agenda-max-entries	opt	done	agenda.max_entries (config.lua:525)		-
-org-agenda	org-agenda-max-tags	opt	done	agenda.max_tags (config.lua:527)		-
-org-agenda	org-agenda-max-todos	opt	done	agenda.max_todos (config.lua:526)		-
+org-agenda	org-agenda-max-effort	opt	done	agenda.max_effort (config/buffer.lua:183)		-
+org-agenda	org-agenda-max-entries	opt	done	agenda.max_entries (config/buffer.lua:180)		-
+org-agenda	org-agenda-max-tags	opt	done	agenda.max_tags (config/buffer.lua:182)		-
+org-agenda	org-agenda-max-todos	opt	done	agenda.max_todos (config/buffer.lua:181)		-
 org-agenda	org-agenda-menu-show-matcher	opt	done	-	menu_label appends ': MATCH' for string matches like Emacs; spec	S
 org-agenda	org-agenda-menu-two-columns	opt	done	-	first half left (ceil n/2) like Emacs n1; spec	S
 org-agenda	org-agenda-mouse-1-follows-link	opt	done	agenda.mouse_1_follows_link	fixed after verification: short click follows, drag sets point (ecdb806)	S
 org-agenda	org-agenda-move-date-from-past-immediately-to-today	opt	done	-	shift_item honours false; spec	S
-org-agenda	org-agenda-persistent-filter	opt	done	agenda.persistent_filter (config.lua:537)		-
-org-agenda	org-agenda-persistent-marks	opt	done	agenda.persistent_marks (config.lua:542)		-
-org-agenda	org-agenda-prefer-last-repeat	opt	done	agenda.prefer_last_repeat (config.lua:437)		-
-org-agenda	org-agenda-prefix-format	opt	done	agenda.prefix_format (config.lua:472)		-
+org-agenda	org-agenda-persistent-filter	opt	done	agenda.persistent_filter (config/buffer.lua:192)		-
+org-agenda	org-agenda-persistent-marks	opt	done	agenda.persistent_marks (config/buffer.lua:197)		-
+org-agenda	org-agenda-prefer-last-repeat	opt	done	agenda.prefer_last_repeat (config/buffer.lua:92)		-
+org-agenda	org-agenda-prefix-format	opt	done	agenda.prefix_format (config/buffer.lua:127)		-
 org-agenda	org-agenda-query-register	opt	done	-	manipulate_query sets register for search views (Emacs: search only too); spec	S
-org-agenda	org-agenda-remove-tags	opt	done	agenda.remove_tags (config.lua:576)		-
-org-agenda	org-agenda-remove-tags-when-in-prefix	opt	done	agenda.remove_tags (config.lua:576)	obsolete alias of org-agenda-remove-tags	-
+org-agenda	org-agenda-remove-tags	opt	done	agenda.remove_tags (config/buffer.lua:231)		-
+org-agenda	org-agenda-remove-tags-when-in-prefix	opt	done	agenda.remove_tags (config/buffer.lua:231)	obsolete alias of org-agenda-remove-tags	-
 org-agenda	org-agenda-remove-timeranges-from-blocks	opt	done	-	PROBED: date blocks 'Trip  now' match; timed block Emacs leaves '--<..17:00>' (Emacs quirk), nvim removes all	S
-org-agenda	org-agenda-remove-times-when-in-prefix	opt	done	agenda.remove_times_when_in_prefix (config.lua:487)		-
-org-agenda	org-agenda-restore-windows-after-quit	opt	done	agenda.restore_windows_after_quit (config.lua:533)		-
+org-agenda	org-agenda-remove-times-when-in-prefix	opt	done	agenda.remove_times_when_in_prefix (config/buffer.lua:142)		-
+org-agenda	org-agenda-restore-windows-after-quit	opt	done	agenda.restore_windows_after_quit (config/buffer.lua:188)		-
 org-agenda	org-agenda-restriction-lock-highlight-subtree	opt	done	-	extmark over subtree or headline; spec	S
-org-agenda	org-agenda-scheduled-leaders	opt	done	agenda.scheduled_leaders (config.lua:479)		-
-org-agenda	org-agenda-search-headline-for-time	opt	done	agenda.search_headline_for_time (config.lua:489)		-
-org-agenda	org-agenda-search-view-always-boolean	opt	done	agenda.search_view_always_boolean (config.lua:587)		-
-org-agenda	org-agenda-search-view-force-full-words	opt	done	agenda.search_view_force_full_words (config.lua:588)		-
-org-agenda	org-agenda-search-view-max-outline-level	opt	done	agenda.search_view_max_outline_level (config.lua:589)		-
-org-agenda	org-agenda-search-view-search-words-only	opt	done	agenda.search_view_always_boolean (config.lua:587)	obsolete alias of org-agenda-search-view-always-boolean	-
-org-agenda	org-agenda-show-all-dates	opt	done	agenda.show_all_dates (config.lua:440)		-
-org-agenda	org-agenda-show-current-time-in-grid	opt	done	agenda.show_current_time_in_grid (config.lua:468)		-
-org-agenda	org-agenda-show-future-repeats	opt	done	agenda.show_future_repeats (config.lua:438)		-
-org-agenda	org-agenda-show-inherited-tags	opt	done	agenda.show_inherited_tags (config.lua:574)		-
-org-agenda	org-agenda-show-outline-path	opt	done	agenda.show_outline_path (config.lua:508)		-
-org-agenda	org-agenda-skip-additional-timestamps-same-entry	opt	done	agenda.skip_additional_timestamps_same_entry (config.lua:425)		-
+org-agenda	org-agenda-scheduled-leaders	opt	done	agenda.scheduled_leaders (config/buffer.lua:134)		-
+org-agenda	org-agenda-search-headline-for-time	opt	done	agenda.search_headline_for_time (config/buffer.lua:144)		-
+org-agenda	org-agenda-search-view-always-boolean	opt	done	agenda.search_view_always_boolean (config/buffer.lua:242)		-
+org-agenda	org-agenda-search-view-force-full-words	opt	done	agenda.search_view_force_full_words (config/buffer.lua:243)		-
+org-agenda	org-agenda-search-view-max-outline-level	opt	done	agenda.search_view_max_outline_level (config/buffer.lua:244)		-
+org-agenda	org-agenda-search-view-search-words-only	opt	done	agenda.search_view_always_boolean (config/buffer.lua:242)	obsolete alias of org-agenda-search-view-always-boolean	-
+org-agenda	org-agenda-show-all-dates	opt	done	agenda.show_all_dates (config/buffer.lua:95)		-
+org-agenda	org-agenda-show-current-time-in-grid	opt	done	agenda.show_current_time_in_grid (config/buffer.lua:123)		-
+org-agenda	org-agenda-show-future-repeats	opt	done	agenda.show_future_repeats (config/buffer.lua:93)		-
+org-agenda	org-agenda-show-inherited-tags	opt	done	agenda.show_inherited_tags (config/buffer.lua:229)		-
+org-agenda	org-agenda-show-outline-path	opt	done	agenda.show_outline_path (config/buffer.lua:163)		-
+org-agenda	org-agenda-skip-additional-timestamps-same-entry	opt	done	agenda.skip_additional_timestamps_same_entry (config/buffer.lua:80)		-
 org-agenda	org-agenda-skip-comment-trees	opt	done	-	PROBED: nil lists TODO under COMMENT tree in day agenda in both	S
-org-agenda	org-agenda-skip-deadline-if-done	opt	done	agenda.skip_deadline_if_done (config.lua:419)		-
-org-agenda	org-agenda-skip-deadline-prewarning-if-scheduled	opt	done	agenda.skip_deadline_prewarning_if_scheduled (config.lua:428)		-
+org-agenda	org-agenda-skip-deadline-if-done	opt	done	agenda.skip_deadline_if_done (config/buffer.lua:74)		-
+org-agenda	org-agenda-skip-deadline-prewarning-if-scheduled	opt	done	agenda.skip_deadline_prewarning_if_scheduled (config/buffer.lua:83)		-
 org-agenda	org-agenda-skip-function-global	opt	done	-	applied in each_headline before block skip for all views; spec (Lua fn(hl) API, not point-based)	S
-org-agenda	org-agenda-skip-scheduled-delay-if-deadline	opt	done	agenda.skip_scheduled_delay_if_deadline (config.lua:430)		-
-org-agenda	org-agenda-skip-scheduled-if-deadline-is-shown	opt	done	agenda.skip_scheduled_if_deadline_is_shown (config.lua:422)		-
-org-agenda	org-agenda-skip-scheduled-if-done	opt	done	agenda.skip_scheduled_if_done (config.lua:418)		-
-org-agenda	org-agenda-skip-scheduled-repeats-after-deadline	opt	done	agenda.skip_scheduled_repeats_after_deadline (config.lua:424)		-
-org-agenda	org-agenda-skip-timestamp-if-deadline-is-shown	opt	done	agenda.skip_timestamp_if_deadline_is_shown (config.lua:423)		-
-org-agenda	org-agenda-skip-timestamp-if-done	opt	done	agenda.skip_timestamp_if_done (config.lua:420)		-
-org-agenda	org-agenda-sort-noeffort-is-high	opt	done	agenda.sort_noeffort_is_high (config.lua:521)		-
-org-agenda	org-agenda-sort-notime-is-late	opt	done	agenda.sort_notime_is_late (config.lua:520)		-
-org-agenda	org-agenda-sorting-strategy	opt	done	agenda.sorting (config.lua:511)		-
-org-agenda	org-agenda-span	opt	done	agenda.span (config.lua:406)		-
-org-agenda	org-agenda-start-on-weekday	opt	done	agenda.start_on_weekday (config.lua:409)		-
+org-agenda	org-agenda-skip-scheduled-delay-if-deadline	opt	done	agenda.skip_scheduled_delay_if_deadline (config/buffer.lua:85)		-
+org-agenda	org-agenda-skip-scheduled-if-deadline-is-shown	opt	done	agenda.skip_scheduled_if_deadline_is_shown (config/buffer.lua:77)		-
+org-agenda	org-agenda-skip-scheduled-if-done	opt	done	agenda.skip_scheduled_if_done (config/buffer.lua:73)		-
+org-agenda	org-agenda-skip-scheduled-repeats-after-deadline	opt	done	agenda.skip_scheduled_repeats_after_deadline (config/buffer.lua:79)		-
+org-agenda	org-agenda-skip-timestamp-if-deadline-is-shown	opt	done	agenda.skip_timestamp_if_deadline_is_shown (config/buffer.lua:78)		-
+org-agenda	org-agenda-skip-timestamp-if-done	opt	done	agenda.skip_timestamp_if_done (config/buffer.lua:75)		-
+org-agenda	org-agenda-sort-noeffort-is-high	opt	done	agenda.sort_noeffort_is_high (config/buffer.lua:176)		-
+org-agenda	org-agenda-sort-notime-is-late	opt	done	agenda.sort_notime_is_late (config/buffer.lua:175)		-
+org-agenda	org-agenda-sorting-strategy	opt	done	agenda.sorting (config/buffer.lua:166)		-
+org-agenda	org-agenda-span	opt	done	agenda.span (config/buffer.lua:61)		-
+org-agenda	org-agenda-start-on-weekday	opt	done	agenda.start_on_weekday (config/buffer.lua:64)		-
 org-agenda	org-agenda-start-with-archives-mode	opt	done	-	view.open sets S.archives; spec	S
-org-agenda	org-agenda-start-with-clockreport-mode	opt	done	agenda.start_with_clockreport_mode (config.lua:601)		-
-org-agenda	org-agenda-start-with-entry-text-mode	opt	done	agenda.start_with_entry_text_mode (config.lua:617)		-
-org-agenda	org-agenda-start-with-follow-mode	opt	done	agenda.start_with_follow_mode (config.lua:600)		-
-org-agenda	org-agenda-start-with-log-mode	opt	done	agenda.start_with_log_mode (config.lua:596)		-
-org-agenda	org-agenda-sticky	opt	done	agenda.sticky (config.lua:535)		-
-org-agenda	org-agenda-tags-column	opt	done	agenda.tags_column (config.lua:504)		-
-org-agenda	org-agenda-tags-todo-honor-ignore-options	opt	done	agenda.tags_todo_honor_ignore_options (config.lua:451)		-
-org-agenda	org-agenda-time-grid	opt	done	agenda.time_grid (config.lua:456)		-
-org-agenda	org-agenda-time-leading-zero	opt	done	agenda.time_leading_zero (config.lua:493)		-
-org-agenda	org-agenda-timegrid-use-ampm	opt	done	agenda.timegrid_use_ampm (config.lua:494)		-
-org-agenda	org-agenda-timerange-leaders	opt	done	agenda.timerange_leaders (config.lua:483)		-
-org-agenda	org-agenda-todo-ignore-deadlines	opt	done	agenda.todo_ignore_deadlines (config.lua:445)		-
-org-agenda	org-agenda-todo-ignore-scheduled	opt	done	agenda.todo_ignore_scheduled (config.lua:442)		-
+org-agenda	org-agenda-start-with-clockreport-mode	opt	done	agenda.start_with_clockreport_mode (config/buffer.lua:256)		-
+org-agenda	org-agenda-start-with-entry-text-mode	opt	done	agenda.start_with_entry_text_mode (config/buffer.lua:272)		-
+org-agenda	org-agenda-start-with-follow-mode	opt	done	agenda.start_with_follow_mode (config/buffer.lua:255)		-
+org-agenda	org-agenda-start-with-log-mode	opt	done	agenda.start_with_log_mode (config/buffer.lua:251)		-
+org-agenda	org-agenda-sticky	opt	done	agenda.sticky (config/buffer.lua:190)		-
+org-agenda	org-agenda-tags-column	opt	done	agenda.tags_column (config/buffer.lua:159)		-
+org-agenda	org-agenda-tags-todo-honor-ignore-options	opt	done	agenda.tags_todo_honor_ignore_options (config/buffer.lua:106)		-
+org-agenda	org-agenda-time-grid	opt	done	agenda.time_grid (config/buffer.lua:111)		-
+org-agenda	org-agenda-time-leading-zero	opt	done	agenda.time_leading_zero (config/buffer.lua:148)		-
+org-agenda	org-agenda-timegrid-use-ampm	opt	done	agenda.timegrid_use_ampm (config/buffer.lua:149)		-
+org-agenda	org-agenda-timerange-leaders	opt	done	agenda.timerange_leaders (config/buffer.lua:138)		-
+org-agenda	org-agenda-todo-ignore-deadlines	opt	done	agenda.todo_ignore_deadlines (config/buffer.lua:100)		-
+org-agenda	org-agenda-todo-ignore-scheduled	opt	done	agenda.todo_ignore_scheduled (config/buffer.lua:97)		-
 org-agenda	org-agenda-todo-ignore-time-comparison-use-seconds	opt	done	-	to_now in seconds, custom int compared to seconds like Emacs; spec	S
-org-agenda	org-agenda-todo-ignore-timestamp	opt	done	agenda.todo_ignore_timestamp (config.lua:447)		-
-org-agenda	org-agenda-todo-ignore-with-date	opt	done	agenda.todo_ignore_with_date (config.lua:448)		-
+org-agenda	org-agenda-todo-ignore-timestamp	opt	done	agenda.todo_ignore_timestamp (config/buffer.lua:102)		-
+org-agenda	org-agenda-todo-ignore-with-date	opt	done	agenda.todo_ignore_with_date (config/buffer.lua:103)		-
 org-agenda	org-agenda-todo-keyword-format	opt	done	-	PROBED: '%-6s' pads TODO/DONE, non-TODO untouched, identical lines	S
-org-agenda	org-agenda-todo-list-sublevels	opt	done	agenda.todo_list_sublevels (config.lua:453)		-
+org-agenda	org-agenda-todo-list-sublevels	opt	done	agenda.todo_list_sublevels (config/buffer.lua:108)		-
 org-agenda	org-agenda-use-tag-inheritance	opt	na	agenda/items.lua:95	Emacs speed knob; inherited tags always computed per use_tag_inheritance	-
-org-agenda	org-agenda-use-time-grid	opt	done	agenda.time_grid.enabled (config.lua:457)		-
-org-agenda	org-agenda-view-columns-initially	opt	done	agenda.view_columns_initially (config.lua:581)		-
-org-agenda	org-agenda-weekend-days	opt	done	agenda.weekend_days (config.lua:499)		-
+org-agenda	org-agenda-use-time-grid	opt	done	agenda.time_grid.enabled (config/buffer.lua:112)		-
+org-agenda	org-agenda-view-columns-initially	opt	done	agenda.view_columns_initially (config/buffer.lua:236)		-
+org-agenda	org-agenda-weekend-days	opt	done	agenda.weekend_days (config/buffer.lua:154)		-
 org-agenda	org-agenda-window-frame-fractions	opt	done	-	fit_window mirrors org-agenda-fit-window-to-buffer; spec	S
-org-agenda	org-agenda-window-setup	opt	done	agenda.window (config.lua:531)		-
+org-agenda	org-agenda-window-setup	opt	done	agenda.window (config/buffer.lua:186)		-
 org-agenda	org-agenda-with-colors	opt	vim	agenda/highlights.lua	colours come from OrgAgenda* highlight groups; link them to Normal to disable	-
-org-agenda	org-deadline-past-days	opt	done	agenda.deadline_past_days (config.lua:433)		-
-org-agenda	org-scheduled-past-days	opt	done	agenda.scheduled_past_days (config.lua:434)		-
-org-agenda	org-stuck-projects	opt	done	agenda.stuck_projects (config.lua:564)		-
-org-habit	org-habit-completed-glyph	opt	done	agenda.habits.completed_glyph (config.lua:559)		-
-org-habit	org-habit-following-days	opt	done	agenda.habits.following_days (config.lua:552)		-
-org-habit	org-habit-graph-column	opt	done	agenda.habits.graph_column (config.lua:550)		-
-org-habit	org-habit-preceding-days	opt	done	agenda.habits.preceding_days (config.lua:551)		-
-org-habit	org-habit-scheduled-past-days	opt	done	agenda.habits.scheduled_past_days (config.lua:557)		-
-org-habit	org-habit-show-all-today	opt	done	agenda.habits.show_all_today (config.lua:555)		-
-org-habit	org-habit-show-done-always-green	opt	done	agenda.habits.show_done_always_green (config.lua:556)		-
-org-habit	org-habit-show-habits	opt	done	agenda.habits.show_habits (config.lua:553)		-
-org-habit	org-habit-show-habits-only-for-today	opt	done	agenda.habits.show_habits_only_for_today (config.lua:554)		-
-org-habit	org-habit-today-glyph	opt	done	agenda.habits.today_glyph (config.lua:558)		-
+org-agenda	org-deadline-past-days	opt	done	agenda.deadline_past_days (config/buffer.lua:88)		-
+org-agenda	org-scheduled-past-days	opt	done	agenda.scheduled_past_days (config/buffer.lua:89)		-
+org-agenda	org-stuck-projects	opt	done	agenda.stuck_projects (config/buffer.lua:219)		-
+org-habit	org-habit-completed-glyph	opt	done	agenda.habits.completed_glyph (config/buffer.lua:214)		-
+org-habit	org-habit-following-days	opt	done	agenda.habits.following_days (config/buffer.lua:207)		-
+org-habit	org-habit-graph-column	opt	done	agenda.habits.graph_column (config/buffer.lua:205)		-
+org-habit	org-habit-preceding-days	opt	done	agenda.habits.preceding_days (config/buffer.lua:206)		-
+org-habit	org-habit-scheduled-past-days	opt	done	agenda.habits.scheduled_past_days (config/buffer.lua:212)		-
+org-habit	org-habit-show-all-today	opt	done	agenda.habits.show_all_today (config/buffer.lua:210)		-
+org-habit	org-habit-show-done-always-green	opt	done	agenda.habits.show_done_always_green (config/buffer.lua:211)		-
+org-habit	org-habit-show-habits	opt	done	agenda.habits.show_habits (config/buffer.lua:208)		-
+org-habit	org-habit-show-habits-only-for-today	opt	done	agenda.habits.show_habits_only_for_today (config/buffer.lua:209)		-
+org-habit	org-habit-today-glyph	opt	done	agenda.habits.today_glyph (config/buffer.lua:213)		-
 org-colview	org-agenda-columns	cmd	done	lua/org/agenda/columns.lua; agenda view.lua:2732	column view in agenda	-
 org-colview	org-columns	cmd	done	action column_view (columns.lua:1746)	overlay or table display	-
 org-colview	org-columns--display-here-title	cmd	na	-	internal title overlay helper (winbar title exists)	-
@@ -1043,7 +1043,7 @@ org-table	orgtbl-optimized	opt	done	orgtbl_optimized	fixed after verification: <
 org-table	orgtbl-radio-table-templates	opt	done	config orgtbl_radio_table_templates	-	-
 org-archive	org-archive-set-tag	cmd	done	actions.lua:133 toggle_archive_tag	toggle sets the tag when absent (Emacs set-only variant)	-
 org-archive	org-archive-subtree	cmd	done	actions.lua:359 archive_subtree; archive.lua:313	C-c C-x C-s / C-c $; C-u/C-u C-u variants	-
-org-archive	org-archive-subtree-default	cmd	done	config.lua:2007 archive_subtree on <C-c><C-x><C-a>	bound key always runs archive_subtree (default command not configurable)	-
+org-archive	org-archive-subtree-default	cmd	done	config/babel.lua:253 archive_subtree on <C-c><C-x><C-a>	bound key always runs archive_subtree (default command not configurable)	-
 org-archive	org-archive-subtree-default-with-confirmation	cmd	done	agenda/view.lua:2691 archive_default	agenda 'a' asks then archives; no org-buffer command	-
 org-archive	org-archive-to-archive-sibling	cmd	done	actions.lua:365 archive_to_sibling; archive.lua:447	-	-
 org-archive	org-toggle-archive-tag	cmd	done	actions.lua:133 toggle_archive_tag; archive.lua:618	-	-
@@ -1068,12 +1068,12 @@ org-attach	org-attach-sync	cmd	done	attach.lua:375 sync (menu z)	-	-
 org-attach	org-attach-unset-directory	cmd	done	attach.lua:442 unset_directory (menu S)	-	-
 org-attach	org-attach-url	cmd	done	attach.lua:298 attach_url (menu u)	curl	-
 org-capture	org-capture	cmd	done	actions.lua:40 capture; capture.lua:2553	counts 4/16/1 and C-0 (capture_here)	-
-org-capture	org-capture-finalize	cmd	done	config.lua:2183 capture.finalize; capture.lua:2123	-	-
+org-capture	org-capture-finalize	cmd	done	config/export.lua:180 capture.finalize; capture.lua:2123	-	-
 org-capture	org-capture-goto-last-stored	cmd	done	actions.lua:43 capture_goto_last	-	-
 org-capture	org-capture-goto-target	cmd	done	actions.lua:42 capture_goto_target	-	-
-org-capture	org-capture-kill	cmd	done	config.lua:2184 capture.kill; capture.lua:2207	-	-
+org-capture	org-capture-kill	cmd	done	config/export.lua:181 capture.kill; capture.lua:2207	-	-
 org-capture	org-capture-mode	cmd	done	capture.lua:2476 CAPTURE-<key> buffer + buffer maps	-	-
-org-capture	org-capture-refile	cmd	done	config.lua:2185 capture.refile; capture.lua:2235	-	-
+org-capture	org-capture-refile	cmd	done	config/export.lua:182 capture.refile; capture.lua:2235	-	-
 org-capture	org-capture-string	cmd	done	-	capture_string: 'Initial text: ' then menu or key, as org-capture-string; capture_hooks_spec	S
 org-clock	org-clock-cancel	cmd	done	actions.lua:54 clock_cancel; clock.lua:712	-	-
 org-clock	org-clock-display	cmd	done	actions.lua:277 clock_display; clock.lua:1749	-	-
@@ -1119,12 +1119,12 @@ org-id	org-id-get-create	cmd	done	actions.lua:234 id_get_create; id.lua:264	coun
 org-id	org-id-goto	cmd	done	actions.lua:343 id_goto; id.lua:418	-	-
 org-id	org-id-store-link	cmd	done	actions.lua:345 id_store_link	-	-
 org-id	org-id-update-id-locations	cmd	done	commands.lua:31 id_update_locations; id.lua:352	-	-
-org-lint	org-lint	cmd	done	actions.lua:390 lint; lint.lua:4797 (location list)	-	-
-org-lint	org-lint--hide-checker	cmd	vim	lint.lua:4797 loclist	filter report with :Lfilter! (cfilter)	-
-org-lint	org-lint--ignore-checker	cmd	done	-	lint.lua report_keys h/i/g in loclist; lint_spec. Minor bug: buffer-local nowait 'g' map shadows gg/g_ in the org-lint loclist	S
-org-lint	org-lint--jump-to-source	cmd	vim	lint.lua:4797 loclist	<CR> in location list	-
-org-lint	org-lint--report-mode	cmd	vim	lint.lua:4797 loclist	location list is the report buffer	-
-org-lint	org-lint--show-source	cmd	vim	lint.lua:4797 loclist	location list preview / :ll	-
+org-lint	org-lint	cmd	done	actions.lua:390 lint; lint/init.lua:293 (location list)	-	-
+org-lint	org-lint--hide-checker	cmd	vim	lint/init.lua:293 loclist	filter report with :Lfilter! (cfilter)	-
+org-lint	org-lint--ignore-checker	cmd	done	-	lint/init.lua report_keys h/i/g in loclist; lint_spec. Minor bug: buffer-local nowait 'g' map shadows gg/g_ in the org-lint loclist	S
+org-lint	org-lint--jump-to-source	cmd	vim	lint/init.lua:293 loclist	<CR> in location list	-
+org-lint	org-lint--report-mode	cmd	vim	lint/init.lua:293 loclist	location list is the report buffer	-
+org-lint	org-lint--show-source	cmd	vim	lint/init.lua:293 loclist	location list preview / :ll	-
 org-mobile	org-mobile-apply	cmd	done	commands.lua:47 mobile_apply; mobile.lua:1353	-	-
 org-mobile	org-mobile-create-sumo-agenda	cmd	done	mobile.lua:836 create_sumo_agenda (run by push)	not exposed as separate command	-
 org-mobile	org-mobile-move-capture	cmd	done	mobile.lua:980 move_capture (run by pull)	not exposed as separate command	-
@@ -1239,7 +1239,7 @@ org-id	org-id-completion-targets	opt	done	-	complete_id via refile targets (curr
 org-id	org-id-extra-files	opt	done	config id.extra_files	-	-
 org-id	org-id-include-domain	opt	done	-	new_id appends @fqdn for ts/org only (as org-id-new), fqdn like message-make-fqdn; id_completion_spec	S
 org-id	org-id-link-consider-parent-id	opt	done	config id.link_consider_parent_id	-	-
-org-id	org-id-link-to-org-use-id	opt	done	config.lua:993 links id option	-	-
+org-id	org-id-link-to-org-use-id	opt	done	config/agenda.lua:254 links id option	-	-
 org-id	org-id-link-use-context	opt	done	config id.link_use_context	-	-
 org-id	org-id-locations-file	opt	done	config id.locations_file	-	-
 org-id	org-id-locations-file-relative	opt	done	config id.locations_file_relative	-	-
@@ -1583,23 +1583,23 @@ ox-texinfo	org-texinfo-convert-region-to-texinfo	cmd	done	-	PROBED: no-headline 
 ox-texinfo	org-texinfo-export-to-info	cmd	done	lua/org/export/init.lua:606 dispatcher i i / i o; compile_info	-	-
 ox-texinfo	org-texinfo-export-to-texinfo	cmd	done	lua/org/export/init.lua:605 dispatcher i t	-	-
 oc	org-cite-activate-processor	opt	done	-	basic.activate via decoration provider attached in buffer.lua; false -> default marks; cite_spec checks both	M
-oc	org-cite-adjust-note-numbers	opt	done	lua/org/config.lua:1484 export.cite.adjust_note_numbers	-	-
-oc	org-cite-export-processors	opt	done	lua/org/config.lua:1482 export.cite.export_processors	also #+CITE_EXPORT	-
+oc	org-cite-adjust-note-numbers	opt	done	lua/org/config/misc.lua:117 export.cite.adjust_note_numbers	-	-
+oc	org-cite-export-processors	opt	done	lua/org/config/misc.lua:115 export.cite.export_processors	also #+CITE_EXPORT	-
 oc	org-cite-follow-processor	opt	done	-	processor_for('follow') in M.follow from context.open_at_point; basic.goto_key bib/json positions spec'd from Emacs	M
-oc	org-cite-global-bibliography	opt	done	lua/org/config.lua:1483 export.cite.global_bibliography	-	-
+oc	org-cite-global-bibliography	opt	done	lua/org/config/misc.lua:116 export.cite.global_bibliography	-	-
 oc	org-cite-insert-processor	opt	done	-	processor_for errors match oc.el messages; register_processor for custom; spec'd	M
-oc	org-cite-note-rules	opt	done	lua/org/config.lua:1485 export.cite.note_rules	-	-
-oc	org-cite-punctuation-marks	opt	done	lua/org/config.lua:1486 export.cite.punctuation_marks	-	-
+oc	org-cite-note-rules	opt	done	lua/org/config/misc.lua:118 export.cite.note_rules	-	-
+oc	org-cite-punctuation-marks	opt	done	lua/org/config/misc.lua:119 export.cite.punctuation_marks	-	-
 oc-basic	org-cite-basic-author-column-end	opt	done	-	PROBED: completion display strings (default 25) identical to Emacs; custom width spec'd	S
-oc-basic	org-cite-basic-author-year-separator	opt	done	lua/org/config.lua:1488 export.cite.basic_author_year_separator	-	-
+oc-basic	org-cite-basic-author-year-separator	opt	done	lua/org/config/misc.lua:121 export.cite.basic_author_year_separator	-	-
 oc-basic	org-cite-basic-column-separator	opt	done	-	read in completion_table; custom value spec'd	S
 oc-basic	org-cite-basic-complete-key-crm-separator	opt	done	export.cite.basic_complete_key_crm_separator	fixed after verification: dynamic from display strings (6666a37)	S
 oc-basic	org-cite-basic-max-key-distance	opt	done	-	close_keys uses it; mouse_click substitutes/prompts 'Did you mean: ' like set-keymap; spec'd with 0 and 2	S
 oc-basic	org-cite-basic-mouse-over-key-face	opt	done	lua/org/cite_mouse.lua; config export.cite.basic_mouse_over_key_face ("highlight" = OrgCiteMouseOver); imenu_calendar_keys_spec	<MouseMove> mapping + 'mousemoveevent' highlight the key (with "@", like org-cite-key-boundaries); help-echo tooltip still has no counterpart	S
-oc-basic	org-cite-basic-sorting-field	opt	done	lua/org/config.lua:1487 export.cite.basic_sorting_field	-	-
-oc-biblatex	org-cite-biblatex-options	opt	done	lua/org/config.lua:1490 export.cite.biblatex_options	-	-
-oc-biblatex	org-cite-biblatex-style-shortcuts	opt	done	lua/org/config.lua:1492 export.cite.biblatex_style_shortcuts	-	-
-oc-biblatex	org-cite-biblatex-styles	opt	done	lua/org/config.lua:1491 export.cite.biblatex_styles	-	-
+oc-basic	org-cite-basic-sorting-field	opt	done	lua/org/config/misc.lua:120 export.cite.basic_sorting_field	-	-
+oc-biblatex	org-cite-biblatex-options	opt	done	lua/org/config/misc.lua:123 export.cite.biblatex_options	-	-
+oc-biblatex	org-cite-biblatex-style-shortcuts	opt	done	lua/org/config/misc.lua:125 export.cite.biblatex_style_shortcuts	-	-
+oc-biblatex	org-cite-biblatex-styles	opt	done	lua/org/config/misc.lua:124 export.cite.biblatex_styles	-	-
 oc-bibtex	org-cite-bibtex-bibliography-style	opt	done	lua/org/export/cite.lua:1455 export.cite.bibtex_bibliography_style	not in config defaults/doc but read	-
 oc-csl	org-cite-csl-bibtex-titles-to-sentence-case	opt	done	-	PROBED: false keeps title case, output identical to Emacs+citeproc-el; passed to itemgetter	L
 oc-csl	org-cite-csl-html-hanging-indent	opt	done	-	html_head reads it; custom 2em spec'd; format identical to oc-csl	L
@@ -1613,144 +1613,144 @@ oc-csl	org-cite-csl-locales-dir	opt	done	-	locale_getter tries dir then bundled 
 oc-csl	org-cite-csl-no-citelinks-backends	opt	done	-	PROBED: {'html'} drops html links but keeps latex ones, html/latex/md identical to Emacs; spec only default ascii	L
 oc-csl	org-cite-csl-styles-dir	opt	done	-	style_file lookup order matches org-cite-csl--style-file; spec'd incl. not-found error	L
 oc-natbib	org-cite-natbib-bibliography-style	opt	done	lua/org/export/cite.lua:1413 export.cite.natbib_bibliography_style	not in config defaults/doc but read	-
-oc-natbib	org-cite-natbib-options	opt	done	lua/org/config.lua:1489 export.cite.natbib_options	-	-
-ox	org-export-allow-bind-keywords	opt	done	lua/org/config.lua:1320 export.allow_bind_keywords	-	-
+oc-natbib	org-cite-natbib-options	opt	done	lua/org/config/misc.lua:122 export.cite.natbib_options	-	-
+ox	org-export-allow-bind-keywords	opt	done	lua/org/config/clock.lua:60 export.allow_bind_keywords	-	-
 ox	org-export-async-init-file	opt	done	export.async_init_file (export/init.lua:792)	Lua init file for the separate Neovim of async exports; spec export_dispatch_emacs_spec	-
 ox	org-export-body-only	opt	done	-	prompt() state.body_only from export.body_only passed to export(); menu label spec'd; initial-state only, like Emacs	S
 ox	org-export-coding-system	opt	done	-	write_text iconv to export.coding_system; spec checks latin1 bytes	S
 ox	org-export-copy-to-kill-ring	opt	done	-	maybe_copy honours true/if-interactive/false to " and + registers; spec'd	S
-ox	org-export-creator-string	opt	done	lua/org/config.lua:1315 export.creator	-	-
-ox	org-export-date-timestamp-format	opt	done	lua/org/config.lua:1311 export.date_timestamp_format	-	-
-ox	org-export-default-language	opt	done	lua/org/config.lua:1310 export.default_language	-	-
+ox	org-export-creator-string	opt	done	lua/org/config/clock.lua:55 export.creator	-	-
+ox	org-export-date-timestamp-format	opt	done	lua/org/config/clock.lua:51 export.date_timestamp_format	-	-
+ox	org-export-default-language	opt	done	lua/org/config/clock.lua:50 export.default_language	-	-
 ox	org-export-dispatch-use-expert-ui	opt	done	-	expert_menu prompt 'Export command (C-bvsfa) [keys]: ' like Emacs; C-b etc toggles, ? to menu; spec'd	S
-ox	org-export-exclude-tags	opt	done	lua/org/config.lua:1309 export.exclude_tags	-	-
-ox	org-export-expand-links	opt	done	lua/org/config.lua:1307 export.expand_links	-	-
+ox	org-export-exclude-tags	opt	done	lua/org/config/clock.lua:49 export.exclude_tags	-	-
+ox	org-export-expand-links	opt	done	lua/org/config/clock.lua:47 export.expand_links	-	-
 ox	org-export-force-publishing	opt	done	-	state.force from option passed to publish_*; spec checks toggle reaches publish_current_file	S
-ox	org-export-global-macros	opt	done	lua/org/config.lua:1317 export.global_macros	-	-
-ox	org-export-headline-levels	opt	done	lua/org/config.lua:1271 export.headline_levels	-	-
+ox	org-export-global-macros	opt	done	lua/org/config/clock.lua:57 export.global_macros	-	-
+ox	org-export-headline-levels	opt	done	lua/org/config/export.lua:23 export.headline_levels	-	-
 ox	org-export-in-background	opt	done	-	state.async -> export_async (headless child nvim, result on stack); spec runs real async export	S
 ox	org-export-initial-scope	opt	done	-	state.subtree from initial_scope, subtree_line passed to export; spec'd (label)	S
-ox	org-export-preserve-breaks	opt	done	lua/org/config.lua:1305 export.preserve_breaks	-	-
+ox	org-export-preserve-breaks	opt	done	lua/org/config/clock.lua:45 export.preserve_breaks	-	-
 ox	org-export-process-citations	opt	done	-	PROBED: html/ascii with citations+print_bibliography, process_citations=false: identical to Emacs	S
 ox	org-export-replace-macros	opt	done	-	PROBED: html/md/latex (macro in TITLE) with replace_macros nil identical to Emacs; babel abort message spec'd	S
-ox	org-export-select-tags	opt	done	lua/org/config.lua:1308 export.select_tags	-	-
+ox	org-export-select-tags	opt	done	lua/org/config/clock.lua:48 export.select_tags	-	-
 ox	org-export-show-temporary-export-buffer	opt	done	-	open_scratch skips the split when false; spec checks window count	S
 ox	org-export-smart-quotes-alist	opt	done	-	per-language override of Emacs table (Emacs replaces whole alist) documented in org-differences; default fr quotes PROBED identical	S
-ox	org-export-snippet-translation-alist	opt	done	lua/org/config.lua:1321 export.snippet_translation	-	-
+ox	org-export-snippet-translation-alist	opt	done	lua/org/config/clock.lua:61 export.snippet_translation	-	-
 ox	org-export-time-stamp-file	opt	na	-	obsolete defvaralias of org-export-timestamp-file (done)	-
-ox	org-export-timestamp-file	opt	done	lua/org/config.lua:1306 export.timestamp_file	-	-
+ox	org-export-timestamp-file	opt	done	lua/org/config/clock.lua:46 export.timestamp_file	-	-
 ox	org-export-visible-only	opt	done	-	state.visible_only from option passed to export; spec'd (label); visible_only export itself spec'd elsewhere	S
-ox	org-export-with-archived-trees	opt	done	lua/org/config.lua:1290 export.with_archived_trees	also #+OPTIONS	-
-ox	org-export-with-author	opt	done	lua/org/config.lua:1272 export.with_author	also #+OPTIONS	-
-ox	org-export-with-broken-links	opt	done	lua/org/config.lua:1304 export.with_broken_links	also #+OPTIONS	-
-ox	org-export-with-clocks	opt	done	lua/org/config.lua:1285 export.with_clocks	also #+OPTIONS	-
-ox	org-export-with-creator	opt	done	lua/org/config.lua:1275 export.with_creator	also #+OPTIONS	-
-ox	org-export-with-date	opt	done	lua/org/config.lua:1273 export.with_date	also #+OPTIONS	-
-ox	org-export-with-drawers	opt	done	lua/org/config.lua:1282 export.with_drawers	also #+OPTIONS	-
-ox	org-export-with-email	opt	done	lua/org/config.lua:1274 export.with_email	also #+OPTIONS	-
-ox	org-export-with-emphasize	opt	done	lua/org/config.lua:1291 export.with_emphasize	also #+OPTIONS	-
-ox	org-export-with-entities	opt	done	lua/org/config.lua:1292 export.with_entities	also #+OPTIONS	-
-ox	org-export-with-fixed-width	opt	done	lua/org/config.lua:1293 export.with_fixed_width	also #+OPTIONS	-
-ox	org-export-with-footnotes	opt	done	lua/org/config.lua:1294 export.with_footnotes	also #+OPTIONS	-
-ox	org-export-with-inlinetasks	opt	done	lua/org/config.lua:1295 export.with_inlinetasks	also #+OPTIONS	-
-ox	org-export-with-latex	opt	done	lua/org/config.lua:1296 export.with_latex	also #+OPTIONS	-
-ox	org-export-with-planning	opt	done	lua/org/config.lua:1284 export.with_planning	also #+OPTIONS	-
-ox	org-export-with-priority	opt	done	lua/org/config.lua:1279 export.with_priority	also #+OPTIONS	-
-ox	org-export-with-properties	opt	done	lua/org/config.lua:1283 export.with_properties	also #+OPTIONS	-
-ox	org-export-with-section-numbers	opt	done	lua/org/config.lua:1270 export.with_section_numbers	also #+OPTIONS	-
-ox	org-export-with-smart-quotes	opt	done	lua/org/config.lua:1297 export.with_smart_quotes	also #+OPTIONS	-
-ox	org-export-with-special-strings	opt	done	lua/org/config.lua:1298 export.with_special_strings	also #+OPTIONS	-
-ox	org-export-with-statistics-cookies	opt	done	lua/org/config.lua:1299 export.with_statistics_cookies	also #+OPTIONS	-
-ox	org-export-with-sub-superscripts	opt	done	lua/org/config.lua:1300 export.with_sub_superscripts	also #+OPTIONS	-
-ox	org-export-with-tables	opt	done	lua/org/config.lua:1301 export.with_tables	also #+OPTIONS	-
-ox	org-export-with-tags	opt	done	lua/org/config.lua:1278 export.with_tags	also #+OPTIONS	-
-ox	org-export-with-tasks	opt	done	lua/org/config.lua:1289 export.with_tasks	also #+OPTIONS	-
-ox	org-export-with-timestamps	opt	done	lua/org/config.lua:1288 export.with_timestamps	also #+OPTIONS	-
-ox	org-export-with-title	opt	done	lua/org/config.lua:1276 export.with_title	also #+OPTIONS	-
-ox	org-export-with-toc	opt	done	lua/org/config.lua:1269 export.with_toc	also #+OPTIONS	-
-ox	org-export-with-todo-keywords	opt	done	lua/org/config.lua:1277 export.with_todo_keywords	also #+OPTIONS	-
-ox-ascii	org-ascii-bullets	opt	done	lua/org/config.lua:1511 export.ascii.bullets	-	-
-ox-ascii	org-ascii-caption-above	opt	done	lua/org/config.lua:1509 export.ascii.caption_above	-	-
-ox-ascii	org-ascii-charset	opt	done	lua/org/config.lua:1495 export.ascii.charset	-	-
-ox-ascii	org-ascii-format-drawer-function	opt	done	lua/org/config.lua:1513 export.ascii.format_drawer_function	-	-
-ox-ascii	org-ascii-format-inlinetask-function	opt	done	lua/org/config.lua:1516 export.ascii.format_inlinetask_function	-	-
-ox-ascii	org-ascii-global-margin	opt	done	lua/org/config.lua:1497 export.ascii.global_margin	-	-
-ox-ascii	org-ascii-headline-spacing	opt	done	lua/org/config.lua:1502 export.ascii.headline_spacing	-	-
-ox-ascii	org-ascii-indented-line-width	opt	done	lua/org/config.lua:1503 export.ascii.indented_line_width	-	-
-ox-ascii	org-ascii-inlinetask-width	opt	done	lua/org/config.lua:1501 export.ascii.inlinetask_width	-	-
-ox-ascii	org-ascii-inner-margin	opt	done	lua/org/config.lua:1498 export.ascii.inner_margin	-	-
-ox-ascii	org-ascii-links-to-notes	opt	done	lua/org/config.lua:1505 export.ascii.links_to_notes	-	-
-ox-ascii	org-ascii-list-margin	opt	done	lua/org/config.lua:1500 export.ascii.list_margin	-	-
-ox-ascii	org-ascii-paragraph-spacing	opt	done	lua/org/config.lua:1504 export.ascii.paragraph_spacing	-	-
-ox-ascii	org-ascii-quote-margin	opt	done	lua/org/config.lua:1499 export.ascii.quote_margin	-	-
-ox-ascii	org-ascii-table-keep-all-vertical-lines	opt	done	lua/org/config.lua:1506 export.ascii.table_keep_all_vertical_lines	-	-
+ox	org-export-with-archived-trees	opt	done	lua/org/config/clock.lua:30 export.with_archived_trees	also #+OPTIONS	-
+ox	org-export-with-author	opt	done	lua/org/config/clock.lua:12 export.with_author	also #+OPTIONS	-
+ox	org-export-with-broken-links	opt	done	lua/org/config/clock.lua:44 export.with_broken_links	also #+OPTIONS	-
+ox	org-export-with-clocks	opt	done	lua/org/config/clock.lua:25 export.with_clocks	also #+OPTIONS	-
+ox	org-export-with-creator	opt	done	lua/org/config/clock.lua:15 export.with_creator	also #+OPTIONS	-
+ox	org-export-with-date	opt	done	lua/org/config/clock.lua:13 export.with_date	also #+OPTIONS	-
+ox	org-export-with-drawers	opt	done	lua/org/config/clock.lua:22 export.with_drawers	also #+OPTIONS	-
+ox	org-export-with-email	opt	done	lua/org/config/clock.lua:14 export.with_email	also #+OPTIONS	-
+ox	org-export-with-emphasize	opt	done	lua/org/config/clock.lua:31 export.with_emphasize	also #+OPTIONS	-
+ox	org-export-with-entities	opt	done	lua/org/config/clock.lua:32 export.with_entities	also #+OPTIONS	-
+ox	org-export-with-fixed-width	opt	done	lua/org/config/clock.lua:33 export.with_fixed_width	also #+OPTIONS	-
+ox	org-export-with-footnotes	opt	done	lua/org/config/clock.lua:34 export.with_footnotes	also #+OPTIONS	-
+ox	org-export-with-inlinetasks	opt	done	lua/org/config/clock.lua:35 export.with_inlinetasks	also #+OPTIONS	-
+ox	org-export-with-latex	opt	done	lua/org/config/clock.lua:36 export.with_latex	also #+OPTIONS	-
+ox	org-export-with-planning	opt	done	lua/org/config/clock.lua:24 export.with_planning	also #+OPTIONS	-
+ox	org-export-with-priority	opt	done	lua/org/config/clock.lua:19 export.with_priority	also #+OPTIONS	-
+ox	org-export-with-properties	opt	done	lua/org/config/clock.lua:23 export.with_properties	also #+OPTIONS	-
+ox	org-export-with-section-numbers	opt	done	lua/org/config/capture.lua:69 export.with_section_numbers	also #+OPTIONS	-
+ox	org-export-with-smart-quotes	opt	done	lua/org/config/clock.lua:37 export.with_smart_quotes	also #+OPTIONS	-
+ox	org-export-with-special-strings	opt	done	lua/org/config/clock.lua:38 export.with_special_strings	also #+OPTIONS	-
+ox	org-export-with-statistics-cookies	opt	done	lua/org/config/clock.lua:39 export.with_statistics_cookies	also #+OPTIONS	-
+ox	org-export-with-sub-superscripts	opt	done	lua/org/config/clock.lua:40 export.with_sub_superscripts	also #+OPTIONS	-
+ox	org-export-with-tables	opt	done	lua/org/config/clock.lua:41 export.with_tables	also #+OPTIONS	-
+ox	org-export-with-tags	opt	done	lua/org/config/clock.lua:18 export.with_tags	also #+OPTIONS	-
+ox	org-export-with-tasks	opt	done	lua/org/config/clock.lua:29 export.with_tasks	also #+OPTIONS	-
+ox	org-export-with-timestamps	opt	done	lua/org/config/clock.lua:28 export.with_timestamps	also #+OPTIONS	-
+ox	org-export-with-title	opt	done	lua/org/config/clock.lua:16 export.with_title	also #+OPTIONS	-
+ox	org-export-with-toc	opt	done	lua/org/config/capture.lua:68 export.with_toc	also #+OPTIONS	-
+ox	org-export-with-todo-keywords	opt	done	lua/org/config/clock.lua:17 export.with_todo_keywords	also #+OPTIONS	-
+ox-ascii	org-ascii-bullets	opt	done	lua/org/config/links.lua:21 export.ascii.bullets	-	-
+ox-ascii	org-ascii-caption-above	opt	done	lua/org/config/links.lua:19 export.ascii.caption_above	-	-
+ox-ascii	org-ascii-charset	opt	done	lua/org/config/misc.lua:128 export.ascii.charset	-	-
+ox-ascii	org-ascii-format-drawer-function	opt	done	lua/org/config/links.lua:23 export.ascii.format_drawer_function	-	-
+ox-ascii	org-ascii-format-inlinetask-function	opt	done	lua/org/config/links.lua:26 export.ascii.format_inlinetask_function	-	-
+ox-ascii	org-ascii-global-margin	opt	done	lua/org/config/misc.lua:130 export.ascii.global_margin	-	-
+ox-ascii	org-ascii-headline-spacing	opt	done	lua/org/config/links.lua:12 export.ascii.headline_spacing	-	-
+ox-ascii	org-ascii-indented-line-width	opt	done	lua/org/config/links.lua:13 export.ascii.indented_line_width	-	-
+ox-ascii	org-ascii-inlinetask-width	opt	done	lua/org/config/export.lua:455 export.ascii.inlinetask_width	-	-
+ox-ascii	org-ascii-inner-margin	opt	done	lua/org/config/misc.lua:131 export.ascii.inner_margin	-	-
+ox-ascii	org-ascii-links-to-notes	opt	done	lua/org/config/links.lua:15 export.ascii.links_to_notes	-	-
+ox-ascii	org-ascii-list-margin	opt	done	lua/org/config/misc.lua:133 export.ascii.list_margin	-	-
+ox-ascii	org-ascii-paragraph-spacing	opt	done	lua/org/config/links.lua:14 export.ascii.paragraph_spacing	-	-
+ox-ascii	org-ascii-quote-margin	opt	done	lua/org/config/misc.lua:132 export.ascii.quote_margin	-	-
+ox-ascii	org-ascii-table-keep-all-vertical-lines	opt	done	lua/org/config/links.lua:16 export.ascii.table_keep_all_vertical_lines	-	-
 ox-ascii	org-ascii-table-use-ascii-art	opt	done	-	aa2u port used for utf-8 only; Emacs 9.8.10 check really is inverted (org-require-package is an unless), difference documented	S
-ox-ascii	org-ascii-table-widen-columns	opt	done	lua/org/config.lua:1507 export.ascii.table_widen_columns	-	-
-ox-ascii	org-ascii-text-width	opt	done	lua/org/config.lua:1496 export.ascii.text_width	-	-
-ox-ascii	org-ascii-underline	opt	done	lua/org/config.lua:1512 export.ascii.underline	-	-
-ox-ascii	org-ascii-verbatim-format	opt	done	lua/org/config.lua:1510 export.ascii.verbatim_format	-	-
+ox-ascii	org-ascii-table-widen-columns	opt	done	lua/org/config/links.lua:17 export.ascii.table_widen_columns	-	-
+ox-ascii	org-ascii-text-width	opt	done	lua/org/config/misc.lua:129 export.ascii.text_width	-	-
+ox-ascii	org-ascii-underline	opt	done	lua/org/config/links.lua:22 export.ascii.underline	-	-
+ox-ascii	org-ascii-verbatim-format	opt	done	lua/org/config/links.lua:20 export.ascii.verbatim_format	-	-
 ox-beamer	org-beamer-column-view-format	opt	done	lua/org/export/beamer.lua:624 export.beamer.column_view_format	#+COLUMNS in the beamer template	-
-ox-beamer	org-beamer-environments-extra	opt	done	lua/org/config.lua:1438 export.beamer.environments_extra	-	-
-ox-beamer	org-beamer-frame-default-options	opt	done	lua/org/config.lua:1432 export.beamer.frame_default_options	-	-
-ox-beamer	org-beamer-frame-environment	opt	done	lua/org/config.lua:1439 export.beamer.frame_environment	-	-
-ox-beamer	org-beamer-frame-level	opt	done	lua/org/config.lua:1431 export.beamer.frame_level	-	-
+ox-beamer	org-beamer-environments-extra	opt	done	lua/org/config/misc.lua:71 export.beamer.environments_extra	-	-
+ox-beamer	org-beamer-frame-default-options	opt	done	lua/org/config/misc.lua:65 export.beamer.frame_default_options	-	-
+ox-beamer	org-beamer-frame-environment	opt	done	lua/org/config/misc.lua:72 export.beamer.frame_environment	-	-
+ox-beamer	org-beamer-frame-level	opt	done	lua/org/config/misc.lua:64 export.beamer.frame_level	-	-
 ox-beamer	org-beamer-mode-hook	opt	done	-	User OrgBeamerMode autocmd with {bufnr, enabled}; spec'd	S
-ox-beamer	org-beamer-outline-frame-options	opt	done	lua/org/config.lua:1434 export.beamer.outline_frame_options	-	-
-ox-beamer	org-beamer-outline-frame-title	opt	done	lua/org/config.lua:1433 export.beamer.outline_frame_title	-	-
-ox-beamer	org-beamer-subtitle-format	opt	done	lua/org/config.lua:1435 export.beamer.subtitle_format	-	-
-ox-beamer	org-beamer-theme	opt	done	lua/org/config.lua:1436 export.beamer.theme	-	-
+ox-beamer	org-beamer-outline-frame-options	opt	done	lua/org/config/misc.lua:67 export.beamer.outline_frame_options	-	-
+ox-beamer	org-beamer-outline-frame-title	opt	done	lua/org/config/misc.lua:66 export.beamer.outline_frame_title	-	-
+ox-beamer	org-beamer-subtitle-format	opt	done	lua/org/config/misc.lua:68 export.beamer.subtitle_format	-	-
+ox-beamer	org-beamer-theme	opt	done	lua/org/config/misc.lua:69 export.beamer.theme	-	-
 ox-html	org-html-allow-name-attribute-in-anchors	opt	done	lua/org/export/html.lua:1793 export.html.allow_name_attribute_in_anchors	read from config but not listed in defaults/doc	-
-ox-html	org-html-checkbox-type	opt	done	lua/org/config.lua:1361 export.html.checkbox_type	-	-
+ox-html	org-html-checkbox-type	opt	done	lua/org/config/clock.lua:101 export.html.checkbox_type	-	-
 ox-html	org-html-coding-system	opt	done	lua/org/export/html.lua:1847 export.html.coding_system	read from config but not listed in defaults/doc	-
-ox-html	org-html-container-element	opt	done	lua/org/config.lua:1337 export.html.container	-	-
-ox-html	org-html-content-class	opt	done	lua/org/config.lua:1338 export.html.content_class	-	-
-ox-html	org-html-creator-string	opt	done	lua/org/config.lua:1352 export.html.creator_string	-	-
+ox-html	org-html-container-element	opt	done	lua/org/config/clock.lua:77 export.html.container	-	-
+ox-html	org-html-content-class	opt	done	lua/org/config/clock.lua:78 export.html.content_class	-	-
+ox-html	org-html-creator-string	opt	done	lua/org/config/clock.lua:92 export.html.creator_string	-	-
 ox-html	org-html-datetime-formats	opt	done	-	PROBED: date, time, time range and date range <time datetime> identical to Emacs	S
 ox-html	org-html-divs	opt	done	lua/org/export/html.lua:1794 export.html.divs	read from config but not listed in defaults/doc	-
-ox-html	org-html-doctype	opt	done	lua/org/config.lua:1335 export.html.doctype	-	-
-ox-html	org-html-equation-reference-format	opt	done	lua/org/config.lua:1366 export.html.equation_reference_format	-	-
-ox-html	org-html-extension	opt	done	lua/org/config.lua:1339 export.html.extension	-	-
-ox-html	org-html-footnote-format	opt	done	lua/org/config.lua:1364 export.html.footnote_format	-	-
-ox-html	org-html-footnote-separator	opt	done	lua/org/config.lua:1365 export.html.footnote_separator	-	-
+ox-html	org-html-doctype	opt	done	lua/org/config/clock.lua:75 export.html.doctype	-	-
+ox-html	org-html-equation-reference-format	opt	done	lua/org/config/clock.lua:106 export.html.equation_reference_format	-	-
+ox-html	org-html-extension	opt	done	lua/org/config/clock.lua:79 export.html.extension	-	-
+ox-html	org-html-footnote-format	opt	done	lua/org/config/clock.lua:104 export.html.footnote_format	-	-
+ox-html	org-html-footnote-separator	opt	done	lua/org/config/clock.lua:105 export.html.footnote_separator	-	-
 ox-html	org-html-footnotes-section	opt	done	lua/org/export/html.lua:1799 export.html.footnotes_section	read from config but not listed in defaults/doc	-
 ox-html	org-html-format-drawer-function	opt	done	lua/org/export/html.lua:849 export.html.format_drawer_function	read from config but not listed in defaults/doc	-
 ox-html	org-html-format-headline-function	opt	done	lua/org/export/html.lua:155 export.html.format_headline_function	read from config but not listed in defaults/doc	-
 ox-html	org-html-format-inlinetask-function	opt	done	lua/org/export/html.lua:1072 export.html.format_inlinetask_function	read from config but not listed in defaults/doc	-
-ox-html	org-html-head	opt	done	lua/org/config.lua:1344 export.html.head	-	-
-ox-html	org-html-head-extra	opt	done	lua/org/config.lua:1345 export.html.head_extra	-	-
-ox-html	org-html-head-include-default-style	opt	done	lua/org/config.lua:1340 export.html.head_include_default_style	-	-
-ox-html	org-html-head-include-scripts	opt	done	lua/org/config.lua:1346 export.html.head_include_scripts	-	-
+ox-html	org-html-head	opt	done	lua/org/config/clock.lua:84 export.html.head	-	-
+ox-html	org-html-head-extra	opt	done	lua/org/config/clock.lua:85 export.html.head_extra	-	-
+ox-html	org-html-head-include-default-style	opt	done	lua/org/config/clock.lua:80 export.html.head_include_default_style	-	-
+ox-html	org-html-head-include-scripts	opt	done	lua/org/config/clock.lua:86 export.html.head_include_scripts	-	-
 ox-html	org-html-home/up-format	opt	done	lua/org/export/html.lua:1800 export.html.home_up_format	read from config but not listed in defaults/doc	-
-ox-html	org-html-html5-fancy	opt	done	lua/org/config.lua:1336 export.html.html5_fancy	-	-
+ox-html	org-html-html5-fancy	opt	done	lua/org/config/clock.lua:76 export.html.html5_fancy	-	-
 ox-html	org-html-htmlize-font-prefix	opt	done	-	read in html.lua class naming; spec checks my- prefix	S
 ox-html	org-html-htmlize-output-type	opt	done	-	css/inline-css/false via tree-sitter captures; spans differ from font-lock (unavoidable); spec'd	M
 ox-html	org-html-indent	opt	done	-	PROBED: new XHTML doc (dl, nested ol, example, center, details, table, footnote, src) indented identically to Emacs 9.8.10	S
 ox-html	org-html-infojs-options	opt	done	lua/org/export/html.lua:647 #+INFOJS_OPT	defaults only per file via #+INFOJS_OPT; no global option table	-
 ox-html	org-html-infojs-template	opt	done	-	PROBED: non-default infojs_opt values (view/toc/ltoc/tdepth/mouse/buttons/home) identical to Emacs	S
 ox-html	org-html-inline-image-rules	opt	done	lua/org/export/html.lua:1801 export.html.inline_image_rules	read from config but not listed in defaults/doc	-
-ox-html	org-html-inline-images	opt	done	lua/org/config.lua:1362 export.html.inline_images	-	-
+ox-html	org-html-inline-images	opt	done	lua/org/config/clock.lua:102 export.html.inline_images	-	-
 ox-html	org-html-klipse-css	opt	done	lua/org/export/html.lua:1850 export.html.klipse_css	read from config but not listed in defaults/doc	-
 ox-html	org-html-klipse-js	opt	done	lua/org/export/html.lua:1851 export.html.klipse_js	read from config but not listed in defaults/doc	-
 ox-html	org-html-klipse-selection-script	opt	done	lua/org/export/html.lua:1852 export.html.klipse_selection_script	read from config but not listed in defaults/doc	-
 ox-html	org-html-klipsify-src	opt	done	lua/org/export/html.lua:1849 export.html.klipsify_src	read from config but not listed in defaults/doc	-
-ox-html	org-html-link-home	opt	done	lua/org/config.lua:1353 export.html.link_home	-	-
-ox-html	org-html-link-org-files-as-html	opt	done	lua/org/config.lua:1356 export.html.link_org_files_as_html	-	-
-ox-html	org-html-link-up	opt	done	lua/org/config.lua:1354 export.html.link_up	-	-
-ox-html	org-html-link-use-abs-url	opt	done	lua/org/config.lua:1355 export.html.link_use_abs_url	-	-
-ox-html	org-html-mathjax-options	opt	done	lua/org/config.lua:1372 export.html.mathjax_options	-	-
+ox-html	org-html-link-home	opt	done	lua/org/config/clock.lua:93 export.html.link_home	-	-
+ox-html	org-html-link-org-files-as-html	opt	done	lua/org/config/clock.lua:96 export.html.link_org_files_as_html	-	-
+ox-html	org-html-link-up	opt	done	lua/org/config/clock.lua:94 export.html.link_up	-	-
+ox-html	org-html-link-use-abs-url	opt	done	lua/org/config/clock.lua:95 export.html.link_use_abs_url	-	-
+ox-html	org-html-mathjax-options	opt	done	lua/org/config/clock.lua:112 export.html.mathjax_options	-	-
 ox-html	org-html-mathjax-template	opt	done	lua/org/export/html.lua:1803 export.html.mathjax_template	read from config but not listed in defaults/doc	-
 ox-html	org-html-meta-tags	opt	done	lua/org/export/html.lua:424 export.html.meta_tags	read from config but not listed in defaults/doc	-
-ox-html	org-html-metadata-timestamp-format	opt	done	lua/org/config.lua:1357 export.html.metadata_timestamp_format	-	-
-ox-html	org-html-postamble	opt	done	lua/org/config.lua:1348 export.html.postamble	-	-
-ox-html	org-html-postamble-format	opt	done	lua/org/config.lua:1349 export.html.postamble_format	-	-
-ox-html	org-html-preamble	opt	done	lua/org/config.lua:1347 export.html.preamble	-	-
-ox-html	org-html-preamble-format	opt	done	lua/org/config.lua:1350 export.html.preamble_format	-	-
-ox-html	org-html-prefer-user-labels	opt	done	lua/org/config.lua:1360 export.html.prefer_user_labels	-	-
+ox-html	org-html-metadata-timestamp-format	opt	done	lua/org/config/clock.lua:97 export.html.metadata_timestamp_format	-	-
+ox-html	org-html-postamble	opt	done	lua/org/config/clock.lua:88 export.html.postamble	-	-
+ox-html	org-html-postamble-format	opt	done	lua/org/config/clock.lua:89 export.html.postamble_format	-	-
+ox-html	org-html-preamble	opt	done	lua/org/config/clock.lua:87 export.html.preamble	-	-
+ox-html	org-html-preamble-format	opt	done	lua/org/config/clock.lua:90 export.html.preamble_format	-	-
+ox-html	org-html-prefer-user-labels	opt	done	lua/org/config/clock.lua:100 export.html.prefer_user_labels	-	-
 ox-html	org-html-scripts	opt	done	lua/org/export/html.lua:1853 export.html.scripts	read from config but not listed in defaults/doc	-
-ox-html	org-html-self-link-headlines	opt	done	lua/org/config.lua:1359 export.html.self_link_headlines	-	-
+ox-html	org-html-self-link-headlines	opt	done	lua/org/config/clock.lua:99 export.html.self_link_headlines	-	-
 ox-html	org-html-style-default	opt	done	lua/org/export/html.lua:460 export.html.style / head_include_default_style	default CSS replaceable by disabling it and setting head	-
 ox-html	org-html-table-align-individual-fields	opt	done	lua/org/export/html.lua:1809 export.html.table_align_individual_fields	read from config but not listed in defaults/doc	-
-ox-html	org-html-table-caption-above	opt	done	lua/org/config.lua:1363 export.html.table_caption_above	-	-
+ox-html	org-html-table-caption-above	opt	done	lua/org/config/clock.lua:103 export.html.table_caption_above	-	-
 ox-html	org-html-table-data-tags	opt	done	lua/org/export/html.lua:1811 export.html.table_data_tags	read from config but not listed in defaults/doc	-
 ox-html	org-html-table-default-attributes	opt	done	lua/org/export/html.lua:1834 export.html.table_default_attributes	read from config but not listed in defaults/doc	-
 ox-html	org-html-table-header-tags	opt	done	lua/org/export/html.lua:1812 export.html.table_header_tags	read from config but not listed in defaults/doc	-
@@ -1760,34 +1760,34 @@ ox-html	org-html-table-use-header-tags-for-first-column	opt	done	lua/org/export/
 ox-html	org-html-tag-class-prefix	opt	done	lua/org/export/html.lua:1814 export.html.tag_class_prefix	read from config but not listed in defaults/doc	-
 ox-html	org-html-text-markup-alist	opt	done	lua/org/export/html.lua:1815 export.html.text_markup_alist	read from config but not listed in defaults/doc	-
 ox-html	org-html-todo-kwd-class-prefix	opt	done	lua/org/export/html.lua:1823 export.html.todo_kwd_class_prefix	read from config but not listed in defaults/doc	-
-ox-html	org-html-toplevel-hlevel	opt	done	lua/org/config.lua:1358 export.html.toplevel_hlevel	-	-
-ox-html	org-html-use-infojs	opt	done	lua/org/config.lua:1367 export.html.use_infojs	-	-
-ox-html	org-html-validation-link	opt	done	lua/org/config.lua:1351 export.html.validation_link	-	-
+ox-html	org-html-toplevel-hlevel	opt	done	lua/org/config/clock.lua:98 export.html.toplevel_hlevel	-	-
+ox-html	org-html-use-infojs	opt	done	lua/org/config/clock.lua:107 export.html.use_infojs	-	-
+ox-html	org-html-validation-link	opt	done	lua/org/config/clock.lua:91 export.html.validation_link	-	-
 ox-html	org-html-viewport	opt	done	lua/org/export/html.lua:1826 export.html.viewport	read from config but not listed in defaults/doc	-
 ox-html	org-html-with-latex	opt	done	-	PROBED tex:html/verbatim/nil identical; image mode spec'd with fake process (hash differs, documented)	M
-ox-html	org-html-wrap-src-lines	opt	done	lua/org/config.lua:1368 export.html.wrap_src_lines	-	-
+ox-html	org-html-wrap-src-lines	opt	done	lua/org/config/clock.lua:108 export.html.wrap_src_lines	-	-
 ox-html	org-html-xml-declaration	opt	done	lua/org/export/html.lua:1843 export.html.xml_declaration	read from config but not listed in defaults/doc	-
-ox-icalendar	org-icalendar-alarm-time	opt	done	lua/org/config.lua:1445 export.icalendar.alarm_time	-	-
-ox-icalendar	org-icalendar-categories	opt	done	lua/org/config.lua:1452 export.icalendar.categories	-	-
-ox-icalendar	org-icalendar-combined-agenda-file	opt	done	lua/org/config.lua:1442 export.icalendar.combined_agenda_file	-	-
-ox-icalendar	org-icalendar-combined-description	opt	done	lua/org/config.lua:1444 export.icalendar.combined_description	-	-
-ox-icalendar	org-icalendar-combined-name	opt	done	lua/org/config.lua:1443 export.icalendar.combined_name	-	-
-ox-icalendar	org-icalendar-date-time-format	opt	done	lua/org/config.lua:1461 export.icalendar.date_time_format	-	-
-ox-icalendar	org-icalendar-deadline-summary-prefix	opt	done	lua/org/config.lua:1449 export.icalendar.deadline_summary_prefix	-	-
-ox-icalendar	org-icalendar-exclude-tags	opt	done	lua/org/config.lua:1447 export.icalendar.exclude_tags	-	-
-ox-icalendar	org-icalendar-force-alarm	opt	done	lua/org/config.lua:1446 export.icalendar.force_alarm	-	-
+ox-icalendar	org-icalendar-alarm-time	opt	done	lua/org/config/misc.lua:78 export.icalendar.alarm_time	-	-
+ox-icalendar	org-icalendar-categories	opt	done	lua/org/config/misc.lua:85 export.icalendar.categories	-	-
+ox-icalendar	org-icalendar-combined-agenda-file	opt	done	lua/org/config/misc.lua:75 export.icalendar.combined_agenda_file	-	-
+ox-icalendar	org-icalendar-combined-description	opt	done	lua/org/config/misc.lua:77 export.icalendar.combined_description	-	-
+ox-icalendar	org-icalendar-combined-name	opt	done	lua/org/config/misc.lua:76 export.icalendar.combined_name	-	-
+ox-icalendar	org-icalendar-date-time-format	opt	done	lua/org/config/misc.lua:94 export.icalendar.date_time_format	-	-
+ox-icalendar	org-icalendar-deadline-summary-prefix	opt	done	lua/org/config/misc.lua:82 export.icalendar.deadline_summary_prefix	-	-
+ox-icalendar	org-icalendar-exclude-tags	opt	done	lua/org/config/misc.lua:80 export.icalendar.exclude_tags	-	-
+ox-icalendar	org-icalendar-force-alarm	opt	done	lua/org/config/misc.lua:79 export.icalendar.force_alarm	-	-
 ox-icalendar	org-icalendar-include-bbdb-anniversaries	opt	emacs-only	-	BBDB is an Emacs contacts database	-
-ox-icalendar	org-icalendar-include-body	opt	done	lua/org/config.lua:1458 export.icalendar.include_body	-	-
+ox-icalendar	org-icalendar-include-body	opt	done	lua/org/config/misc.lua:91 export.icalendar.include_body	-	-
 ox-icalendar	org-icalendar-include-sexps	opt	done	-	PROBED: anniversary/float/cyclic timed/<%%> ts/date: same RRULE/DTSTART/DURATION; Emacs adds TZID, org-anniversary skipped w/ warning	M
-ox-icalendar	org-icalendar-include-todo	opt	done	lua/org/config.lua:1455 export.icalendar.include_todo	-	-
-ox-icalendar	org-icalendar-scheduled-summary-prefix	opt	done	lua/org/config.lua:1448 export.icalendar.scheduled_summary_prefix	-	-
-ox-icalendar	org-icalendar-store-UID	opt	done	lua/org/config.lua:1459 export.icalendar.store_uid	-	-
-ox-icalendar	org-icalendar-timezone	opt	done	lua/org/config.lua:1460 export.icalendar.timezone	-	-
-ox-icalendar	org-icalendar-todo-unscheduled-start	opt	done	lua/org/config.lua:1456 export.icalendar.todo_unscheduled_start	-	-
-ox-icalendar	org-icalendar-ttl	opt	done	lua/org/config.lua:1462 export.icalendar.ttl	-	-
-ox-icalendar	org-icalendar-use-deadline	opt	done	lua/org/config.lua:1450 export.icalendar.use_deadline	-	-
-ox-icalendar	org-icalendar-use-scheduled	opt	done	lua/org/config.lua:1451 export.icalendar.use_scheduled	-	-
-ox-icalendar	org-icalendar-with-timestamps	opt	done	lua/org/config.lua:1453 export.icalendar.with_timestamps	-	-
+ox-icalendar	org-icalendar-include-todo	opt	done	lua/org/config/misc.lua:88 export.icalendar.include_todo	-	-
+ox-icalendar	org-icalendar-scheduled-summary-prefix	opt	done	lua/org/config/misc.lua:81 export.icalendar.scheduled_summary_prefix	-	-
+ox-icalendar	org-icalendar-store-UID	opt	done	lua/org/config/misc.lua:92 export.icalendar.store_uid	-	-
+ox-icalendar	org-icalendar-timezone	opt	done	lua/org/config/misc.lua:93 export.icalendar.timezone	-	-
+ox-icalendar	org-icalendar-todo-unscheduled-start	opt	done	lua/org/config/misc.lua:89 export.icalendar.todo_unscheduled_start	-	-
+ox-icalendar	org-icalendar-ttl	opt	done	lua/org/config/misc.lua:95 export.icalendar.ttl	-	-
+ox-icalendar	org-icalendar-use-deadline	opt	done	lua/org/config/misc.lua:83 export.icalendar.use_deadline	-	-
+ox-icalendar	org-icalendar-use-scheduled	opt	done	lua/org/config/misc.lua:84 export.icalendar.use_scheduled	-	-
+ox-icalendar	org-icalendar-with-timestamps	opt	done	lua/org/config/misc.lua:86 export.icalendar.with_timestamps	-	-
 ox-koma-letter	org-koma-letter-author	opt	done	-	PROBED K4: author nil in Emacs = author=false here, no fromname/pdfauthor; function/string read in options(); config golden	L
 ox-koma-letter	org-koma-letter-class-option-file	opt	done	-	PROBED K3: "A B" -> two \LoadLetterOption lines after global settings, same as Emacs	L
 ox-koma-letter	org-koma-letter-closing	opt	done	-	PROBED K4: var closing used when headline_is_opening_maybe nil; K1 closing-tagged headline wins with special-headings	L
@@ -1813,18 +1813,18 @@ ox-koma-letter	org-koma-letter-use-phone	opt	done	-	PROBED K2: phone:t in buffer
 ox-koma-letter	org-koma-letter-use-place	opt	done	-	PROBED K5: use_place=false -> \setkomavar{place}{} as Emacs	L
 ox-koma-letter	org-koma-letter-use-url	opt	done	-	read as url: default; config golden fromurl true; K2 url:t matches Emacs	L
 ox-latex	org-latex-active-timestamp-format	opt	done	lua/org/export/latex.lua:2040 export.latex.active_timestamp_format	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-bib-compiler	opt	done	lua/org/config.lua:1384 export.latex.bib_compiler	-	-
-ox-latex	org-latex-caption-above	opt	done	lua/org/config.lua:1390 export.latex.caption_above	-	-
-ox-latex	org-latex-classes	opt	done	lua/org/config.lua:1379 export.latex.classes	-	-
-ox-latex	org-latex-compiler	opt	done	lua/org/config.lua:1382 export.latex.compiler	-	-
+ox-latex	org-latex-bib-compiler	opt	done	lua/org/config/misc.lua:17 export.latex.bib_compiler	-	-
+ox-latex	org-latex-caption-above	opt	done	lua/org/config/misc.lua:23 export.latex.caption_above	-	-
+ox-latex	org-latex-classes	opt	done	lua/org/config/misc.lua:12 export.latex.classes	-	-
+ox-latex	org-latex-compiler	opt	done	lua/org/config/misc.lua:15 export.latex.compiler	-	-
 ox-latex	org-latex-compiler-file-string	opt	done	-	PROBED: lualatex and default pdflatex first line identical to Emacs; false omits it; beamer too	S
 ox-latex	org-latex-custom-lang-environments	opt	done	lua/org/export/latex.lua:1586 export.latex.custom_lang_environments	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-default-class	opt	done	lua/org/config.lua:1378 export.latex.default_class	-	-
-ox-latex	org-latex-default-figure-position	opt	done	lua/org/config.lua:1397 export.latex.default_figure_position	-	-
+ox-latex	org-latex-default-class	opt	done	lua/org/config/misc.lua:11 export.latex.default_class	-	-
+ox-latex	org-latex-default-figure-position	opt	done	lua/org/config/misc.lua:30 export.latex.default_figure_position	-	-
 ox-latex	org-latex-default-footnote-command	opt	done	lua/org/export/latex.lua:2047 export.latex.default_footnote_command	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-default-quote-environment	opt	done	lua/org/export/latex.lua:2045 export.latex.default_quote_environment	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-default-table-environment	opt	done	lua/org/config.lua:1398 export.latex.default_table_environment	-	-
-ox-latex	org-latex-default-table-mode	opt	done	lua/org/config.lua:1399 export.latex.default_table_mode	-	-
+ox-latex	org-latex-default-table-environment	opt	done	lua/org/config/misc.lua:31 export.latex.default_table_environment	-	-
+ox-latex	org-latex-default-table-mode	opt	done	lua/org/config/misc.lua:32 export.latex.default_table_mode	-	-
 ox-latex	org-latex-diary-timestamp-format	opt	done	lua/org/export/latex.lua:2048 export.latex.diary_timestamp_format	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-engraved-options	opt	done	lua/org/export/latex.lua generate_engraved_preamble (\fvset), inline \Verb options, mathescape; tests/spec/export_latex_engraved_emacs_spec.lua	export.latex.engraved_options (default = Emacs alist); golden .tex from Emacs 9.8.10 + engrave-faces 0.3.1 byte-identical	-
 ox-latex	org-latex-engraved-preamble	opt	done	lua/org/export/latex.lua generate_engraved_preamble ([FVEXTRA-SETUP]/[LISTINGS-SETUP], plaintop/plain); tests/spec/export_latex_engraved_emacs_spec.lua	export.latex.engraved_preamble; whole preamble byte-identical to Emacs	-
@@ -1834,12 +1834,12 @@ ox-latex	org-latex-footnote-separator	opt	done	lua/org/export/latex.lua:2050 exp
 ox-latex	org-latex-format-drawer-function	opt	done	lua/org/export/latex.lua:779 export.latex.format_drawer_function	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-format-headline-function	opt	done	lua/org/export/latex.lua:927 export.latex.format_headline_function	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-format-inlinetask-function	opt	done	lua/org/export/latex.lua:1076 export.latex.format_inlinetask_function	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-hyperref-template	opt	done	lua/org/config.lua:1402 export.latex.hyperref_template	-	-
+ox-latex	org-latex-hyperref-template	opt	done	lua/org/config/misc.lua:35 export.latex.hyperref_template	-	-
 ox-latex	org-latex-image-default-height	opt	done	lua/org/export/latex.lua:2053 export.latex.image_default_height	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-image-default-option	opt	done	lua/org/export/latex.lua:2054 export.latex.image_default_option	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-image-default-scale	opt	done	lua/org/export/latex.lua:2052 export.latex.image_default_scale	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-image-default-width	opt	done	lua/org/config.lua:1396 export.latex.image_default_width	-	-
-ox-latex	org-latex-images-centered	opt	done	lua/org/config.lua:1395 export.latex.images_centered	-	-
+ox-latex	org-latex-image-default-width	opt	done	lua/org/config/misc.lua:29 export.latex.image_default_width	-	-
+ox-latex	org-latex-images-centered	opt	done	lua/org/config/misc.lua:28 export.latex.images_centered	-	-
 ox-latex	org-latex-inactive-timestamp-format	opt	done	lua/org/export/latex.lua:2057 export.latex.inactive_timestamp_format	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-inline-image-rules	opt	done	lua/org/export/latex.lua:2058 export.latex.inline_image_rules	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-inputenc-alist	opt	done	lua/org/export/latex.lua:549 export.latex.inputenc_alist	read from config but not listed in defaults/doc	-
@@ -1851,21 +1851,21 @@ ox-latex	org-latex-listings-src-omit-language	opt	done	lua/org/export/latex.lua:
 ox-latex	org-latex-logfiles-extensions	opt	done	lua/org/export/latex.lua:2217 export.latex.logfiles_extensions	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-minted-langs	opt	done	lua/org/export/latex.lua:2064 export.latex.minted_langs	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-minted-options	opt	done	lua/org/export/latex.lua:2065 export.latex.minted_options	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-pdf-process	opt	done	lua/org/config.lua:1383 export.latex.pdf_process	-	-
-ox-latex	org-latex-prefer-user-labels	opt	done	lua/org/config.lua:1391 export.latex.prefer_user_labels	-	-
-ox-latex	org-latex-reference-command	opt	done	lua/org/config.lua:1392 export.latex.reference_command	-	-
-ox-latex	org-latex-remove-logfiles	opt	done	lua/org/config.lua:1385 export.latex.remove_logfiles	-	-
-ox-latex	org-latex-src-block-backend	opt	done	lua/org/config.lua:1389 export.latex.src_block_backend	-	-
+ox-latex	org-latex-pdf-process	opt	done	lua/org/config/misc.lua:16 export.latex.pdf_process	-	-
+ox-latex	org-latex-prefer-user-labels	opt	done	lua/org/config/misc.lua:24 export.latex.prefer_user_labels	-	-
+ox-latex	org-latex-reference-command	opt	done	lua/org/config/misc.lua:25 export.latex.reference_command	-	-
+ox-latex	org-latex-remove-logfiles	opt	done	lua/org/config/misc.lua:18 export.latex.remove_logfiles	-	-
+ox-latex	org-latex-src-block-backend	opt	done	lua/org/config/misc.lua:22 export.latex.src_block_backend	-	-
 ox-latex	org-latex-subtitle-format	opt	done	lua/org/export/latex.lua:2068 export.latex.subtitle_format	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-subtitle-separate	opt	done	lua/org/export/latex.lua:2069 export.latex.subtitle_separate	read from config but not listed in defaults/doc	-
 ox-latex	org-latex-table-scientific-notation	opt	done	lua/org/export/latex.lua:2070 export.latex.table_scientific_notation	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-tables-booktabs	opt	done	lua/org/config.lua:1393 export.latex.tables_booktabs	-	-
-ox-latex	org-latex-tables-centered	opt	done	lua/org/config.lua:1394 export.latex.tables_centered	-	-
+ox-latex	org-latex-tables-booktabs	opt	done	lua/org/config/misc.lua:26 export.latex.tables_booktabs	-	-
+ox-latex	org-latex-tables-centered	opt	done	lua/org/config/misc.lua:27 export.latex.tables_centered	-	-
 ox-latex	org-latex-text-markup-alist	opt	done	lua/org/export/latex.lua:2073 export.latex.text_markup_alist	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-title-command	opt	done	lua/org/config.lua:1400 export.latex.title_command	-	-
-ox-latex	org-latex-toc-command	opt	done	lua/org/config.lua:1401 export.latex.toc_command	-	-
+ox-latex	org-latex-title-command	opt	done	lua/org/config/misc.lua:33 export.latex.title_command	-	-
+ox-latex	org-latex-toc-command	opt	done	lua/org/config/misc.lua:34 export.latex.toc_command	-	-
 ox-latex	org-latex-toc-include-unnumbered	opt	done	lua/org/export/latex.lua:2083 export.latex.toc_include_unnumbered	read from config but not listed in defaults/doc	-
-ox-latex	org-latex-use-sans	opt	done	lua/org/config.lua:1403 export.latex.use_sans	-	-
+ox-latex	org-latex-use-sans	opt	done	lua/org/config/misc.lua:36 export.latex.use_sans	-	-
 ox-man	org-man-logfiles-extensions	opt	done	-	read in compile(); scratch check: custom {aux} removes .aux and keeps .log	M
 ox-man	org-man-pdf-process	opt	done	-	shell list with %f %F %b %o %O or function; scratch check of function form + spec with fake cmds	M
 ox-man	org-man-remove-logfiles	opt	done	-	compile() skips removal when false; spec'd	M
@@ -1874,59 +1874,59 @@ ox-man	org-man-source-highlight-langs	opt	done	-	scratch check: custom map {foo=
 ox-man	org-man-table-scientific-notation	opt	done	-	PROBED M1/M2: nil -> raw 1e-3; custom format applied, identical to Emacs; orgtbl-exp-regexp ported	M
 ox-man	org-man-tables-centered	opt	done	-	PROBED M1: nil -> ' ,box;' header like Emacs; golden blocks-options	M
 ox-man	org-man-tables-verbatim	opt	done	-	PROBED M2: verbatim t output identical to Emacs; :verbatim attr in M1 too	M
-ox-md	org-md-footnote-format	opt	done	lua/org/config.lua:1423 export.md.footnote_format	-	-
-ox-md	org-md-footnotes-section	opt	done	lua/org/config.lua:1424 export.md.footnotes_section	-	-
-ox-md	org-md-headline-style	opt	done	lua/org/config.lua:1421 export.md.headline_style	-	-
-ox-md	org-md-link-org-files-as-md	opt	done	lua/org/config.lua:1425 export.md.link_org_files_as_md	-	-
-ox-md	org-md-toplevel-hlevel	opt	done	lua/org/config.lua:1422 export.md.toplevel_hlevel	-	-
-ox-odt	org-odt-content-template-file	opt	done	lua/org/config.lua:1525 export.odt.content_template_file	-	-
-ox-odt	org-odt-convert-capabilities	opt	done	lua/org/config.lua:1547 export.odt.convert_capabilities	-	-
-ox-odt	org-odt-convert-process	opt	done	lua/org/config.lua:1545 export.odt.convert_process	-	-
-ox-odt	org-odt-convert-processes	opt	done	lua/org/config.lua:1546 export.odt.convert_processes	-	-
-ox-odt	org-odt-create-custom-styles-for-srcblocks	opt	done	lua/org/config.lua:1528 export.odt.create_custom_styles_for_srcblocks	-	-
-ox-odt	org-odt-display-outline-level	opt	done	lua/org/config.lua:1526 export.odt.display_outline_level	-	-
-ox-odt	org-odt-fontify-srcblocks	opt	done	lua/org/config.lua:1527 export.odt.fontify_srcblocks	-	-
-ox-odt	org-odt-format-drawer-function	opt	done	lua/org/config.lua:1541 export.odt.format_drawer_function	-	-
-ox-odt	org-odt-format-headline-function	opt	done	lua/org/config.lua:1542 export.odt.format_headline_function	-	-
-ox-odt	org-odt-format-inlinetask-function	opt	done	lua/org/config.lua:1543 export.odt.format_inlinetask_function	-	-
-ox-odt	org-odt-inline-formula-rules	opt	done	lua/org/config.lua:1538 export.odt.inline_formula_rules	-	-
-ox-odt	org-odt-inline-image-rules	opt	done	lua/org/config.lua:1537 export.odt.inline_image_rules	-	-
-ox-odt	org-odt-pixels-per-inch	opt	done	lua/org/config.lua:1529 export.odt.pixels_per_inch	-	-
-ox-odt	org-odt-preferred-output-format	opt	done	lua/org/config.lua:1544 export.odt.preferred_output_format	-	-
+ox-md	org-md-footnote-format	opt	done	lua/org/config/misc.lua:56 export.md.footnote_format	-	-
+ox-md	org-md-footnotes-section	opt	done	lua/org/config/misc.lua:57 export.md.footnotes_section	-	-
+ox-md	org-md-headline-style	opt	done	lua/org/config/misc.lua:54 export.md.headline_style	-	-
+ox-md	org-md-link-org-files-as-md	opt	done	lua/org/config/misc.lua:58 export.md.link_org_files_as_md	-	-
+ox-md	org-md-toplevel-hlevel	opt	done	lua/org/config/misc.lua:55 export.md.toplevel_hlevel	-	-
+ox-odt	org-odt-content-template-file	opt	done	lua/org/config/links.lua:35 export.odt.content_template_file	-	-
+ox-odt	org-odt-convert-capabilities	opt	done	lua/org/config/links.lua:57 export.odt.convert_capabilities	-	-
+ox-odt	org-odt-convert-process	opt	done	lua/org/config/links.lua:55 export.odt.convert_process	-	-
+ox-odt	org-odt-convert-processes	opt	done	lua/org/config/links.lua:56 export.odt.convert_processes	-	-
+ox-odt	org-odt-create-custom-styles-for-srcblocks	opt	done	lua/org/config/links.lua:38 export.odt.create_custom_styles_for_srcblocks	-	-
+ox-odt	org-odt-display-outline-level	opt	done	lua/org/config/links.lua:36 export.odt.display_outline_level	-	-
+ox-odt	org-odt-fontify-srcblocks	opt	done	lua/org/config/links.lua:37 export.odt.fontify_srcblocks	-	-
+ox-odt	org-odt-format-drawer-function	opt	done	lua/org/config/links.lua:51 export.odt.format_drawer_function	-	-
+ox-odt	org-odt-format-headline-function	opt	done	lua/org/config/links.lua:52 export.odt.format_headline_function	-	-
+ox-odt	org-odt-format-inlinetask-function	opt	done	lua/org/config/links.lua:53 export.odt.format_inlinetask_function	-	-
+ox-odt	org-odt-inline-formula-rules	opt	done	lua/org/config/links.lua:48 export.odt.inline_formula_rules	-	-
+ox-odt	org-odt-inline-image-rules	opt	done	lua/org/config/links.lua:47 export.odt.inline_image_rules	-	-
+ox-odt	org-odt-pixels-per-inch	opt	done	lua/org/config/links.lua:39 export.odt.pixels_per_inch	-	-
+ox-odt	org-odt-preferred-output-format	opt	done	lua/org/config/links.lua:54 export.odt.preferred_output_format	-	-
 ox-odt	org-odt-prettify-xml	opt	na	-	debug knob: indent component XML for visual inspection	-
 ox-odt	org-odt-schema-dir	opt	na	-	RELAX NG schemas for Emacs nXML validation of the XML	-
-ox-odt	org-odt-styles-file	opt	done	lua/org/config.lua:1523 export.odt.styles_file	-	-
-ox-odt	org-odt-table-styles	opt	done	lua/org/config.lua:1539 export.odt.table_styles	-	-
-ox-odt	org-odt-use-date-fields	opt	done	lua/org/config.lua:1530 export.odt.use_date_fields	-	-
-ox-odt	org-odt-with-forbidden-chars	opt	done	lua/org/config.lua:1531 export.odt.with_forbidden_chars	-	-
-ox-odt	org-odt-with-latex	opt	done	lua/org/config.lua:1532 export.odt.with_latex	-	-
+ox-odt	org-odt-styles-file	opt	done	lua/org/config/links.lua:33 export.odt.styles_file	-	-
+ox-odt	org-odt-table-styles	opt	done	lua/org/config/links.lua:49 export.odt.table_styles	-	-
+ox-odt	org-odt-use-date-fields	opt	done	lua/org/config/links.lua:40 export.odt.use_date_fields	-	-
+ox-odt	org-odt-with-forbidden-chars	opt	done	lua/org/config/links.lua:41 export.odt.with_forbidden_chars	-	-
+ox-odt	org-odt-with-latex	opt	done	lua/org/config/links.lua:42 export.odt.with_latex	-	-
 ox-org	org-org-htmlized-css-url	opt	done	-	publish htmlize_source links the URL instead of inline <style>; TOhtml not htmlize (unavoidable); spec'd	S
 ox-org	org-org-with-cite-processors	opt	done	lua/org/export/org.lua:637 export.org.with_cite_processors	-	-
-ox-org	org-org-with-special-rows	opt	done	lua/org/config.lua:1428 export.org.with_special_rows	-	-
-ox-publish	org-publish-list-skipped-files	opt	done	lua/org/config.lua:1473 export.publish.list_skipped_files	-	-
-ox-publish	org-publish-project-alist	opt	done	lua/org/config.lua:1469 export.publish.projects	-	-
-ox-publish	org-publish-sitemap-sort-files	opt	done	lua/org/config.lua:1474 export.publish.sitemap_sort_files	-	-
-ox-publish	org-publish-sitemap-sort-folders	opt	done	lua/org/config.lua:1475 export.publish.sitemap_sort_folders	-	-
-ox-publish	org-publish-sitemap-sort-ignore-case	opt	done	lua/org/config.lua:1476 export.publish.sitemap_sort_ignore_case	-	-
-ox-publish	org-publish-timestamp-directory	opt	done	lua/org/config.lua:1471 export.publish.timestamp_directory	-	-
-ox-publish	org-publish-use-timestamps-flag	opt	done	lua/org/config.lua:1472 export.publish.use_timestamps_flag	-	-
+ox-org	org-org-with-special-rows	opt	done	lua/org/config/misc.lua:61 export.org.with_special_rows	-	-
+ox-publish	org-publish-list-skipped-files	opt	done	lua/org/config/misc.lua:106 export.publish.list_skipped_files	-	-
+ox-publish	org-publish-project-alist	opt	done	lua/org/config/misc.lua:102 export.publish.projects	-	-
+ox-publish	org-publish-sitemap-sort-files	opt	done	lua/org/config/misc.lua:107 export.publish.sitemap_sort_files	-	-
+ox-publish	org-publish-sitemap-sort-folders	opt	done	lua/org/config/misc.lua:108 export.publish.sitemap_sort_folders	-	-
+ox-publish	org-publish-sitemap-sort-ignore-case	opt	done	lua/org/config/misc.lua:109 export.publish.sitemap_sort_ignore_case	-	-
+ox-publish	org-publish-timestamp-directory	opt	done	lua/org/config/misc.lua:104 export.publish.timestamp_directory	-	-
+ox-publish	org-publish-use-timestamps-flag	opt	done	lua/org/config/misc.lua:105 export.publish.use_timestamps_flag	-	-
 ox-texinfo	org-texinfo-active-timestamp-format	opt	done	lua/org/export/texinfo.lua:1530 export.texinfo.active_timestamp_format	read from config but not listed in defaults/doc	-
-ox-texinfo	org-texinfo-classes	opt	done	lua/org/config.lua:1407 export.texinfo.classes	-	-
-ox-texinfo	org-texinfo-coding-system	opt	done	lua/org/config.lua:1408 export.texinfo.coding_system	-	-
-ox-texinfo	org-texinfo-compact-itemx	opt	done	lua/org/config.lua:1411 export.texinfo.compact_itemx	-	-
-ox-texinfo	org-texinfo-default-class	opt	done	lua/org/config.lua:1406 export.texinfo.default_class	-	-
+ox-texinfo	org-texinfo-classes	opt	done	lua/org/config/misc.lua:40 export.texinfo.classes	-	-
+ox-texinfo	org-texinfo-coding-system	opt	done	lua/org/config/misc.lua:41 export.texinfo.coding_system	-	-
+ox-texinfo	org-texinfo-compact-itemx	opt	done	lua/org/config/misc.lua:44 export.texinfo.compact_itemx	-	-
+ox-texinfo	org-texinfo-default-class	opt	done	lua/org/config/misc.lua:39 export.texinfo.default_class	-	-
 ox-texinfo	org-texinfo-diary-timestamp-format	opt	done	lua/org/export/texinfo.lua:1532 export.texinfo.diary_timestamp_format	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-format-drawer-function	opt	done	lua/org/export/texinfo.lua:1543 export.texinfo.format_drawer_function	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-format-headline-function	opt	done	lua/org/export/texinfo.lua:1528 export.texinfo.format_headline_function	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-format-inlinetask-function	opt	done	lua/org/export/texinfo.lua:1544 export.texinfo.format_inlinetask_function	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-inactive-timestamp-format	opt	done	lua/org/export/texinfo.lua:1531 export.texinfo.inactive_timestamp_format	read from config but not listed in defaults/doc	-
-ox-texinfo	org-texinfo-info-process	opt	done	lua/org/config.lua:1415 export.texinfo.info_process	-	-
+ox-texinfo	org-texinfo-info-process	opt	done	lua/org/config/misc.lua:48 export.texinfo.info_process	-	-
 ox-texinfo	org-texinfo-link-with-unknown-path-format	opt	done	lua/org/export/texinfo.lua:1533 export.texinfo.link_with_unknown_path_format	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-logfiles-extensions	opt	done	lua/org/export/texinfo.lua:1449 export.texinfo.logfiles_extensions	read from config but not listed in defaults/doc	-
-ox-texinfo	org-texinfo-node-description-column	opt	done	lua/org/config.lua:1409 export.texinfo.node_description_column	-	-
-ox-texinfo	org-texinfo-remove-logfiles	opt	done	lua/org/config.lua:1416 export.texinfo.remove_logfiles	-	-
-ox-texinfo	org-texinfo-table-default-markup	opt	done	lua/org/config.lua:1410 export.texinfo.table_default_markup	-	-
+ox-texinfo	org-texinfo-node-description-column	opt	done	lua/org/config/misc.lua:42 export.texinfo.node_description_column	-	-
+ox-texinfo	org-texinfo-remove-logfiles	opt	done	lua/org/config/misc.lua:49 export.texinfo.remove_logfiles	-	-
+ox-texinfo	org-texinfo-table-default-markup	opt	done	lua/org/config/misc.lua:43 export.texinfo.table_default_markup	-	-
 ox-texinfo	org-texinfo-table-scientific-notation	opt	done	lua/org/export/texinfo.lua:1535 export.texinfo.table_scientific_notation	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-tables-verbatim	opt	done	lua/org/export/texinfo.lua:1534 export.texinfo.tables_verbatim	read from config but not listed in defaults/doc	-
 ox-texinfo	org-texinfo-text-markup-alist	opt	done	lua/org/export/texinfo.lua:1537 export.texinfo.text_markup_alist	read from config but not listed in defaults/doc	-
-ox-texinfo	org-texinfo-with-latex	opt	done	lua/org/config.lua:1414 export.texinfo.with_latex	-	-
+ox-texinfo	org-texinfo-with-latex	opt	done	lua/org/config/misc.lua:47 export.texinfo.with_latex	-	-

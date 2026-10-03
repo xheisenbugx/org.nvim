@@ -78,6 +78,34 @@ group("Anywhere", {
   clock_menu = { "org.menu", "clock_menu", desc = "Pop up the clock menu (org-clock-menu)", global = true },
 })
 
+-- fuzzy pickers (snacks.nvim / fzf-lua / telescope / mini.pick / vim.ui.select)
+group("Pickers", {
+  pick_headline = { "org.pickers.sources", "headlines", desc = "Pick a headline of this file" },
+  pick_headline_all = {
+    "org.pickers.sources",
+    "headlines_all",
+    desc = "Pick a headline of the agenda files",
+    global = true,
+  },
+  pick_tag = { "org.pickers.sources", "tag", desc = "Pick a tag, then a headline with it", global = true },
+  pick_set_tags = { "org.pickers.sources", "set_tags", desc = "Toggle the headline's tags in a picker" },
+  pick_agenda = { "org.pickers.sources", "agenda_day", desc = "Pick an entry of today's agenda", global = true },
+  pick_agenda_week = {
+    "org.pickers.sources",
+    "agenda_week",
+    desc = "Pick an agenda entry of the next 7 days",
+    global = true,
+  },
+  pick_todo = { "org.pickers.sources", "todo", desc = "Pick an open TODO of the agenda files", global = true },
+  pick_agenda_file = { "org.pickers.sources", "agenda_file", desc = "Pick an agenda file", global = true },
+  pick_capture_template = {
+    "org.pickers.sources",
+    "capture_template",
+    desc = "Pick a capture template and capture",
+    global = true,
+  },
+})
+
 group("Visibility", {
   cycle = { "org.fold", "cycle", desc = "Cycle visibility" },
   global_cycle = { "org.fold", "global_cycle", desc = "Cycle global visibility" },
