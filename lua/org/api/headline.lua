@@ -25,7 +25,7 @@ local M = {}
 ---@field time string|nil `HH:MM`
 ---@field timestamp integer Unix time (local time zone; midnight without a time)
 ---@field text string the timestamp as org writes it, e.g. `<2026-10-02 Fri 10:00 +1w>`
----@field raw string the timestamp as written in the file (`text` when unknown)
+---@field raw string the timestamp as written in the file, a range `<...>--<...>` whole (`text` when unknown)
 
 ---@class org.api.Headline
 ---@field title string headline text without TODO keyword, priority and tags
@@ -61,13 +61,20 @@ local priv = setmetatable({}, { __mode = "k" })
 -- Dates
 ---------------------------------------------------------------------------
 
---- The raw text of the `kind` planning timestamp of `hl`, as written.
+--- The raw text of the `kind` planning timestamp of `hl`, as written (a
+--- range `<...>--<...>` whole), found like the parser finds it.
 local function planning_raw(hl, kind)
   local l = hl.planning_line and hl.file.lines[hl.planning_line]
-  if not l then
+  local key = kind:upper() .. ":"
+  local s = l and l:find(key, 1, true)
+  if not s then
     return nil
   end
-  return l:match(kind:upper() .. ":%s*(%b<>)") or l:match(kind:upper() .. ":%s*(%b[])")
+  local rest = l:sub(s + #key)
+  local item = require("org.date").parse_all(rest)[1]
+  if item and rest:sub(1, item.start_col - 1):match("^%s*$") then
+    return item.raw
+  end
 end
 
 --- Plain-data date of an org.date timestamp.

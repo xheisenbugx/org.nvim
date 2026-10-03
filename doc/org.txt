@@ -6695,11 +6695,12 @@ A headline handle has these fields, a snapshot taken when it was made:
 
 A date is `{ year, month, day, hour, min, end_hour, end_min, active,
 repeater, warning, date = "2026-10-02", time = "09:30", timestamp (Unix
-time), text (as org writes it), raw (as written in the file) }`. Where the
-API takes a date it accepts such a table (or any table with year, month,
-day and optionally hour and min), a Unix time, or a string: a timestamp
-(`<2026-10-02 Fri 09:30>`, `2026-10-02`) or what the date prompt reads
-(`+2d`, `fri`).
+time), text (as org writes it), raw (as written in the file) }`; for a
+range `<2026-10-02 Fri>--<2026-10-04 Sun>` the fields are its start, and
+`text` and `raw` the whole range. Where the API takes a date it accepts
+such a table (or any table with year, month, day and optionally hour and
+min), a Unix time, or a string: a timestamp (`<2026-10-02 Fri 09:30>`,
+`2026-10-02`) or what the date prompt reads (`+2d`, `fri`).
 
 Methods find the headline again (at its line, else by its ID, else the
 nearest line with the same text), run the same code as the keys, refresh

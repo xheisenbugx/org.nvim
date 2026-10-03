@@ -62,6 +62,25 @@ describe("org.api handles", function()
     return api.headlines({ files = path or work, title = title })[1]
   end
 
+  describe("dates", function()
+    it("gives a planning range's raw text whole", function()
+      local p = write(dir, "range.org", {
+        "* Trip",
+        "  SCHEDULED: <2026-10-02 Fri>--<2026-10-04 Sun> DEADLINE: <2026-10-05 Mon 10:00>--<2026-10-05 Mon 12:00>",
+        "* Meeting",
+        "  CLOSED: [2026-10-01 Thu 09:00]--[2026-10-01 Thu 10:00] SCHEDULED: <2026-10-06 Tue 10:00-11:00>",
+      })
+      local f = api.load(p)
+      local s = f.headlines[1].scheduled
+      eq("<2026-10-02 Fri>--<2026-10-04 Sun>", s.raw)
+      eq(s.raw, s.text)
+      eq("2026-10-02", s.date)
+      eq("<2026-10-05 Mon 10:00>--<2026-10-05 Mon 12:00>", f.headlines[1].deadline.raw)
+      eq("<2026-10-06 Tue 10:00-11:00>", f.headlines[2].scheduled.raw)
+      eq("[2026-10-01 Thu 09:00]--[2026-10-01 Thu 10:00]", f.headlines[2].closed.raw)
+    end)
+  end)
+
   describe("priorities", function()
     it("set_priority(nil) fails like set_priority('A') when priorities are off", function()
       setup(dir, { priority_enable_commands = false })
