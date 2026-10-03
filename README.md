@@ -1173,7 +1173,7 @@ its options may still change):
   describes the commands as JSON Schema, so scripts and AI agents can use
   it as a tool (`:h org-extensions-cli`, `:h org-extensions-cli-json`).
 
-  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/cli.gif)
+  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/org-cli.gif)
 
 - 🧪 **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
   ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
