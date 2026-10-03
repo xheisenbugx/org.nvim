@@ -1461,7 +1461,7 @@ Use |org-api| `require("org").statusline()` in your statusline.
 
 The agenda follows Emacs Org 9.8: the same entries, line layout, sorting
 and default options (the Emacs variable is named next to each option in
-`lua/org/config.lua` and |org-config|).
+`lua/org/config/agenda.lua` and |org-config|).
 
 <prefix>a opens the dispatcher (org-agenda):
 
@@ -5664,7 +5664,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
 ==============================================================================
 26. CONFIGURATION REFERENCE                                       *org-config*
 
-Every option and its default is listed in `lua/org/config.lua`. Lists
+Every option and its default is listed in `lua/org/config/`. Lists
 replace the default, tables are merged, and `capture.templates` replaces the
 default template. Summary:
 
@@ -6119,8 +6119,8 @@ export ~                                                   *org-config-export*
   coding_system nil, process_citations, replace_macros true,
   smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, koma_letter, man, publish, cite;
-  pandoc { cmd, args }. See the comments in config.lua for every key and
-  its Emacs variable.
+  pandoc { cmd, args }. See the comments in lua/org/config/export.lua for
+  every key and its Emacs variable.
   Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
   value): html allow_name_attribute_in_anchors, coding_system "utf-8",
   datetime_formats { "%F", "%FT%T" }, indent false, divs, footnotes_section,
@@ -6459,7 +6459,7 @@ With `ui.choice_prompt = "input"` these prompts are the command line with
                         to the clocked task).
                                                             *org-customize*
 :Org customize          A buffer listing every option with its value, in the
-                        order and sections of lua/org/config.lua
+                        order and sections of lua/org/config/
                         (org-customize); "[changed]" marks values that
                         differ from the default. <CR> or K shows the
                         option's documentation with its default and value,
@@ -7107,7 +7107,7 @@ Differences from Emacs:
     dropped on the buffer arrives as a paste, so org-mouse's insertion of
     dropped text as a list item (org-mouse-punctuation) has no
     counterpart.
-- Customize (|org-customize|) lists lua/org/config.lua's options and sets
+- Customize (|org-customize|) lists lua/org/config/'s options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
 - org-lint (|org-lint|): invalid-id-link reports an ID found neither in

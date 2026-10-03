@@ -38,7 +38,7 @@ make format                                # stylua over the same paths
 | Path | Contents |
 | --- | --- |
 | `lua/org/init.lua` | `setup()` entry point |
-| `lua/org/config.lua` | every option and its default |
+| `lua/org/config/` | every option and its default, one file per area (`init.lua`: `setup()` merging) |
 | `lua/org/actions.lua` | registry of every user-facing operation |
 | `lua/org/mappings.lua` | default keys, bound to actions |
 | `lua/org/parser.lua`, `element.lua`, `files.lua` | parsing and the per-file cache |
@@ -61,9 +61,9 @@ make format                                # stylua over the same paths
 - **The parser is the source of truth.** Use `org.parser` and `org.files`
   for headlines, planning, properties, clocks and timestamps rather than
   matching text by hand.
-- **Options live in `config.lua`.** A new option needs a default there, an
-  entry under `:h org-config` in `doc/org.txt`, and a type in
-  `lua/org/_meta/`.
+- **Options live in `lua/org/config/`.** A new option needs a default in
+  the file of its area there, an entry under `:h org-config` in
+  `doc/org.txt`, and a type in `lua/org/_meta/`.
 - **Org saves through `utils.save_buffer`.** It writes with `:noautocmd`,
   so logic that must run around every write (`:w` or org's own saves)
   registers a hook in `lua/org/write_hooks.lua`, not a

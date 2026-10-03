@@ -72,8 +72,9 @@ Some things to know before you start:
   caches the result per file. Build on those instead of matching text by
   hand.
 - **Defaults live in one place.** Every option and its default is in
-  [`lua/org/config.lua`](lua/org/config.lua). Add new options there and
-  document them in `:h org-config`.
+  [`lua/org/config/`](lua/org/config), one file per area (agenda, export,
+  babel, ...). Add new options to the file of their area and document them
+  in `:h org-config`.
 - **Saving goes through `utils.save_buffer`, and write logic through
   `org.write_hooks`.** Org writes the files it edits in the background
   (refile, archive, capture, agenda edits, mobile, tangle, ...) with

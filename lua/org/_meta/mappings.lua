@@ -1,6 +1,6 @@
 ---@meta
 -- LuaLS type definitions for `require("org").setup({ mappings = ... })`.
--- Generated from `M.defaults.mappings` in lua/org/config.lua and
+-- Generated from `M.defaults.mappings` in lua/org/config/mappings.lua and
 -- `actions.list` in lua/org/actions.lua. Annotations only.
 
 --- A mapping value: one lhs, a list of lhs, or `false` to disable the

@@ -698,7 +698,7 @@ navigation…): `g?` in the agenda or `:h org-agenda-keys`.
 
 ## Configuration
 
-Every option with its default is in [`lua/org/config.lua`](lua/org/config.lua)
+Every option with its default is in [`lua/org/config/`](lua/org/config)
 and documented in `:h org-config`. The most common ones:
 
 ```lua

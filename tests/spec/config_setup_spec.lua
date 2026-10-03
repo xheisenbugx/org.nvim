@@ -86,4 +86,18 @@ describe("org.setup called again", function()
     eq("mine", mapped("<leader>oa"))
     vim.keymap.del("n", "<leader>oa")
   end)
+
+  it("builds the defaults from lua/org/config/ parts that don't share an option", function()
+    local seen, count = {}, 0
+    for _, part in ipairs(config.parts) do
+      local name = "org.config." .. part
+      for k in pairs(require(name)) do
+        ok(not seen[k], k .. " is in both " .. tostring(seen[k]) .. " and " .. part)
+        seen[k] = part
+        count = count + 1
+      end
+      package.loaded[name] = nil
+    end
+    eq(count, vim.tbl_count(config.defaults))
+  end)
 end)
