@@ -1062,9 +1062,10 @@ through <prefix>p fires the User autocmd `OrgPropertyChanged` with `data`
 `{ bufnr, lnum, name, value }` (org-property-changed-functions).
 
 Special properties available in matches and column view: ITEM, TODO,
-PRIORITY, TAGS, ALLTAGS, CATEGORY, LEVEL, FILE, SCHEDULED, DEADLINE, CLOSED,
+PRIORITY, TAGS, ALLTAGS, CATEGORY, FILE, SCHEDULED, DEADLINE, CLOSED,
 TIMESTAMP, TIMESTAMP_IA (first inactive timestamp), BLOCKED (`t` when the
-entry cannot be marked done, else empty).
+entry cannot be marked done, else empty). LEVEL works in matches only: like
+Emacs, a LEVEL column in column view stays empty.
 
 Inheritance is controlled by `use_property_inheritance` (true, false, a
 list of property names, or a regexp matching them). `NAME+` lines append to the value, also to an
