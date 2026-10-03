@@ -674,7 +674,9 @@ function M.describe(only)
     envelope = obj({
       version = I,
       ok = B,
-      command = S,
+      -- null for an error before a command is known (an unknown command
+      -- or option, a flag without its value)
+      command = NS,
       data = vim.empty_dict(),
       warnings = arr(S),
       errors = arr(ref("Error")),

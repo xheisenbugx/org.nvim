@@ -9109,10 +9109,12 @@ JSON                                                *org-extensions-cli-json*
 <
 `version` is the version of the JSON output: it changes only when a key
 is removed or changes meaning (new keys can appear). `command` is the
-command's full name (`clock status`, `set tags`, ...), `data` its result,
-`warnings` org.nvim's warnings during the command. An error makes `ok`
-false, `data` null and `errors` one object `{ code, message, details }`,
-still on stdout, with the exit code of the error:
+command's full name (`clock status`, `set tags`, ...), or null for an
+error found before the command is known (an unknown command or option,
+a flag without its value), `data` its result, `warnings` org.nvim's
+warnings during the command. An error makes `ok` false, `data` null and
+`errors` one object `{ code, message, details }`, still on stdout, with
+the exit code of the error:
 
   `usage` (2)            bad or missing arguments
   `unknown_command` (2)  no such command

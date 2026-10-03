@@ -173,6 +173,71 @@ local function stop_busy()
   busy = {}
 end
 
+--- Does the decoded JSON `v` fit the JSON Schema `s` (the parts of JSON
+--- Schema `org schema` uses)? true, or a message saying where it doesn't.
+local function fits(v, s, defs, path)
+  path = path or "$"
+  if s["$ref"] then
+    return fits(v, defs[s["$ref"]:match("[^/]+$")], defs, path)
+  end
+  if s.anyOf then
+    for _, alt in ipairs(s.anyOf) do
+      if fits(v, alt, defs, path) == true then
+        return true
+      end
+    end
+    return path .. ": " .. vim.inspect(v) .. " fits no alternative"
+  end
+  for _, part in ipairs(s.allOf or {}) do
+    local r = fits(v, part, defs, path)
+    if r ~= true then
+      return r
+    end
+  end
+  if s.const ~= nil and v ~= s.const then
+    return path .. ": not " .. tostring(s.const)
+  end
+  if s.enum and not vim.tbl_contains(s.enum, v) then
+    return path .. ": " .. tostring(v) .. " not one of " .. table.concat(s.enum, ", ")
+  end
+  local t = s.type
+  local is_table = type(v) == "table" and v ~= vim.NIL
+  local list = is_table and (vim.islist(v) or (next(v) == nil and getmetatable(v) == nil))
+  local good = t == nil
+    or (t == "null" and v == vim.NIL)
+    or (t == "string" and type(v) == "string")
+    or (t == "boolean" and type(v) == "boolean")
+    or (t == "integer" and type(v) == "number" and v % 1 == 0)
+    or (t == "array" and list)
+    or (t == "object" and is_table and (not list or next(v) == nil))
+  if not good then
+    return path .. ": " .. vim.inspect(v) .. " is not " .. t
+  end
+  if t == "array" then
+    for i, item in ipairs(v) do
+      local r = fits(item, s.items or {}, defs, path .. "[" .. i .. "]")
+      if r ~= true then
+        return r
+      end
+    end
+  elseif t == "object" then
+    for _, k in ipairs(s.required or {}) do
+      if v[k] == nil then
+        return path .. ": no " .. k
+      end
+    end
+    for k, ps in pairs(s.properties or {}) do
+      if v[k] ~= nil then
+        local r = fits(v[k], ps, defs, path .. "." .. k)
+        if r ~= true then
+          return r
+        end
+      end
+    end
+  end
+  return true
+end
+
 describe("cli json: envelope", function()
   local dir
   before_each(function()
@@ -259,6 +324,21 @@ describe("cli json: envelope", function()
       ok(type(e.errors[1].message) == "string")
       eq(c[3], schema.ERRORS[c[2]].exit)
     end
+  end)
+
+  it("fits the envelope org schema describes, an error before the command is known too", function()
+    local doc = schema.describe()
+    for _, args in ipairs({
+      { "version" },
+      { "show", "no such heading at all" },
+      { "frobnicate" },
+      { "--nope" },
+      { "agenda", "--date" },
+    }) do
+      local _, e = json(dir, args)
+      eq(true, fits(e, doc.envelope, doc["$defs"]), vim.inspect(args))
+    end
+    eq(vim.NIL, select(2, json(dir, { "frobnicate" })).command)
   end)
 
   it("says which prompt needed an answer", function()
