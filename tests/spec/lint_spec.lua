@@ -571,7 +571,8 @@ describe("lint objects", function()
     local t = vim.uv.hrtime()
     lint.lint(buf)
     local ms = (vim.uv.hrtime() - t) / 1e6
-    -- (9 s before, 60 ms after on a laptop)
-    ok(ms < 1000 * (tonumber(vim.env.ORG_PERF_SCALE or "") or 1), ms .. " ms")
+    -- (9 s before, 60 ms after on a laptop; `make coverage` runs with the
+    -- JIT off and a line hook)
+    ok(ms < 1000 * (tonumber(vim.env.ORG_PERF_SCALE or "") or 1) or under_coverage(), ms .. " ms")
   end)
 end)

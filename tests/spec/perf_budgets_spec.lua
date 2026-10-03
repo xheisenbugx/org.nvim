@@ -38,11 +38,18 @@ local function report(label, value, extra, unit)
   end
 end
 
+-- `make coverage` runs the specs with the JIT off and a line hook: the
+-- work still runs (and is counted), the time limits don't apply
+local TIMED = not under_coverage()
+
 --- `fn` must finish within `ms` milliseconds (times ORG_PERF_SCALE).
 local function budget(label, ms, fn)
   local dt = time(fn)
   report(label, dt, (" (budget %d)"):format(ms * SCALE))
-  ok(dt <= ms * SCALE, ("%s took %.0f ms, budget %d ms (ORG_PERF_SCALE=%s)"):format(label, dt, ms * SCALE, SCALE))
+  ok(
+    dt <= ms * SCALE or not TIMED,
+    ("%s took %.0f ms, budget %d ms (ORG_PERF_SCALE=%s)"):format(label, dt, ms * SCALE, SCALE)
+  )
   return dt
 end
 
@@ -54,6 +61,11 @@ local function linear(label, n, fn, setup, slack)
     return time(function()
       fn(setup and setup(size) or size)
     end, 1)
+  end
+  if not TIMED then
+    -- (once, for the lines it runs)
+    run(n)
+    return
   end
   -- (setup outside the timing: run separately and keep the best of two)
   local function best(size)

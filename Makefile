@@ -13,10 +13,13 @@ snapshots:
 
 # The specs with line coverage of lua/org (tests/coverage.lua): the report,
 # lowest coverage first, goes to coverage/report.md (see CONTRIBUTING.md).
-# The JIT is off and every line is counted, so it's several times slower.
+# The JIT is off and every line is counted, so it's several times slower:
+# a spec file gets 30 minutes (ORG_TEST_TIMEOUT), and the specs' own time
+# limits are off (under_coverage()).
 coverage:
 	@d=$$(mktemp -d) && rm -rf coverage && \
 	ORG_COVERAGE_DIR=$(CURDIR)/coverage/counts XDG_DATA_HOME=$$d \
+	ORG_TEST_TIMEOUT=$${ORG_TEST_TIMEOUT:-1800} \
 	nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
 	s=$$?; rm -rf $$d; \
 	nvim --clean --headless -l scripts/coverage_report.lua coverage/counts coverage || s=1; \
