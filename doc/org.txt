@@ -5299,8 +5299,9 @@ back to "select" with a warning.
   pick_set_tags          the tags of the headline at the cursor: the tags
                          chosen (several with multi-select) are toggled, ✓
                          marks the ones it has; text that matches no tag
-                         is added as new tags (`a:b` adds two). With
-                         "select" and mini.pick, "+ New tags…" asks for it.
+                         is added as new tags (`a:b` adds two). mini.pick
+                         lists "+ New tags: <text>" below the matches;
+                         with "select", "+ New tags…" asks for the text.
   pick_agenda            an entry of today's agenda
   pick_agenda_week       an entry of the agenda of the next 7 days
   pick_todo              an open TODO entry (the global TODO list)
@@ -7995,8 +7996,8 @@ Choosing a node ~
   "snacks"  fuzzy search; confirming a query that matches no node creates a
             node with that title (like completing-read in Emacs)
   "fzf-lua", "telescope", "mini"
-            the same with that picker, previewing the node (mini.pick: a
-            "+ New node" entry takes the typed query)
+            the same with that picker, previewing the node (mini.pick:
+            "+ New node: <text>", below the matches, takes the typed text)
   "select"  |vim.ui.select()|, with a "+ New node" candidate that asks for
             the title
   "input"   type the title, <Tab> completes titles and aliases; a title

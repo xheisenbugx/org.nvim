@@ -1,7 +1,8 @@
 --- mini.pick backend (MiniPick.start). Needs `require("mini.pick").setup()`.
 --- Items carry `path`/`bufnr` and `lnum`/`col`, which the default preview
 --- shows; `show` adds the display highlights over the default one. With
---- `allow_query` a "+ New" entry takes the typed query.
+--- `allow_query` a "+ New" entry, listed whatever is typed, takes the
+--- typed text.
 local pickers = require("org.pickers")
 local utils = require("org.utils")
 
@@ -42,6 +43,42 @@ function M.pick(spec, finish)
       org_idx = i,
     }
   end
+  -- "+ New tags…" with the text typed: "+ New tags: work"
+  local function create_text(typed)
+    if typed == "" then
+      return create.text
+    end
+    return (create.text:gsub("…$", "")) .. ": " .. typed
+  end
+  -- "+ New" (index 1) is never matched by its own label: it stays listed,
+  -- first while nothing is typed, then below the matches, so <CR> creates
+  -- from a text that matches nothing
+  local match
+  if create then
+    match = function(stritems, inds, query)
+      if #query == 0 then
+        local all = {}
+        for i = 1, #stritems do
+          all[i] = i
+        end
+        return all
+      end
+      local rest = {}
+      for _, i in ipairs(inds) do
+        if i ~= 1 then
+          rest[#rest + 1] = i
+        end
+      end
+      local found = MiniPick.default_match(stritems, rest, query, { sync = true })
+      if not found then
+        -- interrupted by a newer query (matching while items load): keep
+        -- the matches of that one
+        return nil
+      end
+      found[#found + 1] = 1
+      return found
+    end
+  end
   local function query_text()
     local ok, q = pcall(MiniPick.get_picker_query)
     return ok and type(q) == "table" and vim.trim(table.concat(q)) or nil
@@ -52,16 +89,16 @@ function M.pick(spec, finish)
   local answered = false
   local function take(list)
     answered = true
-    local out, create = {}, false
+    local out, new = {}, false
     for _, x in ipairs(list) do
       if x.create then
-        create = true
+        new = true
       elseif x.org_idx then
         out[#out + 1] = spec.items[x.org_idx]
       end
     end
-    local query = create and query_text() or nil
-    if create and #out == 0 and (query or "") == "" then
+    local query = new and query_text() or nil
+    if new and #out == 0 and (query or "") == "" then
       -- "+ New" with nothing typed: ask for it
       vim.schedule(function()
         utils.run(function()
@@ -73,11 +110,26 @@ function M.pick(spec, finish)
     end
     finish(out, query)
   end
+  local source_items = items
+  if spec.query and spec.query ~= "" then
+    -- start with the query typed: called once the picker is active
+    source_items = function()
+      MiniPick.set_picker_query(vim.fn.split(spec.query, "\\zs"))
+      return items
+    end
+  end
   MiniPick.start({
     source = {
       name = spec.title,
-      items = items,
+      items = source_items,
+      match = match,
       show = function(buf, shown, q)
+        local typed = vim.trim(table.concat(q or {}))
+        if create and typed ~= "" then
+          shown = vim.tbl_map(function(x)
+            return x.create and { text = create_text(typed), create = true } or x
+          end, shown)
+        end
         MiniPick.default_show(buf, shown, q)
         pcall(vim.api.nvim_buf_clear_namespace, buf, ns, 0, -1)
         for row, x in ipairs(shown) do
@@ -100,7 +152,7 @@ function M.pick(spec, finish)
         if spec.preview and (x.path or x.bufnr) then
           return MiniPick.default_preview(buf, x)
         end
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { x.text })
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { x.create and create_text(query_text() or "") or x.text })
       end,
       choose = function(x)
         take({ x })

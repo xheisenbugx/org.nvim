@@ -38,11 +38,12 @@ local M = {}
 ---in mini.pick); vim.ui.select chooses one.
 ---@field multi? boolean
 ---Confirming when nothing matches calls `on_choice({}, query)` with the
----typed text; vim.ui.select and mini.pick get a `create` entry instead.
+---typed text. mini.pick lists a `create_label` entry that takes the typed
+---text; vim.ui.select offers one that asks for it.
 ---@field allow_query? boolean
 ---Label of the entry vim.ui.select and mini.pick offer for `allow_query`.
 ---@field create_label? string
----@field query? string initial query (snacks, fzf-lua, telescope)
+---@field query? string initial query (not vim.ui.select)
 ---@field preview? boolean show a preview of the item's file (default: when items have one)
 
 ---@class org.PickerSpec: org.PickerOpts

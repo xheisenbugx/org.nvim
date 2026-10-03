@@ -805,13 +805,29 @@ describe("pickers", function()
   end)
 
   describe("mini.pick adapter", function()
-    local started, behaviour
+    local started, behaviour, typed
     before_each(function()
-      started, behaviour = nil, nil
+      started, behaviour, typed = nil, nil, { "n", "e", "w" }
       fake_global("MiniPick", {
         start = function(o)
           started = o
+          -- items may be a function, called once the picker is active
+          if type(o.source.items) == "function" then
+            o.source.items = o.source.items()
+          end
           return behaviour and behaviour(o.source)
+        end,
+        -- the indexes of `inds` whose text contains the query; nil when
+        -- interrupted by a newer query ("!" here)
+        default_match = function(stritems, inds, query, opts)
+          eq(true, opts.sync)
+          local q = table.concat(query)
+          if q == "!" then
+            return nil
+          end
+          return vim.tbl_filter(function(i)
+            return stritems[i]:find(q, 1, true) ~= nil
+          end, inds)
         end,
         default_show = function(buf, items)
           vim.api.nvim_buf_set_lines(
@@ -828,7 +844,10 @@ describe("pickers", function()
           vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "preview of " .. item.path .. ":" .. item.lnum })
         end,
         get_picker_query = function()
-          return { "n", "e", "w" }
+          return typed
+        end,
+        set_picker_query = function(q)
+          typed = q
         end,
       })
       stub(require("org.config").opts, "picker", "mini")
@@ -910,6 +929,66 @@ describe("pickers", function()
       settle()
       eq({ "cancel", "choice 2" }, events)
     end)
+
+    it("keeps + New listed below the matches, with the typed text", function()
+      local got, query
+      behaviour = function(source)
+        local stritems = vim.tbl_map(function(x)
+          return x.text
+        end, source.items)
+        eq({ "+ New tags…", "news", "work" }, stritems)
+        local all = { 1, 2, 3 }
+        -- nothing typed: + New first, then every entry
+        eq(all, source.match(stritems, all, {}))
+        -- the matches, then + New
+        eq({ 3, 1 }, source.match(stritems, all, { "w", "o" }))
+        -- not matched by its own label, and listed when nothing matches
+        eq({ 1 }, source.match(stritems, all, { "N", "e", "w" }))
+        eq({ 1 }, source.match(stritems, { 1 }, { "D", "u", "r" }))
+        -- an interrupted match updates nothing
+        eq(nil, source.match(stritems, all, { "!" }))
+        -- it shows the text it takes
+        local buf = vim.api.nvim_create_buf(false, true)
+        source.show(buf, { source.items[1], source.items[2] }, { "D", "u", "r" })
+        eq({ "+ New tags: Dur", "news" }, buf_lines(buf))
+        typed = { "D", "u", "r" }
+        source.choose(source.items[1])
+      end
+      require("org.pickers").pick({
+        title = "Tags",
+        allow_query = true,
+        create_label = "+ New tags…",
+        items = { { display = { { "news" } }, value = "news" }, { display = { { "work" } }, value = "work" } },
+        on_choice = function(items, q)
+          got, query = items, q
+        end,
+      })
+      settle()
+      eq({}, got)
+      eq("Dur", query)
+    end)
+
+    it("starts with the query typed", function()
+      local got, query
+      typed = {}
+      behaviour = function(source)
+        eq({ "D", "u", "r", "i", "a", "n" }, typed)
+        source.choose(source.items[1])
+      end
+      require("org.pickers").pick({
+        title = "Node",
+        allow_query = true,
+        create_label = "+ New node",
+        query = "Durian",
+        items = { { display = { { "Apple" } }, value = "apple" } },
+        on_choice = function(items, q)
+          got, query = items, q
+        end,
+      })
+      settle()
+      eq({}, got)
+      eq("Durian", query)
+    end)
   end)
 
   describe("roam nodes", function()
@@ -978,6 +1057,38 @@ describe("pickers", function()
       end)
       vim.wait(500, function()
         return c ~= nil
+      end)
+      eq({ title = "Durian" }, c)
+    end)
+
+    it("creates a node from the selected text with mini.pick", function()
+      local typed = {}
+      fake_global("MiniPick", {
+        start = function(o)
+          if type(o.source.items) == "function" then
+            o.source.items = o.source.items()
+          end
+          -- <CR> on "+ New node: Durian", which no node matches
+          o.source.choose(o.source.items[1])
+        end,
+        get_picker_query = function()
+          return typed
+        end,
+        set_picker_query = function(q)
+          typed = q
+        end,
+      })
+      stub(utils, "input", function()
+        return nil
+      end)
+      setup("mini")
+      local c, done
+      utils.run(function()
+        c = require("org.extensions.roam.node").read({ default_title = "Durian" })
+        done = true
+      end)
+      vim.wait(500, function()
+        return done
       end)
       eq({ title = "Durian" }, c)
     end)
