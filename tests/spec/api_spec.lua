@@ -1,5 +1,6 @@
 local api = require("org.api")
 local config = require("org.config")
+local date = require("org.date")
 local utils = require("org.utils")
 vim.g.org_test = true
 
@@ -78,8 +79,24 @@ local WORK = {
 
 describe("org.api", function()
   local dir, work
+  -- The specs run on Friday 2026-10-02 at 12:00, whatever the date: in the
+  -- week of WORK's dates the agenda adds today's entries (overdue and
+  -- upcoming ones) on today, and a clock running across a minute boundary
+  -- counts a minute.
+  local TODAY = date.days_from_civil(2026, 10, 2)
+  local saved_date
 
   before_each(function()
+    saved_date = { today = date.today, today_days = date.today_days, now = date.now }
+    date.today_days = function()
+      return TODAY
+    end
+    date.today = function()
+      return date.from_days(TODAY)
+    end
+    date.now = function()
+      return date.from_days(TODAY, { hour = 12, min = 0 })
+    end
     dir = tmpdir()
     setup(dir)
     work = write(dir, "work.org", WORK)
@@ -92,6 +109,7 @@ describe("org.api", function()
     listeners = {}
     local clock = require("org.clock")
     clock.state = nil
+    date.today, date.today_days, date.now = saved_date.today, saved_date.today_days, saved_date.now
   end)
 
   describe("version", function()
