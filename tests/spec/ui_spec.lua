@@ -306,3 +306,127 @@ describe("ui.menu", function()
     eq(true, width >= #(" [a]  " .. label))
   end)
 end)
+
+-- The ranges where entities aren't drawn are searched without patterns
+-- that go back over a line from each character (seconds for a 40,000-
+-- character hash): they are those of the pattern matches they replace.
+describe("decorations: protected ranges", function()
+  local deco = require("org.ui.decorations")
+  local EMPH_PRE = "[%s%(%'\"{%-]"
+  local EMPH_POST = "[%s%-%.,:!%?;%'\"%)}%[]"
+
+  --- The ranges as the patterns found them.
+  local function reference(line)
+    local out = {}
+    for s, e in line:gmatch("()%[%[.-%]%]()") do
+      out[#out + 1] = { s, e - 1 }
+    end
+    for i = 1, #line do
+      local m = line:sub(i, i)
+      if
+        m:find("^[*/_+=~]")
+        and (i == 1 or line:sub(i - 1, i - 1):find("^" .. EMPH_PRE))
+        and line:sub(i + 1, i + 1):find("^%S")
+        and not (m == "*" and i == 1 and line:find("^%*+ "))
+      then
+        local j = i + 1
+        while true do
+          j = line:find(m, j + 1, true)
+          if not j then
+            break
+          end
+          local after = line:sub(j + 1, j + 1)
+          if line:sub(j - 1, j - 1):find("^%S") and (after == "" or after:find("^" .. EMPH_POST)) then
+            out[#out + 1] = { i, j }
+            break
+          end
+        end
+      end
+    end
+    local schemes = require("org.links").URL_SCHEMES
+    for s, scheme, e in line:gmatch("()(%a[%w+%-]*):[^%s%[%]<>()]+()") do
+      if schemes[scheme:lower()] and (s == 1 or not line:sub(s - 1, s - 1):find("^%w")) then
+        out[#out + 1] = { s, e - 1 }
+      end
+    end
+    for s, e in line:gmatch("()%[fn:[^%]]*%]()") do
+      out[#out + 1] = { s, e - 1 }
+    end
+    if line:byte(1) == 42 then
+      local s = line:match("^%*+ .-%s():[^%s]+:%s*$")
+      if s then
+        out[#out + 1] = { s, #line }
+      end
+    else
+      local e = line:match("^%s*:[^%s]-:()%s") or line:match("^%s*:[^%s]-:()$")
+      if e then
+        out[#out + 1] = { 1, e - 1 }
+      end
+    end
+    return out
+  end
+
+  local function sorted(ranges)
+    local out = vim.tbl_map(function(r)
+      return r[1] .. "-" .. r[2]
+    end, ranges)
+    table.sort(out)
+    return out
+  end
+
+  it("are those of the patterns, on random lines", function()
+    local fuzz = require("tests.helpers.fuzz")
+    local atoms = {
+      "*",
+      "/",
+      "_",
+      "+",
+      "=",
+      "~",
+      " ",
+      " ",
+      "a",
+      "B",
+      "1",
+      "-",
+      "(",
+      ")",
+      ".",
+      ",",
+      "[[",
+      "]]",
+      "[fn:",
+      "]",
+      "https:",
+      "file:",
+      ":",
+      "x:y",
+      "+a-",
+      "\\alpha",
+      "'",
+      '"',
+      "\t",
+      "* ",
+    }
+    for seed = 1, 2000 do
+      local rng = fuzz.rng(seed)
+      local parts = {}
+      for _ = 1, rng:int(1, 40) do
+        parts[#parts + 1] = rng:pick(atoms)
+      end
+      local line = table.concat(parts)
+      eq(sorted(reference(line)), sorted(deco._protected_ranges(line)), "seed " .. seed .. ": " .. line)
+    end
+  end)
+
+  it("are found quickly in a long hash, unclosed links and markers", function()
+    local gen = require("tests.helpers.gen")
+    local line = gen.blob(40000) .. " [[" .. gen.markers(40000) .. " [fn:" .. gen.prose(1000)
+    local t = vim.uv.hrtime()
+    deco._protected_ranges(line)
+    local ms = (vim.uv.hrtime() - t) / 1e6
+    -- (8 s before, a few ms after on a laptop)
+    ok(ms < 1000 * (tonumber(vim.env.ORG_PERF_SCALE or "") or 1), ms .. " ms")
+    eq(sorted(reference(line:sub(1, 3000))), sorted(deco._protected_ranges(line:sub(1, 3000))))
+  end)
+end)

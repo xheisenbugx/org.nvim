@@ -235,6 +235,11 @@ local EMPH_POST = "[%s%-%.,:!%?;%'\"%)}%[]"
 --- a pre character, a non-blank text, the same marker after a non-blank and
 --- before a post character or the end.
 local function emphasis_ranges(line, out)
+  -- Whether a marker closes doesn't depend on the opening one: per marker,
+  -- the last search (from where it started to the closing marker it found,
+  -- or to the end of the line) answers for any opening in between. Without
+  -- it, a long line of unclosed markers was searched to its end from each.
+  local last = {}
   for i = 1, #line do
     local m = line:sub(i, i)
     if
@@ -243,17 +248,29 @@ local function emphasis_ranges(line, out)
       and line:sub(i + 1, i + 1):find("^%S")
       and not (m == "*" and i == 1 and line:find("^%*+ "))
     then
-      local j = i + 1
-      while true do
-        j = line:find(m, j + 1, true)
-        if not j then
-          break
+      local from = i + 2
+      local l = last[m]
+      local close
+      if l and from >= l.from and (not l.at or from <= l.at) then
+        close = l.at
+      else
+        local j = i + 1
+        close = false
+        while true do
+          j = line:find(m, j + 1, true)
+          if not j then
+            break
+          end
+          local after = line:sub(j + 1, j + 1)
+          if line:sub(j - 1, j - 1):find("^%S") and (after == "" or after:find("^" .. EMPH_POST)) then
+            close = j
+            break
+          end
         end
-        local after = line:sub(j + 1, j + 1)
-        if line:sub(j - 1, j - 1):find("^%S") and (after == "" or after:find("^" .. EMPH_POST)) then
-          out[#out + 1] = { i, j }
-          break
-        end
+        last[m] = { from = from, at = close }
+      end
+      if close then
+        out[#out + 1] = { i, close }
       end
     end
   end
@@ -265,19 +282,56 @@ end
 --- headline's tags, a node property's name.
 local function protected_ranges(line)
   local out = {}
-  for s, e in line:gmatch("()%[%[.-%]%]()") do
-    out[#out + 1] = { s, e - 1 }
-  end
-  emphasis_ranges(line, out)
-  local schemes = require("org.links").URL_SCHEMES
-  for s, scheme, e in line:gmatch("()(%a[%w+%-]*):[^%s%[%]<>()]+()") do
-    if schemes[scheme:lower()] and (s == 1 or not line:sub(s - 1, s - 1):find("^%w")) then
-      out[#out + 1] = { s, e - 1 }
+  -- "[[" to the next "]]", "[fn:" to the next "]": when there is no closing
+  -- one, there is none for a later opening either (a pattern match went on
+  -- trying from each, to the end of the line)
+  local function spans(open, close)
+    local init = 1
+    while true do
+      local s = line:find(open, init, true)
+      if not s then
+        return
+      end
+      local e = line:find(close, s + #open, true)
+      if not e then
+        return
+      end
+      e = e + #close - 1
+      out[#out + 1] = { s, e }
+      init = e + 1
     end
   end
-  for s, e in line:gmatch("()%[fn:[^%]]*%]()") do
-    out[#out + 1] = { s, e - 1 }
+  spans("[[", "]]")
+  emphasis_ranges(line, out)
+  -- plain links: the matches of "()(%a[%w+%-]*):[^%s%[%]<>()]+()" found
+  -- from each colon back, as a gmatch would find them. The pattern itself
+  -- went back over a run of letters from each of its characters, quadratic
+  -- in its length: seconds for a line holding a long hash.
+  local schemes = require("org.links").URL_SCHEMES
+  local init = 1
+  while true do
+    local c = line:find(":", init, true)
+    if not c then
+      break
+    end
+    local r = c
+    while r > init and line:sub(r - 1, r - 1):find("^[%w+%-]") do
+      r = r - 1
+    end
+    local a = line:sub(r, c - 1):find("%a")
+    local s = a and r + a - 1
+    local e = s and line:match("^[^%s%[%]<>()]+()", c + 1)
+    if e then
+      local scheme = line:sub(s, c - 1)
+      if schemes[scheme:lower()] and (s == 1 or not line:sub(s - 1, s - 1):find("^%w")) then
+        out[#out + 1] = { s, e - 1 }
+      end
+      init = e
+    else
+      init = c + 1
+    end
   end
+  spans("[fn:", "]")
   if line:byte(1) == 42 then
     local s = line:match("^%*+ .-%s():[^%s]+:%s*$")
     if s then
@@ -291,6 +345,7 @@ local function protected_ranges(line)
   end
   return out
 end
+M._protected_ranges = protected_ranges
 
 local function in_ranges(ranges, pos)
   for _, r in ipairs(ranges) do
