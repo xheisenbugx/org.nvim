@@ -1125,8 +1125,12 @@ its options may still change):
 - 🧪 **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
   prints the agenda as text, CSV or JSON, captures with a template, clocks
   in and out, reports the running clock (for tmux, SketchyBar or Raycast),
-  searches and exports, from a config file of its own
-  (`:h org-extensions-cli`).
+  searches, queries and exports, and changes headings (TODO state, tags,
+  priority, properties, dates, notes, refile, archive) without ever
+  prompting, from a config file of its own. With `--json` every command
+  prints a versioned envelope with stable error codes, and `org schema`
+  describes the commands as JSON Schema, so scripts and AI agents can use
+  it as a tool (`:h org-extensions-cli`, `:h org-extensions-cli-json`).
 
   ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/cli.gif)
 
