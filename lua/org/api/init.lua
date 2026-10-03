@@ -416,11 +416,10 @@ end
 function M.links.store_location(where)
   local loc = {}
   if where and getmetatable(where) == H.Headline then
-    local bufnr, hl = H.resolve(where)
-    if not bufnr then
-      return nil, hl
+    local bufnr, hl, err = H.resolve(where)
+    if not bufnr or not hl then
+      return nil, err
     end
-    ---@cast hl org.Headline
     loc = { bufnr = bufnr, lnum = hl.line }
   elseif type(where) == "table" then
     loc = { bufnr = where.bufnr, lnum = where.lnum }
@@ -474,7 +473,7 @@ function M.links.insert(link, desc, opts)
     local cur = win ~= -1 and vim.api.nvim_win_get_cursor(win) or { 1, 0 }
     row, col = row or cur[1], col or cur[2]
   end
-  local text = links.format_for_buffer(link, desc, { bufnr = bufnr })
+  local text = links.format_for_buffer(link, desc, { bufnr = bufnr }) or ""
   vim.api.nvim_buf_set_text(bufnr, row - 1, col, row - 1, col, { text })
   return text
 end

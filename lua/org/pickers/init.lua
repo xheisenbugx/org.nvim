@@ -30,7 +30,8 @@ local M = {}
 ---@field col? integer column (1-based)
 ---@field value? any whatever the source needs back
 
----@class org.PickerSpec
+--- What to pick from; `choose()` takes this, `pick()` an org.PickerSpec.
+---@class org.PickerOpts
 ---@field title string
 ---@field items org.PickerItem[]
 ---Several items can be chosen (<Tab> in snacks / fzf-lua / telescope, <C-x>
@@ -43,6 +44,8 @@ local M = {}
 ---@field create_label? string
 ---@field query? string initial query (snacks, fzf-lua, telescope)
 ---@field preview? boolean show a preview of the item's file (default: when items have one)
+
+---@class org.PickerSpec: org.PickerOpts
 ---Called with the chosen items (and the typed query) once the picker has
 ---closed, inside a coroutine, so it may prompt.
 ---@field on_choice fun(items: org.PickerItem[], query?: string)
@@ -181,7 +184,7 @@ end
 
 --- `pick()` inside a coroutine: wait for the choice. Returns the chosen
 --- items and the query, or nil when cancelled.
----@param spec org.PickerSpec without `on_choice` / `on_cancel`
+---@param spec org.PickerOpts
 ---@param backend? string
 ---@return org.PickerItem[]|nil, string|nil
 function M.choose(spec, backend)

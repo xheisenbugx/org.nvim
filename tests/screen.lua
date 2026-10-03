@@ -157,7 +157,7 @@ function M.new(opts)
     errors = {},
   }, Screen)
   self.stdin, self.stdout, self.stderr_pipe = uv.new_pipe(false), uv.new_pipe(false), uv.new_pipe(false)
-  local handle, err = uv.spawn(vim.v.progpath, {
+  local handle, err = uv.spawn(vim.v.progpath, { ---@diagnostic disable-line: missing-fields
     args = { "--embed", "--headless", "-u", "NONE", "-i", "NONE", "-n" },
     stdio = { self.stdin, self.stdout, self.stderr_pipe },
   }, function(code, signal)

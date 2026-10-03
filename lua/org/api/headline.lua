@@ -241,16 +241,18 @@ local function locate(self, f)
   return best
 end
 
---- The buffer and current headline of a handle.
----@return integer|nil bufnr, org.Headline|string hl_or_err
+--- The buffer and current headline of a handle, or nil, nil and an error.
+---@return integer|nil bufnr
+---@return org.Headline|nil hl
+---@return string|nil err
 function M.resolve(self)
   local bufnr, err = buffer_of(self)
   if not bufnr then
-    return nil, err
+    return nil, nil, err
   end
   local hl = locate(self, files.get_buffer(bufnr))
   if not hl then
-    return nil, "headline not found (it was changed or removed): " .. self.raw
+    return nil, nil, "headline not found (it was changed or removed): " .. self.raw
   end
   return bufnr, hl
 end
@@ -291,13 +293,13 @@ end
 --- moved to). `fn` returns nil for a failure. Returns fn's first value, or
 --- nil and an error message.
 ---@param opts? { save?: boolean }
+---@return any res, string|nil err
 function M.edit(self, opts, fn)
   opts = opts or {}
-  local bufnr, hl = M.resolve(self)
-  if not bufnr then
-    return nil, hl
+  local bufnr, hl, err = M.resolve(self)
+  if not bufnr or not hl then
+    return nil, err
   end
-  ---@cast hl org.Headline
   local was_modified = vim.bo[bufnr].modified
   local marks = require("org.marks")
   local mark = marks.set(bufnr, hl.line)
@@ -526,10 +528,9 @@ function Headline:is_clocked_in()
     return false
   end
   local bufnr, hl = M.resolve(self)
-  if not bufnr then
+  if not bufnr or not hl then
     return false
   end
-  ---@cast hl org.Headline
   return require("org.clock").is_clocked_headline(bufnr, hl.line)
 end
 
@@ -543,11 +544,10 @@ local function refile_dest(dest)
     return nil, "invalid refile destination"
   end
   if getmetatable(dest) == Headline then
-    local bufnr, hl = M.resolve(dest)
-    if not bufnr then
-      return nil, hl
+    local bufnr, hl, err = M.resolve(dest)
+    if not bufnr or not hl then
+      return nil, err
     end
-    ---@cast hl org.Headline
     return {
       bufnr = bufnr,
       filename = dest.file,
@@ -624,11 +624,10 @@ end
 ---@return org.api.Headline|nil self, string|nil err
 function Headline:open(opts)
   opts = opts or {}
-  local bufnr, hl = M.resolve(self)
-  if not bufnr then
-    return nil, hl
+  local bufnr, hl, err = M.resolve(self)
+  if not bufnr or not hl then
+    return nil, err
   end
-  ---@cast hl org.Headline
   if self.file then
     utils.open_file(self.file, hl.line, { split = opts.split, reuse_win = opts.split == nil })
   else
