@@ -64,6 +64,54 @@ function M.date(value)
   return H.date(d)
 end
 
+--- The last warning or error among collected messages.
+local function last_problem(msgs)
+  for i = #msgs, 1, -1 do
+    if msgs[i].level >= vim.log.levels.WARN then
+      return msgs[i].msg
+    end
+  end
+end
+
+--- Call `fn(...)` without prompting (`utils.noninteractive`), then save
+--- the buffers it changed as |org-api-saving| says: a buffer is saved when
+--- it had no unsaved changes before (`opts.save` true: always, false:
+--- never). Returns what `utils.noninteractive` returns: `ok, messages,
+--- results...`, or false, the messages and an error (also when a save
+--- failed).
+---@param opts { save?: boolean }
+---@param fn function
+---@return boolean ok, table msgs, any ...
+local function change(opts, fn, ...)
+  local before = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) then
+      before[b] = { tick = vim.api.nvim_buf_get_changedtick(b), modified = vim.bo[b].modified }
+    end
+  end
+  local res = { utils.noninteractive(fn, ...) }
+  if not res[1] then
+    return unpack(res, 1, table.maxn(res))
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) or ""
+    local was = before[b]
+    if name ~= "" and vim.bo[b].modified and (not was or was.tick ~= vim.api.nvim_buf_get_changedtick(b)) then
+      local save = opts.save
+      if save == nil then
+        save = not (was and was.modified)
+      end
+      if save then
+        local saved, err = utils.save_buffer(b)
+        if not saved then
+          return false, res[2], "could not save " .. name .. ": " .. tostring(err)
+        end
+      end
+    end
+  end
+  return unpack(res, 1, table.maxn(res))
+end
+
 ---------------------------------------------------------------------------
 -- Files
 ---------------------------------------------------------------------------
@@ -348,15 +396,6 @@ end
 ---@field line integer first line of the stored text
 ---@field headline org.api.Headline|nil the captured entry (entry templates)
 
---- The last warning or error among collected messages.
-local function last_problem(msgs)
-  for i = #msgs, 1, -1 do
-    if msgs[i].level >= vim.log.levels.WARN then
-      return msgs[i].msg
-    end
-  end
-end
-
 --- Capture without a capture window: the template is filled in (prompts
 --- `%^{...}` take `opts.values`, else their default or nothing), stored
 --- and saved at once, and `OrgCaptureAfterFinalize` fires.
@@ -441,11 +480,12 @@ end
 
 --- Compute and store a link to a headline (a handle) or a location
 --- `{ bufnr, lnum }` (default: the cursor, see `headline_at`), like
---- <prefix>ls (an `id:` link when `id.link_to_org_use_id` asks for it,
---- which may create the ID).
+--- <prefix>ls (an `id:` link when `links.use_id` asks for it, which may
+--- create the ID: its file is saved like other API changes).
 ---@param where? org.api.Headline|{ bufnr?: integer, lnum?: integer }
+---@param opts? { save?: boolean }
 ---@return org.api.Link|nil link, string|nil err
-function M.links.store_location(where)
+function M.links.store_location(where, opts)
   local loc = {}
   if where and getmetatable(where) == H.Headline then
     local bufnr, hl, err = H.resolve(where)
@@ -466,17 +506,17 @@ function M.links.store_location(where)
     loc.lnum, loc.col = cur[1], cur[2] + 1
   end
   local links = require("org.links")
-  local ok, msgs, l = utils.noninteractive(links.link_to_location, {
+  local ok, msgs, l = change(opts or {}, links.link_to_location, {
     bufnr = loc.bufnr,
     lnum = loc.lnum,
     col = loc.col,
     interactive = false,
   })
   if not ok then
-    return nil, tostring(msgs)
+    return nil, tostring(l)
   end
   if not l then
-    return nil, "no link can be stored for this location"
+    return nil, last_problem(msgs) or "no link can be stored for this location"
   end
   return M.links.store(l.link, l.desc)
 end
@@ -670,35 +710,6 @@ function M.clock.is_running()
   return require("org.clock").state ~= nil
 end
 
---- Run `fn(...)`, a change to the running clock's CLOCK line, without
---- prompting, then save the buffer of that line as |org-api-saving| says:
---- when it had no unsaved changes before (`opts.save` true: always, false:
---- never). Returns fn's result and the collected messages, or nil and an
---- error.
----@param opts { save?: boolean }
----@param fn function
----@return any res, table|string msgs_or_err
-local function clock_change(opts, fn, ...)
-  local found, bufnr = pcall(require("org.clock").find_open_clock)
-  bufnr = found and bufnr or nil
-  local was_modified = bufnr and vim.bo[bufnr].modified
-  local ok, msgs, res = utils.noninteractive(fn, ...)
-  if not ok then
-    return nil, tostring(res)
-  end
-  local save = opts.save
-  if save == nil then
-    save = not was_modified
-  end
-  if save and bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_name(bufnr) ~= "" then
-    local saved, err = utils.save_buffer(bufnr)
-    if not saved then
-      return nil, "could not save " .. vim.api.nvim_buf_get_name(bufnr) .. ": " .. tostring(err)
-    end
-  end
-  return res, msgs
-end
-
 --- Stop the running clock (org-clock-out), wherever it runs. Returns the
 --- clocked minutes. The entry's file is saved like other API changes.
 ---@param opts? { note?: string, save?: boolean }
@@ -712,9 +723,9 @@ function M.clock.clock_out(opts)
   if status.headline then
     return status.headline:clock_out(opts)
   end
-  local minutes, msgs = clock_change(opts, require("org.clock").clock_out, { note = false, quiet = true })
-  if type(msgs) == "string" then
-    return nil, msgs
+  local ok, msgs, minutes = change(opts, require("org.clock").clock_out, { note = false, quiet = true })
+  if not ok then
+    return nil, tostring(minutes)
   end
   return minutes, minutes == nil and last_problem(msgs) or nil
 end
@@ -727,9 +738,12 @@ function M.clock.cancel(opts)
   if not M.clock.is_running() then
     return nil, "no clock is running"
   end
-  local res, err = clock_change(opts or {}, require("org.clock").clock_cancel)
-  if res == nil then
-    return nil, type(err) == "string" and err or last_problem(err) or "the clock was not cancelled"
+  local ok, msgs, res = change(opts or {}, require("org.clock").clock_cancel)
+  if not ok then
+    return nil, tostring(res)
+  end
+  if not res then
+    return nil, last_problem(msgs) or "the clock was not cancelled"
   end
   return true
 end

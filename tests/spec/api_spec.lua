@@ -965,6 +965,56 @@ describe("org.api", function()
       eq(l, api.links.stored()[1])
     end)
 
+    it("store_location saves the ID it creates", function()
+      setup(dir, { links = { use_id = true } })
+      local h = api.headlines({ files = work, title = "Plan offsite" })[1]
+      eq(nil, utils.find_buffer(work))
+      local l, err = api.links.store_location(h)
+      ok(l, err)
+      local id = l.link:match("^id:(.+)$")
+      ok(id, l.link)
+      ok(table.concat(disk(work), "\n"):find(":ID: +" .. vim.pesc(id)))
+      eq(false, vim.bo[utils.find_buffer(work)].modified)
+    end)
+
+    it("store_location leaves a buffer with unsaved changes unsaved unless asked", function()
+      setup(dir, { links = { use_id = true } })
+      open_file(work)
+      local b = vim.api.nvim_get_current_buf()
+      vim.api.nvim_buf_set_lines(b, -1, -1, false, { "* Unsaved" })
+      local l = api.links.store_location({ bufnr = b, lnum = 17 })
+      local id = l.link:match("^id:(.+)$")
+      ok(id, l.link)
+      ok(not table.concat(disk(work), "\n"):find(id, 1, true))
+      eq(true, vim.bo[b].modified)
+      local hidden = api.headlines({ files = work, title = "Hidden task" })[1]
+      l = api.links.store_location(hidden, { save = true })
+      ok(l.link:match("^id:"), l.link)
+      eq(false, vim.bo[b].modified)
+      ok(table.concat(disk(work), "\n"):find(id, 1, true))
+      eq("* Unsaved", disk(work)[#disk(work)])
+      vim.cmd("bwipeout!")
+    end)
+
+    it("store_location reports the error of a failing link type", function()
+      setup(dir, {
+        links = {
+          types = {
+            boom = {
+              store = function()
+                error("boom!", 0)
+              end,
+            },
+          },
+        },
+      })
+      open_file(work)
+      local l, err = api.links.store_location()
+      eq(nil, l)
+      eq("boom!", err)
+      vim.cmd("bwipeout!")
+    end)
+
     it("inserts a link at the cursor or a position", function()
       local buf = org_buffer({ "See  here" }, { 1, 4 })
       eq("[[https://x.org][X]]", api.links.insert("https://x.org", "X"))

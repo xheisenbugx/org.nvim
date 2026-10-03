@@ -6799,9 +6799,11 @@ buffer). `OrgCaptureAfterFinalize` fires as for any capture. >lua
 Links ~
                                                            *org-api-links*
 api.links.store(link, [desc])   Add to the stored links (<prefix>li).
-api.links.store_location([where])  Store a link to a handle or `{ bufnr,
-                            lnum }` (default the cursor, as for
-                            `api.headline_at`), like <prefix>ls.
+api.links.store_location([where], [opts])  Store a link to a handle or
+                            `{ bufnr, lnum }` (default the cursor, as for
+                            `api.headline_at`), like <prefix>ls. An ID it
+                            creates (`links.use_id`) is saved like other
+                            changes (|org-api-saving|, `opts.save`).
 api.links.stored()          The stored links `{ link, desc }`, newest first.
 api.links.format(link, [desc])  `[[link][desc]]`, escaped.
 api.links.insert(link, [desc], [opts])  Insert at the cursor, or at
