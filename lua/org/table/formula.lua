@@ -53,7 +53,7 @@ end
 
 --- Emacs `string-to-number`: the leading number of `s` (0 when none) and
 --- whether it is a float.
----@return number, boolean
+---@return number|nil value, boolean isfloat
 function M.string_to_number(s)
   s = (s or ""):gsub("^[ \t\n]+", "")
   local sign, rest = s:match("^([-+]?)(.*)$")

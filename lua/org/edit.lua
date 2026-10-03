@@ -368,6 +368,7 @@ end
 --- With a headline, `#+STARTUP: logdrawer|nologdrawer` and the (inherited)
 --- LOG_INTO_DRAWER property override `log_into_drawer`.
 ---@param hl? org.Headline
+---@return string|nil
 function M.log_drawer_name(hl)
   local d = require("org.config").opts.log_into_drawer
   if hl then
@@ -391,7 +392,7 @@ function M.log_drawer_name(hl)
   if d == true then
     return "LOGBOOK"
   end
-  return d or nil
+  return type(d) == "string" and d or nil
 end
 
 --- Vim regex (very nomagic) matching a state-change note item, built from
@@ -664,7 +665,7 @@ end
 -- Subtrees
 ---------------------------------------------------------------------------
 
----@return integer start, integer end (1-based, inclusive)
+---@return integer? start, integer? end (1-based and inclusive)
 function M.subtree_range(bufnr, lnum)
   local file = files.get_buffer(bufnr)
   local hl = file:headline_at(lnum)

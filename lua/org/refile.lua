@@ -18,12 +18,15 @@ local utils = require("org.utils")
 local M = {}
 
 ---@class org.RefileTarget
----@field filename string
+---@field filename? string the target file (or `bufnr`)
+---@field bufnr? integer the target buffer
 ---@field lnum integer|nil headline line; nil = file top level
----@field olp string[] outline path including the target itself
+---@field raw? string the headline's text, to find it again when lines moved
+---@field olp? string[] outline path including the target itself
 ---@field level integer|nil
----@field label string label shown in the prompt
+---@field label? string label shown in the prompt
 ---@field path? string outline path label (used to complete in steps)
+---@field prepend? boolean insert as the first child instead of the last
 
 --- Files for a `refile.targets` spec: "agenda", "current", a path/glob or
 --- a list of them, or a function returning paths (nil = current file).
@@ -520,7 +523,8 @@ end
 --- Move a subtree (or given lines, or the region `src.range`) to `dest`.
 ---@param src { bufnr?: integer, lnum?: integer, lines?: string[], range?: integer[], save_destination?: boolean }
 ---@param dest org.RefileTarget
----@return integer bufnr, integer lnum of the moved headline
+---@return integer bufnr
+---@return integer lnum of the moved headline
 function M.move(src, dest)
   dest = check_position(dest)
   if src.lines then
@@ -535,7 +539,7 @@ function M.move(src, dest)
       error("Cannot refile to position inside the tree or region", 0)
     end
     -- the copy may land above or below the source: follow both
-    return marks.with(function(track)
+    local mb, ml = marks.with(function(track)
       local source = track.range(sbuf, s, e)
       local b, l = M.insert_subtree(lines, { bufnr = dbuf, lnum = dest.lnum, prepend = dest.prepend })
       local moved = track(b, l)
@@ -543,6 +547,7 @@ function M.move(src, dest)
       vim.api.nvim_buf_set_lines(sbuf, s1 - 1, e1, false, {})
       return b, moved:lnum()
     end)
+    return mb, ml
   end
   local before = vim.api.nvim_buf_get_lines(dbuf, 0, -1, false)
   local modified = vim.bo[dbuf].modified

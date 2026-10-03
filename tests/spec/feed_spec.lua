@@ -1,3 +1,4 @@
+---@diagnostic disable: missing-fields -- partial records on purpose
 -- RSS/Atom feeds (org-feed.el). Expected texts and hashes come from Emacs
 -- 9.8 org-feed-update on the same fixtures.
 local config = require("org.config")

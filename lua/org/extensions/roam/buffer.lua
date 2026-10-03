@@ -195,7 +195,17 @@ function M.redisplay(force)
     -- not indexed yet (unsaved, or outside the roam directory)
     local path = vim.api.nvim_buf_get_name(cur)
     local title = here.hl and here.hl:plain_title() or here.file:title()
-    node = { id = id, title = title, file = path, lnum = here.lnum or 1, refs = {}, aliases = {}, tags = {}, olp = {} }
+    node = {
+      id = id,
+      title = title,
+      file = path,
+      level = here.hl and here.hl.level or 0,
+      lnum = here.lnum or 1,
+      refs = {},
+      aliases = {},
+      tags = {},
+      olp = {},
+    }
     node.refs = db.split_quoted((here.hl and here.hl.properties or here.file.properties).ROAM_REFS)
   end
   render(node)

@@ -47,7 +47,7 @@ end
 --- `opts.current_hash` / `opts.read_cached`), asks for confirmation,
 --- runs the code, then applies :colnames, `:file` and `:post`.
 --- `cb(result, info)`; with `opts.sync` returns them instead.
----@param opts? { sync?: boolean, skip_confirm?: boolean, export?: boolean, depth?: integer, current_hash?: string, read_cached?: fun(): any, force?: boolean }
+---@param opts? { sync?: boolean, skip_confirm?: boolean, export?: boolean, depth?: integer, current_hash?: string, read_cached?: (fun(): any), force?: boolean }
 function M.evaluate(bufnr, src, args, opts, cb)
   opts = opts or {}
   local sync = opts.sync
@@ -389,7 +389,7 @@ end
 
 --- Execute the block at (bufnr, lnum). `on_done(ok)` is called when done.
 --- With `sync` the evaluation blocks and results are inserted before return.
----@param opts? { bufnr?: integer, lnum?: integer, skip_confirm?: boolean, sync?: boolean, handling?: string, on_done?: fun(ok: boolean), export?: boolean, force?: boolean, params?: string }
+---@param opts? { bufnr?: integer, lnum?: integer, skip_confirm?: boolean, sync?: boolean, handling?: string, on_done?: (fun(ok: boolean, abort?: boolean)), export?: boolean, force?: boolean, params?: string }
 function M.execute(opts)
   opts = opts or {}
   local bufnr = resolve_buf(opts.bufnr)

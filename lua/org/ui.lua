@@ -56,7 +56,7 @@ function M.float(lines, opts)
 end
 
 ---@class org.MenuItem
----@field key string single char (or multi-char in `from_keys`)
+---@field key? string single char (or multi-char in `from_keys`); none on a heading
 ---@field label string
 ---@field value any
 ---@field items? org.MenuItem[] submenu

@@ -843,8 +843,7 @@ end
 --- Emacs' C-u), n (numbers), t (timestamps, durations, H:MM), f (a key
 --- function, prompted as Lua, with an optional comparison function);
 --- uppercase sorts in reverse. Emacs org-table-sort-lines (C-c ^).
----@param opts? { type?: string, with_case?: boolean, getkey?: fun(field: string): any,
----   compare?: fun(a: any, b: any): boolean }
+---@param opts? { type?: string, with_case?: boolean, getkey?: (fun(field: string): any), compare?: fun(a: any, b: any): boolean }
 function M.sort_column(opts)
   opts = type(opts) == "table" and opts or {}
   local visual = in_visual()
@@ -1968,7 +1967,10 @@ end
 --- Rectangle of fields to act on: the visual selection (visual mode is
 --- left) or, in normal mode, the current field (or the whole current
 --- column when `whole_column`).
----@return table|nil info, integer[] rows (table row indices, hlines skipped), integer c1, integer c2
+---@return table|nil info
+---@return integer[]|nil rows table row indices (hlines skipped)
+---@return integer|nil c1
+---@return integer|nil c2
 local function selected_rect(whole_column)
   local visual = in_visual()
   local srow, scol, erow, ecol, mode

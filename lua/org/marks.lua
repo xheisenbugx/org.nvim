@@ -165,7 +165,8 @@ end
 ---@param lnum integer
 ---@param col? integer
 ---@param opts? org.MarkOpts
----@return org.Mark|nil, string|nil err
+---@return org.Mark|nil mark
+---@return string|nil err
 function M.set(bufnr, lnum, col, opts)
   opts = opts or {}
   local ok, err = check(bufnr, lnum)
@@ -183,7 +184,8 @@ function M.set(bufnr, lnum, col, opts)
     right_gravity = right,
     invalidate = opts.invalidate or nil,
   })
-  return setmetatable({ bufnr = bufnr, id = id }, Mark)
+  local mark = setmetatable({ bufnr = bufnr, id = id }, Mark) ---@type org.Mark
+  return mark
 end
 
 ---@class org.MarkRangeOpts
@@ -198,7 +200,8 @@ end
 ---@param s integer
 ---@param e integer
 ---@param opts? org.MarkRangeOpts
----@return org.MarkRange|nil, string|nil err
+---@return org.MarkRange|nil range
+---@return string|nil err
 function M.range(bufnr, s, e, opts)
   opts = opts or {}
   local ok, err = check(bufnr, s)
@@ -222,7 +225,8 @@ function M.range(bufnr, s, e, opts)
     end_right_gravity = (opts.grow or opts.grow_end) == true,
     invalidate = opts.invalidate or nil,
   })
-  return setmetatable({ bufnr = bufnr, id = id }, Range)
+  local range = setmetatable({ bufnr = bufnr, id = id }, Range) ---@type org.MarkRange
+  return range
 end
 
 --- A mark in file `filename`, which is loaded into a (hidden) buffer when
@@ -231,7 +235,7 @@ end
 ---@param lnum integer
 ---@param col? integer
 ---@param opts? org.MarkOpts
----@return org.Mark|nil, string|nil err
+---@return org.Mark|nil mark, string|nil err
 function M.in_file(filename, lnum, col, opts)
   local ok, bufnr = pcall(require("org.utils").load_buffer, filename)
   if not ok then

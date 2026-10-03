@@ -521,7 +521,7 @@ local P = {}
 P.__index = P
 
 --- Create a parser.
----@param opts table { todo = org.TodoConfig, link_types = string[], abbrevs = table, radio = string[],
+---@param opts? table { todo = org.TodoConfig, link_types = string[], abbrevs = table, radio = string[],
 ---  inlinetask_min_level = integer, alpha = boolean, term = string|nil, macro = function|nil, visible = function|nil }
 function M.new(opts)
   opts = opts or {}

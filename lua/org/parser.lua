@@ -36,6 +36,9 @@ local M = {}
 ---@field parent org.Headline|nil
 ---@field children org.Headline[]
 ---@field index integer position in file.headlines
+---@field inlinetask? boolean an inline task (level >= inlinetask_min_level)
+---@field first_inactive? org.Date the first inactive timestamp of the entry
+---@field property_base? table<string,string>
 local Headline = {}
 M.Headline = Headline
 
@@ -111,6 +114,10 @@ end
 ---@field children org.Headline[]
 ---@field settings table
 ---@field setup_dependencies table<string,string> signatures of local setup files
+---@field preamble_end integer last line before the first outline headline
+---@field properties table<string,string> file-level properties, keys upper-cased
+---@field property_base table<string,string>
+---@field properties_range integer[]|nil {start, end} of the file-level property drawer
 local File = {}
 File.__index = File
 M.File = File

@@ -251,7 +251,7 @@ end
 --- Sub-protocols added by extensions (`:h org-extensions`): name ->
 --- handler in the `protocol.handlers` form. They come after the user's
 --- handlers and before the built-in ones.
----@type table<string, { protocol: string, fn: fun(params: table): any, order?: string[] }>
+---@type table<string, { protocol: string, fn: (fun(params: table): any), order?: string[] }>
 M.extension_handlers = {}
 
 local DEFAULT_HANDLERS = {

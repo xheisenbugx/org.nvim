@@ -249,7 +249,7 @@ describe("sidebar", function()
     local timer = st.timer
     vim.api.nvim_win_close(st.win, true)
     ok(vim.wait(500, function()
-      return timer:is_closing()
+      return timer:is_closing() == true
     end))
     eq(false, sidebar.is_open())
   end)

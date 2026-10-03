@@ -198,6 +198,7 @@ function M.broken_link(path)
   error(setmetatable({ broken_link = path }, BrokenLink), 0)
 end
 
+---@return (fun(data: table, contents: string|nil, info: table): string|nil)|nil
 function M.transcoder(blob, info)
   if blob.type == "org-data" then
     return function(_, contents)

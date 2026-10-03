@@ -260,7 +260,7 @@ end
 
 --- Choose from a list. Returns item, index (nil when cancelled).
 ---@param items any[]
----@param opts? { prompt?: string, format_item?: fun(item:any):string, kind?: string }
+---@param opts? { prompt?: string, format_item?: (fun(item:any):string), kind?: string }
 function M.select(items, opts)
   if #items == 0 or M._noninteractive > 0 then
     return nil

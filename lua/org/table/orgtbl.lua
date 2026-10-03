@@ -451,8 +451,7 @@ local EXP = "^([-+]?%d*%.?%d+)[eE]([-+]?%d+)$"
 --- (the backend's transcoder).
 ---@param rows (string[]|string)[]
 ---@param params table
----@param backend? { cell?: fun(s: string): string, row?: fun(cells: string[], info: table): string,
----   hline?: fun(info: table): string?, table?: fun(body: string, info: table): string }
+---@param backend? { cell?: (fun(s: string): string), row?: (fun(cells: string[], info: table): string), hline?: (fun(info: table): string?), table?: fun(body: string, info: table): string }
 function M.generic(rows, params, backend)
   params = params or {}
   -- without a backend, Emacs exports through the Org backend, which keeps

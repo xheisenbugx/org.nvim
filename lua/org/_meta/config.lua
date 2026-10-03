@@ -324,7 +324,7 @@
 ---@field plot_gnuplot_term_extra? string
 ---Extra (or replaced) `#+PLOT: type:NAME` plot types.
 ---(Emacs `org-plot/preset-plot-types`, default: `{}`; 2d, 3d, grid and radar are built in)
----@field plot_preset_plot_types? table<string, { plot_func?: fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string[], plot_cmd?: string, plot_str?: string, plot_pre?: string|fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string?, data_dump?: fun(rows: table, data_file: string, ncols: integer, opts: table): string?, check_ind_type?: boolean }>
+---@field plot_preset_plot_types? table<string, { plot_func?: (fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string[]), plot_cmd?: string, plot_str?: string, plot_pre?: string|(fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string?), data_dump?: (fun(rows: table, data_file: string, ncols: integer, opts: table): string?), check_ind_type?: boolean }>
 ---Radio table templates inserted by `orgtbl_insert_radio_table`, per
 ---filetype (`tex`, `texinfo`, `html`, `org`); `%n` is the table name.
 ---(Emacs `orgtbl-radio-table-templates`)

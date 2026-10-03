@@ -186,7 +186,7 @@ function M.inline_info(bufnr, lnum, ib, file)
 end
 
 --- Evaluate the inline element `ib` (from `M.inline_at`) of line `lnum`.
----@param opts? { skip_confirm?: boolean, sync?: boolean, export?: boolean, on_done?: fun(ok: boolean) }
+---@param opts? { skip_confirm?: boolean, sync?: boolean, export?: boolean, on_done?: fun(ok: boolean, abort?: boolean) }
 function M.execute_inline_at(bufnr, lnum, ib, opts)
   opts = opts or {}
   local done = opts.on_done or function() end

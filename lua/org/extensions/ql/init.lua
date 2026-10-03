@@ -113,8 +113,8 @@ end
 --- subtrees are skipped, as in the agenda, unless `include_hidden` is set.
 ---@param files any see `M.files`
 ---@param q string|table query
----@param o? { sort?: any, action?: fun(hl: org.Headline): any, include_hidden?: boolean }
----@return any[] headlines, or the results of `action`
+---@param o? { sort?: any, action?: (fun(hl: org.Headline): any), include_hidden?: boolean }
+---@return any[] # the headlines (or the results of `action`)
 function M.select(files, q, o)
   o = o or {}
   local pred = compile(q)

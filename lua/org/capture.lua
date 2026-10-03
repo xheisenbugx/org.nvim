@@ -593,7 +593,8 @@ end
 --- cursor marker. Must run inside a coroutine when it prompts.
 ---@param text string
 ---@param ctx org.Config.CaptureContext|table
----@return string text with CURSOR marker, table ctx
+---@return string text with the CURSOR marker
+---@return table ctx
 function M.expand(text, ctx)
   ctx = ctx or {}
   ctx.properties = ctx.properties or {}
@@ -2715,9 +2716,9 @@ end
 --- `opts.answers` answers the template's `%^` prompts, by label or by
 --- position; with `opts.noninteractive` the other prompts take their
 --- default and a `time_prompt` date is now.
----@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean,
----  answers?: table<string|integer, any>, noninteractive?: boolean }
----@return integer|nil capture buffer (or target buffer with immediate_finish)
+---@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean }
+---@return integer|nil buf the capture buffer (or the target buffer with immediate_finish)
+---@return integer|nil # the capture window, or the line of the stored entry
 function M.capture(tpl_or_key, opts)
   opts = opts or {}
   local tpl = tpl_or_key

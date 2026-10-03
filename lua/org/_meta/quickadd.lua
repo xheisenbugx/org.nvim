@@ -2,10 +2,6 @@
 -- LuaLS type definitions for `require("org").setup({ extensions = { quickadd = ... } })`.
 -- Annotations only; never loaded at runtime.
 
----@class org.Config.Extensions
----Todoist-style quick add of entries from one line (`:h org-extensions-quickadd`).
----@field quickadd? org.Config.Extensions.Quickadd|boolean
-
 ---@class org.Config.Extensions.Quickadd
 ---`false` keeps the extension off.
 ---@field enabled? boolean

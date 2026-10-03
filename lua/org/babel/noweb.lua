@@ -146,7 +146,7 @@ end
 --- Find the next noweb reference `<<ref>>` of `line` at or after `pos`,
 --- like `org-babel-noweb-wrap`: the reference starts and ends with a
 --- non-blank character and may contain spaces (`<<add(a=3, b=4)>>`).
----@return integer|nil s, integer e, string ref
+---@return integer|nil s, integer? e, string? ref
 local function find_noweb(line, pos)
   local cfg = require("org.config").opts.babel or {}
   local open, close = cfg.noweb_wrap_start or "<<", cfg.noweb_wrap_end or ">>"

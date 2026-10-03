@@ -20,7 +20,7 @@ function M.expand(body, args)
 end
 
 function M.prepare(body, args, vars, ctx)
-  local full = M.expand(body, args, vars)
+  local full = M.expand(body, args)
   local value = args.results_spec.collection == "value"
   local src = ob.temp()
   ob.write(src, value and (M.WRAPPER:gsub("%%s", function()

@@ -127,7 +127,7 @@ end
 --- The agenda view of a project: `project_agenda_blocks` on the project
 --- file, with the code TODOs of the repository.
 ---@param root string
----@return table view, string project file
+---@return table view, string|nil project_file
 function M.view(root)
   local pf = M.file(root)
   if pf then

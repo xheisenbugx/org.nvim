@@ -146,6 +146,7 @@ function M.picker()
   if GENERIC[p] then
     return require("org.pickers").backend(p)
   end
+  ---@cast p "snacks"|"select"|"input"
   return p
 end
 

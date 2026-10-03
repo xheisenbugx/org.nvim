@@ -25,7 +25,7 @@ local get_session = P.get_session
 ---------------------------------------------------------------------------
 
 --- Tangle `bufnr` (org-babel-tangle). Returns the list of written files.
----@param opts? { bufnr?: integer, target?: string only tangle this file, only_line?: integer, tangle_file?: string, silent?: boolean }
+---@param opts? { bufnr?: integer, target?: string, only_line?: integer, tangle_file?: string, silent?: boolean } target: only tangle this file
 function M.tangle(opts)
   return require("org.babel.tangle").tangle(opts)
 end

@@ -94,7 +94,7 @@ describe("babel ob-lilypond", function()
       "#+end_src",
     }, { 3, 0 })
     vim.api.nvim_buf_set_name(buf, dir .. "/score.org")
-    require("org.babel").execute_block({ sync = true, skip_confirm = true })
+    require("org.babel").execute({ sync = true, skip_confirm = true })
     -- Emacs 9.8.10
     eq({
       "% [[file:score.org::*Score][Score:1]]",
