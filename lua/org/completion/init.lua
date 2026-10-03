@@ -574,6 +574,13 @@ end
 function M.omnifunc(findstart, base)
   local line = vim.api.nvim_get_current_line()
   local col = vim.api.nvim_win_get_cursor(0)[2]
+  if findstart ~= 1 then
+    -- Vim deletes `base` from the line before this second call, leaving the
+    -- cursor where it started: put it back, or a context whose start is part
+    -- of the base ([[# custom IDs, \entities, :properties) is lost
+    line = line:sub(1, col) .. base .. line:sub(col + 1)
+    col = col + #base
+  end
   local ctx = M.get(line, col, 0)
   if findstart == 1 then
     if not ctx then
