@@ -451,17 +451,16 @@ local function write_property(hl, prop, value)
   end
 end
 
---- Compute rows for a list of root headlines. Each row has `cells` (the
---- summary or value of each column) and `display` (what column view
---- shows). With `opts.update`, summaries are written back to properties
---- that exist on the entry and differ (Emacs org-columns-compute-all, done
---- when column view opens and when a columnview block is updated).
+--- Summaries of the columns with a summary operator for the trees of
+--- `roots` (Emacs org-columns--compute-spec): `{ [hl] = { [i] = summary } }`
+--- for the entries that have children with values. With `update`, a
+--- summary is written back to the property when the entry has it and
+--- it differs (only for the first column of a property).
 ---@param roots org.Headline[]
 ---@param cols table
----@param opts? { maxlevel?: integer, update?: boolean }
----@return { hl: org.Headline, cells: string[], display: string[], rel_level: integer }[]
-function M.compute(roots, cols, opts)
-  opts = opts or {}
+---@param update_props? boolean
+---@return table<org.Headline, table<integer, string>>
+function M.summaries(roots, cols, update_props)
   local summaries = {} -- hl -> { [i] = summary }
   local seen_prop = {}
   for i, col in ipairs(cols) do
@@ -470,7 +469,7 @@ function M.compute(roots, cols, opts)
     if col.summary and not M.SPECIAL[key] then
       fn, collect = summary_type(col.summary)
     end
-    local update = opts.update and not seen_prop[key]
+    local update = update_props and not seen_prop[key]
     seen_prop[key] = true
     if fn then
       local function walk(hl)
@@ -509,6 +508,21 @@ function M.compute(roots, cols, opts)
       end
     end
   end
+  return summaries
+end
+
+--- Compute rows for a list of root headlines. Each row has `cells` (the
+--- summary or value of each column) and `display` (what column view
+--- shows). With `opts.update`, summaries are written back to properties
+--- that exist on the entry and differ (Emacs org-columns-compute-all, done
+--- when column view opens and when a columnview block is updated).
+---@param roots org.Headline[]
+---@param cols table
+---@param opts? { maxlevel?: integer, update?: boolean }
+---@return { hl: org.Headline, cells: string[], display: string[], rel_level: integer }[]
+function M.compute(roots, cols, opts)
+  opts = opts or {}
+  local summaries = M.summaries(roots, cols, opts.update)
   local rows = {}
   local function walk(hl, base)
     if opts.maxlevel and hl.level > opts.maxlevel then
@@ -559,6 +573,16 @@ local function scope_for(file, lnum)
     fmt = nil
   end
   return fmt or config.opts.columns_default_format, hl and { hl } or file.children
+end
+
+--- Column format and roots of a whole file, as Emacs sees them with point
+--- before the first headline (org-columns-get-format-and-top-level at
+--- point-min, as org-agenda-colview-compute calls it).
+---@param file table
+---@return string fmt, org.Headline[] roots
+function M.file_scope(file)
+  local fmt, roots = scope_for(file, nil)
+  return fmt, roots
 end
 
 --- Compute one property's columns, updating existing drawer values only.

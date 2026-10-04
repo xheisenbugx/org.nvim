@@ -525,3 +525,106 @@ describe("agenda column view of a custom command", function()
     )
   end)
 end)
+
+-- Emacs org-agenda-columns calls org-agenda-colview-compute when
+-- org-agenda-columns-compute-summary-properties is set (org-colview.el,
+-- Org 9.8.10): each file computes its summary columns with its own format
+-- when the operator matches the agenda's, and a row shows the summary of
+-- its children before its own value (org-columns--collect-values). The
+-- date line then adds up the rows, the parent's summary included. Checked
+-- with emacs -Q --batch: Parent 3:30, date line 7:00.
+describe("agenda column view summaries of children", function()
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local path = dir .. "/sums.org"
+  local view = require("org.agenda.view")
+  local cols = require("org.agenda.columns")
+  local function lines(parent_effort)
+    local out = {
+      "#+COLUMNS: %25ITEM %Effort{:} %DEADLINE",
+      "* TODO Parent",
+      "  SCHEDULED: " .. ts(0),
+    }
+    if parent_effort then
+      vim.list_extend(out, { "  :PROPERTIES:", "  :Effort: " .. parent_effort, "  :END:" })
+    end
+    return vim.list_extend(out, {
+      "** TODO Child1",
+      "   SCHEDULED: " .. ts(0),
+      "   :PROPERTIES:",
+      "   :Effort: 1:00",
+      "   :END:",
+      "** TODO Child2",
+      "   SCHEDULED: " .. ts(0),
+      "   :PROPERTIES:",
+      "   :Effort: 2:30",
+      "   :END:",
+    })
+  end
+  local function open(agenda_opts, parent_effort, load)
+    utils.writefile(path, lines(parent_effort))
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    if load then
+      b = vim.fn.bufadd(path)
+      vim.fn.bufload(b)
+    end
+    config.setup({ agenda_files = { path }, org_directory = dir, agenda = agenda_opts })
+    require("org.agenda").open_agenda({ span = "day" })
+    ok(cols.toggle())
+  end
+  local function row(title)
+    for l, it in pairs(view.state.line_items) do
+      if it.title == title then
+        return cols.cells(l)
+      end
+    end
+  end
+  local function dateline()
+    local ns = vim.api.nvim_create_namespace("org.agenda.columns")
+    for l in pairs(view.state.day_lines) do
+      local m = vim.api.nvim_buf_get_extmarks(0, ns, { l - 1, 0 }, { l - 1, -1 }, { details = true })[1]
+      return m and m[4].virt_text[1][1]
+    end
+  end
+  after_each(function()
+    cols.quit()
+    view.quit(true)
+  end)
+
+  it("shows a parent's summary and counts it on the date line", function()
+    open()
+    eq({ "Parent", "3:30", "" }, row("Parent"))
+    eq({ "Child1", "1:00", "" }, row("Child1"))
+    ok(dateline():find("| 7:00   |", 1, true), dateline())
+  end)
+
+  it("prefers the summary to the parent's own value and writes it back like Emacs", function()
+    open(nil, "0:10", true)
+    eq({ "Parent", "3:30", "" }, row("Parent"))
+    -- org-columns-compute updates the existing property in the buffer;
+    -- the file on disk is not saved
+    local b = utils.find_buffer(path)
+    ok(vim.tbl_contains(vim.api.nvim_buf_get_lines(b, 0, -1, false), "  :EFFORT:   3:30"))
+    ok(vim.tbl_contains(vim.fn.readfile(path), "  :Effort: 0:10"))
+  end)
+
+  it("shows no summary with columns_compute_summary_properties off", function()
+    open({ columns_compute_summary_properties = false })
+    eq({ "Parent", "", "" }, row("Parent"))
+    ok(dateline():find("| 3:30   |", 1, true), dateline())
+  end)
+
+  it("shows no summary when the file's operator differs", function()
+    open({ overriding_columns_format = "%25ITEM %Effort{+} %DEADLINE" })
+    eq({ "Parent", "", "" }, row("Parent"))
+  end)
+
+  it("shows no summary when the agenda's column spec differs from the file's", function()
+    -- Emacs looks the summary up by the whole spec, width included
+    open({ overriding_columns_format = "%25ITEM %10Effort{:} %DEADLINE" })
+    eq({ "Parent", "", "" }, row("Parent"))
+  end)
+end)

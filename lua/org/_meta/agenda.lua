@@ -318,6 +318,9 @@
 ---@field view_columns_initially? boolean
 ---Column summaries on date lines (org-agenda-columns-show-summaries). (default: `true`)
 ---@field columns_show_summaries? boolean
+---In the agenda column view, an entry shows the summary of its children,
+---computed in its file (org-agenda-columns-compute-summary-properties). (default: `true`)
+---@field columns_compute_summary_properties? boolean
 ---An appointment without an effort counts its duration as effort in the
 ---agenda column view (org-agenda-columns-add-appointments-to-effort-sum). (default: `false`)
 ---@field columns_add_appointments_to_effort_sum? boolean
