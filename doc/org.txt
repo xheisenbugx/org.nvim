@@ -5518,6 +5518,101 @@ are `{ display = { { text, hl_group }, ... }, filename?, bufnr?, lnum?,
 value? }` and `spec.on_choice(items, query)` gets the chosen ones; see
 `lua/org/pickers/init.lua`.
 
+Outline, breadcrumb and symbol plugins ~
+                                                            *org-integrations*
+Plugins that show a buffer's structure (outline windows, breadcrumbs,
+symbol pickers) usually ask tree-sitter or a language server for it.
+org.nvim has its own parser instead of a tree-sitter one, and gives its
+outline to them in three ways:
+  - aerial.nvim and outline.nvim: a backend / provider made from that
+    parser, nothing else to enable (below);
+  - plugins that speak LSP (nvim-navic, dropbar.nvim, the snacks.nvim,
+    fzf-lua and telescope symbol pickers, trouble.nvim, and the LSP
+    providers of aerial and outline.nvim): the document symbols of the
+    `lsp` extension, an in-process server (|org-extensions-lsp|);
+  - your own code: `api.symbols()` and `api.symbol_path()`
+    (|org-api-symbols|).
+All three give the same symbols: every headline, its range the whole
+subtree and its name the title, with TODO keyword, priority and tags as
+detail; plain, TODO and done headlines get their own kind (Namespace,
+Event, Constant). Named src blocks (Function) and named tables (Struct)
+are children of their entry, `<<targets>>` (Key) too when asked for.
+
+aerial.nvim: add the "org" backend for org buffers: >lua
+    require("aerial").setup({ backends = { org = { "org" } } })
+<It updates `update_delay` ms (300, aerial's `org = { update_delay = N }`)
+after aerial's `update_events`, and shows every symbol: `filter_kind`
+only applies to aerial's LSP and tree-sitter backends. With the "lsp"
+backend instead, set `filter_kind = { org = false }` (its own default
+list leaves out the kinds headlines have).
+
+outline.nvim: add "org" to the providers: >lua
+    require("outline").setup({
+      providers = { priority = { "lsp", "coc", "markdown", "norg", "man", "org" } },
+    })
+<
+LSP plugins need the `lsp` extension. For the outline alone, leave the
+rest of it off: >lua
+    require("org").setup({
+      extensions = {
+        lsp = {
+          features = {
+            diagnostics = false, hover = false, definition = false,
+            references = false, rename = false, code_actions = false,
+            document_links = false,
+          },
+        },
+      },
+    })
+<Then:
+  nvim-navic    attach it from the extension's `on_attach` (LazyVim
+                does that for every server with document symbols):
+                `on_attach = function(client, bufnr)`
+                `require("nvim-navic").attach(client, bufnr) end`
+  dropbar.nvim  nothing to do: without a tree-sitter parser its default
+                sources take the LSP symbols.
+  pickers       `Snacks.picker.lsp_symbols()`, `:FzfLua
+                lsp_document_symbols`, `:Telescope lsp_document_symbols`,
+                and the workspace symbol pickers for the headlines of
+                every workspace file. Pickers that filter by kind leave
+                TODO and done headlines out: in snacks.nvim set
+                `filter = { org = true }` for `lsp_symbols`, in LazyVim
+                `kind_filter = { org = false }`. org.nvim's own pickers
+                need no server (|org-pickers|).
+  trouble.nvim  `:Trouble symbols`.
+The extension's `symbol_kinds` changes the kinds (for icons or filters).
+
+Breadcrumbs and sticky headings: nvim-treesitter-context needs a
+tree-sitter parser, so it can't keep the headlines above the screen in
+view. `api.symbol_path()` gives the headlines around the cursor cheaply
+enough for a 'winbar': >lua
+    function _G.org_breadcrumbs()
+      local path = require("org.api").symbol_path({ win = vim.g.statusline_winid }) or {}
+      local names = vim.tbl_map(function(s) return s.name end, path)
+      return (table.concat(names, " > "):gsub("%%", "%%%%"))
+    end
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "org",
+      callback = function()
+        vim.wo.winbar = "%{%v:lua.org_breadcrumbs()%}"
+      end,
+    })
+<
+Text objects and motions: nvim-treesitter-textobjects needs a parser
+too. org.nvim's own keys (|org-textobj|, |org-elements|) cover its usual
+captures:
+  `@class.outer` / `@class.inner`        `ar` / `ir`: the subtree
+  `@function.outer` / `@function.inner`  `ah` / `ih`: the entry without
+                                         its children
+  `@block.outer`                         `<prefix>v` on the block (the
+                                         element)
+  next / previous `@class.outer`         `]]` / `[[` (visible headlines),
+                                         `][` / `[]` (siblings), `g{`
+                                         (parent)
+  next / previous `@block.outer`         `<C-c><M-f>` / `<C-c><M-b>`
+Folding needs no helper: org.nvim folds org buffers itself (|org-folding|),
+and the `lsp` extension also answers `textDocument/foldingRange`.
+
 ==============================================================================
 25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
@@ -7103,6 +7198,50 @@ that isn't shown in any window, and archiving the archive file when
       h:schedule("+1d")
     end
 <
+Symbols ~
+                                                         *org-api-symbols*
+The outline of a buffer the way outline, breadcrumb and symbol plugins
+want it (|org-integrations|). Added in API 1.1.
+api.symbols([bufnr], [opts])
+                            The outline of an org buffer (default
+                            current) as a tree of LSP `DocumentSymbol`s:
+                            0-based lines, byte columns. nil and an error
+                            for a buffer that isn't org.
+api.symbol_path([opts])     The headline symbols (without children) from
+                            the outermost to the innermost one around a
+                            line: breadcrumbs. `opts.win` takes a
+                            window's buffer and cursor line (in a
+                            'winbar' expression, `vim.g.statusline_winid`),
+                            else `opts.bufnr` (current) and `opts.lnum`
+                            (its cursor line). Only the headline's
+                            ancestors are built, so it is cheap on every
+                            redraw. An empty list before the first
+                            headline.
+
+A symbol is `{ name, detail, kind, range, selectionRange, children, type,
+lnum, end_lnum, level }`:
+  `name`              a headline's title as shown (links by their
+                      description, no statistics cookie), or the name of
+                      a src block, table or target
+  `detail`            a headline's TODO keyword, priority and tags
+                      (`TODO [#A] :work:`), else "src block", "table",
+                      "target" or "radio target"
+  `kind`              a `vim.lsp.protocol.SymbolKind` value
+  `range`             the whole subtree (block, table, target)
+  `selectionRange`    the title (name)
+  `type`              "headline", "src_block", "table", "target" or
+                      "radio_target"
+  `lnum`, `end_lnum`  first and last line, 1-based
+  `level`             a headline's level
+Named src blocks and tables, and with `opts.targets` `<<targets>>` and
+`<<<radio targets>>>`, are children of their entry, or top-level before
+the first headline. `opts`: `src_blocks` (true), `tables` (true),
+`targets` (false) and `kinds`, the kind by `heading`, `todo`, `done`,
+`src_block`, `table` and `target` (names or values; defaults Namespace,
+Event, Constant, Function, Struct, Key). When the `lsp` extension is on,
+its `document_symbols` and `symbol_kinds` options are the defaults, so
+both agree. Text the `transclusion` extension inserted is left out.
+
 Agenda ~
                                                           *org-api-agenda*
 The entries of the agenda views as data, without opening the agenda.
@@ -10117,9 +10256,11 @@ What it does ~
   documentSymbol   the outline: each headline with its subtree as range,
                    TODO keyword, priority and tags as detail, and the
                    kind from `symbol_kinds` (TODO and done headlines get
-                   their own); named src blocks and tables are children
-                   of their entry (`document_symbols`). Try
-                   `:lua vim.lsp.buf.document_symbol()`.
+                   their own); named src blocks and tables (and
+                   `<<targets>>` with `document_symbols.targets`) are
+                   children of their entry. Try
+                   `:lua vim.lsp.buf.document_symbol()`. Outline,
+                   breadcrumb and picker plugins: |org-integrations|.
   workspace/symbol headlines of the workspace files (below) whose title,
                    TODO keyword and tags contain every word of the query,
                    ignoring case (|vim.lsp.buf.workspace_symbol()|).
@@ -10263,10 +10404,11 @@ Options ~
                             low = "Warning", checkers = {} } }`
   `hover`                   `{ preview_lines = 8,
                             backlinks_all_headings = false }`
-  `document_symbols`        `{ src_blocks = true, tables = true }`
+  `document_symbols`        `{ src_blocks = true, tables = true,
+                            targets = false }`
   `symbol_kinds`            `{ heading = "Namespace", todo = "Event",
                             done = "Constant", src_block = "Function",
-                            table = "Struct" }`
+                            table = "Struct", target = "Key" }`
   `workspace`               `{ agenda_files = true, org_directory = true,
                             recursive = true, extra = {}, files = nil,
                             max_files = 2000, preload = true }`

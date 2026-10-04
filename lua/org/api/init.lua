@@ -33,7 +33,7 @@ local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
 --- fields or events; a new MAJOR may break code written for an older one.
-M.version = "1.0.0"
+M.version = "1.1.0"
 
 --- Does this API provide `version` ("1", "1.0" or "1.0.0")? True when the
 --- major versions are equal and this one is not older.
@@ -392,6 +392,106 @@ function M.headlines(query)
     end
   end
   return out
+end
+
+---------------------------------------------------------------------------
+-- Symbols
+---------------------------------------------------------------------------
+
+---@class org.api.Position
+---@field line integer 0-based line
+---@field character integer 0-based byte column
+
+---@class org.api.Range
+---@field start org.api.Position
+---@field end org.api.Position
+
+---@class org.api.Symbol
+---@field name string the headline's plain title, or the src block's, table's or target's name
+---@field detail string `TODO [#A] :tag:` for a headline, "src block", "table", "target" or "radio target"
+---@field kind integer `vim.lsp.protocol.SymbolKind` value
+---@field range org.api.Range the whole subtree / block / table / target
+---@field selectionRange org.api.Range the title or name
+---@field children org.api.Symbol[] (empty for a symbol without any)
+---@field type "headline"|"src_block"|"table"|"target"|"radio_target"
+---@field lnum integer 1-based first line
+---@field end_lnum integer 1-based last line
+---@field level integer|nil a headline's level
+
+---@class org.api.SymbolsOpts
+---@field src_blocks? boolean named src blocks (default true)
+---@field tables? boolean named tables (default true)
+---@field targets? boolean `<<targets>>` and `<<<radio targets>>>` (default false)
+---@field kinds? table<string, string|integer> symbol kinds by `heading`, `todo`, `done`, `src_block`, `table`, `target` (`vim.lsp.protocol.SymbolKind` names or values)
+
+--- Options of `symbols()` / `symbol_path()`: the `lsp` extension's
+--- `document_symbols` and `symbol_kinds` when it is on, under `opts`.
+---@param opts org.api.SymbolsOpts|nil
+---@return table
+local function symbol_opts(opts)
+  local lsp = require("org.extensions").opts("lsp") or {}
+  local ds = lsp.document_symbols or {}
+  local o = vim.tbl_extend(
+    "force",
+    { src_blocks = ds.src_blocks, tables = ds.tables, targets = ds.targets, kinds = lsp.symbol_kinds },
+    opts or {}
+  )
+  o.foreign = nil
+  return o
+end
+
+--- The outline of an org buffer (default current) as a tree of LSP
+--- `DocumentSymbol`s (0-based lines, byte columns): headlines, each
+--- covering its subtree, with named src blocks and tables (and targets
+--- with `opts.targets`) as children of their entry. Text the
+--- `transclusion` extension inserted is left out. nil and an error for a
+--- buffer that isn't an org buffer.
+---@param bufnr? integer
+---@param opts? org.api.SymbolsOpts
+---@return org.api.Symbol[]|nil symbols, string|nil err
+function M.symbols(bufnr, opts)
+  bufnr = resolve_buf(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) or not utils.is_org(bufnr) then
+    return nil, ("buffer %d is not an org buffer"):format(bufnr)
+  end
+  return require("org.symbols").buffer(bufnr, symbol_opts(opts))
+end
+
+--- The headline symbols (without children) from the outermost to the
+--- innermost one containing a line: breadcrumbs for a winbar or
+--- statusline. `opts.win` takes the buffer and cursor line of a window
+--- (`vim.g.statusline_winid` in a 'winbar' expression); else `opts.bufnr`
+--- (default current) and `opts.lnum` (default its cursor line). Only the
+--- headline's ancestors are looked at, so it is cheap to call on every
+--- redraw. An empty list before the first headline; nil and an error for
+--- a buffer that isn't an org buffer.
+---@param opts? { win?: integer, bufnr?: integer, lnum?: integer, kinds?: table<string, string|integer> }
+---@return org.api.Symbol[]|nil path, string|nil err
+function M.symbol_path(opts)
+  opts = opts or {}
+  local bufnr, lnum = opts.bufnr, opts.lnum
+  if opts.win and opts.win ~= 0 then
+    if not vim.api.nvim_win_is_valid(opts.win) then
+      return nil, ("window %d is not valid"):format(opts.win)
+    end
+    bufnr = vim.api.nvim_win_get_buf(opts.win)
+    lnum = lnum or vim.api.nvim_win_get_cursor(opts.win)[1]
+  end
+  bufnr = resolve_buf(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) or not utils.is_org(bufnr) then
+    return nil, ("buffer %d is not an org buffer"):format(bufnr)
+  end
+  if not lnum then
+    local cur, err = buffer_cursor(bufnr)
+    if not cur then
+      return nil, err
+    end
+    lnum = cur[1]
+  end
+  local sym = require("org.symbols")
+  local o = symbol_opts({ kinds = opts.kinds })
+  o.foreign = sym.foreign(bufnr)
+  return sym.path(files.get_buffer(bufnr), lnum, o)
 end
 
 ---------------------------------------------------------------------------
