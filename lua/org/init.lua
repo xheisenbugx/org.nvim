@@ -177,7 +177,8 @@ M.statusline_components = {}
 ---@return boolean handled false when the action did not apply here (a mapping
 --- then falls back to the key's default behaviour); unknown names return true
 function M.action(name)
-  return require("org.actions").run(name)
+  local handled = require("org.actions").run(name)
+  return handled
 end
 
 return M
