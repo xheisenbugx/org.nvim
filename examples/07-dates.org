@@ -198,11 +198,13 @@ Mon=: only the end you are on moves. =<S-Left>= brings it back.
 stays active: only that end changes. Run it again to restore it.
 
 ** Making a range
-There is no special command: a range is just two timestamps with =--= in
-between. Insert the second timestamp after the first one, then replace
-the space between them. (The date keys insert /after/ the cursor, and with
-the cursor on a timestamp they change that timestamp instead, so first add
-a space to stand on.)
+A range is just two timestamps with =--= in between. The quick way, as in
+Emacs: insert the first timestamp and press the same keys again right away,
+before moving the cursor or editing; the second press adds =--= and the
+second timestamp. To join a timestamp that is already there, insert the
+second one after it, then replace the space between them. (The date keys
+insert /after/ the cursor, and with the cursor on a timestamp they change
+that timestamp instead, so first add a space to stand on.)
 
 - Trip to Lisbon [2026-11-02 Mon]
 

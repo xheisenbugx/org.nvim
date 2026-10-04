@@ -10,6 +10,8 @@ examples/17-babel.lua
 examples/19-export.*
 !examples/19-export.org
 examples/data/
+examples/hello.sh
+examples/hello.txt
 examples/ltximg/
 
 # README media: recorded locally, published to the media branch

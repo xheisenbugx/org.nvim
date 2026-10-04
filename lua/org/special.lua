@@ -442,9 +442,7 @@ local function on_region(fn)
   if not vim.deep_equal(new, lines) then
     vim.api.nvim_buf_set_lines(0, s - 1, e, false, new)
   end
-  if vim.fn.mode():match("^[vV\22]") then
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-  end
+  utils.exit_visual()
 end
 
 --- Escape the lines of the selection (org-escape-code-in-region).
@@ -701,9 +699,9 @@ function M.edit_object(bufnr, lnum, col)
   if ts then
     local t = require("org.timestamps")
     if ts.date and ts.date.active == false then
-      t.insert_inactive()
+      t.insert_inactive({ edit = true })
     else
-      t.insert_active()
+      t.insert_active({ edit = true })
     end
     return true
   end

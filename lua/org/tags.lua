@@ -845,7 +845,7 @@ function M.set_tags_command()
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
     local s, _, e = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     local op = require("org.ui").menu({
       title = "Change tag in region",
       items = {

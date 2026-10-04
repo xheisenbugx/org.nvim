@@ -202,7 +202,7 @@ local function visual_selection()
     return nil
   end
   local srow, scol, erow, ecol = utils.visual_range()
-  vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  utils.exit_visual()
   local lines = vim.api.nvim_buf_get_lines(0, srow - 1, erow, false)
   if mode == "v" and #lines > 0 then
     lines[#lines] = lines[#lines]:sub(1, ecol)

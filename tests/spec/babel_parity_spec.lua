@@ -639,6 +639,31 @@ describe("babel parity: evaluation", function()
     eq("", name)
     ok(hash:match("^%x+$"), hash)
   end)
+
+  it("shows a cached result on one line, printed like %S", function()
+    -- Emacs: Cached: "{\"answer\": 42}<newline>" (a two-line echo area);
+    -- in Neovim a second line means a hit-enter prompt, so the newline is
+    -- escaped as with print-escape-newlines
+    local function rerun(lines)
+      local buf = org_buffer(lines, { 2, 0 })
+      babel.execute({ bufnr = buf, lnum = 2, sync = true, skip_confirm = true })
+      local msgs = {}
+      local orig = vim.notify
+      vim.notify = function(msg)
+        msgs[#msgs + 1] = msg
+      end
+      local ok_, err = pcall(babel.execute, { bufnr = buf, lnum = 2, sync = true, skip_confirm = true })
+      vim.notify = orig
+      ok(ok_, err)
+      return msgs
+    end
+    eq(
+      { [[Cached: "{\"answer\": 42}\n"]] },
+      rerun({ "#+begin_src lua :wrap src json :cache yes", [[return '{"answer": 42}']], "#+end_src" })
+    )
+    eq({ "Cached: 2" }, rerun({ "#+begin_src lua :cache yes", "return 2", "#+end_src" }))
+    eq({ [[Cached: "a\nb"]] }, rerun({ "#+begin_src lua :cache yes", [[return "a\nb"]], "#+end_src" }))
+  end)
 end)
 
 describe("babel parity: C and SQL", function()

@@ -1062,9 +1062,10 @@ through <prefix>p fires the User autocmd `OrgPropertyChanged` with `data`
 `{ bufnr, lnum, name, value }` (org-property-changed-functions).
 
 Special properties available in matches and column view: ITEM, TODO,
-PRIORITY, TAGS, ALLTAGS, CATEGORY, LEVEL, FILE, SCHEDULED, DEADLINE, CLOSED,
+PRIORITY, TAGS, ALLTAGS, CATEGORY, FILE, SCHEDULED, DEADLINE, CLOSED,
 TIMESTAMP, TIMESTAMP_IA (first inactive timestamp), BLOCKED (`t` when the
-entry cannot be marked done, else empty).
+entry cannot be marked done, else empty). LEVEL works in matches only: like
+Emacs, a LEVEL column in column view stays empty.
 
 Inheritance is controlled by `use_property_inheritance` (true, false, a
 list of property names, or a regexp matching them). `NAME+` lines append to the value, also to an
@@ -1139,7 +1140,12 @@ Editing next to hidden ones asks whether to show them
                                   (`columns_checkbox_allowed_values`), days
                   1 .. 9          select the Nth allowed value (digits are
                                   not counts in the view)
-                  a               edit the allowed values (`PROP_ALL`)
+                  a               edit the allowed values (`PROP_ALL`):
+                                  where the entry or an ancestor has
+                                  them, else at the top of the view
+                                  (the entry with its COLUMNS, the
+                                  headline it was opened on, or the
+                                  start of the file)
                   < / >           narrow / widen the column
                   <M-h> <M-l>     move the column left / right (also
                                   <M-Left> / <M-Right>)
@@ -1175,8 +1181,13 @@ Timestamps:
 <prefix>s       Schedule (SCHEDULED:). A new date removes CLOSED.
 <prefix>d       Deadline (DEADLINE:).
 <prefix>i.      Insert an active timestamp (count: include time; count
-                16: the current time without a prompt). Right after an
-                existing timestamp, this creates a range.
+                16: the current time without a prompt). On a timestamp,
+                it changes that timestamp. Repeated right away (no
+                cursor move or edit in between, like Emacs' repeated
+                org-timestamp), it adds `--` and a second timestamp: a
+                range. <prefix>i! repeated after <prefix>i. (or the
+                other way round) does the same, the second timestamp
+                taking its own type.
 <prefix>i!      Insert an inactive timestamp.
 <C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor, like
                 Emacs org-timestamp-change: year, month, day, hour, minute,
@@ -1630,7 +1641,10 @@ place entries without a time or an effort.
 Agenda keys                                                  *org-agenda-keys*
 
 All configurable under `mappings.agenda`:
-  f / b / .       later / earlier / today
+  f / b / .       later / earlier / today (`.` moves to today when the
+                  view shows it, else shows the span holding today: the
+                  week from `start_on_weekday`, the month from the 1st,
+                  the year from January 1st)
   vd vw vt vm vy  day / week / fortnight / month / year view (the span
                   starts at the day, week, month or year at point)
   v<Space>        reset the span to the default
@@ -2468,7 +2482,8 @@ around each match follows |org-show-context-detail| (`occur-tree` and
 14. CAPTURE                                                      *org-capture*
 
 <prefix>c opens the template menu. `:Org capture KEY` selects a template
-directly. A count works like Emacs's prefix argument: `4<prefix>c` (C-u)
+directly. In Visual mode the selection becomes the template's `%i`, like
+the active region in Emacs. A count works like Emacs's prefix argument: `4<prefix>c` (C-u)
 jumps to a template's target, `16<prefix>c` (C-u C-u) to the last stored
 entry and `1<prefix>c` (C-1) asks for the date of a date tree entry.
 `:Org capture_here` (C-0 C-c c) inserts the template at the cursor: an
@@ -3041,7 +3056,9 @@ Targets:
 Searches (org-link-search) ignore case and runs of whitespace (a text
 search also matches across line breaks), and headline searches ignore the
 TODO keyword, priority, COMMENT, tags and statistics cookies. A fuzzy
-link tries `<<target>>`, `#+NAME:` and headlines. When nothing matches in
+link tries `<<target>>`, `#+NAME:` and headlines; a `<<target>>` (or
+`<<<radio target>>>`) written inside a link's description is only text,
+not a target. When nothing matches in
 an Org file, `links.search_must_match_exact_headline` decides: with
 "query-to-create" (default) you are asked "No match - create this as a new
 heading?" (the heading is added at the end of the file, or as the last
@@ -6987,6 +7004,9 @@ Their targets are `{ bufnr = n, lnum = l }`.
   #+INCLUDE: "file.org"   #+MACRO: name text $1
 
 After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
+Like Emacs, this keeps the folds as they are: a new `#+STARTUP:` visibility
+applies with <C-u><C-u><Tab> (`16<Tab>`) or when the file is opened again
+(`:w`, then `:e`).
 
 Local setup files                                      *org-setupfile*
 `#+SETUPFILE: "path/to/shared setup.org"` imports core file settings as
@@ -7257,6 +7277,10 @@ Differences from Emacs:
   filetype sets one), not Emacs' major modes, and always with spaces.
   `C-c C-c` on a `#+RESULTS[hash]` hash works on the whole hash, which
   is not shortened to 4 characters as Emacs displays it.
+  Running a `:cache yes` block whose result is current shows the result
+  printed like Emacs's `Cached: %S`, with newlines written as `\n` so the
+  message stays on one line (Emacs's echo area grows; a second line in
+  Neovim's would wait for Enter).
 - The ports of |org-babel-languages| run a new process for each block
   where Emacs uses an Emacs package's REPL: gnuplot (gnuplot-mode
   sessions), haskell (inf-haskell: ghci is fed the block and markers),

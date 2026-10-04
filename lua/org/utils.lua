@@ -1074,6 +1074,17 @@ function M.visual_range()
   return srow, scol, erow, ecol, mode
 end
 
+--- Leave Visual mode, setting the '< and '> marks, when it is active.
+--- Unlike feedkeys() with the "x" flag, this does not run the keys typed
+--- ahead (a key already typed for the prompt that follows, or the rest of
+--- a macro), which would then run as Visual-mode commands.
+function M.exit_visual()
+  local mode = vim.fn.mode()
+  if mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! \27")
+  end
+end
+
 --- Is the current buffer an org buffer?
 function M.is_org(bufnr)
   return vim.bo[bufnr or 0].filetype == "org"

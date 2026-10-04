@@ -38,6 +38,32 @@ describe("links (Emacs commands)", function()
     vim.bo[buf].modified = false
   end)
 
+  it("stores links to targets at the start or end of a line, like org-store-link", function()
+    -- Emacs: (org-in-regexp "[^<]<<\\([^<>]+\\)>>[^>]" 1), so the line
+    -- break around a target counts; an adjacent < or > doesn't (results
+    -- checked against Emacs 9.8.10)
+    local dir = tmpdir()
+    local cases = {
+      { { "* H", "<<my target>> text" }, { 2, 3 }, "my target" },
+      { { "* H", "text <<eol target>>" }, { 2, 8 }, "eol target" },
+      { { "* H", "<<a>>" }, { 2, 0 }, "a" },
+      { { "* H", "foo <<a>> bar" }, { 2, 10 }, "a" },
+      { { "* H", "x <<a>> y" }, { 2, 1 }, "a" },
+      { { "* H", "x <<a>>  <<b>>" }, { 2, 11 }, "b" },
+      { { "* H", "x <<a>> y" }, { 2, 0 }, "*H" },
+      { { "* H", "x <<a>> <<b>>" }, { 2, 10 }, "*H" },
+      { { "* H", "<<<r>> x" }, { 2, 4 }, "*H" },
+      { { "* H", "a <<b>>> x" }, { 2, 4 }, "*H" },
+      { { "* H", "<<a", "b>> x" }, { 3, 0 }, "*H" },
+    }
+    for i, c in ipairs(cases) do
+      local buf = file_buffer(dir, "t" .. i .. ".org", c[1], c[2])
+      local l = links.link_to_location({ bufnr = buf })
+      eq(c[3], l.link:match("::(.*)$"), vim.inspect(c))
+      vim.bo[buf].modified = false
+    end
+  end)
+
   it("stores a link to the entry of an agenda item", function()
     local dir = tmpdir()
     local path = dir .. "/ag.org"
@@ -199,5 +225,56 @@ describe("edit special", function()
     vim.cmd("bwipeout!")
     vim.api.nvim_set_current_buf(buf)
     vim.bo[buf].modified = false
+  end)
+end)
+
+-- Emacs takes only real target objects (org-element-context): a
+-- `<<target>>` or `<<<radio>>>` in a link's description is plain text.
+describe("targets inside a link description", function()
+  it("following a link skips the <<target>> text in its own description", function()
+    org_buffer({ "* H", "- [[my target][jump to <<my target>>]]", "<<my target>> real target" }, { 2, 5 })
+    links.open_at_point()
+    eq({ 3, 0 }, vim.api.nvim_win_get_cursor(0))
+  end)
+
+  it("resolving the search (org.api) skips it too", function()
+    local src = { lines = { "[[x][jump to <<my target>>]]", "text", "a <<my target>>" } }
+    eq({ 3, 2 }, { links.search_location("my target", src) })
+  end)
+
+  it("#+INCLUDE: file::target includes the real target's paragraph", function()
+    local include = require("org.export.ox")
+    local content = { "[[x][see <<tgt>>]]", "", "a <<tgt>> b", "c", "", "d" }
+    eq({ "a <<tgt>> b", "c" }, include.include_location(content, "tgt"))
+  end)
+
+  it("a link to file::target in another file is broken when the target is only in a description", function()
+    local dir = tmpdir()
+    local path = dir .. "/t.org"
+    vim.fn.writefile({ "* H", "[[x][see <<tgt>>]]" }, path)
+    local publish = require("org.export.publish")
+    local ok_, err = pcall(publish.resolve_external_link, "tgt", path)
+    eq(false, ok_)
+    eq("tgt", type(err) == "table" and err.broken_link)
+  end)
+
+  it("the LSP extension's target index skips them", function()
+    local targets = require("org.extensions.lsp.targets").line_targets("[[x][see <<a>> <<<r>>>]] <<b>>")
+    eq(
+      { "b" },
+      vim.tbl_map(function(t)
+        return t.text
+      end, targets)
+    )
+  end)
+
+  it("radio targets in a description are neither radio targets nor found", function()
+    org_buffer({ "[[x][<<<rad>>>]]", "<<<other>>> <<<rad>>> r" }, { 1, 0 })
+    eq({ "other", "rad" }, links.radio_targets(0))
+    org_buffer({ "[[x][<<<rad>>>]] [[y][<<<lone>>>]]", "x <<<rad>>> r" }, { 1, 0 })
+    eq({ "rad" }, links.radio_targets(0))
+    eq(true, links.search_radio_target("rad"))
+    eq({ 2, 2 }, vim.api.nvim_win_get_cursor(0))
+    eq(false, (links.search_radio_target("lone")))
   end)
 end)

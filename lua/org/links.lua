@@ -417,12 +417,44 @@ function M.classify(link)
   return link
 end
 
+--- Whether byte `col1` (1-based) of `line` is inside a bracket link. A
+--- `<<target>>` or `<<<radio target>>>` there is only text: a link's
+--- description holds no targets (org-element-object-restrictions), so
+--- Emacs, which checks `org-element-context`, skips it.
+function M.in_bracket_link(line, col1)
+  if not line:find("[[", 1, true) then
+    return false
+  end
+  for _, lk in ipairs(M.parse_links(line, { bracket_only = true })) do
+    if col1 >= lk.start_col and col1 <= lk.end_col then
+      return true
+    end
+  end
+  return false
+end
+
+--- Byte (1-based) where `<<name>>` (`name` taken literally) starts in
+--- `line` outside any bracket link, else nil.
+---@param line string
+---@param name string
+---@return integer|nil
+function M.find_target(line, name)
+  local init = 1
+  while true do
+    local at = line:find("<<" .. name .. ">>", init, true)
+    if not at or not M.in_bracket_link(line, at) then
+      return at
+    end
+    init = at + 1
+  end
+end
+
 --- Radio targets `<<<text>>>` of the buffer, longest first.
 function M.radio_targets(bufnr)
   local seen, out = {}, {}
   for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr or 0, 0, -1, false)) do
-    for t in l:gmatch("<<<([^<>]-)>>>") do
-      if vim.trim(t) ~= "" and not seen[t] then
+    for s, t in l:gmatch("()<<<([^<>]-)>>>") do
+      if vim.trim(t) ~= "" and not seen[t] and not M.in_bracket_link(l, s) then
         seen[t] = true
         out[#out + 1] = t
       end
@@ -1019,7 +1051,12 @@ function M.search_location(search, src, sopts)
         break
       end
       if text:sub(s - 1, s - 1) ~= "<" and text:sub(e + 1, e + 1) ~= ">" then
-        return pos(s)
+        -- a real target, not text in a link (org-link-search checks
+        -- that `org-element-context` is a target)
+        local l, c = pos(s)
+        if not M.in_bracket_link(lines[l - first + 1], c + 1) then
+          return l, c
+        end
       end
       init = s + 1
     end
@@ -1183,13 +1220,21 @@ end
 function M.search_radio_target(target)
   local text, pos = buffer_text(0)
   local pat = "<<<" .. words_pattern(split_words(target), "[ \t]+\n?[ \t]*") .. ">>>"
-  local s = text:lower():find(pat)
-  if not s then
-    return false, "No match for radio target: " .. target
+  local lower = text:lower()
+  local init = 1
+  while true do
+    local s = lower:find(pat, init)
+    if not s then
+      return false, "No match for radio target: " .. target
+    end
+    local l, c = pos(s)
+    -- not one in a link's description (org-element-context)
+    if not M.in_bracket_link(vim.api.nvim_buf_get_lines(0, l - 1, l, false)[1], c + 1) then
+      goto_pos(l, c)
+      return true
+    end
+    init = s + 1
   end
-  local l, c = pos(s)
-  goto_pos(l, c)
-  return true
 end
 
 ---------------------------------------------------------------------------
@@ -2014,7 +2059,7 @@ local function visual_region()
     return nil
   end
   local srow, scol, erow, ecol = utils.visual_range()
-  vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  utils.exit_visual()
   if mode == "V" then
     scol = 1
     ecol = #(vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or "")
@@ -2360,21 +2405,36 @@ function M.link_to_location(opts)
   end
   local path = display_path(name)
   if vim.bo[bufnr].filetype == "org" then
-    -- a dedicated <<target>> under the cursor
-    local cur_line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+    -- a dedicated <<target>> under the cursor: Emacs's
+    -- (org-in-regexp "[^<]<<\\([^<>]+\\)>>[^>]" 1) searches from the start
+    -- of the line above to the end of the line below, so the line break
+    -- before or after a target at the start or end of a line counts as
+    -- the character around it that isn't < or >
     local col = opts.col or (is_cur and not opts.lnum and (vim.api.nvim_win_get_cursor(0)[2] + 1)) or nil
-    local init = 1
-    while col and not region do
-      local s, e, target = cur_line:find("<<([^<>]+)>>", init)
-      if not s then
-        break
+    if col and not region then
+      local first = math.max(lnum - 1, 1)
+      local lines = vim.api.nvim_buf_get_lines(bufnr, first - 1, lnum + 1, false)
+      local text = table.concat(lines, "\n")
+      if lnum + 1 > vim.api.nvim_buf_line_count(bufnr) and (vim.bo[bufnr].eol or vim.bo[bufnr].fixeol) then
+        -- the file's final newline
+        text = text .. "\n"
       end
-      -- Emacs wants a character around the target that is not < or >
-      local before, after = cur_line:sub(s - 1, s - 1), cur_line:sub(e + 1, e + 1)
-      if col >= s and col <= e and before ~= "" and after ~= "" and before ~= "<" and after ~= ">" then
-        return { link = "file:" .. path .. "::" .. target, desc = nil }
+      -- point: 0-based offset of the cursor in `text`
+      local pos = col - 1
+      for i = first, lnum - 1 do
+        pos = pos + #lines[i - first + 1] + 1
       end
-      init = e + 1
+      local init = 1
+      while true do
+        local s, e, target = text:find("[^<]<<([^<>]+)>>[^>]", init)
+        if not s or s - 1 > pos then
+          break
+        end
+        if e >= pos then
+          return { link = "file:" .. path .. "::" .. target, desc = nil }
+        end
+        init = e + 1
+      end
     end
   end
   return finish(file_link_to_here(bufnr, lnum, region, ctx))

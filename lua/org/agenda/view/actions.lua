@@ -5,6 +5,7 @@
 local config = require("org.config")
 local date = require("org.date")
 local files = require("org.files")
+local render = require("org.agenda.render")
 local utils = require("org.utils")
 local shared = require("org.agenda.view.shared")
 
@@ -16,6 +17,7 @@ local auto_exclude = shared.auto_exclude
 local block_starts = shared.block_starts
 local call = shared.call
 local clocked_item = shared.clocked_item
+local current_span = shared.current_span
 local do_date_shift = shared.do_date_shift
 local empty_filters = shared.empty_filters
 local filter_string = shared.filter_string
@@ -183,12 +185,28 @@ M.actions = {
       require("org.agenda").open_agenda({})
       return
     end
-    M.state.anchor = nil
-    M.redo()
-    for l, d in pairs(M.state.day_lines) do
-      if d == date.today_days() then
-        pcall(vim.api.nvim_win_set_cursor, 0, { l, 0 })
+    -- org-agenda-goto-today: when today is in the view, only move there;
+    -- otherwise rebuild the current span so it contains today, starting
+    -- where org-agenda-compute-starting-span puts it (the week's first
+    -- day, the 1st of the month, January 1st, or today).
+    local today = date.today_days()
+    local function today_line()
+      local line
+      for l, d in pairs(M.state.day_lines) do
+        if d == today and (not line or l < line) then
+          line = l
+        end
       end
+      return line
+    end
+    local line = today_line()
+    if not line then
+      M.state.anchor = render.starting_day(current_span(), today)
+      M.redo()
+      line = today_line()
+    end
+    if line then
+      pcall(vim.api.nvim_win_set_cursor, 0, { line, 0 })
     end
   end,
   goto_date = function()

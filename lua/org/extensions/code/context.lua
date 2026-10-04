@@ -273,7 +273,7 @@ function M.capture()
   local c
   if mode == "v" or mode == "V" or mode == "\22" then
     local srow, scol, erow, ecol = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     local text
     if mode == "v" then
       local lines = vim.api.nvim_buf_get_lines(buf, srow - 1, erow, false)

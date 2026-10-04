@@ -1500,7 +1500,9 @@ function M.compile(texi, on_done)
     end
     vim.system({ vim.o.shell, vim.o.shellcmdflag, cmds[i] }, { cwd = dir, text = true }, function(res)
       log[#log + 1] = (res.stdout or "") .. (res.stderr or "")
-      step()
+      -- the exit callback is a fast event, where options (the next step
+      -- reads 'shell') and most of the API are off limits
+      vim.schedule(step)
     end)
   end
   step()

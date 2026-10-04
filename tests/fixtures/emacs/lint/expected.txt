@@ -84,12 +84,6 @@
 902:1 [non-existent-setupfile-parameter] Non-existent setup file "no-such-setup.org"
 904:1 [invalid-block] Possible incomplete block "#+begin_quote"
 === examples/tutorial.org
-214:1 [item-number] Bullet counter "1. " is not the same with item position 3.  Consider adding manual [@1] counter.
-215:1 [item-number] Bullet counter "2. " is not the same with item position 4.  Consider adding manual [@2] counter.
-216:1 [item-number] Bullet counter "3. " is not the same with item position 5.  Consider adding manual [@3] counter.
-218:1 [item-number] Bullet counter "1) " is not the same with item position 6.  Consider adding manual [@1] counter.
-219:1 [item-number] Bullet counter "2) " is not the same with item position 7.  Consider adding manual [@2] counter.
-1216:1 [extraneous-element-in-footnote-section] Extraneous elements in footnote section are not exported
 === tests/fixtures/emacs/lint/issues.org
 3:1 [non-existent-setupfile-parameter] Non-existent setup file "does-not-exist.setup"
 4:1 [wrong-include-link-parameter] Non-existent file argument in INCLUDE keyword

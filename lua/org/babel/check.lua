@@ -337,7 +337,7 @@ function M.demarcate_block()
     local s, e = lnum, lnum - 1
     if visual then
       local srow, _, erow = utils.visual_range()
-      vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+      utils.exit_visual()
       s, e = math.max(srow, b.start + 1), math.min(erow, b.finish - 1)
     end
     local body = vim.api.nvim_buf_get_lines(bufnr, b.start, b.finish - 1, false)
@@ -375,7 +375,7 @@ function M.demarcate_block()
   local indent = (vim.api.nvim_get_current_line():match("^(%s*)")) or ""
   if visual then
     local srow, _, erow = utils.visual_range()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    utils.exit_visual()
     local sel = vim.api.nvim_buf_get_lines(bufnr, srow - 1, erow, false)
     local new = { indent .. "#+begin_src " .. lang }
     vim.list_extend(new, blocks_mod.escape(sel))

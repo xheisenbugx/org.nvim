@@ -193,17 +193,19 @@ describe("views_util watch", function()
 
   it("debounces a burst of changes into one call", function()
     local calls = 0
+    -- the gaps stay far below the delay: Windows timers are coarse (~16ms)
+    -- and a loaded runner can stretch a 10ms wait past a short delay
     group = views.watch("OrgViewsSpecWatch", function()
       calls = calls + 1
-    end, { delay = 30 })
+    end, { delay = 250 })
     for _ = 1, 5 do
       vim.api.nvim_exec_autocmds("User", { pattern = "OrgTodoStateChange" })
       vim.wait(10)
     end
-    vim.wait(200, function()
+    vim.wait(2000, function()
       return calls > 0
     end)
-    vim.wait(60)
+    vim.wait(300)
     eq(1, calls)
   end)
 
