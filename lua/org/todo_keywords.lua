@@ -316,14 +316,18 @@ end
 M.TodoConfig = TodoConfig
 
 --- The config-level TodoConfig (cached per todo_keywords value).
+---@type { spec: any, cfg: org.TodoConfig? }
 local cache = { spec = nil, cfg = nil }
+---@return org.TodoConfig
 function M.global()
   local spec = require("org.config").opts.todo_keywords
-  if cache.spec ~= spec or not cache.cfg then
+  local cfg = cache.cfg
+  if cache.spec ~= spec or not cfg then
+    cfg = M.new(spec)
     cache.spec = spec
-    cache.cfg = M.new(spec)
+    cache.cfg = cfg
   end
-  return cache.cfg
+  return cfg
 end
 
 return M

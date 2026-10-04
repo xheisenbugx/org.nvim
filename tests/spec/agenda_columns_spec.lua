@@ -354,6 +354,123 @@ describe("agenda column view", function()
   end)
 end)
 
+-- Every cell of a column row can be reached with the cursor, however short
+-- the agenda line under it. Emacs 9.8.10 (org-columns--display-here) puts
+-- each column on one character of the line and inserts spaces at its end
+-- when it has fewer characters than columns: on the agenda line "P" with
+-- five columns, forward-char goes through ITEM, EFFORT, DEADLINE, TODO and
+-- TAGS. The rows here are drawn as wide as their cells, so the line is
+-- padded to the row's width, and the padding goes when the view does.
+describe("agenda column view of a short line", function()
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local path = dir .. "/reach.org"
+  local view = require("org.agenda.view")
+  local cols = require("org.agenda.columns")
+  local function open()
+    utils.writefile(path, {
+      "#+COLUMNS: %25ITEM %Effort{:} %TODO %DEADLINE",
+      "* TODO P",
+      "  SCHEDULED: " .. ts(0),
+      "  :PROPERTIES:",
+      "  :Effort: 0:10",
+      "  :Effort_ALL: 0:10 0:20",
+      "  :END:",
+    })
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    config.setup({ agenda_files = { path }, org_directory = dir })
+    require("org.agenda").open_agenda({ span = "day" })
+    for l, it in pairs(view.state.line_items) do
+      if it.title == "P" then
+        return l
+      end
+    end
+  end
+  local function src()
+    local b = utils.find_buffer(path)
+    return b and vim.api.nvim_buf_get_lines(b, 0, -1, false) or vim.fn.readfile(path)
+  end
+  after_each(function()
+    pcall(cols.quit)
+    pcall(view.quit, true)
+  end)
+
+  it("reaches the last column at the end of the line and edits it", function()
+    local l = open()
+    local before = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    ok(utils.width(before[l]) < 25 + 3 + 6 + 3 + 4 + 3, before[l])
+    ok(cols.apply())
+    -- `$` lands on the last cell, DEADLINE, not on an earlier one
+    vim.api.nvim_win_set_cursor(0, { l, 0 })
+    vim.cmd("normal! $")
+    local warned
+    local notify, warn = utils.notify, utils.warn
+    utils.notify = function(m)
+      warned = m
+    end
+    cols.show()
+    utils.notify = notify
+    eq("DEADLINE: ", warned)
+    eq("P", view.item_at_cursor().title)
+    local calendar = require("org.calendar")
+    local pick = calendar.pick
+    local prompts = {}
+    calendar.pick = function(o)
+      prompts[#prompts + 1] = o.prompt
+      return today:add(3, "d")
+    end
+    utils.warn = function(m)
+      warned = m
+    end
+    local ok1, err = pcall(cols.edit)
+    calendar.pick, utils.warn = pick, warn
+    ok(ok1, err)
+    eq({ "Deadline" }, prompts)
+    local s = src()
+    eq("  DEADLINE: " .. ts(3) .. " SCHEDULED: " .. ts(0), s[3])
+    eq("  :Effort: 0:10", s[5])
+  end)
+
+  it("moves through every cell with l and changes the one it is on", function()
+    local l = open()
+    ok(cols.apply())
+    vim.api.nvim_win_set_cursor(0, { l, 0 })
+    -- to the Effort cell (columns start at 0, 28, 37, 44)
+    vim.cmd("normal! 30l")
+    eq(31, vim.fn.virtcol("."))
+    cols.next_allowed(1)
+    eq("  :Effort:   0:20", src()[5])
+    -- the TODO cell: S-Right / n go to the next keyword
+    vim.api.nvim_win_set_cursor(0, { l, 0 })
+    vim.cmd("normal! 38l")
+    eq(39, vim.fn.virtcol("."))
+    cols.next_allowed(1)
+    eq("* DONE P", src()[2])
+  end)
+
+  it("removes the padding when the view goes and keeps it out of writes", function()
+    local l = open()
+    local before = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    ok(cols.apply())
+    local buf = vim.api.nvim_get_current_buf()
+    local padded = vim.api.nvim_buf_get_lines(buf, l - 1, l, false)[1]
+    eq(before[l], (padded:gsub(" +$", "")))
+    ok(utils.width(padded) > utils.width(before[l]))
+    eq(false, vim.bo[buf].modifiable)
+    eq(false, vim.bo[buf].modified)
+    eq(before, cols.lines(buf))
+    -- drawn again over the same text, the padding is not doubled
+    ok(cols.apply())
+    eq(padded, vim.api.nvim_buf_get_lines(buf, l - 1, l, false)[1])
+    cols.quit()
+    eq(before, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+    eq(false, vim.bo[buf].modifiable)
+  end)
+end)
+
 -- A custom command's settings set the column view of its agenda, like
 -- Emacs's org-overriding-columns-format / org-agenda-view-columns-initially
 -- let-bound by the command (org-agenda-finalize copies the format into the

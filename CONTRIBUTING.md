@@ -72,11 +72,12 @@ To try your checkout in your own config, point lazy.nvim at it:
 | Path | Contents |
 | --- | --- |
 | `lua/org/` | core: `parser`, `date`, `edit`, `files`, `config`, `actions`, `context`, `mappings` |
-| `lua/org/{structure,fold,lists}.lua` | outline editing |
+| `lua/org/{structure,fold,lists}.lua`, `lua/org/structure/`, `lua/org/fold/` | outline editing, folding and visibility cycling |
 | `lua/org/{todo,priority,tags,properties,timestamps,calendar,clock,dblock,columns,timer}.lua` | task management |
+| `lua/org/clock/` | the parts `clock.lua` loads: clocking in and out, clock tables, resolving, timers, display |
 | `lua/org/agenda/` | agenda, search, sparse trees, notifications |
-| `lua/org/{capture,refile,archive,links,id,attach,footnotes}.lua` | capture and navigation |
-| `lua/org/table.lua`, `lua/org/table/` | tables and formulas |
+| `lua/org/{capture,refile,archive,links,id,attach,footnotes}.lua`, `lua/org/capture/`, `lua/org/links/` | capture and navigation (links.lua is the facade; links/ holds parsing, search, opening, storing, inserting) |
+| `lua/org/table.lua`, `lua/org/table/` | tables and formulas (`table.lua` parses and aligns and loads the commands from `table/`) |
 | `lua/org/babel/` | source blocks |
 | `lua/org/export/` | exporters |
 | `syntax/`, `lua/org/{syntax,highlights}.lua`, `lua/org/ui/` | highlighting and decorations |
@@ -187,8 +188,28 @@ The checks that need fuller annotations than the code has today
 `cast-local-type`, `undefined-field`, `inject-field`,
 `duplicate-set-field`, and `deprecated`, since org.nvim keeps fallbacks
 for Neovim 0.11) are hints: your editor shows them, the check ignores
-them. Fix what the check reports, usually the annotation, instead of
-silencing it.
+them, except in the strict paths below. Fix what the check reports,
+usually the annotation, instead of silencing it.
+
+#### Strict paths
+
+The files and directories listed in `scripts/typecheck_strict.txt`
+(`lua/org/api/` and `lua/org/parser.lua` so far) are held to those hint
+checks too: in them, a `need-check-nil` or a `param-type-mismatch` fails
+`make typecheck` like any other warning, so code that is already clean
+can't slip back. `make typecheck` runs `scripts/typecheck.lua`, which does
+one lua-language-server pass over the whole repository with the hint
+checks raised to warnings and then drops them outside the listed paths.
+The listed files are checked with every module they require loaded, and
+only their own diagnostics count, not those of the modules they require.
+
+To make another module strict, add its path (a file, or a directory for
+everything under it) on a line of its own in `scripts/typecheck_strict.txt`,
+run `make typecheck` and fix what it reports. Prefer a correct
+`---@param`/`---@return`/`---@class`, a `---@type` on a local, or a real
+nil check (an `assert` where the value can't be nil) over
+`---@diagnostic disable`; a disable that stays needs a comment saying why.
+Don't take a path off the list to make the check pass.
 
 ### Fuzzing
 
