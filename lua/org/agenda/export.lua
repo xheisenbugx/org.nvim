@@ -24,7 +24,8 @@ local function current()
   if not S.buf or not vim.api.nvim_buf_is_valid(S.buf) then
     return nil
   end
-  return S, vim.api.nvim_buf_get_lines(S.buf, 0, -1, false)
+  -- without the trailing spaces the column view pads its rows with
+  return S, require("org.agenda.columns").lines(S.buf)
 end
 
 ---------------------------------------------------------------------------
