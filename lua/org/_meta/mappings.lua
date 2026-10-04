@@ -18,6 +18,7 @@
 ---| "agenda" # Agenda dispatcher
 ---| "agenda_file_remove" # Remove file from agenda files
 ---| "agenda_file_to_front" # Add file to agenda files
+---| "agenda_index_rebuild" # Rebuild the agenda index
 ---| "agenda_kill_all_buffers" # Delete all agenda buffers (org-agenda-kill-all-agenda-buffers)
 ---| "agenda_remove_restriction_lock" # Remove agenda restriction lock
 ---| "agenda_set_restriction_lock" # Lock agenda to subtree / file

@@ -42,6 +42,8 @@ function M.setup(opts)
   require("org.yank").setup_paste()
   -- the Org menus (ui.menus)
   require("org.menu").setup()
+  -- the agenda index: background parsing of the agenda files
+  require("org.agenda.index").setup()
   local cfg = require("org.config").opts
   if #(cfg.entities_user or {}) > 0 or package.loaded["org.entities"] then
     -- org-entities-user

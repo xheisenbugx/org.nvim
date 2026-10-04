@@ -1,9 +1,10 @@
 .PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz
 
-# A throwaway data dir: tests never touch the real ID database, clock
-# state or other stdpath("data") files, and parallel runs don't collide.
+# A throwaway data and cache dir: tests never touch the real ID database, clock
+# state, agenda index or other stdpath("data") and stdpath("cache") files,
+# and parallel runs don't collide.
 test:
-	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_CACHE_HOME=$$d/cache nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
 	s=$$?; rm -rf $$d; exit $$s
 
 # Rewrite the screen snapshot golden files (tests/fixtures/screen) from
@@ -18,7 +19,7 @@ snapshots:
 # limits are off (under_coverage()).
 coverage:
 	@d=$$(mktemp -d) && rm -rf coverage && \
-	ORG_COVERAGE_DIR=$(CURDIR)/coverage/counts XDG_DATA_HOME=$$d \
+	ORG_COVERAGE_DIR=$(CURDIR)/coverage/counts XDG_DATA_HOME=$$d XDG_CACHE_HOME=$$d/cache \
 	ORG_TEST_TIMEOUT=$${ORG_TEST_TIMEOUT:-1800} \
 	nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
 	s=$$?; rm -rf $$d; \

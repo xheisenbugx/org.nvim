@@ -330,6 +330,9 @@
 ---Skip agenda files that do not exist instead of asking to remove them
 ---(org-agenda-skip-unavailable-files). (default: `false`)
 ---@field skip_unavailable_files? boolean
+---The agenda index (`:h org-agenda-index`): agenda files parsed in the
+---background and kept in stdpath("cache"). Not in Emacs.
+---@field index? org.Config.Agenda.Index
 ---Every search query is boolean (org-agenda-search-view-always-boolean). (default: `false`)
 ---@field search_view_always_boolean? boolean
 ---Register receiving the search query built with [ ] { }
@@ -488,6 +491,22 @@
 ---@field tags? org.Config.Agenda.SortingStrategy[]
 ---Search views. (default: `{ "category-keep" }`)
 ---@field search? org.Config.Agenda.SortingStrategy[]
+
+---The agenda index (`:h org-agenda-index`).
+---@class org.Config.Agenda.Index
+---false: agenda files are parsed only when a view needs them. (default: `true`)
+---@field enabled? boolean
+---Keep the parse on disk, in stdpath("cache")/org/agenda-index.bin. (default: `true`)
+---@field cache? boolean
+---Parse the agenda files in the background from the first org buffer;
+---false: when a view needs them (and add them to the index then). (default: `true`)
+---@field background? boolean
+---Watch the agenda files' directories to parse changed files early. (default: `true`)
+---@field watch? boolean
+---Directories watched at most; the others are polled. (default: `32`)
+---@field max_watchers? integer
+---Seconds between polls of the directories without a watcher; 0 for none. (default: `30`)
+---@field poll_interval? number
 
 ---Habit display options (org-habit).
 ---@class org.Config.Agenda.Habits

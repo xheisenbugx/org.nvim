@@ -262,6 +262,24 @@ local defaults = {
     --- Skip agenda files that do not exist instead of asking to remove
     --- them (org-agenda-skip-unavailable-files).
     skip_unavailable_files = false,
+    --- The agenda index (`:h org-agenda-index`, not in Emacs): agenda files
+    --- parsed in the background and kept in stdpath("cache"), so that the
+    --- first agenda view over many files doesn't wait for them all.
+    index = {
+      --- false: agenda files are parsed only when a view needs them.
+      enabled = true,
+      --- Keep the parse on disk (stdpath("cache")/org/agenda-index.bin).
+      cache = true,
+      --- Parse the agenda files in the background from the first org
+      --- buffer; false: when a view needs them (and add them to the index).
+      background = true,
+      --- Watch the agenda files' directories to parse changed files early.
+      watch = true,
+      --- Directories watched at most; the others are polled.
+      max_watchers = 32,
+      --- Seconds between polls of directories without a watcher (0: none).
+      poll_interval = 30,
+    },
     search_view_always_boolean = false, -- org-agenda-search-view-always-boolean
     --- Register receiving the search query built with [ ] { }
     --- (org-agenda-query-register); false for none.
