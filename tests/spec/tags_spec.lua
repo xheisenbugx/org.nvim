@@ -106,6 +106,14 @@ describe("tags: Emacs parity", function()
     eq({ "GTD", "Control", "other" }, res)
   end)
 
+  it("fast selection: the footer says Esc quits, and q unless it is a tag key", function()
+    local _, shown = fast({ "#+TAGS: x(x) y(y)", "* H" }, {}, { "\27" })
+    ok(shown[#shown]:find("[q/Esc]:quit", 1, true))
+    _, shown = fast({ "#+TAGS: x(x) y(y) q", "* H" }, {}, { "\27" })
+    ok(shown[#shown]:find(" [Esc]:quit", 1, true))
+    eq(nil, shown[#shown]:find("q/Esc", 1, true))
+  end)
+
   it("fast selection: TAB adds or removes one tag", function()
     local orig = utils.input_complete
     local answers = { "new", "x" }

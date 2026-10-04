@@ -666,9 +666,10 @@ function M.fast_select(current, defs, inherited, opts)
       local lines, marks = render(entries, current, inherited, exit_next, opts.todo_keys, groups_on)
       lines[#lines + 1] = ""
       lines[#lines + 1] = string.format(
-        "[a-z..]:toggle [SPC]:clear [RET]:accept [TAB]:edit [!] %sgroups [C-c]:%s",
+        "[a-z..]:toggle [SPC]:clear [RET]:accept [TAB]:edit [!] %sgroups [C-c]:%s [%s]:quit",
         groups_on and "" or "no ",
-        exit_next and "single" or "multi"
+        exit_next and "single" or "multi",
+        by_key.q and "Esc" or "q/Esc"
       )
       local buf
       buf, win = require("org.ui").float(lines, { title = "Tags" })

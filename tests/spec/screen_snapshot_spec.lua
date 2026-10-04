@@ -272,6 +272,16 @@ describe("screen snapshot", function()
     screen:input("<Esc>")
   end)
 
+  it("the fast tag selection menu and its footer", function()
+    new(nil, 100, 14)
+    screen:org({ "#+TAGS: work(w) home(h) errand(e)", "", "* TODO Task :work:" })
+    screen:cmd("normal! G")
+    screen:input("<C-c><C-q>")
+    screen:request("nvim_eval", "1")
+    screen:expect("fast_tag_selection")
+    screen:input("<Esc>")
+  end)
+
   it("fails with a diff when the screen differs, and on a missing golden file", function()
     local dir, update = Screen.dir, vim.env.ORG_UPDATE_SNAPSHOTS
     Screen.dir = vim.fn.tempname()
