@@ -23,7 +23,9 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 - With more than one spec file, each file runs in its own Neovim, one per
   CPU (`ORG_TEST_JOBS=N` to change it, `ORG_TEST_JOBS=1` for one process),
   and a file is failed after `ORG_TEST_TIMEOUT` seconds (600). A spec can't
-  rely on state left by an earlier file.
+  rely on state left by an earlier file. `perf_budgets_spec.lua` runs
+  last, alone; `ORG_TEST_PERF=0` skips it, `ORG_TEST_SHARD=i/n` runs one
+  share of the files (CI runs perf in its own job and shards Windows).
 - Run the specs for the area you touched while iterating, and the full suite
   before you finish.
 - Formatting follows `stylua.toml` (2-space indent, 120 columns, double

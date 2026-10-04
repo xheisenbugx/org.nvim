@@ -38,12 +38,40 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
+      # the timed specs run once, alone, in the perf job
       - run: make test
+        env:
+          ORG_TEST_PERF: "0"
 
+  # The time budgets and growth checks (perf_budgets_spec.lua) on a runner
+  # of their own: next to the other spec files, a busy neighbour could slow
+  # one measurement of a growth check and fail it. Algorithmic regressions
+  # show on any OS, so one Linux runner is enough.
+  perf:
+    name: perf budgets (ubuntu-latest, nvim stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - run: nvim --version
+      - run: make test SPEC=tests/spec/perf_budgets_spec.lua
+        env:
+          ORG_PERF_REPORT: "1"
+
+  # The slowest runner (starting processes and touching files cost more on
+  # Windows): the spec files are split over three of them (ORG_TEST_SHARD)
   windows:
-    name: test (windows-latest, nvim stable)
+    name: test (windows-latest, nvim stable, ${{ matrix.shard }}/3)
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: rhysd/action-setup-vim@v1
@@ -56,13 +84,13 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
-      # make test without make: a throwaway XDG_DATA_HOME; the Windows
-      # runners are the slowest, so twice the perf budgets
+      # make test without make: a throwaway XDG_DATA_HOME; the timed specs
+      # run in the perf job
       - name: Run specs
         shell: bash
         run: |
           d=$(mktemp -d)
-          ORG_PERF_SCALE=2 ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
+          ORG_TEST_SHARD=${{ matrix.shard }}/3 ORG_TEST_PERF=0 ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:
     name: lint (stylua)

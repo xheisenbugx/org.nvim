@@ -25,7 +25,9 @@ local function compile_async(compile, file)
   compile(file, function(...)
     res = { ... }
   end)
-  vim.wait(5000, function()
+  -- (three processes one after another: sh.exe on a busy Windows runner
+  -- took over 5 seconds for them)
+  vim.wait(30000, function()
     return res ~= nil
   end, 10)
   return res

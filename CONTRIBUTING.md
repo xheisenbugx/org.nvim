@@ -29,6 +29,7 @@ git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua # a single spec
 ORG_TEST_JOBS=1 make test                 # all specs in one Neovim, one after another
+ORG_TEST_PERF=0 make test                 # all specs but the timed ones (a quicker run)
 make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
 make typecheck                            # lua-language-server --check
@@ -40,7 +41,13 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatt
 `make test` runs each spec file in its own headless Neovim, as many at a
 time as there are CPUs (`ORG_TEST_JOBS`), with its own throwaway
 `XDG_DATA_HOME`. A file that runs longer than `ORG_TEST_TIMEOUT` seconds
-(600) is killed and reported as failed.
+(600) is killed and reported as failed. The timed specs
+(`perf_budgets_spec.lua`) start after every other file has finished and
+run alone, so no other spec competes with them for the CPUs;
+`ORG_TEST_PERF=0` leaves them out (CI runs them in a job of their own).
+`ORG_TEST_SHARD=i/n` runs the i-th of n shares of the files, split by size
+(CI spreads the slow Windows run over three runners). The run ends with
+the five slowest files.
 
 `make coverage` runs the same specs with line coverage of `lua/org`
 (`SPEC=` works too). A line hook in `tests/coverage.lua`, loaded only
