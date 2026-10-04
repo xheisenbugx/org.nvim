@@ -339,6 +339,8 @@ h3 {
 p code,
 li code,
 td code,
+dt code,
+dd code,
 h2 code,
 h3 code {
   padding: 0.1em 0.35em;
@@ -360,6 +362,105 @@ pre code {
 pre.help {
   background: transparent;
   border-style: dashed;
+}
+/* long option paths (a_b/c_d) wrap instead of widening the page */
+article p,
+article li {
+  overflow-wrap: break-word;
+}
+/* description lists of the exported examples */
+article dl {
+  margin: 0.75rem 0 1rem;
+  border-top: 1px solid var(--border);
+}
+article dt {
+  font-weight: 600;
+  padding-top: 0.45rem;
+}
+article dd {
+  margin: 0.15rem 0 0 1.5rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--border);
+}
+article dd > p:first-child {
+  margin-top: 0;
+}
+article dd > p:last-child {
+  margin-bottom: 0;
+}
+article h4 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.02rem;
+}
+/* aligned key and option lists of the manual: term | description, or
+   name | default | description */
+article table.defs {
+  display: table;
+  width: 100%;
+  margin: 0.75rem 0 1rem;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+table.defs td {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 1rem 0.4rem 0;
+  overflow-wrap: anywhere;
+}
+table.defs td:last-child {
+  padding-right: 0;
+}
+table.defs tr:first-child > td {
+  border-top: 1px solid var(--border);
+}
+table.defs td.term {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+  font-weight: 600;
+  width: 1%;
+  min-width: 6em;
+  white-space: nowrap;
+}
+table.defs td.term.long {
+  white-space: normal;
+  min-width: 15em;
+  max-width: 20em;
+  overflow-wrap: break-word;
+}
+table.defs td.value {
+  max-width: 16em;
+}
+table.defs td.value code {
+  white-space: pre-wrap;
+  font-size: 0.86em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--bg-code);
+}
+table.defs td > p:first-child,
+table.defs td > table:first-child {
+  margin-top: 0;
+}
+table.defs td > p:last-child {
+  margin-bottom: 0;
+}
+table.defs td ul,
+table.defs td ol {
+  margin: 0.3rem 0;
+  padding-left: 1.2rem;
+}
+table.defs table.defs {
+  margin: 0.4rem 0 0.2rem;
+  font-size: 0.97em;
+}
+table.defs table.defs tr:first-child > td {
+  border-top: 0;
+}
+table.defs table.defs tr:last-child > td {
+  border-bottom: 0;
+}
+table.defs pre.help {
+  margin: 0.4rem 0;
 }
 hr {
   border: 0;
@@ -394,6 +495,7 @@ table {
 /* wide tables (also the exporter's) scroll on their own, not the page */
 article table {
   display: block;
+  width: max-content;
   max-width: 100%;
   overflow-x: auto;
 }
@@ -618,6 +720,34 @@ a[data-missing] {
   }
 }
 @media (max-width: 560px) {
+  /* definition rows stack: the term above its description */
+  article table.defs,
+  table.defs tbody,
+  table.defs tr,
+  table.defs td,
+  table.defs td.term,
+  table.defs td.value {
+    display: block;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  table.defs td.term {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  table.defs tr {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  table.defs tr:first-child {
+    border-top: 1px solid var(--border);
+  }
+  table.defs td,
+  table.defs tr:first-child > td {
+    border: 0;
+    padding: 0.1rem 0;
+  }
   .brand {
     font-size: 0;
     gap: 0;
