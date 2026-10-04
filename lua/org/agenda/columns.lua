@@ -376,6 +376,28 @@ function M.edit()
     return
   end
   local col = A.cols[ci]
+  local key = col.prop:upper()
+  if key == "SCHEDULED" or key == "DEADLINE" then
+    -- the date prompt of org-schedule / org-deadline at the source entry,
+    -- then the column view is redone (org-columns-edit-value)
+    local target = view_mod().resolve_target(it)
+    if not target then
+      return
+    end
+    local ts = require("org.timestamps")
+    if not (key == "SCHEDULED" and ts.schedule or ts.deadline)(target) then
+      return
+    end
+    if config.opts.agenda.save_after_edit then
+      utils.save_buffer_or_warn(target.bufnr)
+    end
+    redo()
+    return
+  elseif columns.SPECIAL[key] and key ~= "TODO" and key ~= "PRIORITY" and key ~= "TAGS" and key ~= "ITEM" then
+    -- CLOCKSUM, CATEGORY, ... are computed: say so before any prompt
+    utils.warn("This special column cannot be edited")
+    return
+  end
   -- the real value, not its displayed form (org-columns-value)
   local cur = A.cells[vim.api.nvim_win_get_cursor(0)[1]][ci] or ""
   local vals = allowed(it, col.prop)
