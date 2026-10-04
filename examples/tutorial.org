@@ -74,8 +74,12 @@ to fold every block, or =nohidedrawers= to keep drawers open. A
 =:VISIBILITY:= property (=folded=, =children=, =content=, =all=) overrides
 it for one subtree.
 
-*Try:* change the =#+STARTUP:= line of this file to =content=, press
-=<C-c><C-c>= on it, then reopen the file with =:e=.
+*Try:* change =overview= on the =#+STARTUP:= line of this file to
+=content=, press =<C-c><C-c>= on it, then save with =:w= and reopen the
+file with =:e=. (=16<Tab>= also applies it without reopening.)
+
+*Expect:* every headline is visible, without the body text. Change it back
+to =overview= the same way.
 
 ** Motions and text objects
 | Key         | Moves to / selects                       |

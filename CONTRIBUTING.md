@@ -352,9 +352,12 @@ file, thousands of links and footnotes. It checks two kinds of limits:
   TODO cycling, promoting a subtree, `zM`/`zR`, an agenda view, a lint)
   must finish within about 10× what it takes on a laptop, so slow shared
   CI runners pass.
-- **Growth**: the same work at size N and 2N; 2N may take at most 3× as
-  long. A linear algorithm passes on any machine, a quadratic one (4×)
-  fails, without depending on how fast the runner is.
+- **Growth**: the same work at size N and 4N, in processor time; 4N may
+  take at most 10× as long. A linear algorithm (4×, up to 7× when it
+  allocates a lot) passes on any machine, a quadratic one (16×) fails,
+  without depending on how fast the runner is. Work whose input can't
+  grow that much (a line within `'synmaxcol'`) is checked at 2N against
+  3×.
 
 It also checks outcomes: no E363 or "'redrawtime' exceeded" message
 (either turns syntax highlighting off), the lines after a long line still

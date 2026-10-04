@@ -483,3 +483,40 @@ describe("jumping from the agenda", function()
     ok(not vim.tbl_contains(lines, "** A3"), vim.inspect(lines))
   end)
 end)
+
+describe("refreshing the setup", function()
+  local path
+
+  before_each(function()
+    path = vim.fn.tempname() .. ".org"
+    vim.fn.writefile({ "#+STARTUP: overview", "* A", "a", "** A1", "a1", "* B", "b" }, path)
+    vim.cmd("silent! %bwipeout!")
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+  end)
+
+  after_each(function()
+    vim.cmd("silent! %bwipeout!")
+    vim.fn.delete(path)
+  end)
+
+  -- Emacs keeps the outline visibility around org-mode-restart
+  -- (org-save-outline-visibility)
+  it("C-c C-c on a #+ line keeps the folds as they are", function()
+    eq({ "#+STARTUP: overview", "* A", "* B" }, shown())
+    tab(6)
+    vim.api.nvim_buf_set_lines(0, 0, 1, false, { "#+STARTUP: content" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    quiet(require("org.context").context_action)
+    eq({ "#+STARTUP: content", "* A", "* B", "b" }, shown())
+  end)
+
+  it(":edit applies the startup visibility of the file again", function()
+    tab(2, 2)
+    eq({ "#+STARTUP: overview", "* A", "a", "** A1", "a1", "* B" }, shown())
+    vim.cmd("silent edit")
+    eq({ "#+STARTUP: overview", "* A", "* B" }, shown())
+    vim.fn.writefile({ "#+STARTUP: content", "* A", "a", "** A1", "a1", "* B", "b" }, path)
+    vim.cmd("silent edit")
+    eq({ "#+STARTUP: content", "* A", "** A1", "* B" }, shown())
+  end)
+end)

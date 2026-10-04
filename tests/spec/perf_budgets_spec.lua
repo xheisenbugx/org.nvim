@@ -4,8 +4,8 @@
 -- Budgets are about 10x what a laptop takes, so they hold on slow shared CI
 -- runners; ORG_PERF_SCALE=3 multiplies them (and ORG_PERF_SCALE=0.2 makes
 -- them strict when hunting a regression). Growth checks time the same work
--- at size N and 2N: twice the input may take at most 3x the time, which a
--- linear algorithm passes on any machine and a quadratic one (4x) fails;
+-- at size N and 4N: 4 times the input may take at most 10x the time, which a
+-- linear algorithm passes on any machine and a quadratic one (16x) fails;
 -- N is first doubled until the work, not the timer or a fixed cost, makes
 -- the time ("perf: growth checks" feeds them work of known growth).
 -- "perf: memory" checks that repeated exports leave the heap flat.
@@ -22,14 +22,22 @@ local function now()
   return vim.uv.hrtime() / 1e6
 end
 
---- Milliseconds `fn` takes: the best of `runs` (default 1).
-local function time(fn, runs)
+--- Milliseconds of processor time this process has used (wall time where
+--- os.clock() is that, as on Windows).
+local function cpu()
+  return os.clock() * 1000
+end
+
+--- Milliseconds `fn` takes: the best of `runs` (default 1), by `clock`
+--- (default `now`).
+local function time(fn, runs, clock)
+  clock = clock or now
   local best = math.huge
   for _ = 1, runs or 1 do
     collectgarbage()
-    local t = now()
+    local t = clock()
     fn()
-    best = math.min(best, now() - t)
+    best = math.min(best, clock() - t)
   end
   return best
 end
@@ -55,28 +63,38 @@ local function budget(label, ms, fn)
   return dt
 end
 
--- Growth checks: twice the work takes twice the time when it is linear, 4
--- times when it is quadratic; the limit is 3 times, plus NOISE_MS. That
--- tells them apart only when the time measured is the work's: at least
--- MIN_MS (the noise of the timer is then a few percent of it), and
--- DOMINANT times the time at n/16, so that a fixed cost (setting up the
--- syntax, a buffer) doesn't drown the work: what grows is then at least
--- 5 times what doesn't, and quadratic work takes 3.5 times as long at 2n.
+-- Growth checks: 4 times the work takes 4 times the time when it is
+-- linear, 16 times when it is quadratic; the limit is 10 times (LIMIT),
+-- plus NOISE_MS. Linear work that allocates a lot takes more than 4 times:
+-- the larger input fits the caches less well, and the smaller one runs
+-- faster after it (the allocator already holds the memory). A parse of
+-- headlines takes 5 to 7 times at 4n, and took 3.2 to 4 times at 2n on CI,
+-- where the limit was then 3 times. Work whose input can't grow 4 times
+-- is checked at 2n, against 3 times. That tells them apart only when the
+-- time measured is the work's: at least MIN_MS (the noise of the timer is
+-- then a few percent of it), and DOMINANT times the time at n/16, so that
+-- a fixed cost (setting up the syntax, a buffer) doesn't drown the work:
+-- what grows is then at least 5 times what doesn't, and quadratic work
+-- takes 13.5 times as long at 4n (3.5 times at 2n).
 -- n is doubled until it is, at most MAX_DOUBLINGS times.
 local MIN_MS, NOISE_MS, DOMINANT, MAX_DOUBLINGS = 25, 2, 6, 6
+local LIMIT = { [2] = 3, [4] = 10 }
 
---- The time of `fn` at n and at 2n (the best of 3 runs; `setup(size)`
---- prepares untimed state and returns the argument for `fn`), n doubled
---- first, up to `max` (default: no limit), until the work dominates the
---- time. Returns { n, t1, t2, small (the time at n/16), limit, measurable,
---- linear }.
-local function growth(n, fn, setup, max)
+--- The time of `fn` at n and at `factor` (4 or 2, default 4) times n (the
+--- best of 3 runs; `setup(size)` prepares untimed state and returns the
+--- argument for `fn`), n doubled first, the larger size up to `max`
+--- (default: no limit), until the work dominates the time. Returns { n,
+--- factor, t1, t2, small (the time at n/16), limit, measurable, linear }.
+local function growth(n, fn, setup, max, factor)
+  factor = factor or 4
   local function run(size)
     -- (set up again for each run, outside the timing)
+    -- (processor time: on a runner busy with the other spec files, the
+    -- wall time also counts the time the process waits for a CPU)
     local arg = setup and setup(size) or size
     return time(function()
       fn(arg)
-    end)
+    end, 1, cpu)
   end
   local function best(size)
     local t = math.huge
@@ -91,31 +109,32 @@ local function growth(n, fn, setup, max)
     t1 = best(n)
     small = best(math.max(1, math.floor(n / 16)))
     measurable = t1 >= MIN_MS and t1 >= DOMINANT * small
-    if measurable or doublings == MAX_DOUBLINGS or (max and 2 * n > max) then
+    if measurable or doublings == MAX_DOUBLINGS or (max and factor * n > max) then
       break
     end
     n = 2 * n
     doublings = doublings + 1
   end
-  -- n and 2n in turn, the best of 3 runs each: a burst of load from other
+  -- n and the larger size in turn, the best of 3 runs each: a burst of load from other
   -- processes (CI runs the spec files in parallel) then slows both sizes
   -- alike instead of only the second
   local t2 = math.huge
   for _ = 1, 3 do
     t1 = math.min(t1, run(n))
-    t2 = math.min(t2, run(2 * n))
+    t2 = math.min(t2, run(factor * n))
   end
-  local g = { n = n, t1 = t1, t2 = t2, small = small, measurable = measurable }
-  g.limit = 3 * t1 + NOISE_MS
+  local g = { n = n, factor = factor, t1 = t1, t2 = t2, small = small, measurable = measurable }
+  g.limit = LIMIT[factor] * t1 + NOISE_MS
   g.linear = g.t2 <= g.limit
   return g
 end
 
---- `fn` must take time linear in the size of its input (`growth`): at 2n
---- at most 3 times its time at n. A check that fails is measured again, up
---- to 3 times in all: load from elsewhere can still slow one measurement,
---- but quadratic work fails every time.
-local function linear(label, n, fn, setup, max)
+--- `fn` must take time linear in the size of its input (`growth`): at 4n
+--- at most 10 times its time at n (at 2n, 3 times, with `factor` 2). A
+--- check that fails is measured again, up to 3 times in all: load from
+--- elsewhere can still slow one measurement, but quadratic work fails
+--- every time.
+local function linear(label, n, fn, setup, max, factor)
   if not TIMED then
     -- (once, for the lines it runs)
     fn(setup and setup(n) or n)
@@ -123,7 +142,7 @@ local function linear(label, n, fn, setup, max)
   end
   local g, attempts
   for attempt = 1, 3 do
-    g = growth(g and g.n or n, fn, setup, max)
+    g = growth(g and g.n or n, fn, setup, max, factor)
     attempts = attempt
     if not g.measurable or g.linear then
       break
@@ -132,9 +151,10 @@ local function linear(label, n, fn, setup, max)
   report(
     label,
     g.t2,
-    (" (n=%d: %.1f ms, 2n: %.1f ms, limit %.1f, n/16: %.1f ms%s)"):format(
+    (" (n=%d: %.1f ms, %dn: %.1f ms, limit %.1f, n/16: %.1f ms%s)"):format(
       g.n,
       g.t1,
+      g.factor,
       g.t2,
       g.limit,
       g.small,
@@ -152,7 +172,13 @@ local function linear(label, n, fn, setup, max)
   )
   ok(
     g.linear,
-    ("%s: %.1f ms at n=%d, %.1f ms at 2n: grows faster than linear (3 attempts)"):format(label, g.t1, g.n, g.t2)
+    ("%s: %.1f ms at n=%d, %.1f ms at %dn: grows faster than linear (3 attempts)"):format(
+      label,
+      g.t1,
+      g.n,
+      g.t2,
+      g.factor
+    )
   )
 end
 
@@ -160,10 +186,10 @@ end
 -- quadratic work, also behind a fixed cost, passes linear work behind
 -- one, and doesn't judge work that doesn't grow.
 describe("perf: growth checks", function()
-  --- Busy for `ms` milliseconds: work of a known time.
+  --- Busy for `ms` milliseconds of processor time: work of a known time.
   local function busy(ms)
-    local t = now()
-    while now() - t < ms do
+    local t = cpu()
+    while cpu() - t < ms do
     end
   end
   --- 1..n
@@ -342,13 +368,14 @@ describe("perf: long lines", function()
         vim.cmd("messages clear")
         -- (3 times: n can't grow past 'synmaxcol', the time must be well
         -- above the timer's noise on a fast machine too)
+        -- (at 2n: n can't grow 4 times within 'synmaxcol')
         linear("draw 20 " .. kind .. " lines 3x", math.floor(max / 2), function()
           for _ = 1, 3 do
             redraw_fresh()
           end
         end, function(n)
           vim.api.nvim_buf_set_lines(buf, 0, -1, false, screen(n))
-        end, max)
+        end, max, 2)
         -- ('redrawtime' caps a drawing that turns syntax off)
         local m = messages()
         ok(not m:find("redrawtime"), m)

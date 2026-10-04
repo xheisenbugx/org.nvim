@@ -7004,6 +7004,9 @@ Their targets are `{ bufnr = n, lnum = l }`.
   #+INCLUDE: "file.org"   #+MACRO: name text $1
 
 After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
+Like Emacs, this keeps the folds as they are: a new `#+STARTUP:` visibility
+applies with <C-u><C-u><Tab> (`16<Tab>`) or when the file is opened again
+(`:w`, then `:e`).
 
 Local setup files                                      *org-setupfile*
 `#+SETUPFILE: "path/to/shared setup.org"` imports core file settings as
