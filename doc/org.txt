@@ -1944,9 +1944,12 @@ B acts on the marked entries, or on the entry at point without marks
 Column view                                               *org-agenda-columns*
 
 <C-c><C-x><C-c> in the agenda shows each entry as columns, like column
-view in an org buffer. The format is `agenda.overriding_columns_format`,
-else the COLUMNS property or #+COLUMNS of the entry at point (or of the
-first entry), else `columns_default_format`. Date lines and block headers
+view in an org buffer. The format is `overriding_columns_format` of the
+custom command's `settings` (org-overriding-columns-format, see
+|org-agenda-command-columns|), else `agenda.overriding_columns_format`
+(org-columns-default-format-for-agenda), else the COLUMNS property or
+#+COLUMNS of the entry at point (or of the first entry), else
+`columns_default_format`. Date lines and block headers
 show the summaries of the entries below them
 (`agenda.columns_show_summaries`); with
 `agenda.columns_add_appointments_to_effort_sum`, an appointment without
@@ -1957,6 +1960,34 @@ the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
 `agenda.view_columns_initially` turns it on for every new agenda.
+
+                                                  *org-agenda-command-columns*
+Column view for one custom command: set `overriding_columns_format` and
+`view_columns_initially` in the command's `settings`, as Emacs sets
+org-overriding-columns-format and org-agenda-view-columns-initially in
+the command's options. The agenda of that command opens in column view
+with that format; it keeps the format when it is refreshed (`r`) and when
+column view is turned off and on again, and other agendas don't see it.
+>lua
+    custom_commands = {
+      r = {
+        description = "Reading list",
+        types = { { type = "todo", match = "TODO" } },
+        settings = {
+          overriding_columns_format = "%40ITEM %DEADLINE",
+          view_columns_initially = true,
+        },
+      },
+    }
+<
+A single-block command (`type = ...`) takes them in its `settings` too.
+In a block of a composite command (inside `types` / `blocks`) they have
+no effect, as in Emacs, which reads them once per agenda: put them in the
+command's `settings`. |:checkhealth| org warns about them there. The same
+holds for `start_with_log_mode`, `start_with_clockreport_mode`,
+`start_with_entry_text_mode`, `start_with_follow_mode`,
+`start_with_archives_mode` and `dim_blocked_tasks`: a command's
+`settings` set them for its agenda, a block's are ignored.
 
 Exporting agenda views                                     *org-agenda-export*
 
@@ -2050,7 +2081,10 @@ be blocks of a composite command. A composite command (`types` /
 `blocks`) shows its blocks one after the other, separated by a blank line
 and `agenda.block_separator` (none with `compact_blocks`, which also drops
 the date agenda header). `settings` (Emacs's options list) applies to
-every block unless the block sets the option itself.
+every block unless the block sets the option itself. Options read once
+for the whole agenda (the column view, the `start_with_*` modes,
+`dim_blocked_tasks`) are taken from `settings` only, not from a block:
+see |org-agenda-command-columns|.
 Block options:
   match         match string (see |org-match-syntax|), TODO keywords for
                 `todo`, or text for `search`
