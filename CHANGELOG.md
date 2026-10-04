@@ -8,6 +8,16 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.1.0] - 2026-10-04
+
+### Features
+
+- **keys:** Repeat org edits with . (dot-repeat) ([#184](https://github.com/xheisenbugx/org.nvim/pull/184))
+
+### Fixes
+
+- **keys:** Dot-repeat keeps the cursor when a fold is closed ([#185](https://github.com/xheisenbugx/org.nvim/pull/185))
+
 ## [v2.0.6] - 2026-10-04
 
 ### Fixes
@@ -303,6 +313,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.6...v2.1.0
 [v2.0.6]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.5...v2.0.6
 [v2.0.5]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.4...v2.0.5
 [v2.0.4]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.3...v2.0.4
