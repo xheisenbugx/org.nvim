@@ -6454,6 +6454,26 @@ off every mapping.
 Section `global`: agenda, capture, store_link, goto_heading, clock_goto,
 clock_out, clock_cancel.
 
+Repeating with .                                            *org-dot-repeat*
+The editing keys below can be repeated with |.| like Vim's own changes:
+after `>>` on a headline, `j.` demotes the next one too. "." keeps the
+count of the first key (`2>>` then `.` demotes by two again); a count
+before "." replaces it (`3.`). Each repeat is its own undo step. When the
+key doesn't apply where "." is pressed, the key's Vim default runs, as when
+typing it. Only Normal-mode keys are repeated, and only edits that ask
+nothing: promote / demote (`<<` `>>` `<s` `>s`, the meta and shift-meta
+keys), move_subtree_up / down, the TODO, priority and date shift keys
+(`cit` `ciT`, <S-Left> <S-Right> <S-Up> <S-Down>, <C-a> <C-x>, the
+<C-S-Left> / <C-S-Right> keyword sets), toggle_checkbox, cycle_bullet,
+toggle_heading, toggle_item, toggle_comment, toggle_archive_tag,
+<C-c>* and <C-c>-, the element drags and transpose, toggle_fixed_width,
+toggle_radio_button, toggle_ordered, toggle_timestamp_type,
+reset_checkbox_state_subtree, the CLOCK shifts (<C-S-Up> / <C-S-Down>),
+inc_effort, babel_remove_result and the table row, column, hline and
+blank-field keys. Keys that prompt (set_tags, schedule, priority, ...) or
+insert text (insert_heading, ...) are not repeated; Emacs's own `C-x z`
+repeat is not bound.
+
 Section `org` (default key: action):
   g?                               help
   <Tab>                            cycle

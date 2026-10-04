@@ -35,11 +35,63 @@ local function fallback(lhs, mode)
   vim.api.nvim_feedkeys(keys, "n", false)
 end
 
+-- Dot-repeat (|org-dot-repeat|). After a repeatable action ran from a
+-- Normal-mode key, `:normal! {count}g@l` makes "g@l" the change "." redoes,
+-- with `operatorfunc` set to run the action again; that first call does
+-- nothing (the action already ran). "." then calls it with the original
+-- count, or with the count typed before ".".
+local repeat_action, skip_next
+
+--- The `operatorfunc` "." calls.
+function M._dot_repeat()
+  if skip_next then
+    skip_next = false
+    return
+  end
+  local r = repeat_action
+  if r and not actions.run(r.name) then
+    fallback(r.lhs, "n")
+  end
+end
+
+local function set_repeat(name, lhs, count)
+  repeat_action = { name = name, lhs = lhs }
+  vim.go.operatorfunc = "v:lua.require'org.mappings'._dot_repeat"
+  skip_next = true
+  pcall(vim.cmd, "normal! " .. (count > 0 and count or "") .. "g@l")
+  skip_next = false
+end
+
+--- Run the action of a key: its default behaviour when the action doesn't
+--- apply, and a "." that repeats it when it is a repeatable edit.
+---@param name string
+---@param lhs string
+---@param mode string
+function M._run_key(name, lhs, mode)
+  local count = vim.v.count
+  local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+  local handled, completed = actions.run(name)
+  if not handled then
+    fallback(lhs, mode)
+    return
+  end
+  local a = actions.list[name]
+  if
+    mode == "n"
+    and completed
+    and a
+    and a.repeatable
+    and vim.api.nvim_get_mode().mode == "n"
+    and vim.api.nvim_get_current_win() == win
+    and vim.api.nvim_get_current_buf() == buf
+  then
+    set_repeat(name, lhs, count)
+  end
+end
+
 local function wrap(name, lhs, mode)
   return function()
-    if not actions.run(name) then
-      fallback(lhs, mode)
-    end
+    M._run_key(name, lhs, mode)
   end
 end
 

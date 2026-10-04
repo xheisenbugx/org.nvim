@@ -16,6 +16,7 @@ local M = {}
 ---@field global? boolean available outside org buffers
 ---@field sync? boolean call synchronously (no coroutine) - for text objects / expr
 ---@field toggle? boolean the function returns the new on/off state, so `false` (toggled off) is still handled
+---@field repeatable? boolean an edit that `.` repeats when it ran from a Normal-mode key (see `repeatable` below)
 ---@field group? string section title in `g?` (set by `group`)
 
 M.list = {}
@@ -896,6 +897,66 @@ function M.get(name)
   return fn, a
 end
 
+--- Edits that "." repeats (|org-dot-repeat|): they change the buffer at the
+--- cursor without asking anything, so running them again elsewhere makes
+--- sense. Actions that prompt, open windows, insert text or move between
+--- files are left out.
+local repeatable = {
+  "promote_heading",
+  "demote_heading",
+  "promote_subtree",
+  "demote_subtree",
+  "meta_left",
+  "meta_right",
+  "meta_up",
+  "meta_down",
+  "shift_meta_left",
+  "shift_meta_right",
+  "shift_meta_up",
+  "shift_meta_down",
+  "move_subtree_up",
+  "move_subtree_down",
+  "toggle_comment",
+  "toggle_archive_tag",
+  "toggle_heading",
+  "toggle_item",
+  "ctrl_c_star",
+  "ctrl_c_minus",
+  "transpose_element",
+  "drag_element_up",
+  "drag_element_down",
+  "toggle_fixed_width",
+  "toggle_radio_button",
+  "todo_next",
+  "todo_prev",
+  "shift_right",
+  "shift_left",
+  "shift_up",
+  "shift_down",
+  "todo_next_sequence",
+  "todo_prev_sequence",
+  "toggle_ordered",
+  "increment",
+  "decrement",
+  "toggle_timestamp_type",
+  "toggle_checkbox",
+  "cycle_bullet",
+  "reset_checkbox_state_subtree",
+  "shift_control_up",
+  "shift_control_down",
+  "inc_effort",
+  "table_insert_hline",
+  "table_insert_row",
+  "table_delete_row",
+  "table_insert_column",
+  "table_delete_column",
+  "table_blank_field",
+  "babel_remove_result",
+}
+for _, name in ipairs(repeatable) do
+  M.list[name].repeatable = true
+end
+
 --- Run an action inside a coroutine. Returns true when handled; false when
 --- the action reported it does not apply at the cursor (mappings then fall
 --- back to the key's default behaviour). Unknown actions report an error
@@ -907,19 +968,25 @@ end
 ---@param name org.ActionName key of `org.actions.list`
 ---@param ... any passed to the action function
 ---@return boolean handled
+---@return boolean completed the action ran to its end without waiting for input or failing
 function M.run(name, ...)
   local fn, a = M.get(name)
   if not fn then
-    return true
+    return true, false
   end
   -- the highlight groups are defined on first use, not at setup()
   require("org.highlights").ensure()
   -- org-fold-catch-invisible-edits-commands
   if not require("org.fold").check_invisible_edit_command(name) then
-    return true
+    return true, false
   end
-  local finished, result = require("org.utils").run(fn, ...)
-  return a.toggle or not (finished and result == false)
+  local completed = false
+  local finished, result = require("org.utils").run(function(...)
+    local res = { fn(...) }
+    completed = true
+    return unpack(res, 1, table.maxn(res))
+  end, ...)
+  return a.toggle or not (finished and result == false), finished and completed
 end
 
 return M
