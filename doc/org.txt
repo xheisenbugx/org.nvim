@@ -1990,8 +1990,11 @@ SCHEDULED, DEADLINE and TIMESTAMP as inactive timestamps, a column's
 printf format applied, ITEM with links shown as their description, and
 `columns_modify_value_for_display_function` called first (see <prefix>C
 in |org-columns| for a relative due-date example). While it is on: `q`
-turns it off, `e` edits the real value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
-the next/previous allowed value, `v` shows the full value. The column
+turns it off, `e` edits the real value under the cursor (on a SCHEDULED
+or DEADLINE cell it opens the date prompt of <C-c><C-s> / <C-c><C-d>;
+computed columns such as CLOCKSUM can't be edited), `n`/`p`
+(<S-Right>/<S-Left>) switch to the next/previous allowed value, `v`
+shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
 `agenda.view_columns_initially` turns it on for every new agenda, and

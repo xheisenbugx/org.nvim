@@ -212,6 +212,84 @@ describe("agenda column view", function()
     end)
   end)
 
+  -- org-columns-edit-value (Emacs 9.8.10, org-colview.el): e on a DEADLINE
+  -- or SCHEDULED cell calls org-deadline / org-schedule at the source entry
+  -- (the date prompt), then redoes the agenda column view; CLOCKSUM is
+  -- refused with "This special column cannot be edited" before any prompt.
+  describe("editing a date column", function()
+    local saved = lines
+    local new = today:add(3, "d")
+    before_each(function()
+      lines = {
+        "* TODO Pay rent",
+        "  DEADLINE: " .. ts(0) .. " SCHEDULED: " .. ts(0),
+      }
+    end)
+    after_each(function()
+      lines = saved
+      config.opts.agenda.overriding_columns_format = nil
+      pcall(cols.quit)
+      pcall(view.quit, true)
+    end)
+
+    local function edit_column(n)
+      open()
+      -- narrow columns: the cursor can't go past the end of the agenda line
+      config.opts.agenda.overriding_columns_format = "%4ITEM %4DEADLINE %4SCHEDULED %4CLOCKSUM"
+      ok(cols.apply())
+      local l = line_of("Pay rent")
+      local text = overlay_text(l)
+      local prefix = text:match("^" .. string.rep("[^|]*| ", n - 1))
+      vim.api.nvim_win_set_cursor(0, { l, 0 })
+      vim.cmd("normal! " .. (vim.fn.strdisplaywidth(prefix) + 1) .. "|")
+      local calendar = require("org.calendar")
+      local pick, input, warn = calendar.pick, utils.input, utils.warn
+      local prompts, inputs, warned = {}, 0, nil
+      calendar.pick = function(o)
+        prompts[#prompts + 1] = o.prompt
+        return new
+      end
+      utils.input = function()
+        inputs = inputs + 1
+      end
+      utils.warn = function(m)
+        warned = m
+      end
+      local ok1, err = pcall(cols.edit)
+      calendar.pick, utils.input, utils.warn = pick, input, warn
+      ok(ok1, err)
+      local b = utils.find_buffer(path)
+      local src = b and vim.api.nvim_buf_get_lines(b, 0, -1, false) or vim.fn.readfile(path)
+      return prompts, inputs, warned, src
+    end
+
+    it("opens the deadline date prompt on DEADLINE", function()
+      local prompts, inputs, warned, src = edit_column(2)
+      eq({ "Deadline" }, prompts)
+      eq(0, inputs)
+      eq(nil, warned)
+      eq("  DEADLINE: " .. ts(3) .. " SCHEDULED: " .. ts(0), src[2])
+      ok(cols.active())
+    end)
+
+    it("opens the schedule date prompt on SCHEDULED", function()
+      local prompts, inputs, warned, src = edit_column(3)
+      eq({ "Schedule" }, prompts)
+      eq(0, inputs)
+      eq(nil, warned)
+      eq("  DEADLINE: " .. ts(0) .. " SCHEDULED: " .. ts(3), src[2])
+      ok(cols.active())
+    end)
+
+    it("refuses CLOCKSUM without prompting", function()
+      local prompts, inputs, warned, src = edit_column(4)
+      eq({}, prompts)
+      eq(0, inputs)
+      eq("This special column cannot be edited", warned)
+      eq("  DEADLINE: " .. ts(0) .. " SCHEDULED: " .. ts(0), src[2])
+    end)
+  end)
+
   -- the relative due-date example under <prefix>C in doc/org.txt
   describe("the doc's relative due-date example", function()
     local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
