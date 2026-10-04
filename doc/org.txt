@@ -1994,7 +1994,8 @@ turns it off, `e` edits the real value under the cursor, `n`/`p` (<S-Right>/<S-L
 the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
-`agenda.view_columns_initially` turns it on for every new agenda.
+`agenda.view_columns_initially` turns it on for every new agenda, and
+`r` turns it on again after it was turned off, as Emacs does.
 
                                                   *org-agenda-command-columns*
 Column view for one custom command: set `overriding_columns_format` and
