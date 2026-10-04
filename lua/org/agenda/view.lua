@@ -76,6 +76,22 @@ function M.state_of(buf)
   return states[buf]
 end
 
+--- Agenda option `name` for the view of `state` (default: the current
+--- agenda): set in its custom command's `settings`, else the global
+--- `agenda.<name>`. For what Emacs reads once per agenda, under the
+--- command's let-bound options (org-agenda-finalize, org-agenda-mode);
+--- options of a block of a composite command don't count there.
+---@param name string
+---@param state? table
+function M.command_option(name, state)
+  state = state or S
+  local s = state.view and state.view.settings
+  if s and s[name] ~= nil then
+    return s[name]
+  end
+  return config.opts.agenda[name]
+end
+
 -- Highlights are drawn for the visible lines only, from `line_parts` (byte
 -- ranges { start_col, end_col, group, priority? } per line) of the
 -- buffer's state: writing an extmark for every range of a large agenda

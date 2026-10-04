@@ -303,22 +303,27 @@ function M.open(view, opts)
   view.presets = view_presets(view)
   if not opts.keep_state then
     local acfg = config.opts.agenda
+    -- the start_with_* modes and dim_blocked_tasks: the command's settings
+    -- are let-bound around org-agenda-mode and org-agenda-finalize
+    local function opt(name)
+      return M.command_option(name, M.state)
+    end
     M.state.anchor = opts.anchor
     M.state.span = opts.span
     M.state.align = true
-    M.state.log_mode = acfg.start_with_log_mode or false
-    M.state.clockreport = acfg.start_with_clockreport_mode or false
-    M.state.entry_text = acfg.start_with_entry_text_mode or false
-    M.state.follow = acfg.start_with_follow_mode or false
+    M.state.log_mode = opt("start_with_log_mode") or false
+    M.state.clockreport = opt("start_with_clockreport_mode") or false
+    M.state.entry_text = opt("start_with_entry_text_mode") or false
+    M.state.follow = opt("start_with_follow_mode") or false
     -- org-agenda-start-with-archives-mode: "trees", or true / "files"
     -- for the archive files too
-    local am = acfg.start_with_archives_mode
+    local am = opt("start_with_archives_mode")
     M.state.archives = (am == true or am == "files") and "files" or (am == "trees" and "trees") or false
     M.state.inactive = false
     M.state.time_grid_off = false
     M.state.no_deadlines = false
     M.state.include_diary = nil
-    M.state.dim_blocked = acfg.dim_blocked_tasks
+    M.state.dim_blocked = opt("dim_blocked_tasks")
     if M.state.dim_blocked == nil then
       M.state.dim_blocked = true
     end

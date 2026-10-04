@@ -38,13 +38,19 @@ function M.active(buf)
   return A ~= nil and A.buf == buf and buf ~= nil and vim.api.nvim_buf_is_valid(buf)
 end
 
---- The columns format (org-agenda-columns): `overriding_columns_format`,
---- else the COLUMNS property / #+COLUMNS of the entry at point, else of
---- the first entry of the agenda, else `columns_default_format`.
+--- The columns format (org-agenda-columns): `overriding_columns_format`
+--- of the agenda's custom command `settings` (Emacs
+--- org-overriding-columns-format, kept for the agenda buffer as
+--- org-local-columns-format), else the global `overriding_columns_format`
+--- (org-columns-default-format-for-agenda), else the COLUMNS property /
+--- #+COLUMNS of the entry at point, else of the first entry of the
+--- agenda, else `columns_default_format`.
 function M.format(S)
-  local fmt = config.opts.agenda.overriding_columns_format
-  if fmt and fmt ~= "" then
-    return fmt
+  local s = S.view and S.view.settings
+  for _, fmt in ipairs({ s and s.overriding_columns_format or false, config.opts.agenda.overriding_columns_format }) do
+    if fmt and fmt ~= "" then
+      return fmt
+    end
   end
   local function from_item(it)
     local hl = it and it.headline
@@ -486,12 +492,13 @@ function M.toggle()
 end
 
 --- Re-draw after the agenda was re-rendered (call at the end of
---- `view.refresh`); also honours `agenda.view_columns_initially` for a
+--- `view.refresh`); also honours `view_columns_initially` (of the custom
+--- command's `settings`, else `agenda.view_columns_initially`) for a
 --- freshly opened agenda when `initial` is set.
 function M.refresh_if_active(initial)
   if M.active() then
     return M.apply()
-  elseif initial and config.opts.agenda.view_columns_initially then
+  elseif initial and view_mod().command_option("view_columns_initially", view_mod().state) then
     return M.apply()
   end
   return false
