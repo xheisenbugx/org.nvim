@@ -81,7 +81,7 @@ To try your checkout in your own config, point lazy.nvim at it:
 | `lua/org/{capture,refile,archive,links,id,attach,footnotes}.lua`, `lua/org/capture/`, `lua/org/links/` | capture and navigation (links.lua is the facade; links/ holds parsing, search, opening, storing, inserting) |
 | `lua/org/table.lua`, `lua/org/table/` | tables and formulas (`table.lua` parses and aligns and loads the commands from `table/`) |
 | `lua/org/babel/` | source blocks |
-| `lua/org/export/` | exporters |
+| `lua/org/export/`, `lua/org/export/ox/`, `lua/org/export/odt/` | exporters (`ox.lua` and `odt.lua` are facades that load their parts from `ox/` and `odt/`) |
 | `syntax/`, `lua/org/{syntax,highlights}.lua`, `lua/org/ui/` | highlighting and decorations (`ui/images.lua` loads its parts from `ui/images/`) |
 | `tests/` | headless test runner and specs |
 
