@@ -2001,7 +2001,10 @@ turns it off, `e` edits the real value under the cursor (on a SCHEDULED
 or DEADLINE cell it opens the date prompt of <C-c><C-s> / <C-c><C-d>;
 computed columns such as CLOCKSUM can't be edited), `n`/`p`
 (<S-Right>/<S-Left>) switch to the next/previous allowed value, `v`
-shows the full value. The column
+shows the full value. As in Emacs, an agenda line shorter than its row
+is padded with spaces while the view is on, so the cursor reaches every
+cell; the padding goes when the view does and is not written by
+|org-agenda-export|. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
 `agenda.view_columns_initially` turns it on for every new agenda, and

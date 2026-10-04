@@ -211,6 +211,73 @@ local function clear(buf)
   end
 end
 
+--- Change the agenda buffer's text without leaving it modifiable or
+--- modified.
+local function edit_text(buf, fn)
+  local modifiable = vim.bo[buf].modifiable
+  vim.bo[buf].modifiable = true
+  local ok, err = pcall(fn)
+  vim.bo[buf].modifiable = modifiable
+  vim.bo[buf].modified = false
+  if not ok then
+    error(err, 0)
+  end
+end
+
+--- Pad line `l` of `buf` with spaces to `width` display cells, so that the
+--- cursor reaches every cell of the row drawn over it. Emacs puts each
+--- column on a character of the line and, when the line is shorter than
+--- that, inserts spaces at its end (org-columns--display-here: "there has
+--- to be at least as many characters available on the line as columns to
+--- display"); here a cell takes as many cells of the line as of the row.
+local function pad_line(buf, pads, l, line, width)
+  local lw = utils.width(line)
+  if lw >= width then
+    return
+  end
+  vim.api.nvim_buf_set_text(buf, l - 1, #line, l - 1, #line, { string.rep(" ", width - lw) })
+  pads[l] = #line
+end
+
+--- Is the padding of view `state` still in its buffer (not re-rendered
+--- since)?
+local function padded(state)
+  return state.pads ~= nil
+    and vim.api.nvim_buf_is_valid(state.buf)
+    and vim.api.nvim_buf_get_changedtick(state.buf) == state.pad_tick
+end
+
+--- Remove the padding of `pad_line` (on quit and before the rows are drawn
+--- again), unless the agenda was re-rendered since.
+local function unpad(state)
+  if padded(state) then
+    local buf = state.buf
+    edit_text(buf, function()
+      for l, len in pairs(state.pads) do
+        local line = vim.api.nvim_buf_get_lines(buf, l - 1, l, false)[1]
+        if line and #line > len then
+          vim.api.nvim_buf_set_text(buf, l - 1, len, l - 1, #line, { "" })
+        end
+      end
+    end)
+  end
+  state.pads = nil
+end
+
+--- The lines of agenda buffer `buf` without the column view's padding
+--- (what writing the agenda to a file exports).
+function M.lines(buf)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  if A and A.buf == buf and padded(A) then
+    for l, len in pairs(A.pads) do
+      if lines[l] then
+        lines[l] = lines[l]:sub(1, len)
+      end
+    end
+  end
+  return lines
+end
+
 --- Draw the column overlays in the agenda buffer.
 function M.apply()
   local S = view_mod().state
@@ -223,6 +290,9 @@ function M.apply()
   if #cols == 0 then
     utils.error("Invalid columns format: " .. tostring(fmt))
     return false
+  end
+  if A and A.buf == buf then
+    unpad(A)
   end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   -- org-agenda-columns-compute-summary-properties: a parent entry shows
@@ -317,11 +387,14 @@ function M.apply()
   for group, link in pairs(HL) do
     vim.api.nvim_set_hl(0, group, { link = link, default = true })
   end
+  local pads = {}
   local function overlay(l, row, group)
     local text = row_text(row, widths)
     local lw = utils.width(lines[l] or "")
     if lw > utils.width(text) then
       text = text .. string.rep(" ", lw - utils.width(text))
+    elseif lines[l] then
+      pad_line(buf, pads, l, lines[l], utils.width(text))
     end
     pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, 0, {
       virt_text = { { text, group } },
@@ -330,12 +403,14 @@ function M.apply()
       priority = 300,
     })
   end
-  for l, row in pairs(display) do
-    overlay(l, row, "OrgAgendaColumn")
-  end
-  for l, row in pairs(summaries) do
-    overlay(l, row, "OrgAgendaColumnDateline")
-  end
+  edit_text(buf, function()
+    for l, row in pairs(display) do
+      overlay(l, row, "OrgAgendaColumn")
+    end
+    for l, row in pairs(summaries) do
+      overlay(l, row, "OrgAgendaColumnDateline")
+    end
+  end)
   local titles = {}
   for i, c in ipairs(cols) do
     titles[i] = c.title
@@ -349,6 +424,8 @@ function M.apply()
     display = display,
     fmt = fmt,
     maps = was and was.buf == buf and was.maps,
+    pads = pads,
+    pad_tick = vim.api.nvim_buf_get_changedtick(buf),
   }
   -- the titles in the agenda window's winbar (Emacs header-line), after
   -- the number and sign columns
@@ -572,6 +649,7 @@ function M.quit()
   end
   local buf = A.buf
   clear(buf)
+  unpad(A)
   if A.win and A.saved_winbar and vim.api.nvim_win_is_valid(A.win) then
     pcall(vim.api.nvim_set_option_value, "winbar", A.saved_winbar, { scope = "local", win = A.win })
   end
