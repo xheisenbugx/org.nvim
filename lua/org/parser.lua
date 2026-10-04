@@ -39,6 +39,8 @@ local M = {}
 ---@field inlinetask? boolean an inline task (level >= inlinetask_min_level)
 ---@field first_inactive? org.Date the first inactive timestamp of the entry
 ---@field property_base? table<string,string>
+---@field _lazy_head? boolean the headline line's parts are not parsed yet
+---@field _lazy_section? boolean the section is not parsed yet
 local Headline = {}
 M.Headline = Headline
 
@@ -66,7 +68,8 @@ local parse_section
 
 local function load_head(hl)
   rawset(hl, "_lazy_head", nil)
-  local parts = M.parse_headline_line(rawget(hl, "raw"), rawget(hl, "file").settings.todo)
+  -- `raw` is a headline line, so it always parses
+  local parts = assert(M.parse_headline_line(rawget(hl, "raw"), rawget(hl, "file").settings.todo))
   rawset(hl, "todo", parts.todo)
   rawset(hl, "priority", parts.priority)
   rawset(hl, "commented", parts.commented)
@@ -118,6 +121,8 @@ end
 ---@field properties table<string,string> file-level properties, keys upper-cased
 ---@field property_base table<string,string>
 ---@field properties_range integer[]|nil {start, end} of the file-level property drawer
+---@field bufnr? integer the buffer it was parsed from (set by org.files)
+---@field _log_drawer string the drawer state changes and notes go into, upper-cased
 local File = {}
 File.__index = File
 M.File = File
@@ -549,6 +554,7 @@ function parse_section(hl, lines, from, to, log_drawer)
   local verbatim_end = 0
   -- the first :END: line after the current one (false: none up to `to`),
   -- found once for all the drawers before it
+  ---@type integer|false
   local next_end = 0
   while i <= to do
     local line = lines[i]
