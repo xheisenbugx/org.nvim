@@ -403,7 +403,8 @@ function M.format_time_string(fmt, time)
         value, swapcase = value:lower(), nil
       end
     elseif c == "Z" then
-      value, is_text = os.date("%Z", time), true
+      local zone = os.date("%Z", time) --[[@as string]]
+      value, is_text = zone, true
       if swapcase then
         value, swapcase = value:lower(), nil
       end
