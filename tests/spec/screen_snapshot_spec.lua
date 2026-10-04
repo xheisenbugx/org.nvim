@@ -214,6 +214,24 @@ describe("screen snapshot", function()
     screen:expect("drawers_folded")
   end)
 
+  it("VISIBILITY: all leaves drawers open under nohidedrawers", function()
+    new()
+    screen:org({
+      "#+STARTUP: overview nohidedrawers",
+      "* Headline",
+      ":PROPERTIES:",
+      ":VISIBILITY: all",
+      ":END:",
+      ":LOGBOOK:",
+      "- Note taken on [2026-10-01 Thu 09:00]",
+      ":END:",
+      "Body after the drawers.",
+      "* Folded",
+      "Hidden body.",
+    })
+    screen:expect("visibility_all_drawers_open")
+  end)
+
   it("a day agenda", function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")

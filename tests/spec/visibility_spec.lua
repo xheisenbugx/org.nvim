@@ -59,6 +59,88 @@ describe("visibility: startup", function()
     eq(8, vim.fn.foldclosed(8))
   end)
 
+  -- org-cycle-set-visibility-according-to-property only reveals the
+  -- outline (org-fold-show-subtree, org-fold-show-hidden-entry without
+  -- HIDE-DRAWERS); drawers are folded afterwards, under hidedrawers only
+  local function drawer_lines(startup, vis)
+    return {
+      "#+STARTUP: " .. startup,
+      "* A",
+      ":PROPERTIES:", -- 3
+      ":VISIBILITY: " .. vis,
+      ":END:",
+      ":LOGBOOK:", -- 6
+      "- note",
+      ":END:",
+      "a body",
+      "** B", -- 10
+      ":LOGBOOK:", -- 11
+      "- nb",
+      ":END:",
+      "b body",
+      "* C",
+      "c body",
+    }
+  end
+
+  for _, vis in ipairs({ "all", "showall" }) do
+    it("VISIBILITY: " .. vis .. " leaves drawers open under nohidedrawers", function()
+      org_buffer(drawer_lines("overview nohidedrawers", vis), { 1, 0 })
+      fold.apply_startup(0)
+      eq(false, closed(3))
+      eq(false, closed(6))
+      eq(false, closed(11))
+      eq(15, vim.fn.foldclosed(15))
+    end)
+
+    it("VISIBILITY: " .. vis .. " folds drawers under hidedrawers", function()
+      org_buffer(drawer_lines("overview hidedrawers", vis), { 1, 0 })
+      fold.apply_startup(0)
+      eq(3, vim.fn.foldclosed(3))
+      eq(6, vim.fn.foldclosed(6))
+      eq(11, vim.fn.foldclosed(11))
+      eq(false, closed(10))
+    end)
+  end
+
+  it("VISIBILITY: children leaves the entry's drawers open under nohidedrawers", function()
+    org_buffer(drawer_lines("showall nohidedrawers", "children"), { 1, 0 })
+    fold.apply_startup(0)
+    eq(false, closed(3))
+    eq(false, closed(6))
+    eq(10, vim.fn.foldclosed(10))
+  end)
+
+  it("VISIBILITY: children folds the entry's drawers under hidedrawers", function()
+    org_buffer(drawer_lines("showall hidedrawers", "children"), { 1, 0 })
+    fold.apply_startup(0)
+    eq(3, vim.fn.foldclosed(3))
+    eq(6, vim.fn.foldclosed(6))
+    eq(10, vim.fn.foldclosed(10))
+  end)
+
+  it("hide_drawer_startup = false keeps VISIBILITY: all drawers open", function()
+    local lines = drawer_lines("overview", "all")
+    table.remove(lines, 1)
+    org_buffer(lines, { 1, 0 })
+    config.opts.hide_drawer_startup = false
+    fold.apply_startup(0)
+    config.opts.hide_drawer_startup = true
+    eq(false, closed(2))
+    eq(false, closed(5))
+    eq(false, closed(10))
+  end)
+
+  it("C-u C-u TAB keeps VISIBILITY: all drawers open under nohidedrawers", function()
+    org_buffer(drawer_lines("overview nohidedrawers", "all"), { 1, 0 })
+    fold.apply_startup(0)
+    vim.cmd("normal! zM")
+    fold.set_startup_visibility()
+    eq(false, closed(3))
+    eq(false, closed(6))
+    eq(false, closed(11))
+  end)
+
   it("keeps archived subtrees folded in SHOW ALL", function()
     org_buffer({ "* A", "a body", "* Old :ARCHIVE:", "old body", "* B", "b body" }, { 1, 0 })
     fold.show_all()

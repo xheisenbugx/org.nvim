@@ -1218,8 +1218,11 @@ local function hide_entry(hl)
 end
 
 --- Show the text of an entry: open its fold if needed (its children
---- stay hidden) and unhide its lines (org-fold-show-entry).
-local function show_entry(hl)
+--- stay hidden) and unhide its lines (org-fold-show-entry). Its drawers
+--- get folded unless `keep_drawers` (org-fold-show-entry without
+--- HIDE-DRAWERS).
+---@param keep_drawers? boolean
+local function show_entry(hl, keep_drawers)
   if has_fold(hl) and lnum_closed(hl.line) then
     open_at(hl.line)
     for _, ch in ipairs(hl.children) do
@@ -1231,7 +1234,9 @@ local function show_entry(hl)
   end
   M.unconceal(0, hl.line + 1, hl.body_end)
   open_items(hl.line + 1, hl.body_end)
-  close_drawers(hl.line, hl.body_end)
+  if not keep_drawers then
+    close_drawers(hl.line, hl.body_end)
+  end
 end
 
 --- Open the fold of `hl` whose contents were hidden, keeping them hidden:
@@ -2311,11 +2316,14 @@ end
 --- Apply the VISIBILITY property of every headline that has one
 --- (org-cycle-set-visibility-according-to-property): `folded`,
 --- `children`, `content` or `all`. The headline itself is revealed.
+--- Drawers are left as they are: Emacs folds them afterwards, and only
+--- under `hidedrawers` (org-cycle-set-startup-visibility).
 function M.apply_visibility_properties()
   if not has_visibility_property(0) then
     refresh_ellipsis()
     return
   end
+  local hide_drawers = default_closed(curbuf()).drawer
   local pos = vim.api.nvim_win_get_cursor(0)
   for _, hl in ipairs(file().headlines) do
     local state = hl.properties.VISIBILITY
@@ -2328,7 +2336,7 @@ function M.apply_visibility_properties()
       end
       if state == "children" then
         -- org-fold-show-hidden-entry + org-fold-show-children
-        show_entry(hl)
+        show_entry(hl, not hide_drawers)
         for _, ch in ipairs(hl.children) do
           M.unconceal(0, ch.line, ch.line)
           if has_fold(ch) then
@@ -2359,7 +2367,9 @@ function M.apply_visibility_properties()
       elseif state == "all" or state == "showall" then
         open_outline(hl.line, hl.end_line)
         M.unconceal(0, hl.line, hl.end_line)
-        close_drawers(hl.line, hl.end_line)
+        if hide_drawers then
+          close_drawers(hl.line, hl.end_line)
+        end
       end
     end
   end
