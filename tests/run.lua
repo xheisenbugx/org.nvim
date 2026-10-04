@@ -303,6 +303,62 @@ end
 local files = _G.arg and #_G.arg > 0 and _G.arg or vim.fn.glob(root .. "/tests/spec/**/*_spec.lua", false, true)
 local progress = vim.env.ORG_TEST_PROGRESS
 
+--- Spec files that time their work: a parallel run starts them after every
+--- other file has finished, one at a time, so no other spec file competes
+--- with them for the CPUs (their growth checks failed now and then when
+--- the 2n run shared the machine with a heavier neighbour than the n run).
+local function solo(f)
+  return f:match("perf_budgets_spec%.lua$") ~= nil
+end
+
+local function file_size(f)
+  local st = vim.uv.fs_stat(f)
+  return st and st.size or 0
+end
+
+-- ORG_TEST_PERF=0 leaves out the timed files (CI times them in a job of
+-- their own)
+if vim.env.ORG_TEST_PERF == "0" and vim.env.ORG_TEST_WORKER ~= "1" then
+  files = vim.tbl_filter(function(f)
+    return not solo(f)
+  end, files)
+end
+
+-- ORG_TEST_SHARD=i/n runs the i-th of n shares of the files (CI splits the
+-- slow Windows run over several runners): the biggest files first, each to
+-- the share with the fewest bytes so far, so every share gets a similar load
+-- and the same files on every run.
+local shard_i, shard_n = (vim.env.ORG_TEST_SHARD or ""):match("^(%d+)/(%d+)$")
+shard_i, shard_n = tonumber(shard_i), tonumber(shard_n)
+if shard_n and shard_n > 1 and vim.env.ORG_TEST_WORKER ~= "1" then
+  assert(shard_i >= 1 and shard_i <= shard_n, "ORG_TEST_SHARD: expected i/n with 1 <= i <= n")
+  local sorted = vim.deepcopy(files)
+  table.sort(sorted, function(a, b)
+    local sa, sb = file_size(a), file_size(b)
+    if sa ~= sb then
+      return sa > sb
+    end
+    return a < b
+  end)
+  local load, mine = {}, {}
+  for s = 1, shard_n do
+    load[s] = 0
+  end
+  for _, f in ipairs(sorted) do
+    local s = 1
+    for t = 2, shard_n do
+      if load[t] < load[s] then
+        s = t
+      end
+    end
+    load[s] = load[s] + file_size(f)
+    if s == shard_i then
+      mine[#mine + 1] = f
+    end
+  end
+  files = mine
+end
+
 --- Run each spec file in its own Neovim, `jobs` at a time, and report the
 --- totals like a serial run. Every worker gets a fresh XDG_DATA_HOME, so
 --- workers don't share the ID database or clock state, and no state leaks
@@ -310,14 +366,17 @@ local progress = vim.env.ORG_TEST_PROGRESS
 local function run_parallel(jobs)
   local timeout = (tonumber(vim.env.ORG_TEST_TIMEOUT) or 600) * 1000
   local uv = vim.uv
-  -- the biggest files first, so a slow one doesn't start last
+  -- the biggest files first, so a slow one doesn't start last; the timed
+  -- files after all of them
   local queue = vim.deepcopy(files)
   local size = {}
   for _, f in ipairs(queue) do
-    local st = uv.fs_stat(f)
-    size[f] = st and st.size or 0
+    size[f] = file_size(f)
   end
   table.sort(queue, function(a, b)
+    if solo(a) ~= solo(b) then
+      return solo(b)
+    end
     return size[a] > size[b]
   end)
   local running, finished, outputs = {}, 0, {}
@@ -358,7 +417,11 @@ local function run_parallel(jobs)
   end
   local function collect(job)
     local res = job.res
-    local entry = { file = job.file, out = (res.stdout or "") .. "\n" .. (res.stderr or "") }
+    local entry = {
+      file = job.file,
+      out = (res.stdout or "") .. "\n" .. (res.stderr or ""),
+      seconds = (uv.hrtime() - job.started) / 1e9,
+    }
     local f = io.open(job.data .. "/result.json", "rb")
     if f then
       local ok, r = pcall(vim.json.decode, f:read("*a"))
@@ -378,8 +441,17 @@ local function run_parallel(jobs)
     vim.fn.delete(job.data, "rf")
   end
   local n = math.min(jobs, #queue)
+  local function may_launch()
+    if #queue == 0 then
+      return false
+    end
+    if solo(queue[1]) then
+      return #running == 0
+    end
+    return #running < n
+  end
   while #queue > 0 or #running > 0 do
-    while #running < n and #queue > 0 do
+    while may_launch() do
       launch(table.remove(queue, 1))
     end
     vim.wait(50, function()
@@ -439,6 +511,15 @@ local function run_parallel(jobs)
       #skips > 0 and string.format(", %d skipped", #skips) or ""
     )
   )
+  -- where the time went, to see which files to split or speed up
+  table.sort(outputs, function(a, b)
+    return a.seconds > b.seconds
+  end)
+  local slowest = {}
+  for i = 1, math.min(5, #outputs) do
+    slowest[i] = string.format("%s %.1f s", vim.fn.fnamemodify(outputs[i].file, ":t"), outputs[i].seconds)
+  end
+  io.stderr:write("slowest: " .. table.concat(slowest, ", ") .. "\n")
   io.stderr:write(string.format("%d files, %d jobs, %.1f s\n", #files, n, (uv.hrtime() - start) / 1e9))
   write_coverage()
   vim.cmd(failed > 0 and "cquit 1" or "qall!")
