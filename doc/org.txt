@@ -6458,8 +6458,10 @@ Repeating with .                                            *org-dot-repeat*
 The editing keys below can be repeated with |.| like Vim's own changes:
 after `>>` on a headline, `j.` demotes the next one too. "." keeps the
 count of the first key (`2>>` then `.` demotes by two again); a count
-before "." replaces it (`3.`). Each repeat is its own undo step. When the
-key doesn't apply where "." is pressed, the key's Vim default runs, as when
+before "." replaces it (`3.`). Each repeat is its own undo step. "." does
+what pressing the key again would, on the cursor's line, also inside a
+closed fold, and the cursor stays where the key left it. When the key
+doesn't apply where "." is pressed, the key's Vim default runs, as when
 typing it. Only Normal-mode keys are repeated, and only edits that ask
 nothing: promote / demote (`<<` `>>` `<s` `>s`, the meta and shift-meta
 keys), move_subtree_up / down, the TODO, priority and date shift keys
