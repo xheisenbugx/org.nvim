@@ -173,6 +173,7 @@
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "export_stack" # Export stack: results of background exports
+---| "export_stack_cancel" # Cancel a background export (the stack entry at the cursor, else the newest)
 ---| "export_stack_clear" # Remove every entry from the export stack
 ---| "feed_goto_inbox" # Go to the inbox of a feed
 ---| "feed_update_all" # Update all RSS/Atom feeds

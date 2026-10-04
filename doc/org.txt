@@ -4687,18 +4687,46 @@ Asynchronous export                                      *org-export-stack*
 With the dispatcher's `a` toggle, `export.in_background` or `:Org export
 {format} async`, the dispatcher returns at once and the result is not shown
 but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
-lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
+lists it: number, back-end, age and the file or buffer. <CR> or
 `v` views the entry at the cursor (a file like a file link: HTML or PDF
 with the system opener, `links.file_apps` honoured; with a count in
-Neovim), `d` removes it from the stack, `C` clears the stack
-(`:Org export_stack_clear`), `g` refreshes, `q` closes. Like Emacs'
-org-export-async-start, a separate Neovim (`nvim --clean --headless`)
-exports a copy of the buffer with the session's options, minus their Lua
-functions (filters, hooks, format functions): `export.async_init_file`
-(org-export-async-init-file) is a Lua file it runs first to set them.
-Prompts are answered "no" there, so Babel blocks that need a confirmation
-keep their results. Visible-only exports need the folds and run in this
-Neovim instead, right after the dispatcher closes.
+Neovim), `d` removes it from the stack, `x` cancels it while it runs
+(`:Org export_stack_cancel`, which elsewhere cancels the newest running
+export), `C` clears the stack (`:Org export_stack_clear`), `g`
+refreshes, `q` closes. Like Emacs' org-export-async-start, a separate
+Neovim (`nvim --clean --headless`) exports a copy of the buffer with the
+session's options, minus their Lua functions (filters, hooks, format
+functions): `export.async_init_file` (org-export-async-init-file) is a
+Lua file it runs first to set them. The buffer and the options are copied
+when the export starts, so editing the buffer meanwhile doesn't change
+the result. Prompts are answered "no" there, so Babel blocks that need a
+confirmation keep their results. Visible-only exports need the folds and
+run in this Neovim instead, right after the dispatcher closes.
+
+While an export runs, its age is "run" and its source the buffer with the
+output of its process ("*Org Export Process*", or the compiler's output
+buffer); viewing it shows that output as it comes. When it is done, the
+entry becomes the result and "Asynchronous export finished: FILE" is
+shown. When it fails, the error is shown (for a PDF: the "File ... wasn't
+produced" message of Emacs and the error lines of the LaTeX output), and
+the entry stays with the output, aged "exit", as Emacs keeps the buffer
+of a process that "exited abnormally". Cancelling kills the process with
+the programs it started (pdflatex under latexmk, LibreOffice, the
+separate Neovim): the entry stays as "signal". Running exports are
+cancelled when Neovim quits.
+
+The external part of an ordinary export runs in the background as well:
+the PDF compilation of `l p`, `l o`, `k p`, `M p`, ... (unless
+`export.latex.async_compile` is false) and the conversion of an ODT file
+to `export.odt.preferred_output_format` (unless `export.odt.async_convert`
+is false). Neovim doesn't wait for them; they are on the export stack
+while they run (where `x` cancels them), "and open" opens the file once
+it's there, and a notification says when it's done ("PDF file produced"
+or "Exported to FILE") or why it failed. Without a UI (headless, scripts)
+they run to the end before the export returns. The Lua part of the export
+(Org to LaTeX, ODT XML, HTML) runs in Neovim itself, as in Emacs: on a
+document of 3,000 headlines (16,000 lines) it takes about 0.6 s for
+LaTeX and 1 s for ODT; with `a` it runs in the separate Neovim too.
 
 Convert region                                   *org-export-convert-region*
 In Visual mode the actions `convert_region_to_html`, `_latex`, `_md`,
@@ -4721,7 +4749,8 @@ Output goes next to the source file (named after it or #+EXPORT_FILE_NAME),
 or to `export.output_dir`. PDF compiles the LaTeX file with
 `export.latex.pdf_process` (latexmk when available, else three runs of
 `export.latex.compiler`); it runs in the background with |vim.system()|
-unless `export.latex.async_compile` is false. ODT is written natively
+unless `export.latex.async_compile` is false (|org-export-stack|), its
+output going to the "*Org PDF LaTeX Output*" buffer. ODT is written natively
 (|org-export-odt|). DOCX and other pandoc formats run pandoc on the output
 of the Org back-end.
 
@@ -5062,7 +5091,9 @@ copies the other members into the document (reading .odt/.ott files needs
 addition) adds raw style XML to <office:styles>.
 `export.odt.preferred_output_format` ("pdf", "docx", "doc", ...) converts
 the result with `convert_process` ("LibreOffice": `soffice --headless
---convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`);
+--convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`),
+in the background unless `export.odt.async_convert` is false
+(|org-export-stack|);
 `require("org.export.odt").convert(file, format)` converts any file
 (org-odt-convert); `:Org odt_convert` asks for the file and the output
 format (with a count it opens the result).
@@ -5285,6 +5316,14 @@ These need Emacs Lisp or Emacs itself:
 - Asynchronous export (`a`) runs in a separate Neovim, like Emacs; a
   visible-only export runs on the editor's event loop instead, and so does
   publishing.
+- PDF compilation and ODT conversion run in the background, on the export
+  stack, also without `a` (`export.latex.async_compile`,
+  `export.odt.async_convert`; Emacs waits for them). The stack can cancel
+  a running export (`x`, `:Org export_stack_cancel`; Emacs kills it with
+  its process buffer), shows "signal" for a cancelled one, and names the
+  back-end of a running export (Emacs leaves it empty until the result).
+  A failed compilation's message also quotes the error lines of the LaTeX
+  output.
 - Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
@@ -6405,9 +6444,9 @@ export ~                                                   *org-config-export*
   table_default_attributes, table_row_open_tag, table_row_close_tag,
   table_use_header_tags_for_first_column, tag_class_prefix,
   todo_kwd_class_prefix, text_markup_alist, viewport, xml_declaration;
-  latex active_timestamp_format, inactive_timestamp_format,
-  diary_timestamp_format, compiler_file_string, known_warnings,
-  custom_lang_environments, default_footnote_command,
+  latex async_compile true (|org-export-stack|), active_timestamp_format,
+  inactive_timestamp_format, diary_timestamp_format, compiler_file_string,
+  known_warnings, custom_lang_environments, default_footnote_command,
   default_quote_environment, footnote_defined_format, footnote_separator,
   format_drawer_function, format_headline_function,
   format_inlinetask_function, image_default_scale, image_default_height,
@@ -6421,7 +6460,8 @@ export ~                                                   *org-config-export*
   inactive_timestamp_format, diary_timestamp_format,
   link_with_unknown_path_format, tables_verbatim,
   table_scientific_notation, text_markup_alist, format_headline_function,
-  format_drawer_function, format_inlinetask_function.
+  format_drawer_function, format_inlinetask_function; odt async_convert
+  true (|org-export-stack|).
   cite also has the buffer options (|org-cite|): activate_processor,
   follow_processor, insert_processor "basic", basic_max_key_distance 2,
   basic_author_column_end 25, basic_column_separator "  ",

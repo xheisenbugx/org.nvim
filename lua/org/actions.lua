@@ -619,6 +619,12 @@ group("Search & export", {
     desc = "Remove every entry from the export stack",
     global = true,
   },
+  export_stack_cancel = {
+    "org.export",
+    "stack_cancel",
+    desc = "Cancel a background export (the stack entry at the cursor, else the newest)",
+    global = true,
+  },
   convert_region_to_html = {
     "org.export",
     "convert_region_to_html",

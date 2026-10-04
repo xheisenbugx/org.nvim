@@ -3157,12 +3157,16 @@ local function file_url(path)
 end
 
 --- Convert `in_file` to `out_fmt` with `export.odt.convert_process`
---- (org-odt-convert). Returns the converted file or nil.
+--- (org-odt-convert). Returns the converted file or nil. With `on_done`
+--- the converter runs in the background: on_done(file|nil, err|nil) is
+--- called when it is done and the running process is returned (see
+--- org.export.process; nil when the conversion can't start).
 ---@param in_file string
 ---@param out_fmt string
 ---@param open? boolean open the converted file
----@return string?
-function M.convert(in_file, out_fmt, open)
+---@param on_done? fun(file: string?, err: string?)
+---@return any
+function M.convert(in_file, out_fmt, open, on_done)
   local utils = require("org.utils")
   -- lint: allow expand: a file the caller or user named
   in_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(in_file), ":p"))
@@ -3198,16 +3202,30 @@ function M.convert(in_file, out_fmt, open)
   if vim.fn.filereadable(out_file) == 1 then
     os.remove(out_file)
   end
-  local res = sh(cmd, out_dir)
-  if vim.fn.filereadable(out_file) == 1 then
-    utils.notify("Exported to " .. out_file)
-    if open then
-      vim.ui.open(out_file)
+  local function result(output, cancelled)
+    if not cancelled and vim.fn.filereadable(out_file) == 1 then
+      utils.notify("Exported to " .. out_file)
+      if open then
+        vim.ui.open(out_file)
+      end
+      return out_file
     end
-    return out_file
+    if cancelled then
+      return nil, "Conversion to " .. out_file .. " cancelled"
+    end
+    local err = "Export to " .. out_file .. " failed\n" .. output
+    utils.error(err)
+    return nil, err
   end
-  utils.error("Export to " .. out_file .. " failed\n" .. (res.stdout or "") .. (res.stderr or ""))
-  return nil
+  if on_done then
+    utils.notify("Executing " .. cmd)
+    local shell = vim.fn.has("win32") == 1 and { vim.o.shell, vim.o.shellcmdflag } or { "sh", "-c" }
+    return require("org.export.process").run({ cmd }, { cwd = out_dir, shell = shell }, function(run)
+      on_done(result(run:text(), run.cancelled))
+    end)
+  end
+  local res = sh(cmd, out_dir)
+  return (result((res.stdout or "") .. (res.stderr or "")))
 end
 
 --- org-odt-convert as a command: ask for the file (default the buffer's)
@@ -3345,11 +3363,15 @@ function M.write_package(out, content, info)
 end
 
 --- Export `lines` to an .odt file (org-odt-export-to-odt).
+--- A conversion to `preferred_output_format` runs in the background with
+--- `opts.async` (by default `export.odt.async_convert` when there is a
+--- UI): the .odt is returned with the running converter.
 ---@param lines string[]
 ---@param xopts table options of ox.export_as
----@param opts? { output?: string, open?: boolean }
+---@param opts? { output?: string, open?: boolean, async?: boolean, on_done?: fun(file: string?, err: string?) }
 ---@param src? string visited file
 ---@return string? output path
+---@return org.export.Process? converter running in the background
 function M.export_file(lines, xopts, opts, src)
   opts = opts or {}
   local utils = require("org.utils")
@@ -3366,13 +3388,36 @@ function M.export_file(lines, xopts, opts, src)
     return nil
   end
   utils.notify("Created " .. out)
-  local result = out
-  local preferred = ocfg().preferred_output_format
-  if nw(preferred) and preferred ~= "odt" then
-    result = M.convert(out, preferred) or out
-  end
   local c = require("org.config").opts.export or {}
-  if opts.open or c.open_after_export then
+  local open = opts.open or c.open_after_export
+  local preferred = ocfg().preferred_output_format
+  local result = out
+  if nw(preferred) and preferred ~= "odt" then
+    local async = opts.async
+    if async == nil then
+      async = ocfg().async_convert ~= false and #vim.api.nvim_list_uis() > 0
+    end
+    if async then
+      -- the converter runs in the background, on the export stack
+      local export, entry, proc = require("org.export"), nil, nil
+      proc = M.convert(out, preferred, false, function(file, err)
+        if proc.cancelled then
+          return export.stack_job_done(entry, opts, nil, err)
+        end
+        if open then
+          vim.ui.open(file or out)
+        end
+        export.stack_job_done(entry, opts, file or out)
+      end)
+      if proc then
+        entry = export.stack_job(proc, "odt", opts)
+        return out, proc
+      end
+    else
+      result = M.convert(out, preferred) or out
+    end
+  end
+  if open then
     vim.ui.open(result)
   end
   return result
