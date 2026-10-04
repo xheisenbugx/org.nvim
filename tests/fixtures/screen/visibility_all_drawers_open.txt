@@ -1,0 +1,23 @@
+screen 60x12
+|{1:#+STARTUP:}{2: overview nohidedrawers}|
+|{3:* Headline}|
+|{4::PROPERTIES:}|
+|{5::VISIBILITY:}{6: all}|
+|{4::END:}|
+|{4::LOGBOOK:}|
+|{7:-} Note taken on {8:[2026-10-01 Thu 09:00]}|
+|{4::END:}|
+|Body after the drawers.|
+|{9:* Folded}{10:...}{11:                                                 }|
+
+{1} OrgKeyword -> PreProc
+{2} OrgKeywordValue -> String
+{3} OrgHeadlineLevel1 -> Title [bold]
+{4} OrgDrawer -> Comment
+{5} OrgPropertyKey -> @property
+{6} OrgPropertyValue -> String
+{7} OrgListBullet -> Special
+{8} OrgTimestampInactive -> Comment
+{9} Folded | OrgHeadlineLevel1 -> Title [bold]
+{10} Folded | Comment
+{11} Folded

@@ -669,7 +669,8 @@ falling back to the `startup_folded` option. Drawers are then folded
 (`hidedrawers`, off with `nohidedrawers` or `hide_drawer_startup = false`)
 and so are blocks with `hideblocks` (or `hide_block_startup = true`);
 showing a subtree (<Tab>'s SUBTREE, a `VISIBILITY: all` property) leaves
-folded blocks folded, like Emacs.
+blocks and drawers as they were, like Emacs: with `nohidedrawers` the
+drawers of a `VISIBILITY: all` or `children` entry stay open.
 Except with `showeverything`, a `VISIBILITY` property (`folded`,
 `children`, `content`, `all`) then sets the visibility of its subtree.
 
