@@ -60,6 +60,7 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `lua/org/mappings.lua` | default keys, bound to actions |
 | `lua/org/parser.lua`, `element.lua`, `files.lua` | parsing and the per-file cache |
 | `lua/org/agenda/`, `babel/`, `capture/`, `export/`, `table/`, `ui/` | larger subsystems |
+| `lua/org/fold.lua`, `fold/` | fold levels (`foldexpr` and its cache, a hot path) in `fold.lua`; visibility cycling and commands in `fold/` |
 | `lua/org/links.lua`, `links/` | hyperlinks: the facade, and parse / search / open / shell / store / insert / commands parts |
 | `lua/org/api/` | the public Lua API (`:h org-api`); everything else is internal |
 | `lua/org/pickers/` | picker sources and the snacks / fzf-lua / telescope / mini.pick / `vim.ui.select` adapters |
