@@ -1253,42 +1253,34 @@ function M.file_relative_name(filename, info)
   return filename
 end
 
+--- The headline SEARCH finds in FILE (org-link-search with
+--- `org-link-search-must-match-exact-headline' bound to t, as
+--- org-publish-resolve-external-link does), or false when it finds
+--- something else: a target, a named element, a coderef, or text in a
+--- file that isn't an Org file (no headline there, so no CUSTOM_ID). A
+--- `/regexp/` leaves point at the start, on the first line's headline if
+--- any. No match is a broken link, with Emacs's message.
 local function search_headline(file, search)
-  local lines = utils.readfile(file)
-  if not lines then
+  local links = require("org.links")
+  local src = links.search_source(nil, file)
+  if not src then
     error(string.format("No such file: %q", file), 0)
   end
-  -- a /regexp/ search makes a sparse tree (org-occur) in Emacs: never a
-  -- broken link, and never a headline with a CUSTOM_ID
-  if search:match("^/.*/$") then
-    return false
+  local lnum, _, err, kind = links.search_location(search, src, { must_match = true })
+  if kind == "regexp" then
+    -- org-occur (or occur) leaves point at the start of the file
+    lnum = 1
   end
-  local parser = require("org.parser")
-  local f = parser.parse(lines, file)
-  local title = search:match("^%*(.*)$")
-  local exact = title and vim.trim(title) or vim.trim(search)
-  local function clean(s)
-    return vim.trim((s:gsub("%[%d*%%%]", ""):gsub("%[%d*/%d*%]", "")))
-  end
-  local hl = f:find_headline(function(h)
-    return clean(h:plain_title()) == clean(exact) or h:plain_title() == exact
-  end)
-  if hl then
-    return hl
-  end
-  if not title then
-    -- targets and named elements are valid destinations, but not headlines
-    local links = require("org.links")
-    for _, l in ipairs(lines) do
-      if
-        links.find_target(l, search)
-        or l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]*" .. vim.pesc(search) .. "[ \t]*$")
-      then
-        return false
+  if lnum then
+    -- org-at-heading-p: anywhere on a headline's line
+    for _, hl in ipairs(src.file and src.file.headlines or {}) do
+      if hl.line == lnum then
+        return hl
       end
     end
+    return false
   end
-  require("org.export.ox").broken_link(search)
+  require("org.export.ox").broken_link(err or search)
 end
 
 --- Reference of the element matching SEARCH in FILE
@@ -1297,6 +1289,8 @@ end
 --- reference the target file uses (or will use) for it; else
 --- "MissingReference".
 function M.resolve_external_link(search, file, info)
+  -- the warning names the file as the link does
+  local link_path = file
   if info and info.input_file and not (utils.is_absolute(file) or file:match("^~")) then
     file = expand(file, vim.fn.fnamemodify(info.input_file, ":p:h"))
   else
@@ -1313,7 +1307,7 @@ function M.resolve_external_link(search, file, info)
     end
   end
   if not M.cache or not M._publishing then
-    utils.notify(string.format("Reference %q in file %q cannot be resolved without publishing", search, file))
+    utils.notify(string.format("Reference %q in file %q cannot be resolved without publishing", search, link_path))
     return "MissingReference"
   end
   local ox = require("org.export.ox")

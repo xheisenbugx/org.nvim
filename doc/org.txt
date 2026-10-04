@@ -4600,7 +4600,13 @@ only (`v`) exports what is not folded.
 Links: internal links (`[[*Heading]]`, `[[#custom-id]]`, `[[name]]`,
 `[[target]]`, radio targets, `id:` links, coderefs) resolve to generated
 labels; a link that resolves to nothing stops the export with an error
-unless `broken-links:t` (drop it) or `broken-links:mark`. Links whose type
+unless `broken-links:t` (drop it) or `broken-links:mark`. In HTML, a
+`file:` link with a search option (`[[file:x.org::*Heading]]`,
+`[[file:notes.txt::some words]]`) points at the headline's CUSTOM_ID when
+it has one, else at `#MissingReference` with a warning (outside
+publishing), as in Emacs. The search must find something in the file (in
+an Org file a headline, target, name or coderef; in any other file the
+words anywhere), or the link is broken. Links whose type
 has an `export` function in `links.types` use it, like
 `org-link-parameters :export`. `#+TOC: headlines 2 [local]`, `#+TOC:
 tables` and `#+TOC: listings` insert lists anywhere.
