@@ -6582,13 +6582,14 @@ buffers (org-org-menu, org-tbl-menu), "Agenda" in the agenda
 "Edit-Formulas" in the formula editor (org-table-fedit-menu) and "OrgTbl"
 where orgtbl-mode is on (orgtbl-mode-menu), with Emacs's entries in Emacs's
 order, each running the action that does the same (its key is shown next to
-it). Neovim menus are global, so they are added when a buffer they belong
-to is entered and removed when another one is. GUIs show them in the menu
-bar; anywhere, run an entry with |:emenu| (`:emenu Org.<Tab>` completes) or
-pop a menu up with |:popup| (`:popup Org`). Entries Emacs greys out at point
-are disabled before a popup and refuse to run otherwise. "File List for
-Agenda" and "Agenda Files" list the agenda files. `ui.menus = false` turns
-the menus off (Emacs has no option for them).
+it, unless `mappings.disable_all` leaves it unbound; the agenda buffer's
+keys stay bound). Neovim menus are global, so they are added when a buffer
+they belong to is entered and removed when another one is. GUIs show them
+in the menu bar; anywhere, run an entry with |:emenu| (`:emenu Org.<Tab>`
+completes) or pop a menu up with |:popup| (`:popup Org`). Entries Emacs
+greys out at point are disabled before a popup and refuse to run otherwise.
+"File List for Agenda" and "Agenda Files" list the agenda files.
+`ui.menus = false` turns the menus off (Emacs has no option for them).
 
 Key menus and choice lists                                   *org-key-menus*
 Commands that ask for one key (the export dispatcher, the agenda

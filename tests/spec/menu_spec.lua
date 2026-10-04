@@ -267,6 +267,42 @@ describe("menus", function()
     ok(vim.tbl_contains(names("Org.Customize.Org.agenda"), "span"))
   end)
 
+  describe("with mappings.disable_all", function()
+    after_each(function()
+      config.opts.mappings.disable_all = false
+      menu.sync(true)
+    end)
+
+    it("shows no key next to a label, since none is bound", function()
+      org_buffer({ "* H" })
+      ok(vim.fn.execute("menu Org.Show/Hide"):find("<S-Tab>", 1, true))
+      eq("<S-Tab>", menu.key_for("global_cycle"))
+      config.opts.mappings.disable_all = true
+      org_buffer({ "* H" })
+      menu.sync(true)
+      eq("", vim.fn.maparg("<S-Tab>", "n"))
+      eq(nil, menu.key_for("global_cycle"))
+      eq(nil, menu.key_for("agenda", nil))
+      local listing = vim.fn.execute("menu Org")
+      ok(listing:find("Cycle Global Visibility", 1, true), listing)
+      eq(nil, listing:find("<S-Tab>", 1, true))
+      eq(nil, listing:find("<C-c><C-t>", 1, true))
+      eq(false, require("org.menu_defs").key_or_nil("todo"))
+    end)
+
+    it("keeps the agenda keys, which the agenda buffer still binds", function()
+      config.opts.mappings.disable_all = true
+      require("org.agenda").command("a")
+      eq("orgagenda", vim.bo.filetype)
+      menu.sync()
+      ok(vim.fn.maparg("f", "n") ~= "")
+      eq("f", menu.key_for("later", "agenda"))
+      local listing = vim.fn.execute("menu Agenda")
+      require("org.agenda.view").quit(true)
+      ok(listing:find("Next Dates^If", 1, true), listing)
+    end)
+  end)
+
   it("loads the menu entries only for a buffer that has a menu", function()
     local defs = package.loaded["org.menu_defs"]
     vim.cmd("enew!")
