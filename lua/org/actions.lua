@@ -576,6 +576,12 @@ group("Refile, archive & attach", {
     desc = "Edit the list of agenda files",
     global = true,
   },
+  agenda_index_rebuild = {
+    "org.agenda.index",
+    "rebuild",
+    desc = "Rebuild the agenda index",
+    global = true,
+  },
 })
 
 group("Search & export", {

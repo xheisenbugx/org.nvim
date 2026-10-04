@@ -716,6 +716,95 @@ describe("perf: links and footnotes", function()
   end)
 end)
 
+-- Many agenda files (:h org-agenda-index): a first agenda view built from
+-- the index on disk (the files read, their outline found, the rest filled
+-- in), the background parse of them all, and a view after it. Without the
+-- index, 2,000 files of 20 headlines took 1.1 s to the first week view on a
+-- laptop; from the index 0.7 s, after the background parse 0.4 s.
+describe("perf: agenda index", function()
+  setup()
+  local files = require("org.files")
+  local index = require("org.agenda.index")
+  local dirs = {}
+  local saved_files, saved_index
+
+  --- A directory of `n` agenda files of 20 headlines each.
+  local function dir_of(n)
+    if not dirs[n] then
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      local lines = gen.headlines(20)
+      for i = 1, n do
+        lines[1] = "#+TITLE: File " .. i
+        vim.fn.writefile(lines, ("%s/f%04d.org"):format(dir, i))
+      end
+      dirs[n] = dir
+    end
+    return dirs[n]
+  end
+
+  --- The agenda files are the `n` files, indexed (on disk), and parsed
+  --- neither in memory nor in the index's memory: a new session.
+  local function indexed(n)
+    index.reset()
+    os.remove(index.path())
+    files.invalidate()
+    config.opts.agenda_files = { dir_of(n) }
+    files.agenda_files()
+    index.flush()
+    index.reset()
+    files.invalidate()
+  end
+
+  local anchor = require("org.date").parse("<2026-05-13 Wed>"):days()
+  local function week()
+    require("org.agenda").open({ type = "agenda" }, { span = "week", anchor = anchor })
+  end
+
+  before_each(function()
+    saved_files = config.opts.agenda_files
+    saved_index = config.opts.agenda.index
+    config.opts.agenda.index = vim.tbl_extend("force", saved_index, { background = false, watch = false })
+  end)
+  after_each(function()
+    index.reset()
+    config.opts.agenda_files = saved_files
+    config.opts.agenda.index = saved_index
+    files.invalidate()
+  end)
+
+  it("builds the first agenda over 300 files from the index in budget", function()
+    indexed(300)
+    budget("agenda week over 300 indexed files", 1500, function()
+      week()
+      vim.cmd("redraw")
+    end)
+    ok(index.status().hits >= 300)
+  end)
+
+  it("parses 300 agenda files in the background in budget, then views them in budget", function()
+    index.reset()
+    os.remove(index.path())
+    files.invalidate()
+    config.opts.agenda_files = { dir_of(300) }
+    config.opts.agenda.index.background = true
+    budget("background parse of 300 agenda files", 5000, function()
+      index.start()
+      ok(index.wait(60000))
+    end)
+    budget("agenda week over 300 files parsed in the background", 1500, function()
+      week()
+      vim.cmd("redraw")
+    end)
+  end)
+
+  it("builds an agenda from the index in time linear in the number of files", function()
+    linear("agenda week from the index", 25, week, function(n)
+      indexed(n)
+    end, 1600)
+  end)
+end)
+
 -- An export keeps nothing of its document once it has returned. A cache
 -- of positions in the exported tree, with weak keys and values that
 -- reached the keys (which LuaJIT never lets go), kept every tree alive:

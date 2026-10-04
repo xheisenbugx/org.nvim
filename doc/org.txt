@@ -1582,6 +1582,50 @@ agenda is built: `r` removes it from the list (for the session), any
 other key aborts (org-check-agenda-file); `agenda.skip_unavailable_files
 = true` skips such files silently (org-agenda-skip-unavailable-files).
 
+Agenda index                                                *org-agenda-index*
+
+With many agenda files, most of the time of the first agenda view goes
+into parsing them. Emacs has nothing like it; it changes when the files
+are parsed, never what a view shows. Options under `agenda.index`:
+
+  enabled        true    false: agenda files are parsed when a view needs
+                         them, as without an index.
+  cache          true    keep what the parse found (the parts of each
+                         headline and its section) in
+                         stdpath("cache")/org/agenda-index.bin, so that
+                         the next session only reads the files and finds
+                         their outline. Needs LuaJIT (Neovim's usual
+                         build); without it nothing is kept on disk.
+  background     true    from the first org buffer (or the first agenda
+                         view), parse the agenda files in the background,
+                         a few milliseconds at a time, so that the first
+                         view finds them parsed. false: files are parsed
+                         (and added to the index) when a view needs them.
+  watch          true    after that, watch the directories of the agenda
+                         files and parse a changed file again in the
+                         background.
+  max_watchers   32      directories watched at most; the others, and
+                         those whose watcher fails (some network file
+                         systems), are polled ...
+  poll_interval  30      ... every this many seconds (0: never).
+
+A view built before the background is done is still complete: it parses
+what is left itself, taking what it can from the index. The index is only
+used for the same file: same modification and change time, same size,
+same lines, under the same options (`todo_keywords`, `log_into_drawer`,
+`inlinetask_min_level`, `property_separators`) and version of org.nvim;
+anything else is parsed again. A file loaded in a buffer is always taken
+from the buffer, with its unsaved changes. Watchers only save time: a view
+checks every file itself. A broken or partly written index file is
+ignored and replaced; entries of files no agenda used for 30 days are
+dropped.
+
+:Org agenda_index_rebuild   delete the index and parse the agenda files
+                            again (in the background with `background`).
+`:checkhealth org` shows the index file, its size and what the background
+is doing. It is written when the background is done, a little after a
+view added files to it, and when Neovim exits.
+
 Agenda contents                                          *org-agenda-contents*
 
 For each day, per file, in this order (org-agenda-get-day-entries):
@@ -6248,7 +6292,9 @@ agenda ~
   insert_diary_extract_time false, skip_unavailable_files false,
   query_register "o", restriction_lock_highlight_subtree true,
   window_frame_fractions { 0.5, 0.75 },
-  columns_add_appointments_to_effort_sum false
+  columns_add_appointments_to_effort_sum false,
+  index { enabled true, cache true, background true, watch true,
+  max_watchers 32, poll_interval 30 } (|org-agenda-index|)
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
@@ -7232,8 +7278,10 @@ for `api.off(id)`; `api.events` maps each name to a short description.
                          subtree leaves its file); OrgArchiveFinalize: the
                          same in the archive buffer
     OrgFileLoaded        file, bufnr, source ("disk" or "buffer"): a file
-                         was read from disk, or a buffer parsed for the
-                         first time. Fires on the next event loop turn.
+                         was read from disk (also by the agenda index in
+                         the background, |org-agenda-index|), or a buffer
+                         parsed for the first time. Fires on the next
+                         event loop turn.
 Handlers run during the command, like Emacs hooks, and may edit buffers:
 the command follows its entries where a handler moves them (the region
 command its headlines; a refile the line it returns, its bookmark and the

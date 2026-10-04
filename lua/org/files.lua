@@ -115,10 +115,49 @@ function M.cached_buffer(bufnr)
   end
 end
 
+--- The cached parse of the file at `path` (expanded), when it is still
+--- that of the file whose fs_stat is `st`.
+---@param path string
+---@param st uv.fs_stat.result
+---@return org.File|nil
+local function cached(path, st)
+  local c = disk_cache[path]
+  if
+    c
+    -- the size too: a rewrite can keep the mtime on coarse file systems
+    and c.mtime == st.mtime.sec * 1e9 + st.mtime.nsec
+    and c.size == st.size
+    and c.todo_spec == require("org.config").opts.todo_keywords
+    and require("org.keywords").dependencies_valid(c.file.setup_dependencies)
+  then
+    return c.file
+  end
+end
+
+--- Cache `file`, parsed from the file at `path` whose fs_stat is `st`.
+---@param path string
+---@param st uv.fs_stat.result
+---@param file org.File
+local function store(path, st, file)
+  local mtime, size = st.mtime.sec * 1e9 + st.mtime.nsec, st.size
+  local c = disk_cache[path]
+  disk_cache[path] = {
+    mtime = mtime,
+    size = size,
+    file = file,
+    todo_spec = require("org.config").opts.todo_keywords,
+  }
+  if not c or c.mtime ~= mtime or c.size ~= size then
+    loaded(file.filename, nil, "disk")
+  end
+end
+
 --- Parse a file by path, preferring its loaded buffer.
 ---@param path string
+---@param opts? { index?: boolean } index: look the file up in the agenda
+--- index (|org-agenda-index|) and add it there
 ---@return org.File|nil
-function M.get(path)
+function M.get(path, opts)
   path = utils.expand(path)
   local b = utils.find_buffer(path)
   if b then
@@ -128,29 +167,42 @@ function M.get(path)
   if not st then
     return nil
   end
-  -- the size too: a rewrite can keep the mtime on coarse file systems
-  local mtime, size = st.mtime.sec * 1e9 + st.mtime.nsec, st.size
-  local spec = require("org.config").opts.todo_keywords
-  local c = disk_cache[path]
-  if
-    c
-    and c.mtime == mtime
-    and c.size == size
-    and c.todo_spec == spec
-    and require("org.keywords").dependencies_valid(c.file.setup_dependencies)
-  then
-    return c.file
+  local file = cached(path, st)
+  if file then
+    return file
   end
   local lines = utils.readfile(path)
   if not lines then
     return nil
   end
-  local file = require("org.parser").parse(lines, path)
-  disk_cache[path] = { mtime = mtime, size = size, file = file, todo_spec = spec }
-  if not c or c.mtime ~= mtime or c.size ~= size then
-    loaded(file.filename, nil, "disk")
+  file = require("org.parser").parse(lines, path)
+  if opts and opts.index then
+    require("org.agenda.index").parsed(path, st, file)
   end
+  store(path, st, file)
   return file
+end
+
+--- The cached parse of the file at `path` (expanded) if it is still that
+--- of the file on disk (`st`, its fs_stat): nil when it was never parsed,
+--- changed since, or is loaded in a buffer (which is parsed instead).
+---@param path string
+---@param st uv.fs_stat.result
+---@return org.File|nil
+function M.cached(path, st)
+  return cached(path, st)
+end
+
+--- Cache `file`, parsed from the file at `path` (expanded) whose fs_stat
+--- is `st`, unless a parse of that same file is cached already (for the
+--- agenda index, which parses files in the background).
+---@param path string
+---@param st uv.fs_stat.result
+---@param file org.File
+function M.install(path, st, file)
+  if not cached(path, st) then
+    store(path, st, file)
+  end
 end
 
 function M.invalidate(path)
@@ -424,7 +476,7 @@ end
 function M.agenda_files(extra)
   local out = {}
   for _, path in ipairs(M.agenda_file_paths(extra)) do
-    local f = M.get(path)
+    local f = M.get(path, { index = true })
     if f then
       out[#out + 1] = f
     end

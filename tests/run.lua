@@ -360,9 +360,9 @@ if shard_n and shard_n > 1 and vim.env.ORG_TEST_WORKER ~= "1" then
 end
 
 --- Run each spec file in its own Neovim, `jobs` at a time, and report the
---- totals like a serial run. Every worker gets a fresh XDG_DATA_HOME, so
---- workers don't share the ID database or clock state, and no state leaks
---- from one file into the next.
+--- totals like a serial run. Every worker gets a fresh XDG_DATA_HOME and
+--- XDG_CACHE_HOME, so workers don't share the ID database, clock state or
+--- agenda index, and no state leaks from one file into the next.
 local function run_parallel(jobs)
   local timeout = (tonumber(vim.env.ORG_TEST_TIMEOUT) or 600) * 1000
   local uv = vim.uv
@@ -405,6 +405,7 @@ local function run_parallel(jobs)
       text = true,
       env = {
         XDG_DATA_HOME = data,
+        XDG_CACHE_HOME = data .. "/cache",
         ORG_TEST_WORKER = "1",
         ORG_TEST_JOBS = "1",
         ORG_TEST_PROGRESS = "",
