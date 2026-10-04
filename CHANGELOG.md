@@ -8,6 +8,27 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.0.5] - 2026-10-04
+
+### Fixes
+
+- **agenda:** Every column view cell can be reached with the cursor ([#171](https://github.com/xheisenbugx/org.nvim/pull/171))
+
+### Refactors
+
+- **links:** Split links.lua into parse, search, open, shell, store, insert and commands ([#172](https://github.com/xheisenbugx/org.nvim/pull/172))
+- **clock:** Split clock.lua into lua/org/clock/ by concern ([#176](https://github.com/xheisenbugx/org.nvim/pull/176))
+- **capture:** Split capture.lua into templates, expand, target, place, session and buffer ([#175](https://github.com/xheisenbugx/org.nvim/pull/175))
+- **fold:** Split fold.lua into lua/org/fold/ by concern ([#178](https://github.com/xheisenbugx/org.nvim/pull/178))
+- **table:** Split table.lua into command parts ([#174](https://github.com/xheisenbugx/org.nvim/pull/174))
+- **structure:** Split structure.lua into lua/org/structure/ parts ([#173](https://github.com/xheisenbugx/org.nvim/pull/173))
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore(typecheck):** Strict nil and type checks for api/ and parser.lua ([#177](https://github.com/xheisenbugx/org.nvim/pull/177))
+
+</details>
+
 ## [v2.0.4] - 2026-10-04
 
 ### Fixes
@@ -276,6 +297,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.0.5]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.4...v2.0.5
 [v2.0.4]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.3...v2.0.4
 [v2.0.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.2...v2.0.3
 [v2.0.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.1...v2.0.2
