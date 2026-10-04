@@ -587,7 +587,8 @@ hidden (org-cycle-show-empty-lines).
                 (C-u) also shows the text of the headlines above; 16 the
                 parent's whole subtree.
 <C-c><C-Tab>    Cycle the subtree even when it is archived
-                (`:Org force_cycle_archived`).
+                (`:Org force_cycle_archived`). <Tab> on an archived
+                subtree names the key you have bound to it.
 <C-c><C-x>v     Copy the visible text (org-copy-visible).
 :Org hide_entry       Hide the text of the entry; its children stay as
                       they are (org-fold-hide-entry).

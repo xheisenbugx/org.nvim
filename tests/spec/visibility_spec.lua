@@ -118,6 +118,50 @@ describe("visibility: cycling", function()
     eq(false, closed(4))
   end)
 
+  -- org-cycle-hide-archived-subtrees: the message names the key bound to
+  -- org-cycle-force-archived (\\[org-cycle-force-archived])
+  local function archived_message()
+    org_buffer({ "* A", "** Old :ARCHIVE:", "old body" }, { 2, 0 })
+    fold.overview()
+    local echo, msg = vim.api.nvim_echo, nil
+    vim.api.nvim_echo = function(chunks)
+      msg = chunks[1][1]
+    end
+    local ok, err = pcall(fold.cycle)
+    vim.api.nvim_echo = echo
+    assert(ok, err)
+    return msg
+  end
+
+  local function with_key(value, disable_all, fn)
+    local maps = config.opts.mappings
+    local saved, saved_all = maps.emacs.force_cycle_archived, maps.disable_all
+    maps.emacs.force_cycle_archived, maps.disable_all = value, disable_all
+    local ok, err = pcall(fn)
+    maps.emacs.force_cycle_archived, maps.disable_all = saved, saved_all
+    assert(ok, err)
+  end
+
+  it("the archived message names the default force_cycle_archived key", function()
+    eq("Subtree is archived and stays closed.  Use <C-c><C-Tab> to cycle it anyway.", archived_message())
+  end)
+
+  it("the archived message names a user's own force_cycle_archived key", function()
+    with_key("<leader>oA", nil, function()
+      eq("Subtree is archived and stays closed.  Use <leader>oA to cycle it anyway.", archived_message())
+    end)
+  end)
+
+  it("the archived message names the command when force_cycle_archived has no key", function()
+    local want = "Subtree is archived and stays closed.  Use :Org force_cycle_archived to cycle it anyway."
+    with_key(false, nil, function()
+      eq(want, archived_message())
+    end)
+    with_key("<C-c><C-Tab>", true, function()
+      eq(want, archived_message())
+    end)
+  end)
+
   it("an archived-only subtree does not get stuck", function()
     org_buffer({ "* A", "** Old :ARCHIVE:", "old body" }, { 1, 0 })
     fold.overview()
