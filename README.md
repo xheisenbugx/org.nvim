@@ -480,6 +480,7 @@ together with the examples, searchable.
 - [Completion](#completion)
 - [Pickers](#pickers)
 - [Statusline](#statusline)
+- [Outline and breadcrumb plugins](#outline-and-breadcrumb-plugins)
 - [Lua API](#lua-api)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
@@ -907,6 +908,23 @@ same picker. See `:h org-pickers`.
 
 While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`,
 followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
+
+---
+
+## Outline and breadcrumb plugins
+
+Outline windows, breadcrumbs and symbol pickers usually need tree-sitter or
+a language server. org.nvim gives them its own outline instead: headings
+(with TODO, priority and tags), named src blocks and tables.
+
+- [aerial.nvim](https://github.com/stevearc/aerial.nvim): `backends = { org = { "org" } }`
+- [outline.nvim](https://github.com/hedyhli/outline.nvim): add `"org"` to `providers.priority`
+- nvim-navic, dropbar.nvim, trouble.nvim and the snacks / fzf-lua / Telescope
+  LSP symbol pickers: enable the [`lsp` extension](#-extensions), an
+  in-process language server
+- your own winbar or statusline: `require("org.api").symbol_path()`
+
+See `:h org-integrations`.
 
 ---
 

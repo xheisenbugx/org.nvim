@@ -336,6 +336,48 @@ function M.in_bracket_link(line, col1)
   return false
 end
 
+--- `<<target>>` and `<<<radio>>>` spans of a line: { s, e, text, radio, ts, te }
+--- where ts..te is the text inside the brackets.
+function M.line_targets(line)
+  local out = {}
+  local init = 1
+  while true do
+    local s = line:find("<<", init, true)
+    if not s then
+      break
+    end
+    local radio = line:sub(s + 2, s + 2) == "<"
+    local open = radio and 3 or 2
+    local close = radio and ">>>" or ">>"
+    local ce = line:find(close, s + open, true)
+    local text = ce and line:sub(s + open, ce - 1)
+    if
+      text
+      and text ~= ""
+      and not text:find("[<>\n]")
+      and not text:match("^%s")
+      and not text:match("%s$")
+      and line:sub(s - 1, s - 1) ~= "<"
+      and line:sub(ce + #close, ce + #close) ~= ">"
+      -- text in a link's description is no target (org-element-context)
+      and not M.in_bracket_link(line, s)
+    then
+      out[#out + 1] = {
+        s = s,
+        e = ce + #close - 1,
+        ts = s + open,
+        te = ce - 1,
+        text = text,
+        radio = radio,
+      }
+      init = ce + #close
+    else
+      init = s + 2
+    end
+  end
+  return out
+end
+
 --- Byte (1-based) where `<<name>>` (`name` taken literally) starts in
 --- `line` outside any bracket link, else nil.
 ---@param line string

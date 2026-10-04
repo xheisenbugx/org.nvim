@@ -122,30 +122,8 @@ function M.opts()
 end
 
 --- Lines of a buffer that hold text the `transclusion` extension
---- inserted (a set of 1-based line numbers), or nil when there is none.
---- That text belongs to another file: symbols, references, rename and
---- diagnostics leave it out.
----@param bufnr integer|nil
----@return table<integer, true>|nil
-function M.foreign(bufnr)
-  if not bufnr or not require("org.extensions").loaded.transclusion then
-    return nil
-  end
-  local ok, regs = pcall(function()
-    return require("org.extensions.transclusion").regions(bufnr)
-  end)
-  if not ok or type(regs) ~= "table" or #regs == 0 then
-    return nil
-  end
-  local set = {}
-  for _, r in ipairs(regs) do
-    -- rows are 0-based: the keyword is on 1-based line r.s, the text below
-    for row = r.s, r.e do
-      set[row + 1] = true
-    end
-  end
-  return next(set) and set or nil
-end
+--- inserted (a set of 1-based line numbers), or nil (`org.symbols`).
+M.foreign = require("org.symbols").foreign
 
 ---@class org.lsp.Doc
 ---@field path string|nil normalized file name
@@ -238,32 +216,8 @@ end
 ---------------------------------------------------------------------------
 
 --- Byte span (1-based, inclusive) of a headline's title in its line; an
---- empty title gives e = s - 1.
----@param hl org.Headline
----@return integer s, integer e
-function M.title_span(hl)
-  local raw = hl.raw
-  local pos = (raw:find("[^%*]") or #raw + 1)
-  pos = raw:find("%S", pos) or #raw + 1
-  if hl.todo and raw:sub(pos, pos + #hl.todo - 1) == hl.todo then
-    pos = raw:find("%S", pos + #hl.todo) or #raw + 1
-  end
-  if hl.priority then
-    local p = raw:find("[#" .. hl.priority .. "]", pos, true)
-    if p == pos then
-      pos = raw:find("%S", pos + #hl.priority + 3) or #raw + 1
-    end
-  end
-  if hl.commented and raw:sub(pos, pos + 6) == "COMMENT" then
-    pos = raw:find("%S", pos + 7) or #raw + 1
-  end
-  local title = hl.title or ""
-  if title == "" then
-    return pos, pos - 1
-  end
-  local s = raw:find(title, pos, true) or pos
-  return s, s + #title - 1
-end
+--- empty title gives e = s - 1 (`org.symbols`).
+M.title_span = require("org.symbols").title_span
 
 --- Headline titles from the root to `hl`, joined with "/".
 function M.olp(hl, with_self)

@@ -66,6 +66,8 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `lua/org/api/` | the public Lua API (`:h org-api`); everything else is internal |
 | `lua/org/pickers/` | picker sources and the snacks / fzf-lua / telescope / mini.pick / `vim.ui.select` adapters |
 | `lua/org/extensions/` | optional extensions, each enabled under `extensions` in `setup()` |
+| `lua/org/symbols.lua`, `lua/org/integrations/` | the outline as document symbols, and the aerial.nvim / outline.nvim providers built on it |
+| `lua/aerial/`, `lua/outline/`, `lua/telescope/` | one-line shims those plugins `require` by name; they load only when the plugin is installed |
 | `lua/org/_meta/` | LuaLS type annotations for `setup()` options (no runtime code) |
 | `plugin/`, `ftplugin/`, `syntax/` | Vim runtime files |
 | `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags |

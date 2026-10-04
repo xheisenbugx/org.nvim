@@ -2,165 +2,32 @@
 
 local util = require("org.extensions.lsp.util")
 local targets = require("org.extensions.lsp.targets")
+local core = require("org.symbols")
 
 local M = {}
-
-local function kind_of(name)
-  local kinds = vim.lsp.protocol.SymbolKind
-  return kinds[name] or (type(name) == "number" and name) or kinds.Namespace
-end
 
 --- Symbol kind of a headline: by TODO state (`symbol_kinds.todo` /
 --- `.done`), else `symbol_kinds.heading`.
 function M.headline_kind(hl)
-  local k = util.opts().symbol_kinds or {}
-  if hl.todo then
-    return kind_of(hl:is_done() and k.done or k.todo)
-  end
-  return kind_of(k.heading)
+  return core.headline_kind(hl, util.opts().symbol_kinds)
 end
 
-local function detail(hl)
-  local parts = {}
-  if hl.todo then
-    parts[#parts + 1] = hl.todo
-  end
-  if hl.priority then
-    parts[#parts + 1] = "[#" .. hl.priority .. "]"
-  end
-  if #hl.tags > 0 then
-    parts[#parts + 1] = ":" .. table.concat(hl.tags, ":") .. ":"
-  end
-  return table.concat(parts, " ")
-end
-
-local function name_of(hl)
-  local t = hl:plain_title()
-  return t ~= "" and t or "(untitled)"
-end
-
---- Named src blocks and tables: { lnum, last, name, col, kind }, `col` the
---- column of the name on line `lnum`.
-local function named_elements(lines, want_src, want_tables)
-  local out = {}
-  local i, n = 1, #lines
-  while i <= n do
-    local col, name = lines[i]:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+()(.-)[ \t]*$")
-    if name and name ~= "" then
-      local j = i + 1
-      -- other affiliated keywords (#+CAPTION:, #+ATTR_HTML:, ...)
-      while j <= n and lines[j]:match("^[ \t]*#%+[%w_]+:") and not lines[j]:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_") do
-        j = j + 1
-      end
-      local l = lines[j] or ""
-      if want_src and l:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc]") then
-        local k = j + 1
-        while k <= n and not lines[k]:match("^[ \t]*#%+[Ee][Nn][Dd]_[Ss][Rr][Cc]") do
-          k = k + 1
-        end
-        out[#out + 1] = { lnum = i, last = math.min(k, n), name = name, col = col, kind = "src_block" }
-        i = k
-      elseif want_tables and l:match("^[ \t]*|") then
-        local k = j
-        while
-          k + 1 <= n and (lines[k + 1]:match("^[ \t]*|") or lines[k + 1]:match("^[ \t]*#%+[Tt][Bb][Ll][Ff][Mm]:"))
-        do
-          k = k + 1
-        end
-        out[#out + 1] = { lnum = i, last = k, name = name, col = col, kind = "table" }
-        i = k
-      end
-    end
-    i = i + 1
-  end
-  return out
-end
+local name_of = core.name
 
 --- textDocument/documentSymbol: the outline, each headline's range
---- covering its subtree; named src blocks and tables as children of their
---- entry.
+--- covering its subtree; named src blocks and tables (and targets with
+--- `document_symbols.targets`) as children of their entry (`org.symbols`).
 ---@param doc org.lsp.Doc
 ---@return table[] DocumentSymbol[]
 function M.document(doc)
   local o = util.opts().document_symbols or {}
-  local lines = doc.lines
-  local kinds = util.opts().symbol_kinds or {}
-  local by_line = {}
-  local foreign = doc.foreign or {}
-  -- symbols of a headline (none for one the transclusion extension
-  -- inserted: its own-file children, if any, take its place)
-  local function build(hl, into)
-    if foreign[hl.line] then
-      for _, c in ipairs(hl.children) do
-        build(c, into)
-      end
-      return
-    end
-    local s, e = util.title_span(hl)
-    if e < s then
-      s, e = 1, #hl.raw
-    end
-    local last = hl.end_line
-    local sym = {
-      name = name_of(hl),
-      detail = detail(hl),
-      kind = M.headline_kind(hl),
-      range = util.line_range(lines, hl.line, last),
-      selectionRange = util.range(hl.line, s, e),
-      children = {},
-    }
-    by_line[hl.line] = sym
-    into[#into + 1] = sym
-    for _, c in ipairs(hl.children) do
-      build(c, sym.children)
-    end
-  end
-  local out = {}
-  for _, hl in ipairs(doc.file.children) do
-    build(hl, out)
-  end
-  if o.src_blocks ~= false or o.tables ~= false then
-    local named = vim.tbl_filter(function(el)
-      return not foreign[el.lnum]
-    end, named_elements(lines, o.src_blocks ~= false, o.tables ~= false))
-    for _, el in ipairs(named) do
-      local s = el.col
-      local sym = {
-        name = el.name,
-        detail = el.kind == "src_block" and "src block" or "table",
-        kind = kind_of(kinds[el.kind]),
-        range = util.line_range(lines, el.lnum, el.last),
-        selectionRange = util.range(el.lnum, s, s + #el.name - 1),
-      }
-      local hl = doc.file:headline_at(el.lnum)
-      while hl and foreign[hl.line] do
-        hl = hl.parent
-      end
-      local parent = hl and by_line[hl.line]
-      if parent then
-        -- keep the children in line order
-        local list = parent.children
-        local at = #list + 1
-        for i, c in ipairs(list) do
-          if c.range.start.line > el.lnum - 1 then
-            at = i
-            break
-          end
-        end
-        table.insert(list, at, sym)
-      else
-        local at = #out + 1
-        for i, c in ipairs(out) do
-          if c.range.start.line > el.lnum - 1 then
-            at = i
-            break
-          end
-        end
-        table.insert(out, at, sym)
-      end
-    end
-  end
-  return out
+  return core.document(doc.file, {
+    src_blocks = o.src_blocks,
+    tables = o.tables,
+    targets = o.targets,
+    kinds = util.opts().symbol_kinds,
+    foreign = doc.foreign,
+  })
 end
 
 local function matches(terms, text)

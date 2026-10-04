@@ -67,8 +67,9 @@ M.defaults = {
     --- with an ID or CUSTOM_ID.
     backlinks_all_headings = false,
   },
-  --- Also list named src blocks and tables in the document symbols.
-  document_symbols = { src_blocks = true, tables = true },
+  --- Also list named src blocks and tables in the document symbols, and
+  --- `<<targets>>` / `<<<radio targets>>>` with `targets`.
+  document_symbols = { src_blocks = true, tables = true, targets = false },
   --- LSP symbol kinds (names from `vim.lsp.protocol.SymbolKind`).
   symbol_kinds = {
     heading = "Namespace",
@@ -76,6 +77,7 @@ M.defaults = {
     done = "Constant",
     src_block = "Function",
     table = "Struct",
+    target = "Key",
   },
   --- The files workspace symbols, references and rename look at, besides
   --- the loaded org buffers.
