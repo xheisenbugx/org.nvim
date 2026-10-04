@@ -1980,9 +1980,15 @@ custom command's `settings` (org-overriding-columns-format, see
 |org-agenda-command-columns|), else `agenda.overriding_columns_format`
 (org-columns-default-format-for-agenda), else the COLUMNS property or
 #+COLUMNS of the entry at point (or of the first entry), else
-`columns_default_format`. Date lines and block headers
-show the summaries of the entries below them
-(`agenda.columns_show_summaries`); with
+`columns_default_format`. An entry whose children have values shows
+their summary, computed in its file with the file's own format when
+that file's column for the property has the same summary operator
+(`agenda.columns_compute_summary_properties`, default true,
+org-agenda-columns-compute-summary-properties); as in Emacs, the summary
+is also written to the entry's property when it has one (in the file's
+buffer when it is loaded, not saved). Date lines and block headers
+show the summaries of the entries below them, the parents' summaries
+included as in Emacs (`agenda.columns_show_summaries`); with
 `agenda.columns_add_appointments_to_effort_sum`, an appointment without
 an effort counts its duration (org-agenda-columns-add-appointments-to-
 effort-sum). Values show as in column view (org-columns--displayed-value):
@@ -6122,6 +6128,7 @@ agenda ~
   tags, text }, save_after_edit false, block_separator, show_inherited_tags,
   remove_tags, custom_commands, overriding_columns_format,
   view_columns_initially, columns_show_summaries true,
+  columns_compute_summary_properties true,
   text_search_extra_files {}, search_view_always_boolean,
   search_view_force_full_words, search_view_max_outline_level 0,
   entry_text_maxlines 5, confirm_kill 1,
@@ -7290,6 +7297,9 @@ Differences from Emacs:
   system collation, which is the same on macOS but not on glibc
   systems). BibTeX crossref inheritance copies every missing field
   except the biblatex exclusions (parsebib has per-type rules).
+- Agenda column view (|org-agenda-columns|) writes a parent's summary
+  back to its property only in agenda files loaded in a buffer (Emacs
+  visits every agenda file, so it updates them all, without saving).
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target

@@ -76,12 +76,89 @@ function M.format(S)
   return from_item(S.line_items[lines[1]]) or config.opts.columns_default_format or "%25ITEM %TODO %3PRIORITY %TAGS"
 end
 
+--- Summaries of the agenda columns in the files of the agenda entries
+--- (org-agenda-colview-compute): `{ [hl] = { [i] = summary } }`. For each
+--- file, with the format of the whole file, a summary column is computed
+--- when the file's first column of that property has the same operator
+--- as the agenda's, and an agenda column shows the summary of the file
+--- column with the same specification (Emacs looks the summary up by
+--- the whole column spec: property, title, width, operator and format).
+--- As in Emacs, a summary is written back to the property of an entry
+--- that has it (org-columns-compute), in the file's buffer when it is
+--- loaded. CLOCKSUM and CLOCKSUM_T are summed by `columns.value`.
+local function agenda_summaries(S, cols)
+  local files, order = {}, {}
+  for _, it in pairs(S.line_items) do
+    local file = it.headline and it.headline.file
+    if file and not files[file] then
+      files[file] = true
+      order[#order + 1] = file
+    end
+  end
+  local out = {}
+  for _, file in ipairs(order) do
+    local ffmt, roots = columns.file_scope(file)
+    local fcols = columns.parse_format(ffmt)
+    local first_op = {}
+    for _, fc in ipairs(fcols) do
+      local k = fc.prop:upper()
+      if first_op[k] == nil then
+        first_op[k] = fc.summary or false
+      end
+    end
+    local props = {}
+    for _, c in ipairs(cols) do
+      local k = c.prop:upper()
+      if c.summary and k ~= "CLOCKSUM" and k ~= "CLOCKSUM_T" and first_op[k] == c.summary then
+        props[k] = true
+      end
+    end
+    local sel = {}
+    for _, fc in ipairs(fcols) do
+      if props[fc.prop:upper()] then
+        sel[#sel + 1] = fc
+      end
+    end
+    if #sel > 0 then
+      -- agenda column -> the file column with the same spec
+      local match = {}
+      for i, c in ipairs(cols) do
+        for j, fc in ipairs(sel) do
+          if
+            not match[i]
+            and fc.prop:upper() == c.prop:upper()
+            and fc.title == c.title
+            and fc.width == c.width
+            and fc.summary == c.summary
+            and fc.summary_fmt == c.summary_fmt
+          then
+            match[i] = j
+          end
+        end
+      end
+      for hl, row in pairs(columns.summaries(roots, sel, true)) do
+        for i, j in pairs(match) do
+          if row[j] then
+            out[hl] = out[hl] or {}
+            out[hl][i] = row[j]
+          end
+        end
+      end
+    end
+  end
+  return out
+end
+
 --- Real value of a column for an agenda item (what `e` edits and `v`
---- shows, Emacs org-columns-value).
-local function value(it, prop)
+--- shows, Emacs org-columns-value): the summary of its children `summary`
+--- first, then the entry's own value.
+local function value(it, prop, summary)
   local key = prop:upper()
   if key == "ITEM" then
     return it.display_title or it.title or ""
+  end
+  if summary then
+    return summary
   end
   local v = columns.value(it.headline, prop)
   if
@@ -148,12 +225,19 @@ function M.apply()
     return false
   end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  -- org-agenda-columns-compute-summary-properties: a parent entry shows
+  -- the summary of its children
+  local sums = {}
+  if config.opts.agenda.columns_compute_summary_properties ~= false then
+    sums = agenda_summaries(S, cols)
+  end
   local cells, display = {}, {}
   for l, it in pairs(S.line_items) do
     if it.headline then
       local row, shown = {}, {}
+      local hs = sums[it.headline] or {}
       for i, c in ipairs(cols) do
-        row[i] = value(it, c.prop)
+        row[i] = value(it, c.prop, hs[i])
         shown[i] = displayed(c, row[i])
       end
       cells[l], display[l] = row, shown
