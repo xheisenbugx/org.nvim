@@ -330,7 +330,8 @@ describe("agenda column view of a custom command", function()
   local function cells()
     return cols.cells(line_of("Reading: Chapter 3"))
   end
-  local WANT = { "Reading: Chapter 3", "<2026-10-08 Thu 06:30>" }
+  -- DEADLINE is shown as an inactive timestamp (org-columns--displayed-value)
+  local WANT = { "Reading: Chapter 3", "[2026-10-08 Thu 06:30]" }
   after_each(function()
     cols.quit()
     pcall(view.quit, true)
