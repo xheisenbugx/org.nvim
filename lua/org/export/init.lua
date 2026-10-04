@@ -863,6 +863,11 @@ utils.error = function(msg) errors[#errors + 1] = tostring(msg) end
 vim.fn.input = function() return "" end
 vim.fn.confirm = function() return 0 end
 vim.ui.select = function(_, _, cb) cb(nil) end
+-- the compilers run with the shell of the Neovim that started the export
+-- (--clean would fall back to cmd.exe on Windows)
+for name, value in pairs(job.shell or {}) do
+  pcall(vim.api.nvim_set_option_value, name, value, {})
+end
 require("org").setup(job.config)
 if job.init_file and job.init_file ~= "" then
   dofile(vim.fn.expand(job.init_file))
@@ -946,6 +951,14 @@ function M.export_async(format, opts)
       root = PLUGIN_ROOT,
       config = require("org.config").opts,
       init_file = cfg().async_init_file,
+      shell = {
+        shell = vim.o.shell,
+        shellcmdflag = vim.o.shellcmdflag,
+        shellquote = vim.o.shellquote,
+        shellxquote = vim.o.shellxquote,
+        shellredir = vim.o.shellredir,
+        shellpipe = vim.o.shellpipe,
+      },
       lines = vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false),
       filename = src ~= "" and src or nil,
       format = format,

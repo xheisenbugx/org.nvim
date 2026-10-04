@@ -37,6 +37,9 @@ local busy = {}
 ---@field log_buf? integer the log buffer
 ---@field log_name? string its name
 ---@field _obj? vim.SystemObj the command running now
+---@field _live? vim.SystemObj the command whose process hasn't exited yet (also after a cancel)
+---@field _step? fun() runs the next command, or finishes the run
+---@field _finished? boolean on_done was called
 local Process = {}
 Process.__index = Process
 
@@ -53,6 +56,7 @@ local function kill_tree(obj, signal)
   end
   if is_win then
     pcall(vim.system, { "taskkill", "/T", "/F", "/PID", tostring(pid) })
+    pcall(obj.kill, obj, signal)
     return
   end
   -- the command is a process group leader (`detach`): kill the group, so
@@ -77,10 +81,16 @@ function Process:cancel()
     kill_tree(obj, "sigterm")
     -- a command that ignores SIGTERM gets SIGKILL a little later
     vim.defer_fn(function()
-      if self._obj == obj then
+      if self._live == obj then
         kill_tree(obj, "sigkill")
       end
     end, 3000)
+  end
+  -- finish now: the exit callback waits until every process holding the
+  -- output pipe is gone, which a killed process tree can take a while to
+  -- do (on Windows above all)
+  if self._step then
+    vim.schedule(self._step)
   end
   return true
 end
@@ -241,11 +251,21 @@ function M.run(cmds, opts, on_done)
   local function step()
     i = i + 1
     if proc.cancelled or i > #cmds then
+      if proc._finished then
+        return
+      end
+      proc._finished = true
       done()
       return on_done(proc)
     end
     local sysopts = { cwd = opts.cwd, text = true, stdout = on_data, stderr = on_data, detach = not is_win }
     local ok, obj = pcall(vim.system, argv(cmds[i]), sysopts, function(res)
+      -- only this step's process runs: it is gone now
+      proc._live = nil
+      if proc._finished then
+        -- cancelled, and already reported
+        return
+      end
       proc.code = res.code
       proc._obj = nil
       -- the exit callback is a fast event, where options (the next step
@@ -253,13 +273,14 @@ function M.run(cmds, opts, on_done)
       vim.schedule(step)
     end)
     if ok then
-      proc._obj = obj
+      proc._obj, proc._live = obj, obj
     else
       on_data(nil, tostring(obj) .. "\n")
       proc.code = -1
       vim.schedule(step)
     end
   end
+  proc._step = step
   -- on the next turn of the loop, so on_done never runs before run() returns
   vim.schedule(step)
   return proc
