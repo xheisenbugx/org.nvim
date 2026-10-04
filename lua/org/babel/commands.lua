@@ -555,7 +555,8 @@ function M.describe_bindings()
   local acts = require("org.actions").list
   local rows = {}
   for name, a in pairs(acts) do
-    if name:match("^babel_") then
+    -- mappings.disable_all: no key is bound
+    if name:match("^babel_") and not maps.disable_all then
       local keys = {}
       for _, section in ipairs({ maps.org or {}, maps.emacs or {} }) do
         vim.list_extend(keys, require("org.config").lhs_list(section[name]))

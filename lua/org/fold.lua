@@ -1164,7 +1164,7 @@ end
 --- \\[org-cycle-force-archived], or the command when no key is bound.
 ---@return string
 local function archived_message()
-  local key = not (config.opts.mappings or {}).disable_all and require("org.menu").key_for("force_cycle_archived")
+  local key = require("org.menu").key_for("force_cycle_archived")
   return ("Subtree is archived and stays closed.  Use %s to cycle it anyway."):format(
     key or ":Org force_cycle_archived"
   )
