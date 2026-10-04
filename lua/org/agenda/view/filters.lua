@@ -131,8 +131,8 @@ end
 
 --- org-agenda-filter-by-tag with a key: a tag selection key, SPC (any tag),
 --- `?` (untagged), TAB (completion), `.` (tags of the entry at point), `\`
---- (off), RET (auto exclude), `+`/`-` (filter for/against), q (quit,
---- unless a tag uses q as its key).
+--- (off), RET (auto exclude), `+`/`-` (filter for/against), Esc (quit),
+--- q (quit, unless a tag uses q as its key).
 function M.filter_by_tag(count)
   local exclude = count == 1
   local accumulate = count == 2
@@ -149,10 +149,11 @@ function M.filter_by_tag(count)
   local tag
   while true do
     local prompt = string.format(
-      "%s by tag: [%s ]tag-char [TAB]tag [?]untagged %s[\\]off [q]uit",
+      "%s by tag: [%s ]tag-char [TAB]tag [?]untagged %s[\\]off [%s]quit",
       exclude and "Exclude[+]" or "Filter[-]",
       table.concat(chars, ""),
-      config.opts.agenda.auto_exclude_function and "[RET] " or ""
+      config.opts.agenda.auto_exclude_function and "[RET] " or "",
+      keys.q and "Esc" or "q/Esc"
     )
     local ch = utils.getchar(prompt)
     if not ch or (ch == "q" and not keys.q) then
