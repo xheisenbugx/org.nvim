@@ -1445,6 +1445,9 @@
 ---@field convert_processes? string[][]
 ---(`org-odt-convert-capabilities`) (default: `nil` = the Emacs list)
 ---@field convert_capabilities? table
+---Convert to `preferred_output_format` in the background with `vim.system`;
+---the conversion goes on the export stack. (default: `true`)
+---@field async_convert? boolean
 
 ---Citation export options (oc, oc-basic).
 ---@class org.Config.Export.Cite
