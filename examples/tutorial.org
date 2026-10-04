@@ -8,7 +8,7 @@
 #+PROPERTY: Effort_ALL 0:15 0:30 1:00 1:30 2:00 4:00
 #+COLUMNS: %40ITEM %TODO %3PRIORITY %Effort{:} %CLOCKSUM %TAGS
 #+LINK: gh https://github.com/%s
-#+LINK: ddg https://duckduckgo.com/?q=%s
+#+LINK: ddg https://duckduckgo.com/?q=%h
 
 * How to use this file
 This file is a hands-on tour of org.nvim. Every top-level heading covers one
@@ -793,6 +793,9 @@ current location from any buffer, and =<prefix>ln= / =<prefix>lp= jump
 between links. =<prefix>lt= shows the raw link text.
 
 ** Link types
+# =%h= in the ddg line URL-encodes the words (=?q=org%20mode%20tables=);
+# =%s= would paste them as typed, spaces and all. :Org lint warns about the
+# %20 in the expanded link, like Emacs; the link works.
 - A web page: [[https://orgmode.org][the Org manual]], or a bare URL: https://neovim.io
 - A heading in this file: [[*Tables][the Tables section]]
 - A custom ID: [[#tutorial-footnotes][the footnotes section]]

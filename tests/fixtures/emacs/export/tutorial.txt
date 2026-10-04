@@ -1082,7 +1082,7 @@
 
 [org.nvim on GitHub] <https://github.com/xheisenbugx/org.nvim>
 
-[search the web] <https://duckduckgo.com/?q=org mode tables>
+[search the web] <https://duckduckgo.com/?q=org%20mode%20tables>
 
 
 16.2 Radio targets
