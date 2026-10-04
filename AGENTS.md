@@ -64,6 +64,7 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `lua/org/structure.lua`, `structure/` | outline editing: shared helpers in the facade; heading insertion, templates, promote/demote, moves, kill ring and clone, sorting, narrowing, toggles, motions in the parts |
 | `lua/org/links.lua`, `links/` | hyperlinks: the facade, and parse / search / open / shell / store / insert / commands parts |
 | `lua/org/lists.lua`, `lists/` | plain lists: the item parser (a hot path) and shared helpers in the facade; list structures, statistics cookies, checkboxes, item editing, motions, bullets and conversions in the parts |
+| `lua/org/ui/images.lua`, `ui/images/` | image and LaTeX previews: options, cell size and image files in the facade; element scan, image links, LaTeX rendering, backends, previews, native placement (redrawn every frame, a hot path) and commands in the parts |
 | `lua/org/api/` | the public Lua API (`:h org-api`); everything else is internal |
 | `lua/org/pickers/` | picker sources and the snacks / fzf-lua / telescope / mini.pick / `vim.ui.select` adapters |
 | `lua/org/extensions/` | optional extensions, each enabled under `extensions` in `setup()` |
