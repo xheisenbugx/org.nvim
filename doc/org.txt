@@ -1109,6 +1109,37 @@ Editing next to hidden ones asks whether to show them
                 SCHEDULED, DEADLINE and TIMESTAMP show as inactive
                 timestamps; `columns_modify_value_for_display_function`
                 (`function(title, value)`) can change any shown value.
+                It gets the column title (`Due` for `%DEADLINE(Due)`,
+                else the property name) and the real value, and returns
+                the text to show, or nil to show the value as usual
+                (org-columns-modify-value-for-display-function). It
+                applies in column view and in the agenda column view
+                (|org-agenda-columns|); `e` and `v` still use the real
+                value. A relative due date (today, tomorrow, the weekday
+                within a week, else "Oct 8") for a `%10DEADLINE(Due)`
+                column: >lua
+    columns_modify_value_for_display_function = function(title, value)
+      if title ~= "Due" then
+        return nil
+      end
+      local y, m, d = value:match("(%d%d%d%d)%-(%d%d)%-(%d%d)")
+      if not y then
+        return nil
+      end
+      local t = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12 })
+      local now = os.date("*t")
+      local today = os.time({ year = now.year, month = now.month, day = now.day, hour = 12 })
+      local days = math.floor(os.difftime(t, today) / 86400 + 0.5)
+      if days == 0 then
+        return "today"
+      elseif days == 1 then
+        return "tomorrow"
+      elseif days > 1 and days < 7 then
+        return os.date("%a", t)
+      end
+      return os.date("%b ", t) .. tonumber(os.date("%d", t))
+    end,
+<
                 The view uses the nearest COLUMNS property's scope; with
                 a keyword/default format it covers the current subtree,
                 or the whole file before the first heading. A count
@@ -1951,8 +1982,12 @@ show the summaries of the entries below them
 (`agenda.columns_show_summaries`); with
 `agenda.columns_add_appointments_to_effort_sum`, an appointment without
 an effort counts its duration (org-agenda-columns-add-appointments-to-
-effort-sum). While it is on: `q` turns it off, `e`
-edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
+effort-sum). Values show as in column view (org-columns--displayed-value):
+SCHEDULED, DEADLINE and TIMESTAMP as inactive timestamps, a column's
+printf format applied, ITEM with links shown as their description, and
+`columns_modify_value_for_display_function` called first (see <prefix>C
+in |org-columns| for a relative due-date example). While it is on: `q`
+turns it off, `e` edits the real value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
 the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.

@@ -102,4 +102,176 @@ describe("agenda column view", function()
     cols.quit()
     view.quit(true)
   end)
+
+  -- org-agenda-columns collects every cell with org-columns--displayed-value
+  -- (Emacs 9.8.10): `%13DEADLINE(Due) %34ITEM` on a DEADLINE of
+  -- <2026-10-08 Thu 06:30> shows "[2026-10-08.. | " and the title.
+  describe("displayed values", function()
+    local saved = lines
+    local deadline = "<" .. today:to_string({ brackets = false }) .. " 06:30>"
+    local inactive = "[" .. today:to_string({ brackets = false }) .. " 06:30]"
+    before_each(function()
+      lines = {
+        "* TODO Reading: Chapter 3",
+        "  DEADLINE: " .. deadline,
+        "  :PROPERTIES:",
+        "  :N: 2.5",
+        "  :Name: x",
+        "  :END:",
+      }
+    end)
+    after_each(function()
+      lines = saved
+      config.opts.agenda.overriding_columns_format = nil
+      pcall(cols.quit)
+      pcall(view.quit, true)
+    end)
+
+    it("shows active timestamps as inactive ones, truncated like Emacs", function()
+      open()
+      config.opts.agenda.overriding_columns_format = "%13DEADLINE(Due) %34ITEM"
+      ok(cols.apply())
+      local l = line_of("Reading: Chapter 3")
+      eq({ inactive, "Reading: Chapter 3" }, cols.cells(l))
+      eq({ deadline, "Reading: Chapter 3" }, cols.values(l))
+      local text = overlay_text(l)
+      eq(
+        "["
+          .. today:to_string({ brackets = false }):sub(1, 10)
+          .. ".. | Reading: Chapter 3"
+          .. string.rep(" ", 16)
+          .. " |",
+        text:sub(1, 13 + 3 + 34 + 2)
+      )
+      ok(vim.wo.winbar:find("Due           | ITEM", 1, true), vim.wo.winbar)
+    end)
+
+    it("applies the column's printf format", function()
+      open()
+      config.opts.agenda.overriding_columns_format = "%ITEM %N{+;%.2f}"
+      ok(cols.apply())
+      local l = line_of("Reading: Chapter 3")
+      eq({ "Reading: Chapter 3", "2.50" }, cols.cells(l))
+      eq("2.5", cols.values(l)[2])
+    end)
+
+    it("calls columns_modify_value_for_display_function with the title and real value", function()
+      local calls = {}
+      open()
+      config.opts.columns_modify_value_for_display_function = function(title, value)
+        calls[#calls + 1] = { title, value }
+        if title == "Due" then
+          return "due:" .. value
+        elseif title == "ITEM" then
+          return value:upper()
+        end
+      end
+      config.opts.agenda.overriding_columns_format = "%DEADLINE(Due) %ITEM %Name"
+      ok(cols.apply())
+      config.opts.columns_modify_value_for_display_function = nil
+      local l = line_of("Reading: Chapter 3")
+      eq({ "due:" .. deadline, "READING: CHAPTER 3", "x" }, cols.cells(l))
+      ok(#vim.tbl_filter(function(c)
+        return c[1] == "Due" and c[2] == deadline
+      end, calls) > 0)
+      ok(#vim.tbl_filter(function(c)
+        return c[1] == "ITEM" and c[2] == "Reading: Chapter 3"
+      end, calls) > 0)
+    end)
+
+    it("edits and shows the real value, not the displayed one", function()
+      open()
+      config.opts.agenda.overriding_columns_format = "%ITEM %N{+;%.2f}"
+      ok(cols.apply())
+      local l = line_of("Reading: Chapter 3")
+      local text = overlay_text(l)
+      -- the second column, by screen column (the line has multibyte text)
+      vim.api.nvim_win_set_cursor(0, { l, 0 })
+      vim.cmd("normal! " .. (vim.fn.strdisplaywidth(text:match("^(.-| )")) + 1) .. "|")
+      local default
+      local orig_input = utils.input
+      utils.input = function(o)
+        default = o.default
+        return "4"
+      end
+      local msg
+      local orig_notify = utils.notify
+      utils.notify = function(m)
+        msg = m
+      end
+      local ok1, err = pcall(function()
+        cols.show()
+        cols.edit()
+      end)
+      utils.input, utils.notify = orig_input, orig_notify
+      ok(ok1, err)
+      eq("N: 2.5", msg)
+      eq("2.5", default)
+      local src = vim.api.nvim_buf_get_lines(utils.find_buffer(path), 0, -1, false)
+      ok(vim.tbl_contains(src, "  :N:        4"), table.concat(src, "\n"))
+    end)
+  end)
+
+  -- the relative due-date example under <prefix>C in doc/org.txt
+  describe("the doc's relative due-date example", function()
+    local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+    local function example()
+      local doc = vim.fn.readfile(root .. "/doc/org.txt")
+      local code, inside = {}, false
+      for _, l in ipairs(doc) do
+        if l:match("^    columns_modify_value_for_display_function = function") then
+          inside = true
+        end
+        if inside then
+          if l == "<" then
+            break
+          end
+          code[#code + 1] = l
+        end
+      end
+      ok(#code > 0, "example not found in doc/org.txt")
+      local src = "return {" .. table.concat(code, "\n") .. "}"
+      return assert(loadstring(src))().columns_modify_value_for_display_function
+    end
+    local function noon(offset)
+      local d = today:add(offset, "d")
+      return os.time({ year = d.year, month = d.month, day = d.day, hour = 12 })
+    end
+    local saved = lines
+
+    it("turns a deadline into today, tomorrow, a weekday or a date", function()
+      local fn = example()
+      local function due(offset, time)
+        return fn("Due", "<" .. today:add(offset, "d"):to_string({ brackets = false }) .. (time or "") .. ">")
+      end
+      eq("today", due(0))
+      eq("today", due(0, " 06:30"))
+      eq("tomorrow", due(1))
+      eq(os.date("%a", noon(3)), due(3))
+      eq(os.date("%b ", noon(9)) .. tonumber(os.date("%d", noon(9))), due(9))
+      eq(nil, fn("Due", ""))
+      eq(nil, fn("ITEM", "Task"))
+    end)
+
+    it("shows in the agenda column view", function()
+      lines = {
+        "* TODO Reading: Chapter 3",
+        "  DEADLINE: <" .. today:add(1, "d"):to_string({ brackets = false }) .. " 06:30>",
+      }
+      open()
+      config.opts.columns_modify_value_for_display_function = example()
+      config.opts.agenda.overriding_columns_format = "%10DEADLINE(Due) %ITEM"
+      local passed, err = pcall(function()
+        ok(cols.apply())
+        local l = line_of("Reading: Chapter 3")
+        eq({ "tomorrow", "Reading: Chapter 3" }, cols.cells(l))
+      end)
+      lines = saved
+      config.opts.columns_modify_value_for_display_function = nil
+      config.opts.agenda.overriding_columns_format = nil
+      pcall(cols.quit)
+      view.quit(true)
+      ok(passed, err)
+    end)
+  end)
 end)
