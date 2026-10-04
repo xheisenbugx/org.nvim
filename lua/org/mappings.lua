@@ -41,12 +41,22 @@ end
 -- nothing (the action already ran). "." then calls it with the original
 -- count, or with the count typed before ".".
 local repeat_action, skip_next
+-- Where the cursor was when "." was typed: an operator on a closed fold
+-- covers the whole fold and moves the cursor to its first line before
+-- `operatorfunc` runs, so the action would run on another line.
+local dot_from
+local on_key_ns
 
 --- The `operatorfunc` "." calls.
 function M._dot_repeat()
   if skip_next then
     skip_next = false
     return
+  end
+  local from = dot_from
+  dot_from = nil
+  if from and from.win == vim.api.nvim_get_current_win() then
+    pcall(vim.api.nvim_win_set_cursor, from.win, from.cursor)
   end
   local r = repeat_action
   if r and not actions.run(r.name) then
@@ -56,10 +66,24 @@ end
 
 local function set_repeat(name, lhs, count)
   repeat_action = { name = name, lhs = lhs }
+  dot_from = nil
+  if not on_key_ns then
+    on_key_ns = vim.api.nvim_create_namespace("org.dot_repeat")
+    vim.on_key(function(key)
+      if key == "." and repeat_action and vim.api.nvim_get_mode().mode == "n" then
+        local win = vim.api.nvim_get_current_win()
+        dot_from = { win = win, cursor = vim.api.nvim_win_get_cursor(win) }
+      end
+    end, on_key_ns)
+  end
   vim.go.operatorfunc = "v:lua.require'org.mappings'._dot_repeat"
+  -- (g@l on a closed fold moves the cursor to the fold's first line)
+  local win = vim.api.nvim_get_current_win()
+  local cursor = vim.api.nvim_win_get_cursor(win)
   skip_next = true
   pcall(vim.cmd, "normal! " .. (count > 0 and count or "") .. "g@l")
   skip_next = false
+  pcall(vim.api.nvim_win_set_cursor, win, cursor)
 end
 
 --- Run the action of a key: its default behaviour when the action doesn't
