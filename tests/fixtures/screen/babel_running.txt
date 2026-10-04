@@ -1,0 +1,18 @@
+screen 60x8
+|{1:* Build}|
+|{2:#+begin_src sh :results output} {3:  * executing…}|
+|{4:sleep} {5:30}{6:;} {4:echo}{7: done}|
+|{2:#+end_src}|
+||
+|{8:#+RESULTS:}|
+|{9:: 00000000-0000-4000-8000-000000000000}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgBlockDelimiter -> Comment
+{3} OrgBabelRunning -> Comment
+{4} Statement [bold]
+{5} Constant
+{6} Operator
+{7} String
+{8} OrgKeyword -> PreProc
+{9} orgFixedWidth -> OrgVerbatim -> String

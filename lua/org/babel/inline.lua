@@ -4,6 +4,7 @@
 --- requires back. Load it through `require("org.babel")`.
 
 local blocks_mod = require("org.babel.blocks")
+local jobs = require("org.babel.jobs")
 local lisp = require("org.babel.lisp")
 local results = require("org.babel.results")
 local utils = require("org.utils")
@@ -16,6 +17,7 @@ local get_file = M.get_file
 local buf_dir = M.buf_dir
 local track_source = P.track_source
 local take_source = P.take_source
+local ns = vim.api.nvim_create_namespace("org.babel")
 
 ---------------------------------------------------------------------------
 -- Inline src blocks: src_lang[:args]{body} {{{results(=value=)}}}
@@ -198,7 +200,12 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
     return
   end
   local source = track_source(bufnr, lnum - 1, ib.s - 1, lnum - 1, ib.e)
+  local job
   local function finish(result, info)
+    if job and job.cancelled then
+      return
+    end
+    jobs.finish(job)
     local pos, abort = take_source(bufnr, source)
     if not pos then
       done(false, abort)
@@ -255,6 +262,18 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
     done(info.error == nil)
   end
   local eopts = { sync = opts.sync, skip_confirm = opts.skip_confirm, export = opts.export }
+  eopts.on_start = function()
+    -- an asynchronous run: a spinner on the line, and it can be cancelled
+    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, source.mark, {})
+    if pos[1] then
+      job = jobs.start(bufnr, pos[1], { lang = src.lang, name = src.name })
+      job.on_cancel = function()
+        pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, source.mark)
+        done(false, true)
+      end
+      eopts.job = job
+    end
+  end
   if opts.sync then
     local result, info = M.evaluate(bufnr, src, args, eopts)
     finish(result, info)

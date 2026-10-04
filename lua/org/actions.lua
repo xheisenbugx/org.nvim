@@ -796,6 +796,7 @@ group("Babel", {
     desc = "Show src block session and edit the block",
   },
   babel_kill_session = { "org.babel", "kill_session", desc = "Kill src block session" },
+  babel_cancel = { "org.babel", "cancel_block", desc = "Cancel running src block (count: all)" },
   babel_sha1_hash = { "org.babel", "sha1_hash", desc = "Show src block hash" },
   babel_describe_bindings = { "org.babel", "describe_bindings", desc = "List Babel key bindings" },
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },

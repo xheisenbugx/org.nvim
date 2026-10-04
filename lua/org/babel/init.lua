@@ -1,7 +1,8 @@
 ---@mod org.babel Source block evaluation, tangling and editing
 ---
 --- Evaluation runs asynchronously via `vim.system` (Lua blocks run inside
---- Neovim). Results are written below the block as `#+RESULTS:`.
+--- Neovim), as a job of org.babel.jobs (spinner, cancelling). Results are
+--- written below the block as `#+RESULTS:`.
 
 local blocks_mod = require("org.babel.blocks")
 local langs = require("org.babel.langs")

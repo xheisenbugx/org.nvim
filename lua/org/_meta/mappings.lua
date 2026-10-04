@@ -28,6 +28,7 @@
 ---| "archive_to_sibling" # Archive to Archive sibling (Visual: all headlines)
 ---| "attach" # Attachments
 ---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
+---| "babel_cancel" # Cancel running src block (count: all)
 ---| "babel_check" # Check src block header args
 ---| "babel_demarcate" # Split / wrap src block
 ---| "babel_describe_bindings" # List Babel key bindings
@@ -731,6 +732,8 @@
 ---@field babel_switch_to_session_with_code? org.MappingLhs
 --- Kill src block session. Default: `<prefix>bK`
 ---@field babel_kill_session? org.MappingLhs
+--- Cancel running src block (count: all). Default: `<prefix>bC`
+---@field babel_cancel? org.MappingLhs
 --- Show src block hash. Default: `<prefix>ba`
 ---@field babel_sha1_hash? org.MappingLhs
 --- List Babel key bindings. Default: `<prefix>bh`

@@ -183,6 +183,7 @@ local defaults = {
       babel_switch_to_session = "<prefix>bz",
       babel_switch_to_session_with_code = "<prefix>bZ",
       babel_kill_session = "<prefix>bK",
+      babel_cancel = "<prefix>bC",
       babel_sha1_hash = "<prefix>ba",
       babel_describe_bindings = "<prefix>bh",
       babel_mark_block = "<prefix>bm",

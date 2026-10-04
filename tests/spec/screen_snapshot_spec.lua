@@ -282,6 +282,20 @@ describe("screen snapshot", function()
     screen:input("<Esc>")
   end)
 
+  it("a running src block: placeholder result and spinner", function()
+    skip_on_windows("the block runs sh")
+    -- one frame, and no redraw that could add the elapsed seconds
+    new({ babel = { confirm_evaluate = false, async = true, spinner = { "*" }, spinner_interval = 600000 } }, 60, 8)
+    screen:org({ "* Build", "#+begin_src sh :results output", "sleep 30; echo done", "#+end_src" })
+    screen:lua([[
+      require("org.babel").execute({ bufnr = 0, lnum = 2 })
+      -- the placeholder id is random: show a fixed one
+      vim.api.nvim_buf_set_lines(0, 6, 7, false, { ": 00000000-0000-4000-8000-000000000000" })
+    ]])
+    screen:expect("babel_running")
+    screen:lua([[require("org.babel.jobs").cancel_all({ quiet = true })]])
+  end)
+
   it("fails with a diff when the screen differs, and on a missing golden file", function()
     local dir, update = Screen.dir, vim.env.ORG_UPDATE_SNAPSHOTS
     Screen.dir = vim.fn.tempname()

@@ -19,6 +19,16 @@ local defaults = {
     min_lines_for_block_output = 10,
     -- Kill an evaluation after this many ms (no Emacs counterpart)
     timeout = 30000,
+    -- Every interactive evaluation writes a placeholder result at once and
+    -- replaces it when done, like `:async yes` on a session block
+    -- (org-babel-comint-async); `:async no` opts a block out. Evaluations
+    -- never block Neovim either way.
+    async = false,
+    -- Frames of the spinner shown after a running block's first line
+    -- (virtual text); false: a still "executing…"
+    spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+    -- Milliseconds between spinner frames
+    spinner_interval = 100,
     -- Evaluate code when exporting (org-export-use-babel)
     evaluate_on_export = true,
     -- C-c C-c on a block does not evaluate it (org-babel-no-eval-on-ctrl-c-ctrl-c)

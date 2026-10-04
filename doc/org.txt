@@ -4107,6 +4107,10 @@ same results in both editors.
                    its :var values there); bZ also opens the edit buffer.
 <prefix>bl         Send the block to its session and show the session.
 <prefix>bK         Kill the block's session.
+<prefix>bC         Cancel the evaluation of the block at the cursor
+                   (elsewhere: the only one running, or pick one); with
+                   a count, every running evaluation. See
+                   |org-babel-async|.
 <prefix>ba         Show the block's hash (the one `:cache yes` stores).
 <prefix>bh         List the Babel key bindings.
 <prefix>bm         Select the block body (Visual line mode).
@@ -4148,6 +4152,43 @@ fails, go to the `*Org-Babel Error Output*` buffer (shown in a split); the
 result keeps the standard output only, like `org-babel-eval`. A missing
 reference or an inline result that cannot be inserted stops the execution
 of the buffer.
+
+Running in the background ~                                *org-babel-async*
+C-c C-c, <prefix>bb and <prefix>bs never block Neovim: the code runs as a
+separate process (or in its session) and its result is inserted when it
+is done; executing the buffer or a subtree still runs the blocks one after
+the other, in order. Meanwhile:
+  - A spinner is drawn after the first line of the running block (virtual
+    text, highlight group `OrgBabelRunning`; the buffer does not change),
+    with the seconds elapsed after the first one. `babel.spinner` sets its
+    frames (`false`: a still "executing…"), `babel.spinner_interval` the
+    milliseconds between them.
+  - You can keep editing. The result follows its block when lines are
+    added or removed above it. Without a placeholder (below), a result is
+    discarded with a warning when its block was changed or deleted during
+    the run.
+  - With `babel.async = true` every run first writes a placeholder id as
+    the result, like `:async` session blocks in Emacs (see Sessions
+    below): the result replaces the placeholder wherever the block is
+    then, even if the block was edited; if the placeholder was deleted,
+    the result is discarded with a warning. `:async no` on a block (or in
+    `default_header_args`) keeps it out. The placeholder and the result
+    are one undo step, when nothing else changed the buffer in between.
+  - <prefix>bC (`:Org babel_cancel`) cancels the evaluation at the cursor:
+    its process is killed (with its child processes), or its session sent
+    an interrupt (C-c). A placeholder becomes
+    `: [ Babel evaluation cancelled ]`; without one the previous result
+    stays as it was. Executing the buffer or a subtree stops there. Not on
+    a running block, it cancels the only running evaluation, or asks which
+    one; with a count, all of them. Unloading (`:bwipeout`, `:bdelete`) a
+    buffer cancels its evaluations; quitting Neovim cancels them all.
+What needs a value at once still waits for it, as in Emacs, with no
+spinner or placeholder: export, the blocks a `:var` reference, a noweb
+call or `:post` evaluates, and `org-sbe` in table formulas. Lua blocks run
+inside Neovim (unless `babel.languages.lua.cmd` names an interpreter), so
+they hold Neovim while they run and cannot be cancelled; so do the few
+steps of some language ports that wait for a helper tool (LaTeX image
+conversion, `screen`).
 
 Hooks are `User` autocommands: `OrgBabelAfterExecute` (after a result is
 inserted; `data` has bufnr, lang, name, result), `OrgBabelTanglePre`,
@@ -4230,7 +4271,9 @@ globals inside Neovim). Other languages ignore `:session` with a warning.
   - Every evaluation runs in the background, so Neovim never blocks (in
     Emacs only `:async` evaluations do); requests to one session run in
     order. Without `:async`, a result is discarded (with a warning) when
-    its block was edited during the run.
+    its block was edited during the run. Cancelling one
+    (|org-babel-async|) interrupts the REPL with C-c and drops its result;
+    the session keeps running for the next block.
   - `:async` (or `:async yes`) on a session block works like Emacs
     (org-babel-comint-async): `#+RESULTS:` gets a placeholder id at
     once, and the result replaces that placeholder when it arrives, even
@@ -4238,6 +4281,8 @@ globals inside Neovim). Other languages ignore `:session` with a warning.
     discards the result. `:async no`, `:session none`, export, `:var`
     references and `:results silent`/`none`/`append`/`prepend` run
     without a placeholder; lua sessions finish at once and ignore it.
+    `babel.async = true` gives every block a placeholder, with a session
+    or not (|org-babel-async|).
 
 Languages ~
 `babel.languages` maps a language name to `{ cmd = "...", ext = "...",
@@ -5917,7 +5962,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
     `OrgInlineSrcMarker`, `OrgInlineSrcLang`, `OrgExportSnippetMarker`,
     `OrgExportSnippetBackend`, `OrgFootnote`, `OrgTarget`, `OrgLatex`,
     `OrgHorizontalRule`, `OrgMacro`, `OrgHiddenStars`, `OrgSuperscript`,
-    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`
+    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
     `OrgMenuOn`, `OrgMenuOff`, `OrgMenuValue`, `OrgMenuSelected` (|org-key-menus|,
     |org-choice-list|)
@@ -6353,7 +6398,9 @@ mobile ~
   before_process_capture_hook, post_pull_hook (|org-mobile|)
 babel ~
   confirm_evaluate true (or a function), min_lines_for_block_output 10,
-  timeout 30000, evaluate_on_export true, no_eval_on_ctrl_c_ctrl_c false,
+  timeout 30000, async false (|org-babel-async|), spinner (braille
+  frames, or false), spinner_interval 100, evaluate_on_export true,
+  no_eval_on_ctrl_c_ctrl_c false,
   default_header_args, default_inline_header_args,
   default_lob_header_args, results_keyword "RESULTS",
   inline_result_wrap "=%s=", hash_show_time false, noweb_wrap_start "<<",
@@ -6566,6 +6613,7 @@ Section `org` (default key: action):
   <prefix>bl bz bZ bK              babel_load_in_session,
                                    babel_switch_to_session(_with_code),
                                    babel_kill_session
+  <prefix>bC                       babel_cancel
   <prefix>ba bh bm bx              babel_sha1_hash, babel_describe_bindings,
                                    babel_mark_block, babel_do_key_sequence
 
@@ -7557,7 +7605,11 @@ Differences from Emacs:
   graphics` handling beyond what the code does itself). C-c C-v C-l
   runs the block in the session; Emacs only inserts it at the prompt.
   Timeouts (`babel.timeout`) give up on the result but do not interrupt
-  the REPL. emacs-lisp blocks and
+  the REPL. Every evaluation runs in the background with a spinner and
+  can be cancelled (`:Org babel_cancel`, Emacs has only C-g for the
+  synchronous ones); `babel.async` gives every block, not only `:async`
+  session blocks, a placeholder result, and a cancelled placeholder
+  becomes `: [ Babel evaluation cancelled ]` (|org-babel-async|). emacs-lisp blocks and
   `elisp:` links run in a separate `emacs --batch` process (or, without
   Emacs, on the table formula Lisp interpreter), not in the editor: they
   cannot see or change buffers, and nothing is kept between evaluations.
