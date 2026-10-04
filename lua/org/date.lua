@@ -14,6 +14,20 @@
 
 local M = {}
 
+--- A timestamp's repeater: `+1w`, `++2d`, `.+1m`, with an optional
+--- maximum `/3d` (org-habit).
+---@class org.DateRepeater
+---@field type string "+", "++" or ".+"
+---@field value integer
+---@field unit string one of h d w m y
+---@field max? { value: integer, unit: string }
+
+--- A timestamp's warning period or delay: `-2d`, `--1w`.
+---@class org.DateWarning
+---@field type string "-" or "--"
+---@field value integer
+---@field unit string one of h d w m y
+
 ---@class org.Date
 ---@field year integer
 ---@field month integer
@@ -23,8 +37,8 @@ local M = {}
 ---@field end_hour? integer
 ---@field end_min? integer
 ---@field active boolean
----@field repeater? table
----@field warning? table
+---@field repeater? org.DateRepeater
+---@field warning? org.DateWarning
 ---@field range_end? org.Date
 local Date = {}
 Date.__index = Date
@@ -97,7 +111,9 @@ local function copy_spec(s)
   return c
 end
 
----@return table
+--- A timestamp from its fields (repeater and warning are copied).
+---@param t? table the fields of an org.Date, any of them left out
+---@return org.Date
 function Date.new(t)
   t = t or {}
   local self = setmetatable({
@@ -157,7 +173,7 @@ end
 --- The last clock-out time of the subtree of `hl`: the end of the first
 --- closed CLOCK line after the headline (org-clock-get-last-clock-out-time).
 ---@param hl? org.Headline
----@return table|nil
+---@return org.Date|nil
 function M.last_clock_out(hl)
   if not (hl and hl.file and hl.file.lines) then
     return nil
@@ -592,7 +608,7 @@ local function fmt_time(h, m)
 end
 
 --- Format the timestamp in org syntax: `<2026-09-23 Wed 10:00-11:00 +1w -2d>`
----@param opts? { brackets?: boolean }
+---@param opts? { brackets?: boolean, range?: boolean } `range = false` leaves out a range's end
 function Date:to_string(opts)
   opts = opts or {}
   local parts = { string.format("%04d-%02d-%02d %s", self.year, self.month, self.day, self:dayname()) }
@@ -603,11 +619,12 @@ function Date:to_string(opts)
     end
     parts[#parts + 1] = t
   end
-  if self.repeater then
-    local r = self.repeater
+  local r = self.repeater
+  if r then
     local s = r.type .. r.value .. r.unit
-    if r.max then
-      s = s .. "/" .. r.max.value .. r.max.unit
+    local max = r.max
+    if max then
+      s = s .. "/" .. max.value .. max.unit
     end
     parts[#parts + 1] = s
   end
@@ -679,16 +696,28 @@ local function parse_fields(y, mo, d, rest, active)
     elseif c == 43 or c == 46 then -- "+" or ".": a repeater
       local rtype, rval, runit, rest2 = token:match(REPEATER)
       if rtype and (rtype == "+" or rtype == "++" or rtype == ".+") then
-        ts.repeater = { type = rtype, value = tonumber(rval), unit = runit }
+        -- the patterns capture digits only: tonumber can't fail
+        ts.repeater = {
+          type = rtype,
+          value = tonumber(rval) --[[@as integer]],
+          unit = runit,
+        }
         local mv, mu = rest2:match(REPEATER_MAX)
         if mv then
-          ts.repeater.max = { value = tonumber(mv), unit = mu }
+          ts.repeater.max = {
+            value = tonumber(mv) --[[@as integer]],
+            unit = mu,
+          }
         end
       end
     elseif c == 45 then -- "-": a warning or delay
       local wtype, wval, wunit = token:match(WARNING)
       if wtype then
-        ts.warning = { type = wtype, value = tonumber(wval), unit = wunit }
+        ts.warning = {
+          type = wtype,
+          value = tonumber(wval) --[[@as integer]],
+          unit = wunit,
+        }
       end
     end
   end
@@ -701,7 +730,8 @@ local STAMP_AT = "^" .. STAMP
 local RANGE_END_AT = "^%-%-" .. STAMP
 
 --- Parse a single timestamp string like `<2026-09-23 Wed>` or `[2026-09-23]`.
----@return table|nil
+---@param str string?
+---@return org.Date|nil
 function M.parse(str)
   if not str then
     return nil
@@ -810,9 +840,9 @@ local next_repeat
 --- Next occurrence for a repeated timestamp when marked DONE
 --- (org-auto-repeat-maybe). Like Emacs, a `--N` delay is dropped from the
 --- shifted timestamp: it only postponed the first occurrence.
----@param ts table
----@param now? table defaults to M.now()
----@param today? table the day `.+` and `++` count from (default: org-today of `now`)
+---@param ts org.Date
+---@param now? org.Date defaults to M.now()
+---@param today? org.Date the day `.+` and `++` count from (default: org-today of `now`)
 function M.apply_repeater(ts, now, today)
   local r = ts.repeater
   if not r or r.value == 0 then
@@ -1047,6 +1077,13 @@ end
 --- The relative part at the start of the answer (org-read-date-get-relative):
 --- `+3d`, `-2w`, `++1m`, `+4`, `fri`, `+2fri`, `-mon`. Returns
 --- n, unit, from_default and the rest of the input.
+---@param s string
+---@param today org.Date
+---@param default org.Date
+---@return integer? n
+---@return string? unit
+---@return boolean? rel
+---@return string? rest
 local function get_relative(s, today, default)
   local sign, num, what, rest = s:match("^[ \t]*([%+%-]?[%+%-]?)(%d*)(%a*)(.*)$")
   if not sign or not (rest == "" or rest:match("^[ \t]")) then
@@ -1166,8 +1203,8 @@ end
 --- one was typed (`end_hour`/`end_min` for a range), or nil when nothing
 --- in the input could be read.
 ---@param input string
----@param default? table default date (defaults to now)
----@return table|nil
+---@param default? org.Date default date (defaults to now)
+---@return org.Date|nil
 function M.read_date(input, default)
   return (M.read_date_analyze(input, default))
 end
@@ -1176,8 +1213,8 @@ end
 --- by `read_date_prefer_future` (org-read-date-analyze-futurep, shown as
 --- "(=>F)" by the live date prompt).
 ---@param input string
----@param default? table
----@return table|nil date, boolean? futurep
+---@param default? org.Date
+---@return org.Date|nil date, boolean? futurep
 function M.read_date_analyze(input, default)
   local now = M.now()
   local prefer = require("org.config").opts.read_date_prefer_future
@@ -1220,7 +1257,7 @@ function M.read_date_analyze(input, default)
 
   local deltan, deltaw, deltadef
   local n, w, rel, rest = get_relative(ans, now, def)
-  if n then
+  if n and rest then
     deltan, deltaw, deltadef, ans = n, w, rel, rest
     recognized = true
   elseif ext_delta then

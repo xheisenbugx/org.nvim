@@ -6,3 +6,7 @@
 # and never take one out to make the check pass (see CONTRIBUTING.md).
 lua/org/api
 lua/org/parser.lua
+lua/org/element.lua
+lua/org/files.lua
+lua/org/date.lua
+lua/org/timestamps.lua
