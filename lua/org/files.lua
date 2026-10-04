@@ -70,7 +70,9 @@ end
 ---@param bufnr? integer
 ---@return org.File
 function M.get_buffer(bufnr)
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if bufnr == nil or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local cwd = name == "" and vim.fn.getcwd() or nil

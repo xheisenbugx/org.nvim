@@ -44,7 +44,8 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
   checks the code isn't annotated well enough for yet (`need-check-nil`,
   `param-type-mismatch`, `undefined-field`, ...) are demoted to hints,
   except in the paths listed in `scripts/typecheck_strict.txt`
-  (`lua/org/api/`, `lua/org/parser.lua`), where they fail it too. Fix a
+  (`lua/org/api/`, `parser.lua`, `element.lua`, `files.lua`, `date.lua`,
+  `timestamps.lua`), where they fail it too. Fix a
   new warning (usually a wrong `---@param`/`---@return`, or a missing nil
   check) rather than silencing it. To make a module strict, add its path
   as one line there and fix what `make typecheck` reports; never remove
