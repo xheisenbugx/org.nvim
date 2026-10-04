@@ -142,4 +142,35 @@ describe("agenda tag filter", function()
   it("q quits when no tag uses it", function()
     eq({}, filter("#+TAGS: work(w)", { "q" }))
   end)
+
+  it("the prompt says Esc quits, and q unless it is a tag key", function()
+    local orig = utils.getchar
+    local function capture(tags_line)
+      utils.writefile(path, { tags_line, "* TODO Work :work:" })
+      config.setup({ agenda_files = { path }, org_directory = dir })
+      require("org.agenda").open({ blocks = { { type = "todo" } } })
+      local p
+      utils.getchar = function(prompt)
+        p = prompt
+        return nil
+      end
+      local ok_, err = pcall(view.filter_by_tag)
+      utils.getchar = orig
+      eq({}, view.state.filters.tag)
+      pcall(view.quit, true)
+      local b = utils.find_buffer(path)
+      if b then
+        vim.api.nvim_buf_delete(b, { force = true })
+      end
+      config.setup({})
+      assert(ok_, err)
+      return p
+    end
+    local p = capture("#+TAGS: work(w)")
+    ok(p:find("[q/Esc]quit", 1, true))
+    p = capture("#+TAGS: quiet(q) work(w)")
+    ok(p:find(" [Esc]quit", 1, true))
+    eq(nil, p:find("[q]", 1, true))
+    eq(nil, p:find("q/Esc", 1, true))
+  end)
 end)

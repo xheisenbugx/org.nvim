@@ -52,12 +52,17 @@ function M.escape(s)
 end
 
 --- The first key of an org action in the org / Emacs key sections, for the
---- hint shown right of a menu label (Emacs shows the binding).
+--- hint shown right of a menu label (Emacs shows the binding). Nil when
+--- the key isn't bound: `mappings.disable_all` turns off every section but
+--- the agenda buffer's own keys.
 ---@param name string
 ---@param section? string mapping section: "agenda" for agenda actions
 ---@return string|nil
 function M.key_for(name, section)
   local maps = config.opts.mappings or {}
+  if maps.disable_all and section ~= "agenda" then
+    return nil
+  end
   local sections = section and { section } or { "org", "emacs", "global", "emacs_global" }
   for _, s in ipairs(sections) do
     local lhs = config.lhs_list((maps[s] or {})[name])[1]

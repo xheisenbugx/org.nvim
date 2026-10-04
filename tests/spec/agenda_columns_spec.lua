@@ -212,6 +212,84 @@ describe("agenda column view", function()
     end)
   end)
 
+  -- org-columns-edit-value (Emacs 9.8.10, org-colview.el): e on a DEADLINE
+  -- or SCHEDULED cell calls org-deadline / org-schedule at the source entry
+  -- (the date prompt), then redoes the agenda column view; CLOCKSUM is
+  -- refused with "This special column cannot be edited" before any prompt.
+  describe("editing a date column", function()
+    local saved = lines
+    local new = today:add(3, "d")
+    before_each(function()
+      lines = {
+        "* TODO Pay rent",
+        "  DEADLINE: " .. ts(0) .. " SCHEDULED: " .. ts(0),
+      }
+    end)
+    after_each(function()
+      lines = saved
+      config.opts.agenda.overriding_columns_format = nil
+      pcall(cols.quit)
+      pcall(view.quit, true)
+    end)
+
+    local function edit_column(n)
+      open()
+      -- narrow columns: the cursor can't go past the end of the agenda line
+      config.opts.agenda.overriding_columns_format = "%4ITEM %4DEADLINE %4SCHEDULED %4CLOCKSUM"
+      ok(cols.apply())
+      local l = line_of("Pay rent")
+      local text = overlay_text(l)
+      local prefix = text:match("^" .. string.rep("[^|]*| ", n - 1))
+      vim.api.nvim_win_set_cursor(0, { l, 0 })
+      vim.cmd("normal! " .. (vim.fn.strdisplaywidth(prefix) + 1) .. "|")
+      local calendar = require("org.calendar")
+      local pick, input, warn = calendar.pick, utils.input, utils.warn
+      local prompts, inputs, warned = {}, 0, nil
+      calendar.pick = function(o)
+        prompts[#prompts + 1] = o.prompt
+        return new
+      end
+      utils.input = function()
+        inputs = inputs + 1
+      end
+      utils.warn = function(m)
+        warned = m
+      end
+      local ok1, err = pcall(cols.edit)
+      calendar.pick, utils.input, utils.warn = pick, input, warn
+      ok(ok1, err)
+      local b = utils.find_buffer(path)
+      local src = b and vim.api.nvim_buf_get_lines(b, 0, -1, false) or vim.fn.readfile(path)
+      return prompts, inputs, warned, src
+    end
+
+    it("opens the deadline date prompt on DEADLINE", function()
+      local prompts, inputs, warned, src = edit_column(2)
+      eq({ "Deadline" }, prompts)
+      eq(0, inputs)
+      eq(nil, warned)
+      eq("  DEADLINE: " .. ts(3) .. " SCHEDULED: " .. ts(0), src[2])
+      ok(cols.active())
+    end)
+
+    it("opens the schedule date prompt on SCHEDULED", function()
+      local prompts, inputs, warned, src = edit_column(3)
+      eq({ "Schedule" }, prompts)
+      eq(0, inputs)
+      eq(nil, warned)
+      eq("  DEADLINE: " .. ts(0) .. " SCHEDULED: " .. ts(3), src[2])
+      ok(cols.active())
+    end)
+
+    it("refuses CLOCKSUM without prompting", function()
+      local prompts, inputs, warned, src = edit_column(4)
+      eq({}, prompts)
+      eq(0, inputs)
+      eq("This special column cannot be edited", warned)
+      eq("  DEADLINE: " .. ts(0) .. " SCHEDULED: " .. ts(0), src[2])
+    end)
+  end)
+
   -- the relative due-date example under <prefix>C in doc/org.txt
   describe("the doc's relative due-date example", function()
     local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
@@ -387,6 +465,37 @@ describe("agenda column view of a custom command", function()
     eq(WANT, cells())
   end)
 
+  -- org-agenda-redo rebuilds the buffer and org-agenda-finalize turns
+  -- columns on again when org-agenda-view-columns-initially is set. Emacs
+  -- 9.8.10 (emacs -Q --batch): org-todo-list, org-columns-quit, then
+  -- call-interactively org-agenda-redo leaves org-agenda-columns-active t.
+  it("turns column view back on at redo when the option is set, like Emacs", function()
+    setup({ agenda = { view_columns_initially = true } })
+    agenda.open_todo()
+    ok(cols.active())
+    cols.quit()
+    ok(not cols.active())
+    view.redo()
+    ok(cols.active())
+    cols.quit()
+    agenda.open_custom("c")
+    cols.quit()
+    view.redo()
+    ok(cols.active())
+    eq(WANT, cells())
+  end)
+
+  it("leaves column view off at redo when the option is not set", function()
+    setup()
+    agenda.open_todo()
+    ok(not cols.active())
+    view.redo()
+    ok(not cols.active())
+    agenda.open_custom("b")
+    view.redo()
+    ok(not cols.active())
+  end)
+
   it("takes the start_with_* modes and dim_blocked_tasks from the command's settings", function()
     setup({
       agenda = {
@@ -414,5 +523,108 @@ describe("agenda column view of a custom command", function()
       { "b.types[1].overriding_columns_format", "b.types[1].view_columns_initially" },
       require("org.health").ignored_block_options(config.opts.agenda.custom_commands)
     )
+  end)
+end)
+
+-- Emacs org-agenda-columns calls org-agenda-colview-compute when
+-- org-agenda-columns-compute-summary-properties is set (org-colview.el,
+-- Org 9.8.10): each file computes its summary columns with its own format
+-- when the operator matches the agenda's, and a row shows the summary of
+-- its children before its own value (org-columns--collect-values). The
+-- date line then adds up the rows, the parent's summary included. Checked
+-- with emacs -Q --batch: Parent 3:30, date line 7:00.
+describe("agenda column view summaries of children", function()
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local path = dir .. "/sums.org"
+  local view = require("org.agenda.view")
+  local cols = require("org.agenda.columns")
+  local function lines(parent_effort)
+    local out = {
+      "#+COLUMNS: %25ITEM %Effort{:} %DEADLINE",
+      "* TODO Parent",
+      "  SCHEDULED: " .. ts(0),
+    }
+    if parent_effort then
+      vim.list_extend(out, { "  :PROPERTIES:", "  :Effort: " .. parent_effort, "  :END:" })
+    end
+    return vim.list_extend(out, {
+      "** TODO Child1",
+      "   SCHEDULED: " .. ts(0),
+      "   :PROPERTIES:",
+      "   :Effort: 1:00",
+      "   :END:",
+      "** TODO Child2",
+      "   SCHEDULED: " .. ts(0),
+      "   :PROPERTIES:",
+      "   :Effort: 2:30",
+      "   :END:",
+    })
+  end
+  local function open(agenda_opts, parent_effort, load)
+    utils.writefile(path, lines(parent_effort))
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    if load then
+      b = vim.fn.bufadd(path)
+      vim.fn.bufload(b)
+    end
+    config.setup({ agenda_files = { path }, org_directory = dir, agenda = agenda_opts })
+    require("org.agenda").open_agenda({ span = "day" })
+    ok(cols.toggle())
+  end
+  local function row(title)
+    for l, it in pairs(view.state.line_items) do
+      if it.title == title then
+        return cols.cells(l)
+      end
+    end
+  end
+  local function dateline()
+    local ns = vim.api.nvim_create_namespace("org.agenda.columns")
+    for l in pairs(view.state.day_lines) do
+      local m = vim.api.nvim_buf_get_extmarks(0, ns, { l - 1, 0 }, { l - 1, -1 }, { details = true })[1]
+      return m and m[4].virt_text[1][1]
+    end
+  end
+  after_each(function()
+    cols.quit()
+    view.quit(true)
+  end)
+
+  it("shows a parent's summary and counts it on the date line", function()
+    open()
+    eq({ "Parent", "3:30", "" }, row("Parent"))
+    eq({ "Child1", "1:00", "" }, row("Child1"))
+    ok(dateline():find("| 7:00   |", 1, true), dateline())
+  end)
+
+  it("prefers the summary to the parent's own value and writes it back like Emacs", function()
+    open(nil, "0:10", true)
+    eq({ "Parent", "3:30", "" }, row("Parent"))
+    -- org-columns-compute updates the existing property in the buffer;
+    -- the file on disk is not saved
+    local b = utils.find_buffer(path)
+    ok(vim.tbl_contains(vim.api.nvim_buf_get_lines(b, 0, -1, false), "  :EFFORT:   3:30"))
+    ok(vim.tbl_contains(vim.fn.readfile(path), "  :Effort: 0:10"))
+  end)
+
+  it("shows no summary with columns_compute_summary_properties off", function()
+    open({ columns_compute_summary_properties = false })
+    eq({ "Parent", "", "" }, row("Parent"))
+    ok(dateline():find("| 3:30   |", 1, true), dateline())
+  end)
+
+  it("shows no summary when the file's operator differs", function()
+    open({ overriding_columns_format = "%25ITEM %Effort{+} %DEADLINE" })
+    eq({ "Parent", "", "" }, row("Parent"))
+  end)
+
+  it("shows no summary when the agenda's column spec differs from the file's", function()
+    -- Emacs looks the summary up by the whole spec, width included
+    open({ overriding_columns_format = "%25ITEM %10Effort{:} %DEADLINE" })
+    eq({ "Parent", "", "" }, row("Parent"))
   end)
 end)

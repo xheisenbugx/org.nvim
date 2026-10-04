@@ -1923,7 +1923,8 @@ bar (Emacs shows them in the mode line).
   \     filter by one tag: its selection key (#+TAGS / `tags` `(k)`
         keys), <Tab> to type a tag, <Space> any tag, `?` untagged, `.` the
         tags of the entry at point, `-` / `+` exclude / include the next
-        tag, <CR> `auto_exclude_function`, `\` removes the tag filter.
+        tag, <CR> `auto_exclude_function`, `\` removes the tag filter,
+        <Esc> quits (and `q`, unless a tag uses it as its key).
         With `group_tags` on, a group tag (`#+TAGS: [ Work : Lab ]`,
         |org-tag-groups|) keeps the entries with the group tag or any of
         its members, recursively (`-Work` hides them all); <Tab> and `/`
@@ -1980,9 +1981,15 @@ custom command's `settings` (org-overriding-columns-format, see
 |org-agenda-command-columns|), else `agenda.overriding_columns_format`
 (org-columns-default-format-for-agenda), else the COLUMNS property or
 #+COLUMNS of the entry at point (or of the first entry), else
-`columns_default_format`. Date lines and block headers
-show the summaries of the entries below them
-(`agenda.columns_show_summaries`); with
+`columns_default_format`. An entry whose children have values shows
+their summary, computed in its file with the file's own format when
+that file's column for the property has the same summary operator
+(`agenda.columns_compute_summary_properties`, default true,
+org-agenda-columns-compute-summary-properties); as in Emacs, the summary
+is also written to the entry's property when it has one (in the file's
+buffer when it is loaded, not saved). Date lines and block headers
+show the summaries of the entries below them, the parents' summaries
+included as in Emacs (`agenda.columns_show_summaries`); with
 `agenda.columns_add_appointments_to_effort_sum`, an appointment without
 an effort counts its duration (org-agenda-columns-add-appointments-to-
 effort-sum). Values show as in column view (org-columns--displayed-value):
@@ -1990,11 +1997,15 @@ SCHEDULED, DEADLINE and TIMESTAMP as inactive timestamps, a column's
 printf format applied, ITEM with links shown as their description, and
 `columns_modify_value_for_display_function` called first (see <prefix>C
 in |org-columns| for a relative due-date example). While it is on: `q`
-turns it off, `e` edits the real value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
-the next/previous allowed value, `v` shows the full value. The column
+turns it off, `e` edits the real value under the cursor (on a SCHEDULED
+or DEADLINE cell it opens the date prompt of <C-c><C-s> / <C-c><C-d>;
+computed columns such as CLOCKSUM can't be edited), `n`/`p`
+(<S-Right>/<S-Left>) switch to the next/previous allowed value, `v`
+shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
-`agenda.view_columns_initially` turns it on for every new agenda.
+`agenda.view_columns_initially` turns it on for every new agenda, and
+`r` turns it on again after it was turned off, as Emacs does.
 
                                                   *org-agenda-command-columns*
 Column view for one custom command: set `overriding_columns_format` and
@@ -6122,6 +6133,7 @@ agenda ~
   tags, text }, save_after_edit false, block_separator, show_inherited_tags,
   remove_tags, custom_commands, overriding_columns_format,
   view_columns_initially, columns_show_summaries true,
+  columns_compute_summary_properties true,
   text_search_extra_files {}, search_view_always_boolean,
   search_view_force_full_words, search_view_max_outline_level 0,
   entry_text_maxlines 5, confirm_kill 1,
@@ -6582,13 +6594,14 @@ buffers (org-org-menu, org-tbl-menu), "Agenda" in the agenda
 "Edit-Formulas" in the formula editor (org-table-fedit-menu) and "OrgTbl"
 where orgtbl-mode is on (orgtbl-mode-menu), with Emacs's entries in Emacs's
 order, each running the action that does the same (its key is shown next to
-it). Neovim menus are global, so they are added when a buffer they belong
-to is entered and removed when another one is. GUIs show them in the menu
-bar; anywhere, run an entry with |:emenu| (`:emenu Org.<Tab>` completes) or
-pop a menu up with |:popup| (`:popup Org`). Entries Emacs greys out at point
-are disabled before a popup and refuse to run otherwise. "File List for
-Agenda" and "Agenda Files" list the agenda files. `ui.menus = false` turns
-the menus off (Emacs has no option for them).
+it, unless `mappings.disable_all` leaves it unbound; the agenda buffer's
+keys stay bound). Neovim menus are global, so they are added when a buffer
+they belong to is entered and removed when another one is. GUIs show them
+in the menu bar; anywhere, run an entry with |:emenu| (`:emenu Org.<Tab>`
+completes) or pop a menu up with |:popup| (`:popup Org`). Entries Emacs
+greys out at point are disabled before a popup and refuse to run otherwise.
+"File List for Agenda" and "Agenda Files" list the agenda files.
+`ui.menus = false` turns the menus off (Emacs has no option for them).
 
 Key menus and choice lists                                   *org-key-menus*
 Commands that ask for one key (the export dispatcher, the agenda
@@ -7290,6 +7303,9 @@ Differences from Emacs:
   system collation, which is the same on macOS but not on glibc
   systems). BibTeX crossref inheritance copies every missing field
   except the biblatex exclusions (parsebib has per-type rules).
+- Agenda column view (|org-agenda-columns|) writes a parent's summary
+  back to its property only in agenda files loaded in a buffer (Emacs
+  visits every agenda file, so it updates them all, without saving).
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target

@@ -327,4 +327,15 @@ describe("babel :var (Emacs references)", function()
     eq("  echo 1 # one", buf_lines(buf)[2])
     eq(buf, vim.api.nvim_get_current_buf())
   end)
+
+  it("lists no bindings with mappings.disable_all, since none is bound", function()
+    org_buffer({ "#+begin_src sh", "echo 1", "#+end_src" }, { 2, 0 })
+    config.opts.mappings.disable_all = true
+    local ok_run, err = pcall(babel.describe_bindings)
+    config.opts.mappings.disable_all = false
+    local shown = table.concat(buf_lines(0), "\n")
+    vim.cmd("close")
+    ok(ok_run, err)
+    eq(nil, shown:find("Load src block into its session", 1, true))
+  end)
 end)
