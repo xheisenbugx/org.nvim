@@ -19,6 +19,16 @@ local H = require("org.api.headline")
 local files = require("org.files")
 local utils = require("org.utils")
 
+--- A buffer argument: 0 or nil is the current buffer.
+---@param bufnr integer? 0 or nil for the current buffer
+---@return integer
+local function resolve_buf(bufnr)
+  if bufnr == nil or bufnr == 0 then
+    return vim.api.nvim_get_current_buf()
+  end
+  return bufnr
+end
+
 local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
@@ -37,7 +47,8 @@ function M.has(version)
     end
     return { tonumber(a), tonumber(b) or 0, tonumber(c) or 0 }
   end
-  local want, have = parts(version), parts(M.version)
+  -- M.version is always a valid version
+  local want, have = parts(version), assert(parts(M.version))
   if not want or want[1] ~= have[1] then
     return false
   end
@@ -174,7 +185,7 @@ end
 ---@param bufnr? integer
 ---@return org.api.File|nil
 function M.current(bufnr)
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  bufnr = resolve_buf(bufnr)
   if not utils.is_org(bufnr) then
     return nil
   end
@@ -220,7 +231,7 @@ function M.headline_at(opts)
     f = files.get(opts.file)
     lnum = lnum or 1
   else
-    local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
+    local bufnr = resolve_buf(opts.bufnr)
     if not lnum then
       local cur, err = buffer_cursor(bufnr)
       if not cur then
@@ -295,7 +306,7 @@ function M.headlines(query)
   local todo_set
   if type(todo) == "string" or type(todo) == "table" then
     todo_set = {}
-    for _, k in ipairs(as_list(todo)) do
+    for _, k in ipairs(type(todo) == "table" and todo or { todo }) do
       todo_set[k] = true
     end
   end
@@ -414,16 +425,17 @@ function M.capture(opts)
   opts = opts or {}
   local capture = require("org.capture")
   local tpl
+  local template = opts.template
   if opts.key then
     tpl = capture.get_template(opts.key)
     if not tpl then
       return nil, "no capture template for key: " .. opts.key
     end
-  elseif type(opts.template) == "table" then
-    tpl = vim.deepcopy(opts.template)
-  elseif type(opts.template) == "string" then
+  elseif type(template) == "table" then
+    tpl = vim.deepcopy(template)
+  elseif type(template) == "string" then
     tpl = {
-      template = opts.template,
+      template = template,
       target = opts.target,
       headline = opts.headline,
       olp = opts.olp,
@@ -558,7 +570,7 @@ end
 function M.links.insert(link, desc, opts)
   opts = opts or {}
   local links = require("org.links")
-  local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
+  local bufnr = resolve_buf(opts.bufnr)
   local row, col = opts.row, opts.col
   if not row or not col then
     local cur, err = buffer_cursor(bufnr)
@@ -596,7 +608,7 @@ end
 function M.links.resolve(link, opts)
   opts = opts or {}
   local links = require("org.links")
-  local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
+  local bufnr = resolve_buf(opts.bufnr)
   local target = link
   if link:match("^%s*%[%[") then
     local b = links.parse_links(vim.trim(link), { bracket_only = true })[1]
