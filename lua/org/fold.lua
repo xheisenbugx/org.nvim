@@ -1159,6 +1159,17 @@ local function open_items(s, e)
   end
 end
 
+--- The message for a subtree that stays closed because it is archived,
+--- naming the key bound to force_cycle_archived as Emacs substitutes
+--- \\[org-cycle-force-archived], or the command when no key is bound.
+---@return string
+local function archived_message()
+  local key = not (config.opts.mappings or {}).disable_all and require("org.menu").key_for("force_cycle_archived")
+  return ("Subtree is archived and stays closed.  Use %s to cycle it anyway."):format(
+    key or ":Org force_cycle_archived"
+  )
+end
+
 --- Re-fold archived subtrees (`:ARCHIVE:` tag) whose headline is in
 --- [s, e], so visibility cycling never opens them
 --- (org-cycle-hide-archived-subtrees). Returns true when the headline at
@@ -1921,7 +1932,6 @@ function M.cycle()
     set_last_cycle(lnum, nil)
     return
   end
-  local archived_msg = "Subtree is archived and stays closed (use force_cycle_archived to cycle it)"
   local last = last_cycle_status(lnum)
   local hidden = all_hidden_after(lnum, hl.end_line)
   local children = hl.children
@@ -1970,7 +1980,7 @@ function M.cycle()
     set_last_cycle(lnum, "children")
     cycle_hook("children", hl)
     if hide_archived(hl.line, hl.end_line) then
-      vim.api.nvim_echo({ { archived_msg } }, false, {})
+      vim.api.nvim_echo({ { archived_message() } }, false, {})
       return
     end
     vim.api.nvim_echo({ { "CHILDREN" } }, false, {})
@@ -1985,7 +1995,7 @@ function M.cycle()
     set_last_cycle(lnum, "subtree")
     cycle_hook("subtree", hl)
     if hide_archived(hl.line, hl.end_line) then
-      vim.api.nvim_echo({ { archived_msg } }, false, {})
+      vim.api.nvim_echo({ { archived_message() } }, false, {})
       return
     end
     vim.api.nvim_echo({ { skipped and "SUBTREE (NO CHILDREN)" or "SUBTREE" } }, false, {})
