@@ -378,6 +378,12 @@ function M.redo(opts)
     target = target or math.min(lnum, vim.api.nvim_buf_line_count(M.state.buf))
     pcall(vim.api.nvim_win_set_cursor, M.state.win, { target, 0 })
   end
+  -- a rebuild runs org-agenda-finalize, which turns column view back on
+  -- when org-agenda-view-columns-initially is set (even after `q` in it)
+  local ok, cols = pcall(require, "org.agenda.columns")
+  if ok and not cols.active() then
+    pcall(cols.refresh_if_active, true)
+  end
 end
 
 --- Quit the agenda window (org-agenda-quit). `wipe` also deletes the

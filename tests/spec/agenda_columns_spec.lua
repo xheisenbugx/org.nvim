@@ -387,6 +387,37 @@ describe("agenda column view of a custom command", function()
     eq(WANT, cells())
   end)
 
+  -- org-agenda-redo rebuilds the buffer and org-agenda-finalize turns
+  -- columns on again when org-agenda-view-columns-initially is set. Emacs
+  -- 9.8.10 (emacs -Q --batch): org-todo-list, org-columns-quit, then
+  -- call-interactively org-agenda-redo leaves org-agenda-columns-active t.
+  it("turns column view back on at redo when the option is set, like Emacs", function()
+    setup({ agenda = { view_columns_initially = true } })
+    agenda.open_todo()
+    ok(cols.active())
+    cols.quit()
+    ok(not cols.active())
+    view.redo()
+    ok(cols.active())
+    cols.quit()
+    agenda.open_custom("c")
+    cols.quit()
+    view.redo()
+    ok(cols.active())
+    eq(WANT, cells())
+  end)
+
+  it("leaves column view off at redo when the option is not set", function()
+    setup()
+    agenda.open_todo()
+    ok(not cols.active())
+    view.redo()
+    ok(not cols.active())
+    agenda.open_custom("b")
+    view.redo()
+    ok(not cols.active())
+  end)
+
   it("takes the start_with_* modes and dim_blocked_tasks from the command's settings", function()
     setup({
       agenda = {
