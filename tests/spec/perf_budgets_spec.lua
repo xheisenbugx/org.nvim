@@ -109,7 +109,7 @@ local function growth(n, fn, setup, max, factor)
     t1 = best(n)
     small = best(math.max(1, math.floor(n / 16)))
     measurable = t1 >= MIN_MS and t1 >= DOMINANT * small
-    if measurable or doublings == MAX_DOUBLINGS or (max and factor * 2 * n > max) then
+    if measurable or doublings == MAX_DOUBLINGS or (max and factor * n > max) then
       break
     end
     n = 2 * n
