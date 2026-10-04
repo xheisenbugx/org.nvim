@@ -706,6 +706,18 @@
 ---Kill evaluation after this many milliseconds; for a `:session`, stop
 ---waiting for the answer. (default: `30000`)
 ---@field timeout? integer
+---Every interactive evaluation (C-c C-c, executing the buffer or a subtree)
+---writes a placeholder result at once and replaces it when the output
+---arrives, as `:async yes` does for session blocks in Emacs
+---(`org-babel-comint-async`); `:async no` opts a block out. Evaluations
+---never block Neovim either way. (default: `false`)
+---@field async? boolean
+---Frames of the spinner shown as virtual text after the first line of a
+---running block; `false` shows a still "executing…".
+---(default: `{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }`)
+---@field spinner? string[]|false
+---Milliseconds between spinner frames. (default: `100`)
+---@field spinner_interval? integer
 ---Evaluate code blocks, `#+CALL` lines and inline code when exporting, like
 ---Emacs `org-export-use-babel`: `:exports results|both` blocks get fresh
 ---results in the exported copy (the buffer is not changed); each block is

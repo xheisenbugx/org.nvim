@@ -154,6 +154,8 @@ local function defaults()
     OrgSexpDate = { link = "OrgTimestamp" },
     -- headlines tagged ARCHIVE (org-archived)
     OrgArchived = { link = "Comment" },
+    -- the spinner after a running src block (org.babel.jobs)
+    OrgBabelRunning = { link = "Comment" },
     -- inline export snippets @@backend:...@@: the markers and the backend
     OrgExportSnippetMarker = { link = "Comment" },
     OrgExportSnippetBackend = { link = "OrgTags" },
