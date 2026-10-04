@@ -363,7 +363,11 @@ local function run_steps(spec, cwd, sync, cb, job)
       handle(run_fn(step), step)
       return nxt()
     end
-    local ok, proc = pcall(vim.system, argv(step), sys_opts(step), function(obj)
+    local opts = sys_opts(step)
+    -- its own process group, so a cancel kills the script's children too
+    -- (jobs.kill_process)
+    opts.detach = vim.fn.has("win32") == 0
+    local ok, proc = pcall(vim.system, argv(step), opts, function(obj)
       vim.schedule(function()
         if job and job.cancelled then
           -- killed on purpose: no error buffer, no result

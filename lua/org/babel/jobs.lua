@@ -188,14 +188,26 @@ function M.set_kill(job, kill)
   end
 end
 
---- Kill the process `obj` (from `vim.system`) and its children (a shell
---- waiting for `sleep`), else a child keeps the output pipe open.
+--- Kill the process `obj` (from `vim.system`) with everything it started
+--- (a shell running the script, waiting for `sleep`), else a child keeps
+--- the output pipe open or finishes the script. Asynchronous runs start
+--- `detach`ed, as their own process group: the whole group is killed, so
+--- a grandchild forked while cancelling can't escape. Windows kills the
+--- process tree.
 function M.kill_process(obj)
   local pid = obj.pid
-  if pid and vim.fn.has("win32") == 0 and vim.fn.executable("pkill") == 1 then
+  if pid and vim.fn.has("win32") == 1 then
     pcall(function()
-      vim.system({ "pkill", "-TERM", "-P", tostring(pid) }):wait(1000)
+      vim.system({ "taskkill", "/T", "/F", "/PID", tostring(pid) }):wait(1000)
     end)
+  elseif pid then
+    local ok, res = pcall(vim.uv.kill, -pid, "sigterm")
+    if (not ok or res ~= 0) and vim.fn.executable("pkill") == 1 then
+      -- not a group leader: its direct children at least
+      pcall(function()
+        vim.system({ "pkill", "-TERM", "-P", tostring(pid) }):wait(1000)
+      end)
+    end
   end
   pcall(obj.kill, obj, 15)
 end
