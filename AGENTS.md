@@ -42,9 +42,13 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 - `make typecheck` runs lua-language-server (CI pins 3.19.1) over the
   repo with `.luarc.json`. Any warning or error fails it; the type-system
   checks the code isn't annotated well enough for yet (`need-check-nil`,
-  `param-type-mismatch`, `undefined-field`, ...) are demoted to hints.
-  Fix a new warning (usually a wrong `---@param`/`---@return`) rather than
-  silencing it.
+  `param-type-mismatch`, `undefined-field`, ...) are demoted to hints,
+  except in the paths listed in `scripts/typecheck_strict.txt`
+  (`lua/org/api/`, `lua/org/parser.lua`), where they fail it too. Fix a
+  new warning (usually a wrong `---@param`/`---@return`, or a missing nil
+  check) rather than silencing it. To make a module strict, add its path
+  as one line there and fix what `make typecheck` reports; never remove
+  a path to get a pass (CONTRIBUTING.md, "Strict paths").
 
 ## Layout
 
@@ -55,7 +59,7 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `lua/org/actions.lua` | registry of every user-facing operation |
 | `lua/org/mappings.lua` | default keys, bound to actions |
 | `lua/org/parser.lua`, `element.lua`, `files.lua` | parsing and the per-file cache |
-| `lua/org/agenda/`, `babel/`, `export/`, `table/`, `ui/` | larger subsystems |
+| `lua/org/agenda/`, `babel/`, `capture/`, `export/`, `table/`, `ui/` | larger subsystems |
 | `lua/org/structure.lua`, `structure/` | outline editing: shared helpers in the facade; heading insertion, templates, promote/demote, moves, kill ring and clone, sorting, narrowing, toggles, motions in the parts |
 | `lua/org/links.lua`, `links/` | hyperlinks: the facade, and parse / search / open / shell / store / insert / commands parts |
 | `lua/org/api/` | the public Lua API (`:h org-api`); everything else is internal |

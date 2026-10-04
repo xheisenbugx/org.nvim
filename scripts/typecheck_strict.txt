@@ -1,0 +1,8 @@
+# Paths `make typecheck` holds to the strict set: in these files the
+# diagnostics .luarc.json demotes to hints (need-check-nil,
+# param-type-mismatch, undefined-field, ...) fail the check like any other
+# warning. One repo-relative file or directory per line; a directory covers
+# everything under it. Add a path once `make typecheck` passes with it here,
+# and never take one out to make the check pass (see CONTRIBUTING.md).
+lua/org/api
+lua/org/parser.lua
