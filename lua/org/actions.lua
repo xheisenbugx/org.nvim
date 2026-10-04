@@ -576,6 +576,12 @@ group("Refile, archive & attach", {
     desc = "Edit the list of agenda files",
     global = true,
   },
+  agenda_index_rebuild = {
+    "org.agenda.index",
+    "rebuild",
+    desc = "Rebuild the agenda index",
+    global = true,
+  },
 })
 
 group("Search & export", {
@@ -617,6 +623,12 @@ group("Search & export", {
     "org.export",
     "stack_clear",
     desc = "Remove every entry from the export stack",
+    global = true,
+  },
+  export_stack_cancel = {
+    "org.export",
+    "stack_cancel",
+    desc = "Cancel a background export (the stack entry at the cursor, else the newest)",
     global = true,
   },
   convert_region_to_html = {
@@ -796,6 +808,7 @@ group("Babel", {
     desc = "Show src block session and edit the block",
   },
   babel_kill_session = { "org.babel", "kill_session", desc = "Kill src block session" },
+  babel_cancel = { "org.babel", "cancel_block", desc = "Cancel running src block (count: all)" },
   babel_sha1_hash = { "org.babel", "sha1_hash", desc = "Show src block hash" },
   babel_describe_bindings = { "org.babel", "describe_bindings", desc = "List Babel key bindings" },
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },

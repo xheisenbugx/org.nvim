@@ -793,10 +793,10 @@ end
 --- Set (or remove with nil) a date of an entry.
 ---@param target? org.Target
 ---@param kind "scheduled"|"deadline"|"closed"|"timestamp"
----@param value table|nil
+---@param value org.Date|nil
 function M.set_date(target, kind, value)
   local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not bufnr or not hl then
     return nil
   end
   if kind == "timestamp" then
@@ -814,7 +814,7 @@ function M.set_date(target, kind, value)
     vim.api.nvim_buf_set_text(bufnr, t.line - 1, t.start_col - 1, t.line - 1, t.end_col, { text })
     return value
   end
-  edit.set_planning(bufnr, hl.line, kind, value)
+  edit.set_planning(bufnr, hl.line, kind --[[@as "scheduled"|"deadline"|"closed"]], value)
   return value
 end
 
@@ -843,7 +843,7 @@ end
 --- removes the date, 16 (C-u C-u) sets the delay / warning period.
 local function plan(target, kind, arg)
   local bufnr, file, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not bufnr or not file or not hl then
     return nil
   end
   if arg == 16 then
@@ -900,11 +900,11 @@ end
 --- or nil when there was nothing to remove.
 ---@param target? org.Target
 ---@param kind "scheduled"|"deadline"
----@param value table|nil an org.date timestamp
+---@param value org.Date|nil
 ---@param opts? { note?: string|false }
 function M.plan_date(target, kind, value, opts)
   local bufnr, file, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not bufnr or not file or not hl then
     return nil
   end
   local existing = hl.planning[kind]
@@ -959,7 +959,7 @@ end
 ---@param kind "scheduled"|"deadline"|"timestamp"
 function M.shift(target, kind, n, unit)
   local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not bufnr or not hl then
     return nil
   end
   local d

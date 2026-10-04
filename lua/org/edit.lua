@@ -11,7 +11,9 @@ local utils = require("org.utils")
 
 local M = {}
 
----@alias org.Target { bufnr?: integer, lnum?: integer }
+--- `ts_index`: which plain timestamp of the headline (timestamps.set_date
+--- and shift; an agenda item's own).
+---@alias org.Target { bufnr?: integer, lnum?: integer, ts_index?: integer }
 
 --- Resolve a target to (bufnr, file, headline). headline may be nil.
 ---@param target? org.Target

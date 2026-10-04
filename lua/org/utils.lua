@@ -676,6 +676,14 @@ function M.readfile(path)
   end
   local content = fd:read("*a")
   fd:close()
+  return M.split_content(content)
+end
+
+--- The lines of a file's contents, as `readfile` returns them (for
+--- contents read some other way, such as asynchronously).
+---@param content string
+---@return string[]
+function M.split_content(content)
   -- a UTF-8 byte order mark is not text (Vim's 'bomb', Emacs's
   -- utf-8-with-signature): a file read from disk must parse like its buffer
   if content:sub(1, 3) == "\239\187\191" then

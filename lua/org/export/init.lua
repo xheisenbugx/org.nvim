@@ -229,9 +229,14 @@ local function render(backend, lines, opts)
 end
 
 --- Export a buffer.
+--- With a compiler or converter left running in the background (PDF with
+--- `export.latex.async_compile`, ODT conversion with
+--- `export.odt.async_convert`, or `opts.async`), the process is returned
+--- too, and `opts.on_done(result|nil, err|nil)` is called when it is done.
 ---@param format string html|md|gfm|txt|ascii|latin1|utf8|latex|pdf|beamer|org|ics|<pandoc format>
----@param opts? { bufnr?: integer, subtree?: boolean, subtree_line?: integer, body_only?: boolean, visible_only?: boolean, to_buffer?: boolean, open?: boolean, output?: string, async?: boolean, ext?: table, options?: table }
+---@param opts? { bufnr?: integer, subtree?: boolean, subtree_line?: integer, body_only?: boolean, visible_only?: boolean, to_buffer?: boolean, open?: boolean, output?: string, async?: boolean, ext?: table, options?: table, on_done?: fun(result: string?, err: string?) }
 ---@return string|nil output path (or "buffer") / nil on failure
+---@return org.export.Process? process running in the background
 function M.export(format, opts)
   opts = opts or {}
   local bufnr, subtree_line = resolve(opts)
@@ -322,7 +327,7 @@ function M.export(format, opts)
   write_text(out, text)
   M.maybe_copy(text, opts.interactive)
   if spec.pdf then
-    return M.compile_pdf(out, opts)
+    return M.compile_pdf(out, vim.tbl_extend("force", opts, { backend = backend }))
   end
   if spec.info then
     return M.compile_info(out, opts)
@@ -337,9 +342,21 @@ function M.export(format, opts)
   return out
 end
 
+--- The failure message of a compilation: `err` and the error lines of its
+--- output (`log`).
+local function failure(err, log)
+  local excerpt = require("org.export.process").error_excerpt(log or "")
+  if #excerpt > 0 then
+    return err .. "\n" .. table.concat(excerpt, "\n")
+  end
+  return err
+end
+
 --- Compile a .tex file to PDF (org-latex-compile). Asynchronous with
---- `opts.async` (or `export.latex.async_compile`): the UI does not block
---- and a notification is shown when the PDF is ready.
+--- `opts.async` (or `export.latex.async_compile`): the UI does not block,
+--- the compilation is on the export stack while it runs (where it can be
+--- cancelled) and a notification is shown when the PDF is ready. Returns
+--- the PDF (to be) and, when asynchronous, the running process.
 function M.compile_pdf(tex, opts)
   opts = opts or {}
   local latex = require("org.export.latex")
@@ -348,9 +365,13 @@ function M.compile_pdf(tex, opts)
   if async == nil then
     async = ((cfg().latex or {}).async_compile ~= false) and #vim.api.nvim_list_uis() > 0
   end
-  local function done(result, err, warnings)
+  local entry, proc
+  local function done(result, err, warnings, log)
     if not result then
-      utils.error(err or "PDF compilation failed")
+      if not (proc and proc.cancelled) then
+        utils.error(failure(err or "PDF compilation failed", log))
+      end
+      M.stack_job_done(entry, opts, nil, err)
       return
     end
     local msg = "PDF file produced"
@@ -362,20 +383,19 @@ function M.compile_pdf(tex, opts)
       msg = msg .. "."
     end
     utils.notify(msg .. " " .. result)
-    if opts.on_done then
-      opts.on_done(result)
-    end
     if opts.open or cfg().open_after_export then
       vim.ui.open(result)
     end
+    M.stack_job_done(entry, opts, result)
   end
+  utils.notify("Processing LaTeX file " .. tex .. "...")
   if async then
-    utils.notify("Compiling " .. vim.fn.fnamemodify(tex, ":t") .. " …")
-    latex.compile(tex, done)
-    return pdf
+    proc = latex.compile(tex, done)
+    entry = M.stack_job(proc, opts.backend or "latex", opts)
+    return pdf, proc
   end
-  local result, err, warnings = latex.compile(tex)
-  done(result, err, warnings)
+  local result, err, warnings, log = latex.compile(tex)
+  done(result, err, warnings, log)
   return result
 end
 
@@ -429,19 +449,21 @@ end
 
 --- Process a .texi file into an Info file with makeinfo
 --- (org-texinfo-export-to-info). With `opts.open` the manual is shown with
---- `info` in a terminal window.
+--- `info` in a terminal window. With `opts.async` makeinfo runs in the
+--- background, on the export stack.
 function M.compile_info(texi, opts)
   opts = opts or {}
   local texinfo = require("org.export.texinfo")
+  local entry, proc
   local function done(result, err)
     if not result then
-      utils.error(err or "Info file was not produced")
+      if not (proc and proc.cancelled) then
+        utils.error(err or "Info file was not produced")
+      end
+      M.stack_job_done(entry, opts, nil, err)
       return
     end
     utils.notify("Exported to " .. result)
-    if opts.on_done then
-      opts.on_done(result)
-    end
     if opts.open or cfg().open_after_export then
       if vim.fn.executable("info") == 1 and #vim.api.nvim_list_uis() > 0 then
         vim.cmd("new")
@@ -451,11 +473,13 @@ function M.compile_info(texi, opts)
         vim.ui.open(result)
       end
     end
+    M.stack_job_done(entry, opts, result)
   end
   if opts.async then
     utils.notify("Processing Texinfo file " .. vim.fn.fnamemodify(texi, ":t") .. " …")
-    texinfo.compile(texi, done)
-    return texi:gsub("%.texi$", "") .. ".info"
+    proc = texinfo.compile(texi, done)
+    entry = M.stack_job(proc, "texinfo", opts)
+    return texi:gsub("%.texi$", "") .. ".info", proc
   end
   local result, err = texinfo.compile(texi)
   done(result, err)
@@ -463,24 +487,30 @@ function M.compile_info(texi, opts)
 end
 
 --- Process a man file into a PDF with `export.man.pdf_process`
---- (org-man-compile).
+--- (org-man-compile); in the background with `opts.async`.
 function M.compile_man_pdf(file, opts)
   opts = opts or {}
   local man = require("org.export.man")
+  local entry, proc
   local function done(result, err)
     if not result then
-      utils.error(err or "PDF file was not produced")
+      if not (proc and proc.cancelled) then
+        utils.error(err or "PDF file was not produced")
+      end
+      M.stack_job_done(entry, opts, nil, err)
       return
     end
     utils.notify("PDF file produced. " .. result)
     if opts.open or cfg().open_after_export then
       vim.ui.open(result)
     end
+    M.stack_job_done(entry, opts, result)
   end
   if opts.async then
     utils.notify("Processing Groff file " .. vim.fn.fnamemodify(file, ":t") .. " …")
-    man.compile(file, done)
-    return (file:gsub("%.[^/.]*$", "")) .. ".pdf"
+    proc = man.compile(file, done)
+    entry = M.stack_job(proc, "man", opts)
+    return (file:gsub("%.[^/.]*$", "")) .. ".pdf", proc
   end
   local result, err = man.compile(file)
   done(result, err)
@@ -492,7 +522,11 @@ end
 ---------------------------------------------------------------------------
 
 --- Export results of background exports, newest first:
---- { source = path|bufnr|nil, backend = name, time = seconds, running = bool }.
+--- { source = path|bufnr|nil, backend = name, time = seconds,
+---   running = bool, status = nil|"exit"|"signal", process = the running
+---   process (org.export.process) }.
+--- While an export runs, and after it failed, its source is the buffer
+--- with the output of its process.
 M.stack_contents = {}
 
 local STACK_NAME = "*Org Export Stack*"
@@ -522,35 +556,103 @@ function M.stack_add(source, backend, running)
   return new
 end
 
---- Mark a running entry as finished with its result (a file or a buffer);
---- a nil result removes it (the export failed).
-function M.stack_finish(entry, source)
+--- Mark a running entry as finished with its result (a file or a buffer).
+--- Without a result the export failed or was cancelled: the entry stays
+--- with the output of its process (Emacs keeps the process buffer of an
+--- export that "exited abnormally"), or goes when there is none.
+---@param entry table
+---@param source? string|integer
+---@param err? string
+function M.stack_finish(entry, source, err)
+  if not entry or entry.finished then
+    return
+  end
+  entry.finished = true
+  local log = entry.running and type(entry.source) == "number" and entry.source or nil
   if source == nil then
-    M.stack_contents = vim.tbl_filter(function(e)
-      return e ~= entry
-    end, M.stack_contents)
+    local cancelled = entry.process and entry.process.cancelled
+    if log and vim.api.nvim_buf_is_valid(log) then
+      if err and not cancelled then
+        require("org.export.process").append(log, "\n" .. err .. "\n")
+      end
+      entry.running, entry.time = nil, os.time()
+      entry.status = cancelled and "signal" or "exit"
+    else
+      M.stack_contents = vim.tbl_filter(function(e)
+        return e ~= entry
+      end, M.stack_contents)
+    end
   else
-    M.stack_contents = vim.tbl_filter(function(e)
-      return e == entry or e.source ~= source
-    end, M.stack_contents)
-    entry.source, entry.running, entry.time = source, nil, os.time()
+    -- the result goes on top (org-export-add-to-stack), also when the
+    -- entry was removed or the stack cleared while the export ran
+    local keep = { entry }
+    for _, e in ipairs(M.stack_contents) do
+      if e ~= entry and e.source ~= source then
+        keep[#keep + 1] = e
+      end
+    end
+    M.stack_contents = keep
+    entry.source, entry.running, entry.status, entry.time = source, nil, nil, os.time()
+    -- the buffer of the export process goes, as in Emacs (a compiler's
+    -- output buffer, such as "*Org PDF LaTeX Output*", stays)
+    if log and entry.kill_log and log ~= source and vim.api.nvim_buf_is_valid(log) then
+      pcall(vim.api.nvim_buf_delete, log, { force = true })
+    end
   end
   M.stack_refresh()
 end
 
+--- Put a process an export left running (a PDF compilation, an ODT
+--- conversion) on the stack, where it can be viewed and cancelled. An
+--- asynchronous export (`opts.stack_entry`) keeps its own entry, which
+--- gets the process; otherwise a new entry is returned, for
+--- |M.stack_job_done|.
+---@param proc? org.export.Process
+---@param backend string
+---@param opts? table export options
+---@return table? entry
+function M.stack_job(proc, backend, opts)
+  if not proc then
+    return nil
+  end
+  local entry = opts and opts.stack_entry
+  if entry then
+    entry.process = proc
+    entry.source = proc.log_buf or entry.source
+    M.stack_refresh()
+    return nil
+  end
+  entry = M.stack_add(proc.log_buf, backend, true)
+  entry.process = proc
+  return entry
+end
+
+--- The background part of an export is done: finish its stack entry and
+--- call `opts.on_done(result, err)`.
+function M.stack_job_done(entry, opts, result, err)
+  if entry then
+    M.stack_finish(entry, result, err)
+  end
+  if opts and opts.on_done then
+    opts.on_done(result, err)
+  end
+end
+
 local function stack_source_name(e)
-  if e.running and e.source == nil then
+  if e.source == nil then
     return ""
   end
   if type(e.source) == "number" then
-    return vim.api.nvim_buf_get_name(e.source)
+    local name = vim.api.nvim_buf_get_name(e.source)
+    return vim.bo[e.source].buftype == "nofile" and vim.fn.fnamemodify(name, ":t") or name
   end
   return e.source
 end
 
 --- Rows of the stack buffer (org-export--stack-generate): number, back-end,
---- age ("H:MM", or "run" while the export runs) and source. Unavailable
---- sources (deleted files, wiped buffers) are removed first.
+--- age ("H:MM"; while the export runs "run", after it failed "exit", after
+--- it was cancelled "signal", like Emacs' process status) and source.
+--- Unavailable sources (deleted files, wiped buffers) are removed first.
 function M.stack_lines()
   M.stack_contents = vim.tbl_filter(stack_live, M.stack_contents)
   local out = {}
@@ -558,6 +660,8 @@ function M.stack_lines()
     local age
     if e.running then
       age = "run"
+    elseif e.status then
+      age = e.status
     else
       local secs = math.max(0, os.time() - e.time)
       age = string.format("%d:%02d", math.floor(secs / 3600), math.floor(secs % 3600 / 60))
@@ -587,7 +691,8 @@ function M.stack_refresh()
   vim.bo[buf].modified = false
 end
 
---- Remove every entry from the stack (org-export-stack-clear).
+--- Remove every entry from the stack (org-export-stack-clear). Running
+--- exports go on and come back when they are done.
 function M.stack_clear()
   M.stack_contents = {}
   M.stack_refresh()
@@ -602,7 +707,7 @@ local function stack_entry_at_point()
 end
 
 --- Remove the entry at the cursor from the stack (org-export-stack-remove);
---- the file or buffer itself is kept.
+--- the file or buffer itself is kept, and a running export goes on.
 function M.stack_remove(entry)
   entry = entry or stack_entry_at_point()
   if not entry then
@@ -614,13 +719,40 @@ function M.stack_remove(entry)
   M.stack_refresh()
 end
 
---- View the result at the cursor (org-export-stack-view): a buffer is
---- shown in another window, a file is opened like a file link
---- (org-open-file: `links.file_apps`, HTML and PDF with the system
---- opener), or in Neovim when `in_nvim`, like C-u in Emacs.
+--- Cancel a running export: the entry at the cursor in the stack buffer,
+--- elsewhere the newest running one. Its process is killed with the
+--- processes it started; the entry stays, as "signal", with the output.
+---@param entry? table
+---@return boolean cancelled
+function M.stack_cancel(entry)
+  if not entry then
+    if vim.api.nvim_get_current_buf() == stack_buffer() then
+      entry = stack_entry_at_point()
+    else
+      for _, e in ipairs(M.stack_contents) do
+        if e.running and e.process then
+          entry = e
+          break
+        end
+      end
+    end
+  end
+  if not (entry and entry.running and entry.process and entry.process:cancel()) then
+    utils.warn("No running export to cancel")
+    return false
+  end
+  utils.notify("Export cancelled")
+  return true
+end
+
+--- View the result at the cursor (org-export-stack-view): a buffer (the
+--- output of a running or failed export too) is shown in another window,
+--- a file is opened like a file link (org-open-file: `links.file_apps`,
+--- HTML and PDF with the system opener), or in Neovim when `in_nvim`,
+--- like C-u in Emacs.
 function M.stack_view(entry, in_nvim)
   entry = entry or stack_entry_at_point()
-  if not entry or entry.running then
+  if not entry or entry.source == nil then
     return
   end
   if type(entry.source) == "number" then
@@ -633,7 +765,8 @@ function M.stack_view(entry, in_nvim)
 end
 
 --- Show the export stack (org-export-stack): results of the exports run in
---- the background. <CR>/v view, d remove, C clear, g refresh, q quit.
+--- the background. <CR>/v view, d remove, x cancel, C clear, g refresh,
+--- q quit.
 function M.stack_show()
   local buf = stack_buffer()
   if not buf then
@@ -653,6 +786,9 @@ function M.stack_show()
     map("d", function()
       M.stack_remove()
     end)
+    map("x", function()
+      M.stack_cancel()
+    end)
     map("C", M.stack_clear)
     map("g", M.stack_refresh)
     map("<Space>", "j")
@@ -669,7 +805,7 @@ function M.stack_show()
   end
   vim.wo[win].winbar = string.format("%-4s %-12s %-6s %s", "#", "Backend", "Age", "Source")
   M.stack_refresh()
-  utils.notify('Type "q" or <Esc> to quit, "g" to refresh')
+  utils.notify('Type "q" or <Esc> to quit, "g" to refresh, "x" to cancel')
   return buf
 end
 
@@ -722,9 +858,16 @@ utils.input = function() return nil end
 utils.input_complete = function() return nil end
 utils.confirm = function() return false end
 utils.notify = function() end
+local errors = {}
+utils.error = function(msg) errors[#errors + 1] = tostring(msg) end
 vim.fn.input = function() return "" end
 vim.fn.confirm = function() return 0 end
 vim.ui.select = function(_, _, cb) cb(nil) end
+-- the compilers run with the shell of the Neovim that started the export
+-- (--clean would fall back to cmd.exe on Windows)
+for name, value in pairs(job.shell or {}) do
+  pcall(vim.api.nvim_set_option_value, name, value, {})
+end
 require("org").setup(job.config)
 if job.init_file and job.init_file ~= "" then
   dofile(vim.fn.expand(job.init_file))
@@ -759,6 +902,14 @@ local ok, err = pcall(function()
 end)
 if not ok then
   result.error = tostring(err)
+elseif not result.text and not result.output then
+  result.error = #errors > 0 and table.concat(errors, "\n") or "no output"
+end
+-- what the compiler (or converter) printed, for the stack and the error
+local last = package.loaded["org.export.process"] and require("org.export.process").last_output
+if last then
+  result.log = last.text
+  result.log_name = last.name
 end
 local f = assert(io.open(job.result, "wb"))
 f:write("return " .. export._serialize(result))
@@ -770,8 +921,12 @@ f:close()
 --- Neovim process exports a copy of the buffer with the session's options
 --- (`export.async_init_file`, a Lua file, runs there first) and the result
 --- (a file, or a buffer for "as buffer" exports) goes to the export stack
---- instead of being shown. Visible-only exports run in this Neovim, right
---- after the dispatcher closes.
+--- instead of being shown. The buffer and the options are copied when the
+--- export starts, so editing meanwhile changes nothing. While it runs, the
+--- stack entry shows the output of the process ("*Org Export Process*")
+--- and can be cancelled; after a failure it keeps that output. Visible-only
+--- exports run in this Neovim, right after the dispatcher closes, with
+--- their compiler or converter in the background.
 function M.export_async(format, opts)
   opts = vim.tbl_extend("force", {}, opts or {})
   opts.bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
@@ -782,8 +937,8 @@ function M.export_async(format, opts)
   local backend = spec and spec[1] or format
   local entry = M.stack_add(nil, backend, true)
   utils.notify("Initializing asynchronous export process")
-  local function finish(result)
-    M.stack_finish(entry, result)
+  local function finish(result, err)
+    M.stack_finish(entry, result, err)
     if result and opts.open and type(result) == "string" then
       vim.ui.open(result)
     end
@@ -796,6 +951,14 @@ function M.export_async(format, opts)
       root = PLUGIN_ROOT,
       config = require("org.config").opts,
       init_file = cfg().async_init_file,
+      shell = {
+        shell = vim.o.shell,
+        shellcmdflag = vim.o.shellcmdflag,
+        shellquote = vim.o.shellquote,
+        shellxquote = vim.o.shellxquote,
+        shellredir = vim.o.shellredir,
+        shellpipe = vim.o.shellpipe,
+      },
       lines = vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false),
       filename = src ~= "" and src or nil,
       format = format,
@@ -816,27 +979,48 @@ function M.export_async(format, opts)
       f:close()
     end)
     local cmd = { vim.v.progpath, "--clean", "--headless", "-n", "-i", "NONE", "-l", script, jobfile }
-    local sysopts = { text = true, cwd = src ~= "" and vim.fn.fnamemodify(src, ":p:h") or nil }
-    local started = ok
-      and pcall(vim.system, cmd, sysopts, function(res)
-        vim.schedule(function()
-          local okr, r = pcall(dofile, job.result)
-          vim.fn.delete(dir, "rf")
-          if not okr or type(r) ~= "table" or r.error then
-            local msg = okr and type(r) == "table" and r.error or (res.stderr ~= "" and res.stderr) or tostring(r)
-            utils.error("Asynchronous export failed: " .. tostring(msg))
-            return finish(nil)
-          end
-          if r.text then
-            local name = backend == "org" and "Org ORG Export" or ("Org " .. backend:upper() .. " Export")
-            local buf = open_scratch(r.text, r.filetype, name, true)
-            M.last_buffer = buf
-            return finish(buf)
-          end
-          finish(r.output and vim.fn.fnamemodify(r.output, ":p") or nil)
-        end)
-      end)
-    if started then
+    local process = require("org.export.process")
+    local proc
+    local function done(run)
+      local okr, r = pcall(dofile, job.result)
+      vim.fn.delete(dir, "rf")
+      if run.cancelled then
+        return finish(nil)
+      end
+      if okr and type(r) == "table" and r.log and r.log ~= "" then
+        -- the output of the compiler that ran there, here too
+        process.append(run.log_buf, r.log)
+        if r.log_name then
+          local buf = process.log_buffer(r.log_name)
+          process.append(buf, r.log)
+        end
+      end
+      if not okr or type(r) ~= "table" or r.error then
+        local msg = okr and type(r) == "table" and r.error or vim.trim(run:text())
+        if msg == "" then
+          msg = "Process exited abnormally (" .. tostring(run.code) .. ")"
+        end
+        utils.error("Asynchronous export failed: " .. msg)
+        return finish(nil, msg)
+      end
+      if r.text then
+        local name = backend == "org" and "Org ORG Export" or ("Org " .. backend:upper() .. " Export")
+        local buf = open_scratch(r.text, r.filetype, name, true)
+        M.last_buffer = buf
+        utils.notify("Asynchronous export finished: " .. vim.api.nvim_buf_get_name(buf))
+        return finish(buf)
+      end
+      local out = vim.fn.fnamemodify(r.output, ":p")
+      utils.notify("Asynchronous export finished: " .. out)
+      finish(out)
+    end
+    if ok then
+      local cwd = src ~= "" and vim.fn.fnamemodify(src, ":p:h") or nil
+      ok, proc = pcall(process.run, { cmd }, { cwd = cwd, log_buffer = "*Org Export Process*" }, done)
+    end
+    if ok and proc then
+      entry.process, entry.source, entry.kill_log = proc, proc.log_buf, true
+      M.stack_refresh()
       return entry
     end
   end
@@ -844,20 +1028,23 @@ function M.export_async(format, opts)
   opts.hidden = true
   opts.async = true
   opts.interactive = nil -- output is not copied from asynchronous exports
-  local compiled = spec and (spec.pdf or spec.info)
-  opts.on_done = function(result)
-    M.stack_finish(entry, result)
+  opts.stack_entry = entry
+  opts.on_done = function(result, err)
+    M.stack_finish(entry, result, err)
   end
   vim.schedule(function()
-    local ok, res = pcall(M.export, format, opts)
+    local ok, res, proc = pcall(M.export, format, opts)
+    if proc then
+      return -- a compiler or converter runs: opts.on_done finishes the entry
+    end
     if not ok or not res then
-      M.stack_finish(entry, nil)
       if not ok then
         utils.error("Export failed: " .. tostring(res))
       end
+      M.stack_finish(entry, nil)
     elseif res == "buffer" then
       M.stack_finish(entry, M.last_buffer)
-    elseif not compiled then
+    else
       M.stack_finish(entry, vim.fn.fnamemodify(res, ":p"))
     end
   end)

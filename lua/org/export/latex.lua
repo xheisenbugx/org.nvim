@@ -2449,8 +2449,22 @@ local function shell_quote(s)
   return "'" .. s:gsub("'", "'\\''") .. "'"
 end
 
---- Compile `texfile` to PDF. With `on_done`, run asynchronously and call
---- on_done(pdf|nil, err|nil, warnings); otherwise return pdf, err.
+--- Name of the buffer that gets the output of the compilation.
+M.LOG_BUFFER = "*Org PDF LaTeX Output*"
+
+--- Compile `texfile` to PDF (org-latex-compile): run
+--- `export.latex.pdf_process`, its output going to the
+--- "*Org PDF LaTeX Output*" buffer. Without `on_done` return pdf|nil,
+--- err|nil, warnings, log. With `on_done`, run in the background, call
+--- on_done(pdf|nil, err|nil, warnings, log) when done and return the
+--- running process (|org.export.process|), which can be cancelled.
+--- The options are read when the compilation starts.
+---@param texfile string
+---@param on_done? fun(pdf: string?, err: string?, warnings: string|string[]?, log: string?)
+---@return any pdf the PDF (nil on failure), or the running process with on_done
+---@return string? err
+---@return string|string[]? warnings
+---@return string? log
 function M.compile(texfile, on_done)
   local lines = vim.fn.readfile(texfile, "", 2)
   local compiler
@@ -2500,12 +2514,23 @@ function M.compile(texfile, on_done)
     end)
   end
   local mtime_before = vim.fn.getftime(out)
-  local log = {}
-  local function finish()
-    local produced = vim.fn.filereadable(out) == 1 and vim.fn.getftime(out) >= mtime_before
-    local text = table.concat(log, "\n")
-    if lcfg().remove_logfiles ~= false then
-      for _, ext in ipairs(lcfg().logfiles_extensions or data.logfiles_extensions) do
+  local remove_logfiles = lcfg().remove_logfiles ~= false
+  local logfiles_extensions = lcfg().logfiles_extensions or data.logfiles_extensions
+  ---@param run org.export.Process
+  local function finish(run)
+    local produced = not run.cancelled and vim.fn.filereadable(out) == 1 and vim.fn.getftime(out) >= mtime_before
+    local text = run:text()
+    if not produced then
+      -- org-compile-file signals the error before the log files are
+      -- removed: they are kept, with the output buffer, for a look
+      local err = string.format('File "%s" wasn\'t produced  See "%s" for details', out, run.log_name or M.LOG_BUFFER)
+      if run.cancelled then
+        err = "Compilation of " .. vim.fn.fnamemodify(texfile, ":t") .. " cancelled"
+      end
+      return nil, err, nil, text
+    end
+    if remove_logfiles then
+      for _, ext in ipairs(logfiles_extensions) do
         for _, f in ipairs(vim.fn.glob(dir .. "/" .. base .. ".*" .. ext, false, true)) do
           if f:match(vim.pesc(base) .. "%.?%d*%." .. vim.pesc(ext) .. "$") then
             os.remove(f)
@@ -2514,38 +2539,16 @@ function M.compile(texfile, on_done)
         os.remove(dir .. "/" .. base .. "." .. ext)
       end
     end
-    local warnings = M.log_warnings(text)
-    local err
-    if not produced then
-      err = "PDF file " .. out .. " wasn't produced. See the compilation log."
-    end
-    return produced and out or nil, err, warnings, text
+    return out, nil, M.log_warnings(text), text
   end
+  local process_mod = require("org.export.process")
+  local popts = { cwd = dir, log_buffer = M.LOG_BUFFER }
   if not on_done then
-    for _, c in ipairs(cmds) do
-      local res = vim.system({ vim.o.shell, vim.o.shellcmdflag, c }, { cwd = dir, text = true }):wait(600000)
-      log[#log + 1] = (res.stdout or "") .. (res.stderr or "")
-    end
-    local pdf, err, warnings, text = finish()
-    return pdf, err, warnings, text
+    return finish(process_mod.run(cmds, popts))
   end
-  local i = 0
-  local function step()
-    i = i + 1
-    if i > #cmds then
-      vim.schedule(function()
-        on_done(finish())
-      end)
-      return
-    end
-    vim.system({ vim.o.shell, vim.o.shellcmdflag, cmds[i] }, { cwd = dir, text = true }, function(res)
-      log[#log + 1] = (res.stdout or "") .. (res.stderr or "")
-      -- the exit callback is a fast event, where options (the next step
-      -- reads 'shell') and most of the API are off limits
-      vim.schedule(step)
-    end)
-  end
-  step()
+  return process_mod.run(cmds, popts, function(run)
+    on_done(finish(run))
+  end)
 end
 
 return M

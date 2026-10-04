@@ -1432,10 +1432,12 @@ local function shell_quote(s)
 end
 
 --- Compile a .texi file to Info (org-texinfo-compile). With `on_done`,
---- run asynchronously and call on_done(info|nil, err|nil); otherwise
---- return info, err.
+--- run asynchronously, call on_done(info|nil, err|nil) and return the
+--- running process (|org.export.process|); otherwise return info, err.
 ---@param texi string
 ---@param on_done? fun(info: string|nil, err: string|nil)
+---@return any info the Info file (nil on failure), or the running process with on_done
+---@return string? err
 function M.compile(texi, on_done)
   local full = vim.fn.fnamemodify(texi, ":p")
   local dir = vim.fn.fnamemodify(full, ":h")
@@ -1482,30 +1484,20 @@ function M.compile(texi, on_done)
       return spec[k]
     end)
   end
+  local process_mod = require("org.export.process")
+  local popts = { cwd = dir, log_buffer = "*Org INFO Texinfo Output*" }
   if not on_done then
-    for _, c in ipairs(cmds) do
-      local res = vim.system({ vim.o.shell, vim.o.shellcmdflag, c }, { cwd = dir, text = true }):wait(600000)
-      log[#log + 1] = (res.stdout or "") .. (res.stderr or "")
-    end
+    log[#log + 1] = process_mod.run(cmds, popts):text()
     return finish()
   end
-  local i = 0
-  local function step()
-    i = i + 1
-    if i > #cmds then
-      vim.schedule(function()
-        on_done(finish())
-      end)
-      return
+  -- in the background, cancellable (|org-export-stack|)
+  return process_mod.run(cmds, popts, function(run)
+    if run.cancelled then
+      return on_done(nil, "Processing of " .. vim.fn.fnamemodify(full, ":t") .. " cancelled")
     end
-    vim.system({ vim.o.shell, vim.o.shellcmdflag, cmds[i] }, { cwd = dir, text = true }, function(res)
-      log[#log + 1] = (res.stdout or "") .. (res.stderr or "")
-      -- the exit callback is a fast event, where options (the next step
-      -- reads 'shell') and most of the API are off limits
-      vim.schedule(step)
-    end)
-  end
-  step()
+    log[#log + 1] = run:text()
+    on_done(finish())
+  end)
 end
 
 ---------------------------------------------------------------------------

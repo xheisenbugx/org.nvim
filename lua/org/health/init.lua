@@ -124,6 +124,42 @@ function M.ignored_block_options(cmds)
   return out
 end
 
+--- The agenda index (:h org-agenda-index): on or off, its file, what the
+--- background is doing.
+function M.check_agenda_index()
+  local h = vim.health
+  local s = require("org.agenda.index").status()
+  if not s.enabled then
+    h.info("agenda index: off (agenda.index.enabled)")
+    return
+  end
+  local parts = {}
+  if not s.cache then
+    parts[#parts + 1] = s.string_buffer and "not kept on disk (agenda.index.cache)"
+      or "not kept on disk (Neovim built without LuaJIT's string.buffer)"
+  elseif s.size then
+    parts[#parts + 1] = ("%s (%.1f MB)"):format(s.path, s.size / 1048576)
+  else
+    parts[#parts + 1] = s.path .. " (not written yet)"
+  end
+  if s.entries then
+    parts[#parts + 1] = ("%d files indexed"):format(s.entries)
+  end
+  if not s.background then
+    parts[#parts + 1] = "no background parsing"
+  elseif s.warming then
+    parts[#parts + 1] = ("parsing in the background, %d files to go"):format(s.queued)
+  end
+  if s.watchers > 0 or s.polled > 0 then
+    parts[#parts + 1] = ("%d directories watched, %d polled"):format(s.watchers, s.polled)
+  end
+  parts[#parts + 1] = ("this session: %d from the index, %d parsed"):format(s.hits, s.misses)
+  h.ok("agenda index: " .. table.concat(parts, "; "))
+  if s.error then
+    h.warn("agenda index: " .. s.error, { ":Org agenda_index_rebuild" })
+  end
+end
+
 function M.check()
   local h = vim.health
   h.start("org.nvim")
@@ -147,6 +183,7 @@ function M.check()
   else
     h.warn("No agenda files match `agenda_files`", { vim.inspect(cfg.agenda_files) })
   end
+  M.check_agenda_index()
   local notes = utils.expand(cfg.default_notes_file)
   if utils.exists(notes) then
     h.ok("default_notes_file: " .. notes)
