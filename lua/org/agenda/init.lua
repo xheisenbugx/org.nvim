@@ -49,7 +49,22 @@ local OPTION_ALIASES = {
   org_agenda_category_filter_preset = "category_filter_preset",
   org_agenda_regexp_filter_preset = "regexp_filter_preset",
   org_agenda_effort_filter_preset = "effort_filter_preset",
+  org_overriding_columns_format = "overriding_columns_format",
 }
+
+--- Add the plugin names of the Emacs-style option names in `out`
+--- (org_agenda_span -> span, ...), unless `out` sets them too.
+local function alias_options(out)
+  for k, v in pairs(vim.deepcopy(out)) do
+    if type(k) == "string" then
+      local key = OPTION_ALIASES[k] or k:match("^org_agenda_(.+)$")
+      if key and out[key] == nil then
+        out[key] = v
+      end
+    end
+  end
+  return out
+end
 
 --- Normalize a block spec (accepts Emacs-style option names). `settings`
 --- (the options of a composite command, Emacs's third element) apply to
@@ -62,14 +77,7 @@ function M.normalize_block(b, settings)
     out[k] = type(v) == "table" and vim.deepcopy(v) or v
   end
   -- Emacs-style names: org_agenda_span -> span, ...
-  for k, v in pairs(vim.deepcopy(out)) do
-    if type(k) == "string" then
-      local key = OPTION_ALIASES[k] or k:match("^org_agenda_(.+)$")
-      if key and out[key] == nil then
-        out[key] = v
-      end
-    end
-  end
+  alias_options(out)
   out.type = TYPE_ALIASES[out.type] or out.type or "agenda"
   -- functions are not deep-copied reliably; take them from the sources
   out.skip = b.skip or b.org_agenda_skip_function or (settings or {}).skip or (settings or {}).org_agenda_skip_function
@@ -448,11 +456,16 @@ function M.open(spec, opts)
   end
   local settings = command_settings(spec)
   local view = { title = spec.description or spec.title, blocks = {}, multi = multi, key = spec.key }
+  -- the command's settings, for what Emacs reads once per agenda
+  -- (org-agenda-finalize, org-agenda-mode) under the command's let-bound
+  -- options: the column view, the start_with_* modes, dim_blocked_tasks
+  view.settings = settings and alias_options(vim.deepcopy(settings)) or nil
   for _, b in ipairs(blocks) do
     local nb = M.normalize_block(b, multi and settings or nil)
     if not multi and settings then
       nb = M.normalize_block(nb, settings)
     end
+    nb.settings, nb.options = nil, nil
     if SPARSE_TYPES[nb.type] then
       if multi then
         utils.error("Sparse tree commands cannot be part of a block agenda")
@@ -632,6 +645,7 @@ local function open_custom(key, restrict)
     local nb = M.normalize_block(block, s)
     nb.description = cmd.description
     nb.key = key
+    nb.settings = s
     M.open(nb, { restrict = restrict })
     return
   end

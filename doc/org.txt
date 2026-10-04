@@ -587,7 +587,8 @@ hidden (org-cycle-show-empty-lines).
                 (C-u) also shows the text of the headlines above; 16 the
                 parent's whole subtree.
 <C-c><C-Tab>    Cycle the subtree even when it is archived
-                (`:Org force_cycle_archived`).
+                (`:Org force_cycle_archived`). <Tab> on an archived
+                subtree names the key you have bound to it.
 <C-c><C-x>v     Copy the visible text (org-copy-visible).
 :Org hide_entry       Hide the text of the entry; its children stay as
                       they are (org-fold-hide-entry).
@@ -669,7 +670,8 @@ falling back to the `startup_folded` option. Drawers are then folded
 (`hidedrawers`, off with `nohidedrawers` or `hide_drawer_startup = false`)
 and so are blocks with `hideblocks` (or `hide_block_startup = true`);
 showing a subtree (<Tab>'s SUBTREE, a `VISIBILITY: all` property) leaves
-folded blocks folded, like Emacs.
+blocks and drawers as they were, like Emacs: with `nohidedrawers` the
+drawers of a `VISIBILITY: all` or `children` entry stay open.
 Except with `showeverything`, a `VISIBILITY` property (`folded`,
 `children`, `content`, `all`) then sets the visibility of its subtree.
 
@@ -1107,6 +1109,37 @@ Editing next to hidden ones asks whether to show them
                 SCHEDULED, DEADLINE and TIMESTAMP show as inactive
                 timestamps; `columns_modify_value_for_display_function`
                 (`function(title, value)`) can change any shown value.
+                It gets the column title (`Due` for `%DEADLINE(Due)`,
+                else the property name) and the real value, and returns
+                the text to show, or nil to show the value as usual
+                (org-columns-modify-value-for-display-function). It
+                applies in column view and in the agenda column view
+                (|org-agenda-columns|); `e` and `v` still use the real
+                value. A relative due date (today, tomorrow, the weekday
+                within a week, else "Oct 8") for a `%10DEADLINE(Due)`
+                column: >lua
+    columns_modify_value_for_display_function = function(title, value)
+      if title ~= "Due" then
+        return nil
+      end
+      local y, m, d = value:match("(%d%d%d%d)%-(%d%d)%-(%d%d)")
+      if not y then
+        return nil
+      end
+      local t = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12 })
+      local now = os.date("*t")
+      local today = os.time({ year = now.year, month = now.month, day = now.day, hour = 12 })
+      local days = math.floor(os.difftime(t, today) / 86400 + 0.5)
+      if days == 0 then
+        return "today"
+      elseif days == 1 then
+        return "tomorrow"
+      elseif days > 1 and days < 7 then
+        return os.date("%a", t)
+      end
+      return os.date("%b ", t) .. tonumber(os.date("%d", t))
+    end,
+<
                 The view uses the nearest COLUMNS property's scope; with
                 a keyword/default format it covers the current subtree,
                 or the whole file before the first heading. A count
@@ -1942,19 +1975,54 @@ B acts on the marked entries, or on the entry at point without marks
 Column view                                               *org-agenda-columns*
 
 <C-c><C-x><C-c> in the agenda shows each entry as columns, like column
-view in an org buffer. The format is `agenda.overriding_columns_format`,
-else the COLUMNS property or #+COLUMNS of the entry at point (or of the
-first entry), else `columns_default_format`. Date lines and block headers
+view in an org buffer. The format is `overriding_columns_format` of the
+custom command's `settings` (org-overriding-columns-format, see
+|org-agenda-command-columns|), else `agenda.overriding_columns_format`
+(org-columns-default-format-for-agenda), else the COLUMNS property or
+#+COLUMNS of the entry at point (or of the first entry), else
+`columns_default_format`. Date lines and block headers
 show the summaries of the entries below them
 (`agenda.columns_show_summaries`); with
 `agenda.columns_add_appointments_to_effort_sum`, an appointment without
 an effort counts its duration (org-agenda-columns-add-appointments-to-
-effort-sum). While it is on: `q` turns it off, `e`
-edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
+effort-sum). Values show as in column view (org-columns--displayed-value):
+SCHEDULED, DEADLINE and TIMESTAMP as inactive timestamps, a column's
+printf format applied, ITEM with links shown as their description, and
+`columns_modify_value_for_display_function` called first (see <prefix>C
+in |org-columns| for a relative due-date example). While it is on: `q`
+turns it off, `e` edits the real value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
 the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
 `agenda.view_columns_initially` turns it on for every new agenda.
+
+                                                  *org-agenda-command-columns*
+Column view for one custom command: set `overriding_columns_format` and
+`view_columns_initially` in the command's `settings`, as Emacs sets
+org-overriding-columns-format and org-agenda-view-columns-initially in
+the command's options. The agenda of that command opens in column view
+with that format; it keeps the format when it is refreshed (`r`) and when
+column view is turned off and on again, and other agendas don't see it.
+>lua
+    custom_commands = {
+      r = {
+        description = "Reading list",
+        types = { { type = "todo", match = "TODO" } },
+        settings = {
+          overriding_columns_format = "%40ITEM %DEADLINE",
+          view_columns_initially = true,
+        },
+      },
+    }
+<
+A single-block command (`type = ...`) takes them in its `settings` too.
+In a block of a composite command (inside `types` / `blocks`) they have
+no effect, as in Emacs, which reads them once per agenda: put them in the
+command's `settings`. |:checkhealth| org warns about them there. The same
+holds for `start_with_log_mode`, `start_with_clockreport_mode`,
+`start_with_entry_text_mode`, `start_with_follow_mode`,
+`start_with_archives_mode` and `dim_blocked_tasks`: a command's
+`settings` set them for its agenda, a block's are ignored.
 
 Exporting agenda views                                     *org-agenda-export*
 
@@ -2048,7 +2116,10 @@ be blocks of a composite command. A composite command (`types` /
 `blocks`) shows its blocks one after the other, separated by a blank line
 and `agenda.block_separator` (none with `compact_blocks`, which also drops
 the date agenda header). `settings` (Emacs's options list) applies to
-every block unless the block sets the option itself.
+every block unless the block sets the option itself. Options read once
+for the whole agenda (the column view, the `start_with_*` modes,
+`dim_blocked_tasks`) are taken from `settings` only, not from a block:
+see |org-agenda-command-columns|.
 Block options:
   match         match string (see |org-match-syntax|), TODO keywords for
                 `todo`, or text for `search`
@@ -4600,7 +4671,13 @@ only (`v`) exports what is not folded.
 Links: internal links (`[[*Heading]]`, `[[#custom-id]]`, `[[name]]`,
 `[[target]]`, radio targets, `id:` links, coderefs) resolve to generated
 labels; a link that resolves to nothing stops the export with an error
-unless `broken-links:t` (drop it) or `broken-links:mark`. Links whose type
+unless `broken-links:t` (drop it) or `broken-links:mark`. In HTML, a
+`file:` link with a search option (`[[file:x.org::*Heading]]`,
+`[[file:notes.txt::some words]]`) points at the headline's CUSTOM_ID when
+it has one, else at `#MissingReference` with a warning (outside
+publishing), as in Emacs. The search must find something in the file (in
+an Org file a headline, target, name or coderef; in any other file the
+words anywhere), or the link is broken. Links whose type
 has an `export` function in `links.types` use it, like
 `org-link-parameters :export`. `#+TOC: headlines 2 [local]`, `#+TOC:
 tables` and `#+TOC: listings` insert lists anywhere.

@@ -214,6 +214,24 @@ describe("screen snapshot", function()
     screen:expect("drawers_folded")
   end)
 
+  it("VISIBILITY: all leaves drawers open under nohidedrawers", function()
+    new()
+    screen:org({
+      "#+STARTUP: overview nohidedrawers",
+      "* Headline",
+      ":PROPERTIES:",
+      ":VISIBILITY: all",
+      ":END:",
+      ":LOGBOOK:",
+      "- Note taken on [2026-10-01 Thu 09:00]",
+      ":END:",
+      "Body after the drawers.",
+      "* Folded",
+      "Hidden body.",
+    })
+    screen:expect("visibility_all_drawers_open")
+  end)
+
   it("a day agenda", function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
@@ -251,6 +269,16 @@ describe("screen snapshot", function()
     screen:input("#")
     screen:request("nvim_eval", "1")
     screen:expect("choose_title_footer")
+    screen:input("<Esc>")
+  end)
+
+  it("the fast tag selection menu and its footer", function()
+    new(nil, 100, 14)
+    screen:org({ "#+TAGS: work(w) home(h) errand(e)", "", "* TODO Task :work:" })
+    screen:cmd("normal! G")
+    screen:input("<C-c><C-q>")
+    screen:request("nvim_eval", "1")
+    screen:expect("fast_tag_selection")
     screen:input("<Esc>")
   end)
 

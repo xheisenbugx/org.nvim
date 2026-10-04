@@ -939,11 +939,12 @@ See [`:h org-api`](doc/org.txt) for every function, field and event.
 How much of Emacs Org 9.8 works the same way in org.nvim, **measured**
 against **Org 9.8.10** (September 2026). Every interactive command and
 every user option of Org 9.8.10 (877 commands and 1,055 options, listed by
-Emacs itself) was checked against org.nvim:
+Emacs itself, plus the `org-overriding-columns-format` variable that the
+manual tells users to set) was checked against org.nvim:
 
 | Lens | Parity | What it counts |
 | --- | --- | --- |
-| **Overall** | `▰▰▰▰▰▰▰▰▰▰` **99.9%** | The 1,805 commands and options (of 1,932) that can exist outside Emacs; Emacs internals are left out |
+| **Overall** | `▰▰▰▰▰▰▰▰▰▰` **99.9%** | The 1,806 commands and options (of 1,933) that can exist outside Emacs; Emacs internals are left out |
 | **Strict** | `▰▰▰▰▰▰▰▰▰▰` **98.6%** | Also counts the 24 that need Emacs itself (Gnus, BBDB, eww, TRAMP, CDLaTeX...) |
 
 Before this round, the same measurement gave 76.6% overall and 74.3%

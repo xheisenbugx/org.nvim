@@ -178,6 +178,98 @@ describe("export (Emacs features)", function()
     has(h, '<a href="other.html#MissingReference">Alice</a>')
   end)
 
+  describe("a link to another file with a search option", function()
+    -- expected output from Emacs 9.8.10 (org-html-link ->
+    -- org-publish-resolve-external-link, which runs org-link-search with
+    -- org-link-search-must-match-exact-headline bound to t)
+    local utils = require("org.utils")
+    local real_notify = utils.notify
+    local notes
+    local dir
+    before_each(function()
+      notes = {}
+      utils.notify = function(msg)
+        notes[#notes + 1] = msg
+      end
+      dir = tmpdir()
+      vim.fn.writefile({ "local a = 1", "local b = 2", "return a + b -- 3" }, dir .. "/x.lua")
+      vim.fn.writefile({ "-- see <<tgt>> here", "#+NAME: nm" }, dir .. "/y.lua")
+      vim.fn.writefile({
+        "* Head one",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: hc",
+        ":END:",
+        "* Two",
+        "<<otgt>>",
+        "#+begin_src emacs-lisp",
+        "(a) ; (ref:lbl)",
+        "#+end_src",
+        "* <<ht>> Three",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: hh",
+        ":END:",
+      }, dir .. "/o.org")
+    end)
+    after_each(function()
+      utils.notify = real_notify
+    end)
+
+    local function export_links(links, broken)
+      local lines = { "* H", links }
+      if broken then
+        table.insert(lines, 1, "#+OPTIONS: broken-links:" .. broken)
+      end
+      return html(lines, { filename = dir .. "/t.org" })
+    end
+
+    it("finds the text of a file that isn't an Org file, and warns", function()
+      local h = export_links("See [[file:x.lua::3]] and [[file:x.lua::3][desc]].")
+      has(
+        h,
+        '<a href="x.lua#MissingReference">x.lua#MissingReference</a> and <a href="x.lua#MissingReference">desc</a>'
+      )
+      eq('Reference "3" in file "x.lua" cannot be resolved without publishing', notes[1])
+    end)
+
+    it("searches words case-insensitively in a file that isn't an Org file", function()
+      local h = export_links(
+        "[[file:x.lua::LOCAL   b][a]] [[file:x.lua::*local][b]] [[file:x.lua::/re/][c]] "
+          .. "[[file:y.lua::tgt][d]] [[file:y.lua::nm][e]] [[file:x.lua::#cid][f]]"
+      )
+      has(
+        h,
+        '<a href="x.lua#MissingReference">a</a> <a href="x.lua#MissingReference">b</a> '
+          .. '<a href="x.lua#MissingReference">c</a> <a href="y.lua#MissingReference">d</a> '
+          .. '<a href="y.lua#MissingReference">e</a> <a href="x.lua#cid">f</a>'
+      )
+    end)
+
+    it("aborts on text that isn't there, with Emacs's message", function()
+      local okk, err = pcall(export_links, "[[file:x.lua::nomatch][d]]")
+      eq(false, okk)
+      ok(tostring(err):find('Unable to resolve link: "No match for fuzzy expression: nomatch"', 1, true), err)
+      local h = export_links("[[file:x.lua::*nomatch][a]] [[file:x.lua::(zz)][b]] [[file:o.org::words][c]]", "mark")
+      has(
+        h,
+        "[BROKEN LINK: No match for fuzzy expression: *nomatch] [BROKEN LINK: No match for coderef: zz] "
+          .. "[BROKEN LINK: No match for fuzzy expression: words]"
+      )
+    end)
+
+    it("an Org file: CUSTOM_ID of the headline found, else MissingReference", function()
+      local h = export_links(
+        "[[file:o.org::*Head one][a]] [[file:o.org::Two][b]] [[file:o.org::otgt][c]] "
+          .. "[[file:o.org::(lbl)][d]] [[file:o.org::ht][e]] [[file:o.org::/x/][f]] [[file:o.org::#zz][g]]"
+      )
+      has(
+        h,
+        '<a href="o.html#hc">a</a> <a href="o.html#MissingReference">b</a> '
+          .. '<a href="o.html#MissingReference">c</a> <a href="o.html#MissingReference">d</a> '
+          .. '<a href="o.html#hh">e</a> <a href="o.html#hc">f</a> <a href="o.html#zz">g</a>'
+      )
+    end)
+  end)
+
   it("replaces {{{results}}} only when Babel runs on export (org-export-use-babel)", function()
     -- Emacs 9.8.10: org-export-as expands the results macro after
     -- Babel ran; with org-export-use-babel nil it stays and exports as

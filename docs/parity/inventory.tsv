@@ -999,6 +999,7 @@ org-colview	org-columns-checkbox-allowed-values	opt	done	config columns_checkbox
 org-colview	org-columns-dblock-formatter	opt	done	config columns_dblock_formatter	-	-
 org-colview	org-columns-modify-value-for-display-function	opt	done	config columns_modify_value_for_display_function	-	-
 org-colview	org-columns-summary-types	opt	done	config columns_summary_types	-	-
+org-colview	org-overriding-columns-format	opt	done	overriding_columns_format in a custom command's settings (agenda/columns.lua M.format)	a defvar, not a defcustom, so inventory.el does not list it; the column view manual tells users to set it in a custom command's settings; kept for the agenda like org-local-columns-format (refresh, columns off/on); agenda_columns_spec	S
 org-list	org-checkbox-hierarchical-statistics	opt	done	-	PROBED: nil -> item [3/4] and headline [2/3], t -> [1/2]/[1/2], same as Emacs; COOKIE_DATA recursive honoured; spec	S
 org-list	org-cycle-include-plain-lists	opt	done	-	fold.lua reads true/false/"integrate"; integrate adds CHILDREN state with top-level items folded; fold_spec covers integrate and true	S
 org-list	org-list-allow-alphabetical	opt	done	-	lists.lua parse/renumber/cycle/demote and export read it; lists_emacs_spec alphabetical block with non-default config	M

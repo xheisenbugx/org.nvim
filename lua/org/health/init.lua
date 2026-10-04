@@ -93,6 +93,37 @@ function M.unknown_options(user)
   return out
 end
 
+--- Options Emacs reads once per agenda (org-agenda-finalize), under the
+--- let-bound options of the command: in a block of a composite command
+--- they have no effect.
+local COMMAND_ONLY = {
+  overriding_columns_format = true,
+  org_overriding_columns_format = true,
+  view_columns_initially = true,
+  org_agenda_view_columns_initially = true,
+}
+
+--- Options set on a block of a composite custom command that only take
+--- effect in the command's `settings` (the column view options), as
+--- "KEY.types[i].option" strings.
+---@param cmds? table `agenda.custom_commands`
+---@return string[]
+function M.ignored_block_options(cmds)
+  local out = {}
+  for key, cmd in pairs(type(cmds) == "table" and cmds or {}) do
+    local field = type(cmd) == "table" and (cmd.types and "types" or cmd.blocks and "blocks") or nil
+    for i, b in ipairs(field and type(cmd[field]) == "table" and cmd[field] or {}) do
+      for k in pairs(type(b) == "table" and b or {}) do
+        if COMMAND_ONLY[k] then
+          out[#out + 1] = string.format("%s.%s[%d].%s", tostring(key), field, i, k)
+        end
+      end
+    end
+  end
+  table.sort(out)
+  return out
+end
+
 function M.check()
   local h = vim.health
   h.start("org.nvim")
@@ -127,6 +158,13 @@ function M.check()
   if #unknown > 0 then
     h.warn("Unknown options passed to setup() (ignored): " .. table.concat(unknown, ", "), {
       "check the names in :h org-config and :h org-keymaps",
+    })
+  end
+
+  local ignored = M.ignored_block_options(cfg.agenda.custom_commands)
+  if #ignored > 0 then
+    h.warn("Column view options in a block of a composite custom command (ignored): " .. table.concat(ignored, ", "), {
+      "set them in the command's `settings`, as in Emacs (:h org-agenda-command-columns)",
     })
   end
 

@@ -255,7 +255,8 @@ describe("targets inside a link description", function()
     local publish = require("org.export.publish")
     local ok_, err = pcall(publish.resolve_external_link, "tgt", path)
     eq(false, ok_)
-    eq("tgt", type(err) == "table" and err.broken_link)
+    -- Emacs: [BROKEN LINK: No match for fuzzy expression: tgt]
+    eq("No match for fuzzy expression: tgt", type(err) == "table" and err.broken_link)
   end)
 
   it("the LSP extension's target index skips them", function()

@@ -1,0 +1,24 @@
+screen 100x14
+|{1:#+TAGS:}{2: work(w) home(h) errand(e)}|
+||
+|{3:* }{4:TODO}{3: Task }{5::work:}|
+|{6:    }{7:╭──────────────────────────────────────────}{8: Tags }{7:───────────────────────────────────────────╮}|
+|{6:    }{7:│}{9:Inherited:                                                                                 }{7:│}|
+|{6:    }{7:│}{10:Current:   :work:}{9:                                                                          }{7:│}|
+|{6:    }{7:│}{9:                                                                                           }{7:│}|
+|{6:    }{7:│}{9:  [w] }{11:work}{9:     [h] home     [e] errand                                                     }{7:│}|
+|{6:    }{7:│}{9:                                                                                           }{7:│}|
+|{6:    }{7:│}{9:[a-z..]:toggle [SPC]:clear [RET]:accept [TAB]:edit [!] no groups [C-c]:multi [q/Esc]:quit  }{7:│}|
+|{6:    }{7:╰───────────────────────────────────────────────────────────────────────────────────────────╯}|
+
+{1} OrgKeyword -> PreProc
+{2} OrgKeywordValue -> String
+{3} OrgHeadlineLevel1 -> Title [bold]
+{4} OrgTodo -> @comment.error
+{5} OrgTags -> @property
+{6} NonText
+{7} FloatBorder
+{8} FloatTitle [bold]
+{9} NormalFloat
+{10} NormalFloat | Title [bold]
+{11} NormalFloat | OrgTodo -> @comment.error

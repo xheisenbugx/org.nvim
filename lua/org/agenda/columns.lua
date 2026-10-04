@@ -18,7 +18,8 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.agenda.columns")
 
---- Active column view: { buf, cols, widths, cells = { [lnum] = { values } }, maps }
+--- Active column view: { buf, cols, widths, cells = { [lnum] = { values } },
+--- display = { [lnum] = { displayed values } }, maps }
 local A = nil
 
 --- Default links of the column view groups (Emacs org-column,
@@ -37,13 +38,19 @@ function M.active(buf)
   return A ~= nil and A.buf == buf and buf ~= nil and vim.api.nvim_buf_is_valid(buf)
 end
 
---- The columns format (org-agenda-columns): `overriding_columns_format`,
---- else the COLUMNS property / #+COLUMNS of the entry at point, else of
---- the first entry of the agenda, else `columns_default_format`.
+--- The columns format (org-agenda-columns): `overriding_columns_format`
+--- of the agenda's custom command `settings` (Emacs
+--- org-overriding-columns-format, kept for the agenda buffer as
+--- org-local-columns-format), else the global `overriding_columns_format`
+--- (org-columns-default-format-for-agenda), else the COLUMNS property /
+--- #+COLUMNS of the entry at point, else of the first entry of the
+--- agenda, else `columns_default_format`.
 function M.format(S)
-  local fmt = config.opts.agenda.overriding_columns_format
-  if fmt and fmt ~= "" then
-    return fmt
+  local s = S.view and S.view.settings
+  for _, fmt in ipairs({ s and s.overriding_columns_format or false, config.opts.agenda.overriding_columns_format }) do
+    if fmt and fmt ~= "" then
+      return fmt
+    end
   end
   local function from_item(it)
     local hl = it and it.headline
@@ -69,13 +76,12 @@ function M.format(S)
   return from_item(S.line_items[lines[1]]) or config.opts.columns_default_format or "%25ITEM %TODO %3PRIORITY %TAGS"
 end
 
---- Value of a column for an agenda item (ITEM without stars, with its
---- links shown as their description: org-columns--displayed-value applies
---- org-link-display-format).
+--- Real value of a column for an agenda item (what `e` edits and `v`
+--- shows, Emacs org-columns-value).
 local function value(it, prop)
   local key = prop:upper()
   if key == "ITEM" then
-    return require("org.agenda.render").display_title(it.display_title or it.title or "")
+    return it.display_title or it.title or ""
   end
   local v = columns.value(it.headline, prop)
   if
@@ -90,6 +96,24 @@ local function value(it, prop)
     return require("org.duration").from_minutes(it.end_time - it.time)
   end
   return v or ""
+end
+
+--- Displayed value of a column (org-columns--displayed-value with NO-STAR,
+--- as org-agenda-columns calls it): the user's
+--- `columns_modify_value_for_display_function` first, then ITEM without
+--- stars and with its links shown as their description, active timestamps
+--- of SCHEDULED/DEADLINE/TIMESTAMP as inactive ones, the column's printf
+--- format.
+local function displayed(col, v)
+  if col.prop:upper() == "ITEM" then
+    local modify = config.opts.columns_modify_value_for_display_function
+    local m = type(modify) == "function" and modify(col.title, v) or nil
+    if m ~= nil then
+      return m
+    end
+    return require("org.agenda.render").display_title(v)
+  end
+  return columns.display_value(col, v)
 end
 
 --- Emacs overlay text: "%-W.Ws | " per column, "%-W.Ws |" for the last.
@@ -124,14 +148,15 @@ function M.apply()
     return false
   end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  local cells = {}
+  local cells, display = {}, {}
   for l, it in pairs(S.line_items) do
     if it.headline then
-      local row = {}
+      local row, shown = {}, {}
       for i, c in ipairs(cols) do
         row[i] = value(it, c.prop)
+        shown[i] = displayed(c, row[i])
       end
-      cells[l] = row
+      cells[l], display[l] = row, shown
     end
   end
   -- summaries on date lines and block headers, from the bottom up
@@ -157,6 +182,8 @@ function M.apply()
         end
       end
     end
+    -- summaries combine the real values, not the displayed ones
+    -- (org-agenda-colview-summarize)
     local pending = {}
     for l = #lines, 1, -1 do
       if cells[l] then
@@ -196,7 +223,7 @@ function M.apply()
       widths[i] = math.max(c.width, 1)
     else
       local w = utils.width(c.title)
-      for _, row in pairs(cells) do
+      for _, row in pairs(display) do
         w = math.max(w, utils.width(row[i] or ""))
       end
       widths[i] = w
@@ -219,7 +246,7 @@ function M.apply()
       priority = 300,
     })
   end
-  for l, row in pairs(cells) do
+  for l, row in pairs(display) do
     overlay(l, row, "OrgAgendaColumn")
   end
   for l, row in pairs(summaries) do
@@ -230,7 +257,15 @@ function M.apply()
     titles[i] = c.title
   end
   local was = A
-  A = { buf = buf, cols = cols, widths = widths, cells = cells, fmt = fmt, maps = was and was.buf == buf and was.maps }
+  A = {
+    buf = buf,
+    cols = cols,
+    widths = widths,
+    cells = cells,
+    display = display,
+    fmt = fmt,
+    maps = was and was.buf == buf and was.maps,
+  }
   -- the titles in the agenda window's winbar (Emacs header-line), after
   -- the number and sign columns
   local win = S.win
@@ -341,11 +376,8 @@ function M.edit()
     return
   end
   local col = A.cols[ci]
+  -- the real value, not its displayed form (org-columns-value)
   local cur = A.cells[vim.api.nvim_win_get_cursor(0)[1]][ci] or ""
-  if col.prop:upper() == "ITEM" then
-    -- edit the title itself, not its displayed form (links reduced)
-    cur = it.display_title or it.title or ""
-  end
   local vals = allowed(it, col.prop)
   local v
   if vals and #vals > 0 then
@@ -387,7 +419,7 @@ function M.next_allowed(dir)
   end
 end
 
---- Show the full value under the cursor (v).
+--- Show the full real value under the cursor (v, org-columns-show-value).
 function M.show()
   local it, ci, lnum = current()
   if it then
@@ -460,19 +492,26 @@ function M.toggle()
 end
 
 --- Re-draw after the agenda was re-rendered (call at the end of
---- `view.refresh`); also honours `agenda.view_columns_initially` for a
+--- `view.refresh`); also honours `view_columns_initially` (of the custom
+--- command's `settings`, else `agenda.view_columns_initially`) for a
 --- freshly opened agenda when `initial` is set.
 function M.refresh_if_active(initial)
   if M.active() then
     return M.apply()
-  elseif initial and config.opts.agenda.view_columns_initially then
+  elseif initial and view_mod().command_option("view_columns_initially", view_mod().state) then
     return M.apply()
   end
   return false
 end
 
---- Values shown for a line (for tests): the cells of agenda line `lnum`.
+--- Values shown for a line (for tests): the displayed cells of agenda
+--- line `lnum`.
 function M.cells(lnum)
+  return A and A.display[lnum]
+end
+
+--- Real values of a line (for tests): what `e` edits and `v` shows.
+function M.values(lnum)
   return A and A.cells[lnum]
 end
 

@@ -84,6 +84,7 @@
 902:1 [non-existent-setupfile-parameter] Non-existent setup file "no-such-setup.org"
 904:1 [invalid-block] Possible incomplete block "#+begin_quote"
 === examples/tutorial.org
+810:16 [percent-encoding-link-escape] Link escaped with obsolete percent-encoding syntax
 === tests/fixtures/emacs/lint/issues.org
 3:1 [non-existent-setupfile-parameter] Non-existent setup file "does-not-exist.setup"
 4:1 [wrong-include-link-parameter] Non-existent file argument in INCLUDE keyword

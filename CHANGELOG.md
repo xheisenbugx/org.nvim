@@ -8,6 +8,28 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.0.3] - 2026-10-03
+
+### Fixes
+
+- **fold:** The archived subtree message names the force-cycle key ([#156](https://github.com/xheisenbugx/org.nvim/pull/156))
+- **fold:** VISIBILITY all leaves drawers open under nohidedrawers ([#157](https://github.com/xheisenbugx/org.nvim/pull/157))
+- **export:** HTML export keeps going on a search link to a non-org file ([#158](https://github.com/xheisenbugx/org.nvim/pull/158))
+- **agenda:** Column view shows values the way the column view does ([#160](https://github.com/xheisenbugx/org.nvim/pull/160))
+- **agenda:** A custom command's settings set its column view format ([#162](https://github.com/xheisenbugx/org.nvim/pull/162))
+- **tags:** The fast tag selection footer says Esc quits ([#161](https://github.com/xheisenbugx/org.nvim/pull/161))
+
+### Documentation
+
+- **examples:** The tutorial's ddg link encodes its search words ([#155](https://github.com/xheisenbugx/org.nvim/pull/155))
+
+<details><summary>Tests, CI and chores (2)</summary>
+
+- **ci:** Time the perf specs alone and split the Windows run over three runners ([#153](https://github.com/xheisenbugx/org.nvim/pull/153))
+- **test(agenda):** The custom command column spec expects DEADLINE shown inactive ([#164](https://github.com/xheisenbugx/org.nvim/pull/164))
+
+</details>
+
 ## [v2.0.2] - 2026-10-03
 
 ### Fixes
@@ -238,6 +260,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.0.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.2...v2.0.3
 [v2.0.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.1...v2.0.2
 [v2.0.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.0...v2.0.1
 [v2.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.5...v2.0.0

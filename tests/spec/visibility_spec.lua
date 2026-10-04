@@ -59,6 +59,88 @@ describe("visibility: startup", function()
     eq(8, vim.fn.foldclosed(8))
   end)
 
+  -- org-cycle-set-visibility-according-to-property only reveals the
+  -- outline (org-fold-show-subtree, org-fold-show-hidden-entry without
+  -- HIDE-DRAWERS); drawers are folded afterwards, under hidedrawers only
+  local function drawer_lines(startup, vis)
+    return {
+      "#+STARTUP: " .. startup,
+      "* A",
+      ":PROPERTIES:", -- 3
+      ":VISIBILITY: " .. vis,
+      ":END:",
+      ":LOGBOOK:", -- 6
+      "- note",
+      ":END:",
+      "a body",
+      "** B", -- 10
+      ":LOGBOOK:", -- 11
+      "- nb",
+      ":END:",
+      "b body",
+      "* C",
+      "c body",
+    }
+  end
+
+  for _, vis in ipairs({ "all", "showall" }) do
+    it("VISIBILITY: " .. vis .. " leaves drawers open under nohidedrawers", function()
+      org_buffer(drawer_lines("overview nohidedrawers", vis), { 1, 0 })
+      fold.apply_startup(0)
+      eq(false, closed(3))
+      eq(false, closed(6))
+      eq(false, closed(11))
+      eq(15, vim.fn.foldclosed(15))
+    end)
+
+    it("VISIBILITY: " .. vis .. " folds drawers under hidedrawers", function()
+      org_buffer(drawer_lines("overview hidedrawers", vis), { 1, 0 })
+      fold.apply_startup(0)
+      eq(3, vim.fn.foldclosed(3))
+      eq(6, vim.fn.foldclosed(6))
+      eq(11, vim.fn.foldclosed(11))
+      eq(false, closed(10))
+    end)
+  end
+
+  it("VISIBILITY: children leaves the entry's drawers open under nohidedrawers", function()
+    org_buffer(drawer_lines("showall nohidedrawers", "children"), { 1, 0 })
+    fold.apply_startup(0)
+    eq(false, closed(3))
+    eq(false, closed(6))
+    eq(10, vim.fn.foldclosed(10))
+  end)
+
+  it("VISIBILITY: children folds the entry's drawers under hidedrawers", function()
+    org_buffer(drawer_lines("showall hidedrawers", "children"), { 1, 0 })
+    fold.apply_startup(0)
+    eq(3, vim.fn.foldclosed(3))
+    eq(6, vim.fn.foldclosed(6))
+    eq(10, vim.fn.foldclosed(10))
+  end)
+
+  it("hide_drawer_startup = false keeps VISIBILITY: all drawers open", function()
+    local lines = drawer_lines("overview", "all")
+    table.remove(lines, 1)
+    org_buffer(lines, { 1, 0 })
+    config.opts.hide_drawer_startup = false
+    fold.apply_startup(0)
+    config.opts.hide_drawer_startup = true
+    eq(false, closed(2))
+    eq(false, closed(5))
+    eq(false, closed(10))
+  end)
+
+  it("C-u C-u TAB keeps VISIBILITY: all drawers open under nohidedrawers", function()
+    org_buffer(drawer_lines("overview nohidedrawers", "all"), { 1, 0 })
+    fold.apply_startup(0)
+    vim.cmd("normal! zM")
+    fold.set_startup_visibility()
+    eq(false, closed(3))
+    eq(false, closed(6))
+    eq(false, closed(11))
+  end)
+
   it("keeps archived subtrees folded in SHOW ALL", function()
     org_buffer({ "* A", "a body", "* Old :ARCHIVE:", "old body", "* B", "b body" }, { 1, 0 })
     fold.show_all()
@@ -116,6 +198,50 @@ describe("visibility: cycling", function()
     eq(4, vim.fn.foldclosed(4))
     fold.force_cycle_archived()
     eq(false, closed(4))
+  end)
+
+  -- org-cycle-hide-archived-subtrees: the message names the key bound to
+  -- org-cycle-force-archived (\\[org-cycle-force-archived])
+  local function archived_message()
+    org_buffer({ "* A", "** Old :ARCHIVE:", "old body" }, { 2, 0 })
+    fold.overview()
+    local echo, msg = vim.api.nvim_echo, nil
+    vim.api.nvim_echo = function(chunks)
+      msg = chunks[1][1]
+    end
+    local ok, err = pcall(fold.cycle)
+    vim.api.nvim_echo = echo
+    assert(ok, err)
+    return msg
+  end
+
+  local function with_key(value, disable_all, fn)
+    local maps = config.opts.mappings
+    local saved, saved_all = maps.emacs.force_cycle_archived, maps.disable_all
+    maps.emacs.force_cycle_archived, maps.disable_all = value, disable_all
+    local ok, err = pcall(fn)
+    maps.emacs.force_cycle_archived, maps.disable_all = saved, saved_all
+    assert(ok, err)
+  end
+
+  it("the archived message names the default force_cycle_archived key", function()
+    eq("Subtree is archived and stays closed.  Use <C-c><C-Tab> to cycle it anyway.", archived_message())
+  end)
+
+  it("the archived message names a user's own force_cycle_archived key", function()
+    with_key("<leader>oA", nil, function()
+      eq("Subtree is archived and stays closed.  Use <leader>oA to cycle it anyway.", archived_message())
+    end)
+  end)
+
+  it("the archived message names the command when force_cycle_archived has no key", function()
+    local want = "Subtree is archived and stays closed.  Use :Org force_cycle_archived to cycle it anyway."
+    with_key(false, nil, function()
+      eq(want, archived_message())
+    end)
+    with_key("<C-c><C-Tab>", true, function()
+      eq(want, archived_message())
+    end)
   end)
 
   it("an archived-only subtree does not get stuck", function()

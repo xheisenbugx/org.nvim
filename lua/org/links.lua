@@ -985,9 +985,11 @@ end
 --- else nil, nil, a message and, for a search that does more than move
 --- the cursor, its kind: "regexp" (`/regexp/`: a sparse tree or occur) or
 --- "create" (no match, and query-to-create offers to make the heading).
+--- `sopts.must_match` stands for `links.search_must_match_exact_headline`
+--- (export binds it to t).
 ---@param search string
 ---@param src { lines: string[], file?: org.File }
----@param sopts? { avoid?: integer[], range?: integer[] }
+---@param sopts? { avoid?: integer[], range?: integer[], must_match?: boolean|"query-to-create" }
 ---@return integer|nil lnum, integer|nil col, string|nil err, "regexp"|"create"|nil kind
 function M.search_location(search, src, sopts)
   sopts = sopts or {}
@@ -1076,7 +1078,10 @@ function M.search_location(search, src, sopts)
         return hl.line, 0
       end
     end
-    local must = lopts().search_must_match_exact_headline
+    local must = sopts.must_match
+    if must == nil then
+      must = lopts().search_must_match_exact_headline
+    end
     if must == nil then
       must = "query-to-create"
     end
