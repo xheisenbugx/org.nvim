@@ -76,7 +76,7 @@ To try your checkout in your own config, point lazy.nvim at it:
 | `lua/org/{todo,priority,tags,properties,timestamps,calendar,clock,dblock,columns,timer}.lua` | task management |
 | `lua/org/agenda/` | agenda, search, sparse trees, notifications |
 | `lua/org/{capture,refile,archive,links,id,attach,footnotes}.lua` | capture and navigation |
-| `lua/org/table.lua`, `lua/org/table/` | tables and formulas |
+| `lua/org/table.lua`, `lua/org/table/` | tables and formulas (`table.lua` parses and aligns and loads the commands from `table/`) |
 | `lua/org/babel/` | source blocks |
 | `lua/org/export/` | exporters |
 | `syntax/`, `lua/org/{syntax,highlights}.lua`, `lua/org/ui/` | highlighting and decorations |
