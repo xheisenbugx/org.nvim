@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.0.6] - 2026-10-04
+
+### Fixes
+
+- **site:** Render the manual's key and option lists as tables ([#182](https://github.com/xheisenbugx/org.nvim/pull/182))
+
 ## [v2.0.5] - 2026-10-04
 
 ### Fixes
@@ -297,6 +303,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.0.6]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.5...v2.0.6
 [v2.0.5]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.4...v2.0.5
 [v2.0.4]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.3...v2.0.4
 [v2.0.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.2...v2.0.3
