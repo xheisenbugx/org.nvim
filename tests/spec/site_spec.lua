@@ -124,7 +124,76 @@ describe("site", function()
       has(out, '<h3 id="h-stability">Stability</h3>')
       has(out, "<p>Flowing text that wraps over <code>two lines</code> here.</p>")
       has(out, "<ul>\n<li>one item continued</li>\n<li>two</li>\n</ul>")
-      has(out, '<pre class="help">  <code>width</code>    40\n  <code>height</code>   10</pre>')
+      has(out, '<table class="defs">\n<tr><td class="term"><code>width</code></td><td>40</td></tr>')
+      has(out, '<tr><td class="term"><code>height</code></td><td>10</td></tr>\n</table>')
+    end)
+
+    it("turns aligned keys and options into tables", function()
+      local out = render({
+        "Keys:",
+        "  <C-c>a         agenda; continued",
+        "                 on the next line",
+        "  f / b / .      later / earlier / today",
+        "  <C-x><C-c><BS> one space at the column",
+        "  `hidden`   backticks do not count",
+        "  long term alone",
+        "                its description",
+        "Prose after.",
+      })
+      has(out, "<p>Keys:</p>")
+      has(out, '<td class="term"><span class="key">&lt;C-c&gt;</span>a</td><td>agenda; continued on the next line</td>')
+      has(out, '<td class="term">f / b / .</td><td>later / earlier / today</td>')
+      has(out, "<td>one space at the column</td>")
+      has(out, '<td class="term"><code>hidden</code></td><td>backticks do not count</td>')
+      has(out, '<td class="term">long term alone</td><td>its description</td>')
+      has(out, "<p>Prose after.</p>")
+      ok(not out:find("<pre", 1, true))
+    end)
+
+    it("gives option tables a column for the value", function()
+      local out = render({
+        '  org_directory             "~/org"   base for relative paths',
+        "  agenda_files              {}        files, dirs, globs,",
+        "                                      or a file listing them",
+        '  win_border                "rounded"',
+        "  startup_shrink_all_tables false     one space before the value",
+      })
+      has(out, '<table class="defs defs3">')
+      has(out, '<td class="value"><code>&quot;~/org&quot;</code></td><td>base for relative paths</td>')
+      has(out, "<td>files, dirs, globs, or a file listing them</td>")
+      has(
+        out,
+        '<td class="term long">startup_<wbr>shrink_<wbr>all_<wbr>tables</td><td class="value"><code>false</code></td>'
+      )
+    end)
+
+    it("merges the second key of a command into the first", function()
+      local out = render({
+        "<prefix>id      Insert a drawer at the cursor (Insert mode splits the line,",
+        "<C-c><C-x>d     like Emacs), or around the Visual selection.",
+        "<prefix>ib      Insert a template.",
+      })
+      has(out, '<span class="key">&lt;C-c&gt;</span><span class="key">&lt;C-x&gt;</span>d</td>')
+      has(out, "splits the line, like Emacs), or around the Visual selection.</td>")
+      local _, rows = out:gsub("<tr>", "")
+      eq(2, rows)
+    end)
+
+    it("renders a header row over columns as a grid", function()
+      local out = render({
+        "                    native   snacks",
+        "  in place          yes      yes (5)",
+        "  under the link    yes      no",
+      })
+      has(out, '<table class="grid">')
+      has(out, "<th>native</th>\n<th>snacks</th>")
+      has(out, "<tr><td>in place</td><td>yes</td><td>yes (5)</td></tr>")
+    end)
+
+    it("reads text after the < that ends a code block", function()
+      local out = render({ "Code: >lua", "    x = 1", "<then more text.", "  vim:tw=78:ts=8:ft=help:norl:" })
+      has(out, "<p>then more text.</p>")
+      ok(not out:find("vim:tw", 1, true))
     end)
 
     it("splits chapters at ==== and sections at ----", function()
