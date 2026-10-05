@@ -39,55 +39,7 @@ local DEBOUNCE_MS = 200
 
 local has_buffer, sbuf = pcall(require, "string.buffer")
 
--- Keys of the encoded headline records, sent as indices (string.buffer's
--- `dict`): part of the format, so of the signature.
-local DICT = {
-  "_l",
-  "_r",
-  "active",
-  "clocks",
-  "commented",
-  "date",
-  "day",
-  "drawers",
-  "end",
-  "end_col",
-  "end_hour",
-  "end_min",
-  "first_inactive",
-  "hour",
-  "in_title",
-  "line",
-  "logbook",
-  "min",
-  "minutes",
-  "month",
-  "name",
-  "planning",
-  "planning_line",
-  "priority",
-  "properties",
-  "properties_extend",
-  "properties_range",
-  "property_base",
-  "range_end",
-  "repeater",
-  "start",
-  "start_col",
-  "tags",
-  "timestamps",
-  "title",
-  "todo",
-  "type",
-  "unit",
-  "value",
-  "warning",
-  "year",
-  "closed",
-  "deadline",
-  "scheduled",
-  "max",
-}
+local thread = require("org.agenda.index.thread")
 
 ---@class org.agenda.index.Entry
 ---@field ms integer mtime seconds
@@ -183,8 +135,8 @@ local code_sig ---@type string|nil
 ---@return string
 local function code_signature()
   if not code_sig then
-    local parts = { tostring(VERSION), jit and jit.version or _VERSION, table.concat(DICT, ",") }
-    for _, f in ipairs({ "parser", "date", "agenda/index", "todo_keywords", "keywords" }) do
+    local parts = { tostring(VERSION), jit and jit.version or _VERSION, table.concat(thread.DICT, ",") }
+    for _, f in ipairs({ "parser", "date", "agenda/index", "agenda/index/thread", "todo_keywords", "keywords" }) do
       local src = vim.api.nvim_get_runtime_file("lua/org/" .. f .. ".lua", false)[1]
       local st = src and uv.fs_stat(src)
       parts[#parts + 1] = st and (st.size .. ":" .. st.mtime.sec .. ":" .. st.mtime.nsec) or "-"
@@ -221,18 +173,6 @@ end
 ---------------------------------------------------------------------------
 -- Entries
 ---------------------------------------------------------------------------
-
-local codec ---@type string.buffer|nil
-
---- The string.buffer that encodes headline records (dates keep their
---- metatable).
----@return string.buffer
-local function get_codec()
-  if not codec then
-    codec = sbuf.new({ metatable = { require("org.date").Date }, dict = DICT })
-  end
-  return codec
-end
 
 ---@param a uv.fs_stat.result
 ---@param b uv.fs_stat.result
@@ -322,8 +262,35 @@ local function load()
   return S.entries
 end
 
+--- Fill in the headlines of `file` from the encoded records `blob`
+--- (what was found in the same text). Every headline must be where and
+--- what it was.
+---@param blob string
+---@param file org.File
+---@return boolean|nil restored, boolean|nil bad nil, true: `blob` doesn't decode
+local function restore(blob, file)
+  local ok, recs = pcall(function()
+    return thread.codec():set(blob):decode()
+  end)
+  local headlines = file.headlines
+  if not ok or type(recs) ~= "table" or #recs ~= #headlines then
+    return nil, true
+  end
+  for i, hl in ipairs(headlines) do
+    local r = recs[i]
+    if type(r) ~= "table" or r._l ~= rawget(hl, "line") or r._r ~= rawget(hl, "raw") then
+      return nil
+    end
+  end
+  local parser = require("org.parser")
+  for i, hl in ipairs(headlines) do
+    parser.restore(hl, recs[i])
+  end
+  return true
+end
+
 --- Fill in the headlines of `file` (parsed from `path`, whose fs_stat is
---- `st`) from its entry. Every headline must be where and what it was.
+--- `st`) from its entry.
 ---@param path string
 ---@param st uv.fs_stat.result
 ---@param file org.File
@@ -334,24 +301,13 @@ local function apply(path, st, file)
   if not entry_matches(e, st) or e.n ~= #file.lines or e.k ~= todo_signature(file) then
     return false
   end
-  local ok, recs = pcall(function()
-    return get_codec():set(e.d):decode()
-  end)
-  local headlines = file.headlines
-  if not ok or type(recs) ~= "table" or #recs ~= #headlines then
+  local ok, bad = restore(e.d, file)
+  if bad then
     entries[path] = nil
     S.dirty = true
+  end
+  if not ok then
     return false
-  end
-  for i, hl in ipairs(headlines) do
-    local r = recs[i]
-    if type(r) ~= "table" or r._l ~= rawget(hl, "line") or r._r ~= rawget(hl, "raw") then
-      return false
-    end
-  end
-  local parser = require("org.parser")
-  for i, hl in ipairs(headlines) do
-    parser.restore(hl, recs[i])
   end
   local now = os.time()
   if now - (tonumber(e.t) or 0) > 86400 then
@@ -363,32 +319,13 @@ end
 
 local schedule_save
 
---- Parse all of `file` now (it was just parsed from `path`, and nothing
---- has read it yet) and, with `cache`, add it to the index.
+--- Add `file` (parsed from `path`, whose fs_stat is `st`) to the index,
+--- with its encoded records `blob`.
 ---@param path string
 ---@param st uv.fs_stat.result
 ---@param file org.File
-local function add(path, st, file)
-  local parser = require("org.parser")
-  local fields = parser.LAZY_FIELDS
-  local recs = {}
-  for i, hl in ipairs(file.headlines) do
-    parser.load_all(hl)
-    local r = { _l = rawget(hl, "line"), _r = rawget(hl, "raw") }
-    for _, k in ipairs(fields) do
-      r[k] = rawget(hl, k)
-    end
-    recs[i] = r
-  end
-  if not use_cache() then
-    return
-  end
-  local ok, blob = pcall(function()
-    return get_codec():reset():encode(recs):tostring()
-  end)
-  if not ok then
-    return
-  end
+---@param blob string
+local function store(path, st, file, blob)
   load()[path] = {
     ms = st.mtime.sec,
     mn = st.mtime.nsec,
@@ -403,6 +340,24 @@ local function add(path, st, file)
   S.dirty = true
   S.stats.indexed = S.stats.indexed + 1
   schedule_save()
+end
+
+--- Parse all of `file` now (it was just parsed from `path`, and nothing
+--- has read it yet) and, with `cache`, add it to the index.
+---@param path string
+---@param st uv.fs_stat.result
+---@param file org.File
+local function add(path, st, file)
+  local recs = thread.records(file.headlines)
+  if not use_cache() then
+    return
+  end
+  local ok, blob = pcall(function()
+    return thread.codec():reset():encode(recs):tostring()
+  end)
+  if ok then
+    store(path, st, file, blob)
+  end
 end
 
 ---------------------------------------------------------------------------

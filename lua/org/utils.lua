@@ -684,17 +684,9 @@ end
 ---@param content string
 ---@return string[]
 function M.split_content(content)
-  -- a UTF-8 byte order mark is not text (Vim's 'bomb', Emacs's
-  -- utf-8-with-signature): a file read from disk must parse like its buffer
-  if content:sub(1, 3) == "\239\187\191" then
-    content = content:sub(4)
-  end
-  content = content:gsub("\r\n", "\n")
-  local lines = vim.split(content, "\n", { plain = true })
-  if lines[#lines] == "" then
-    table.remove(lines)
-  end
-  return lines
+  -- in a module a worker thread can load too (the agenda index splits
+  -- files there exactly as here)
+  return require("org.agenda.index.thread").split_content(content)
 end
 
 function M.writefile(path, lines)
