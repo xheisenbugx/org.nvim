@@ -42,6 +42,25 @@ local function count()
   return math.max(vim.v.count, 1)
 end
 
+--- Run the edit `fn` [count] times, all one undo step (a Vim count on a
+--- key whose Emacs command takes none, |org-dot-repeat|). Stops early when
+--- a run changes nothing (an item at the margin, a row at the end); the
+--- result is the first run's, so `false` still means "not applicable".
+local function repeated(fn)
+  local res = fn()
+  if res == false then
+    return res
+  end
+  for _ = 2, count() do
+    local tick = vim.api.nvim_buf_get_changedtick(0)
+    fn()
+    if vim.api.nvim_buf_get_changedtick(0) == tick then
+      break
+    end
+  end
+  return res
+end
+
 --- C-c C-c
 function M.context_action()
   local sparse = require("org.agenda.sparse")
@@ -321,7 +340,9 @@ function M.promote()
     return
   end
   if item_line(lnum) then
-    return require("org.lists").indent_item(-1, false)
+    return repeated(function()
+      return require("org.lists").indent_item(-1, false)
+    end)
   end
   return false
 end
@@ -335,7 +356,9 @@ function M.demote()
     return
   end
   if item_line(lnum) then
-    return require("org.lists").indent_item(1, false)
+    return repeated(function()
+      return require("org.lists").indent_item(1, false)
+    end)
   end
   return false
 end
@@ -415,7 +438,9 @@ function M.meta_left()
   end
   local _, _, line = cur()
   if in_table(line) then
-    return require("org.table").move_column(-1)
+    return repeated(function()
+      return require("org.table").move_column(-1)
+    end)
   end
   return M.promote()
 end
@@ -426,7 +451,9 @@ function M.meta_right()
   end
   local _, _, line = cur()
   if in_table(line) then
-    return require("org.table").move_column(1)
+    return repeated(function()
+      return require("org.table").move_column(1)
+    end)
   end
   return M.demote()
 end
@@ -442,7 +469,9 @@ function M.shift_meta_left()
     return require("org.structure").promote_subtree()
   end
   if item_line(lnum) then
-    return require("org.lists").indent_item(-1, true)
+    return repeated(function()
+      return require("org.lists").indent_item(-1, true)
+    end)
   end
   special_context_error()
 end
@@ -456,7 +485,9 @@ function M.shift_meta_right()
     return require("org.structure").demote_subtree()
   end
   if item_line(lnum) then
-    return require("org.lists").indent_item(1, true)
+    return repeated(function()
+      return require("org.lists").indent_item(1, true)
+    end)
   end
   special_context_error()
 end
@@ -470,15 +501,19 @@ function M.meta_up()
   end
   local lnum, _, line = cur()
   if in_table(line) then
-    return require("org.table").move_row(-1)
+    return repeated(function()
+      return require("org.table").move_row(-1)
+    end)
   end
   if is_headline(line) then
     return require("org.structure").move_subtree_up()
   end
   if item_line(lnum) then
-    return require("org.lists").move_item(-1)
+    return repeated(function()
+      return require("org.lists").move_item(-1)
+    end)
   end
-  return require("org.element").drag_backward()
+  return repeated(require("org.element").drag_backward)
 end
 
 --- M-down (org-metadown), see meta_up.
@@ -488,15 +523,19 @@ function M.meta_down()
   end
   local lnum, _, line = cur()
   if in_table(line) then
-    return require("org.table").move_row(1)
+    return repeated(function()
+      return require("org.table").move_row(1)
+    end)
   end
   if is_headline(line) then
     return require("org.structure").move_subtree_down()
   end
   if item_line(lnum) then
-    return require("org.lists").move_item(1)
+    return repeated(function()
+      return require("org.lists").move_item(1)
+    end)
   end
-  return require("org.element").drag_forward()
+  return repeated(require("org.element").drag_forward)
 end
 
 local function timestamp_under_cursor()

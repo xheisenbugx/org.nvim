@@ -156,19 +156,9 @@ local function select_lines(s, e)
 end
 
 --- Select the current headline's section. `inner` excludes the headline.
+--- A count selects an ancestor's (|org-textobj|).
 function M.select_heading(inner)
-  local hl = current_headline()
-  if not hl then
-    return
-  end
-  if inner then
-    if hl.body_end <= hl.line then
-      return
-    end
-    select_lines(hl.line + 1, hl.body_end)
-  else
-    select_lines(hl.line, hl.body_end)
-  end
+  require("org.textobjects").select("heading", inner)
 end
 
 --- Visually select the current subtree, linewise (org-mark-subtree). A
@@ -211,18 +201,8 @@ function M.mark_subtree()
   select_lines(start, stop)
 end
 
---- Select the current subtree. `inner` excludes the headline.
+--- Select the current subtree. `inner` excludes the headline. A count
+--- selects an ancestor (|org-textobj|).
 function M.select_subtree(inner)
-  local hl = current_headline()
-  if not hl then
-    return
-  end
-  if inner then
-    if hl.end_line <= hl.line then
-      return
-    end
-    select_lines(hl.line + 1, hl.end_line)
-  else
-    select_lines(hl.line, hl.end_line)
-  end
+  require("org.textobjects").select("subtree", inner)
 end
