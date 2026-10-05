@@ -29,6 +29,10 @@ local defaults = {
     spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
     -- Milliseconds between spinner frames
     spinner_interval = 100,
+    -- While a block's program runs, show the last this many lines it has
+    -- printed as virtual lines below the block (no Emacs counterpart);
+    -- false or 0: nothing until the result
+    live_output = 10,
     -- Evaluate code when exporting (org-export-use-babel)
     evaluate_on_export = true,
     -- C-c C-c on a block does not evaluate it (org-babel-no-eval-on-ctrl-c-ctrl-c)

@@ -718,6 +718,12 @@
 ---@field spinner? string[]|false
 ---Milliseconds between spinner frames. (default: `100`)
 ---@field spinner_interval? integer
+---While a block's program runs in the background, show the last this many
+---lines of what it has printed (stdout and stderr) as virtual lines below
+---the block, under a header with the spinner and the seconds elapsed; the
+---result replaces them when the run ends. `false` or `0`: show nothing
+---until the result. (default: `10`)
+---@field live_output? integer|false
 ---Evaluate code blocks, `#+CALL` lines and inline code when exporting, like
 ---Emacs `org-export-use-babel`: `:exports results|both` blocks get fresh
 ---results in the exported copy (the buffer is not changed); each block is

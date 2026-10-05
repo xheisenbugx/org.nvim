@@ -367,7 +367,12 @@ local function run_steps(spec, cwd, sync, cb, job)
     -- its own process group, so a cancel kills the script's children too
     -- (jobs.kill_process)
     opts.detach = vim.fn.has("win32") == 0
+    -- what it prints shows below the block while it runs (babel.live_output)
+    local collected = jobs.stream(job, opts)
     local ok, proc = pcall(vim.system, argv(step), opts, function(obj)
+      if collected then
+        collected(obj)
+      end
       vim.schedule(function()
         if job and job.cancelled then
           -- killed on purpose: no error buffer, no result
