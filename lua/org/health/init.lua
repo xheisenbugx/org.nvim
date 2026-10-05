@@ -150,6 +150,11 @@ function M.check_agenda_index()
   elseif s.warming then
     parts[#parts + 1] = ("parsing in the background, %d files to go"):format(s.queued)
   end
+  if s.background then
+    parts[#parts + 1] = s.threads > 0 and ("%d worker threads"):format(s.threads)
+      or s.thread_error and "worker threads off after a failure"
+      or "no worker threads"
+  end
   if s.watchers > 0 or s.polled > 0 then
     parts[#parts + 1] = ("%d directories watched, %d polled"):format(s.watchers, s.polled)
   end

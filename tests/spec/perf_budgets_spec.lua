@@ -899,6 +899,46 @@ describe("perf: agenda index", function()
     end)
   end)
 
+  -- agenda.index.threads: the main loop finds each file's outline, the
+  -- workers parse the rest. 50 files of 300 headlines took 0.2 s on a
+  -- laptop with 2 workers, the main loop blocked for 12 ms at most (1.3 s
+  -- and 50 ms, a whole file's parse at a time, without them).
+  it("parses large agenda files on worker threads in budget, the main loop free", function()
+    index.reset()
+    os.remove(index.path())
+    files.invalidate()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local lines = gen.headlines(300)
+    for i = 1, 50 do
+      lines[1] = "#+TITLE: File " .. i
+      vim.fn.writefile(lines, ("%s/f%04d.org"):format(dir, i))
+    end
+    config.opts.agenda_files = { dir }
+    config.opts.agenda.index.background = true
+    config.opts.agenda.index.threads = 2
+    local before = index.status().threaded
+    -- the longest the main loop went without running a 1 ms timer
+    local max = 0
+    local timer = assert(vim.uv.new_timer())
+    budget("background parse of 50 large agenda files on 2 threads", 3000, function()
+      local last = vim.uv.hrtime()
+      timer:start(1, 1, function()
+        local t = vim.uv.hrtime()
+        max = math.max(max, (t - last) / 1e6)
+        last = t
+      end)
+      index.start()
+      ok(index.wait(60000))
+      timer:stop()
+    end)
+    timer:close()
+    eq(50, index.status().threaded - before)
+    report("longest main-loop block during it", max, (" (budget %d)"):format(100 * SCALE))
+    ok(max <= 100 * SCALE or not TIMED, ("the main loop was blocked for %.0f ms"):format(max))
+    vim.fn.delete(dir, "rf")
+  end)
+
   it("builds an agenda from the index in time linear in the number of files", function()
     linear("agenda week from the index", 25, week, function(n)
       indexed(n)

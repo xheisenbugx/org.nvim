@@ -501,6 +501,9 @@
 ---Parse the agenda files in the background from the first org buffer;
 ---false: when a view needs them (and add them to the index then). (default: `true`)
 ---@field background? boolean
+---Worker threads that parse agenda files in the background, off the main
+---loop; 0: parse them on the main loop, a slice at a time. (default: `2`)
+---@field threads? integer
 ---Watch the agenda files' directories to parse changed files early. (default: `true`)
 ---@field watch? boolean
 ---Directories watched at most; the others are polled. (default: `32`)

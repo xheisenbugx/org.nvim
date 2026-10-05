@@ -194,12 +194,14 @@ function M.run(data, job)
 end
 
 --- The function a worker runs (vim.uv.new_work dumps it: no upvalues).
---- `lua_dir` is the `lua` directory org.nvim is loaded from.
+--- `lua_dir` is the `lua` directory org.nvim is loaded from; `id` comes
+--- back with the result.
 ---@param lua_dir string
+---@param id integer
 ---@param data string
 ---@param job string
----@return boolean ok, string records or error
-function M.work(lua_dir, data, job)
+---@return boolean ok, integer id, string records or error
+function M.work(lua_dir, id, data, job)
   local ok, res = pcall(function()
     if _G.__org_index_lua_dir ~= lua_dir then
       package.path = lua_dir .. "/?.lua;" .. lua_dir .. "/?/init.lua;" .. package.path
@@ -207,7 +209,7 @@ function M.work(lua_dir, data, job)
     end
     return require("org.agenda.index.thread").run(data, job)
   end)
-  return ok, tostring(res)
+  return ok, id, tostring(res)
 end
 
 return M
