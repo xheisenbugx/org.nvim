@@ -172,6 +172,8 @@ local function defaults()
     OrgTableFormulaRef = { link = "Search" },
     OrgTableFormulaRefCursor = { link = "IncSearch" },
     OrgTableFormulaTarget = { link = "Visual" },
+    -- what a live preview of an :Org command changes ('inccommand')
+    OrgCommandPreview = { link = "Substitute" },
     OrgFootnote = { link = "Underlined" },
     -- citations (org-cite, org-cite-key; unknown keys get Emacs' `error` face)
     OrgCite = { link = "OrgLink" },
