@@ -274,7 +274,8 @@ stars alone is text, like in Emacs): >org
                 `#+index: `, and `<I` asks for a file to `#+include:`.
 
                                                        *org-promote-demote*
-<< / >>         (ctx) Promote / demote headline or list item. Count repeats.
+<< / >>         (ctx) Promote / demote headline or list item. Count repeats
+                (`3>>`: three levels, one undo step).
 <s / >s         (ctx) Promote / demote the whole subtree or item and its
                 children.
 <M-h> / <M-l>   (ctx) Promote / demote. In a table: move column.
@@ -393,7 +394,7 @@ p / P           Put (org-yank). When the register holds whole subtrees
 <C-c>:          Toggle fixed-width markup `: ` (org-toggle-fixed-width) on
                 the line or the Visual selection.
 
-Motions and text objects:                           *org-motions* *org-textobj*
+Motions and text objects:                                     *org-motions*
 ]] / [[         Next / previous visible headline.
 ][ / []         Next / previous sibling.
 g{              Parent headline.
@@ -424,8 +425,46 @@ gO              The headlines in the location list, indented by level,
                 buffers: Emacs's imenu index (org-imenu-depth). The text is
                 the headline's without TODO keyword, priority, COMMENT and
                 tags, links shown by their description (`:Org imenu`).
-ih / ah         Headline section without / with the headline line.
+
+Text objects                                                   *org-textobj*
+In Operator-pending and Visual mode (`dar`, `yie`, `vic`, `ci-`), like
+Vim's |text-objects|: "i" is the inner part, "a" adds the delimiters or
+surroundings. Each is a key under `mappings.text_objects` (`false` removes
+one, `text_objects = false` all).
+ih / ah         Headline section (up to the first child) without / with
+                the headline line.
 ir / ar         Subtree without / with the headline line.
+ie / ae         Element (|org-elements|): `ie` is the contents of a block
+                or drawer (between its begin and end lines), else the
+                element without affiliated keywords (`#+name:`, ...) and
+                blank lines after it; `ae` is the element with both.
+i- / a-         List item: `i-` is its text after the bullet and checkbox
+                up to its first child (charwise: `ci-` rewrites the text);
+                `a-` is the item with its children and the blank lines
+                before the next item (linewise).
+ic / ac         Table field: `ic` its text (the blanks of an empty
+                field); `ac` the field with its blanks and the separator
+                after it (before it for the last field), so `dac` removes
+                a field and leaves a table.
+iR / aR         Table row: `iR` between its first and last `|`; `aR` the
+                line (`3daR`: three rows).
+iC / aC         Table column, as a Visual block over every row (rules
+                included): `iC` the fields, `aC` with a separator like
+                `ac`, so `daC` deletes the column. The table must be
+                aligned (<C-c><C-c>, |org-tables|).
+iL / aL         Link: `iL` its description, or its target when it has
+                none; `aL` the whole link and the blanks after it (before
+                it at the end of a line), like |aw|.
+id / ad         Timestamp, a range `<...>--<...>` as one: `id` the text
+                inside its brackets, `ad` the timestamp and the blanks
+                after it.
+Links and timestamps are found under the cursor or, like |i"|, after it on
+the line. A count selects an ancestor for the objects that nest: `d2ar`
+deletes the parent subtree, `y2a-` copies the parent item, `2ae` is the
+block around the paragraph; typing the object again in Visual mode grows
+the selection to the enclosing one (`varar`, `vaeae`). Where there is no
+such object, nothing is selected and the operator is cancelled. "."
+repeats an operator with its text object (`dic` then `j.`).
 
 Elements                                                    *org-elements*
 Paragraphs, lists and items, blocks, drawers, tables, fixed-width areas,
@@ -6702,7 +6741,17 @@ reset_checkbox_state_subtree, the CLOCK shifts (<C-S-Up> / <C-S-Down>),
 inc_effort, babel_remove_result and the table row, column, hline and
 blank-field keys. Keys that prompt (set_tags, schedule, priority, ...) or
 insert text (insert_heading, ...) are not repeated; Emacs's own `C-x z`
-repeat is not bound.
+repeat is not bound. An operator with an org text object (|org-textobj|)
+is a Vim change, so "." repeats it too.
+
+A count on a key whose Emacs command takes a prefix argument keeps the
+Emacs meaning (`4cit`, `4<C-Space>`, ...). On the keys whose Emacs
+command takes none, a count repeats the edit, as one undo step:
+promote / demote of a list item (`3>>`, <M-h> <M-l> <M-H> <M-L>), moving
+a list item, table row or element (<M-k> <M-j>) and moving a table column
+(<M-h> <M-l>). Promote / demote and moving a subtree already take a
+count. A count past what can be done stops there (an item at the margin, a
+row at the table's end).
 
 Section `org` (default key: action):
   g?                               help
@@ -6979,8 +7028,11 @@ Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
   x        run keys in edit buffer
   <C-M-h>  select block body
 
-Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
-ir, around_subtree ar.
+Section `text_objects` (|org-textobj|): inner_heading ih, around_heading
+ah, inner_subtree ir, around_subtree ar, inner_element ie, around_element
+ae, inner_item i-, around_item a-, inner_cell ic, around_cell ac,
+inner_row iR, around_row aR, inner_column iC, around_column aC, inner_link
+iL, around_link aL, inner_timestamp id, around_timestamp ad.
 Section `agenda`: see |org-agenda|.
 Section `capture`: finalize, kill, refile.
 Section `edit_src`: save_exit, abort, send_to_session (<C-c><C-c>,

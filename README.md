@@ -445,7 +445,7 @@ searches it, and `{` / `}` jump between sections:
 
 | | Area | Highlights |
 | --- | --- | --- |
-| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` and `VISIBILITY` visibility, archived subtrees that stay folded, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
+| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` and `VISIBILITY` visibility, archived subtrees that stay folded, motions (`]]` `[[` `g{`), text objects (`dar`, `vic`, `ci-`, `daL`, ...), and `.` repeat |
 | ✂️ | **Structure editing** | A context-aware `M-RET`, promote and demote, move, cut/copy/paste/clone subtrees, sort, narrow, structure templates |
 | 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering, `TAB` on a new item to indent it |
 | ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, `LOGGING` / `LOG_INTO_DRAWER` properties, repeaters (`+1w`, `++1d`, `.+2d`, `REPEAT_TO_STATE`), `ORDERED` / `NOBLOCKING` dependencies, tag triggers, `#+TYP_TODO` type sequences, priorities |
@@ -661,7 +661,8 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>bz` `bZ` `bl` `bK` | Babel sessions: show session, show session + edit block, load block into session, kill session |
 | `<prefix>bC` | Babel: cancel the running block |
 | `]]` `[[` `][` `[]` `g{` `<prefix>.` | Next/prev heading, next/prev sibling, parent, pick heading |
-| `ih` `ah` `ir` `ar` | Text objects: heading section / subtree |
+| `ih` `ah` `ir` `ar` `ie` `ae` `i-` `a-` | Text objects: heading section / subtree / element (block, drawer, ...) / list item; a count picks an ancestor (`d2ar`) |
+| `ic` `ac` `iR` `aR` `iC` `aC` `iL` `aL` `id` `ad` | Text objects: table cell / row / column / link / timestamp (`dac`, `yiC`, `ciL`) |
 | `g?` | Show all keymaps |
 
 </details>
