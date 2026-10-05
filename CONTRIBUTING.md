@@ -72,15 +72,17 @@ To try your checkout in your own config, point lazy.nvim at it:
 | Path | Contents |
 | --- | --- |
 | `lua/org/` | core: `parser`, `date`, `edit`, `files`, `config`, `actions`, `context`, `mappings` |
-| `lua/org/{structure,fold,lists}.lua`, `lua/org/structure/`, `lua/org/fold/` | outline editing, folding and visibility cycling |
+| `lua/org/{structure,fold,lists}.lua`, `lua/org/structure/`, `lua/org/fold/`, `lua/org/lists/` | outline editing, folding and visibility cycling |
 | `lua/org/{todo,priority,tags,properties,timestamps,calendar,clock,dblock,columns,timer}.lua` | task management |
 | `lua/org/clock/` | the parts `clock.lua` loads: clocking in and out, clock tables, resolving, timers, display |
+| `lua/org/columns/` | the parts `columns.lua` loads: summaries, the columnview dynamic block, drawing, editing and opening the column view |
+| `lua/org/mobile.lua`, `lua/org/mobile/` | MobileOrg sync (`mobile.lua` holds MD5, file helpers and encryption and loads index, agenda, push, pull and flagged parts) |
 | `lua/org/agenda/` | agenda, search, sparse trees, notifications |
 | `lua/org/{capture,refile,archive,links,id,attach,footnotes}.lua`, `lua/org/capture/`, `lua/org/links/` | capture and navigation (links.lua is the facade; links/ holds parsing, search, opening, storing, inserting) |
 | `lua/org/table.lua`, `lua/org/table/` | tables and formulas (`table.lua` parses and aligns and loads the commands from `table/`) |
 | `lua/org/babel/` | source blocks |
-| `lua/org/export/` | exporters |
-| `syntax/`, `lua/org/{syntax,highlights}.lua`, `lua/org/ui/` | highlighting and decorations |
+| `lua/org/export/`, `lua/org/export/{ox,odt,element}/` | exporters (`ox.lua`, `odt.lua` and `element.lua`, the export parser, are facades that load their parts from `ox/`, `odt/` and `element/`) |
+| `syntax/`, `lua/org/{syntax,highlights}.lua`, `lua/org/ui/` | highlighting and decorations (`ui/images.lua` loads its parts from `ui/images/`) |
 | `tests/` | headless test runner and specs |
 
 Some things to know before you start:
@@ -194,7 +196,7 @@ usually the annotation, instead of silencing it.
 #### Strict paths
 
 The files and directories listed in `scripts/typecheck_strict.txt`
-(`lua/org/api/` and `lua/org/parser.lua` so far) are held to those hint
+(`lua/org/api/`, the parser and the core modules around it so far) are held to those hint
 checks too: in them, a `need-check-nil` or a `param-type-mismatch` fails
 `make typecheck` like any other warning, so code that is already clean
 can't slip back. `make typecheck` runs `scripts/typecheck.lua`, which does

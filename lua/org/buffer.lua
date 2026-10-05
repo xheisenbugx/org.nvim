@@ -105,6 +105,7 @@ function M.attach(bufnr)
   try("org.fold", "setup_buffer", bufnr)
   require("org.mappings").attach(bufnr)
   try("org.ui.decorations", "attach", bufnr)
+  try("org.ui.src_highlight", "attach", bufnr)
   try("org.cite", "attach", bufnr)
   try("org.table", "attach", bufnr)
   try("org.clock", "attach", bufnr)
@@ -151,11 +152,14 @@ function M.detach(bufnr)
     pcall(vim.api.nvim_del_augroup_by_name, group .. bufnr)
   end
   try("org.ui.decorations", "detach", bufnr)
+  try("org.ui.src_highlight", "detach", bufnr)
 end
 
 --- Re-read in-buffer settings (#+TODO etc.) and refresh syntax/folds.
 function M.refresh(bufnr)
   bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  -- (first: a parser installed since is found by the syntax below)
+  try("org.ui.src_highlight", "refresh", bufnr)
   vim.api.nvim_buf_call(bufnr, function()
     vim.cmd("syntax clear")
     vim.b.current_syntax = nil

@@ -701,6 +701,107 @@ describe("perf: 100,000 lines", function()
   end)
 end)
 
+-- Src blocks drawn with tree-sitter (ui.src_highlight_engine "auto", the
+-- bundled lua parser) and, to compare, with the lua syntax included. On a
+-- laptop (Neovim 0.13-dev), tree-sitter / syntax: 1,000 blocks of 20 lines
+-- open in 0.1 s with either and are gone through a screen at a time in
+-- 0.4 s / 1.6 s; a 10,000-line block opens in 0.14 s / 0.07 s, its middle
+-- draws in 17 ms / 360 ms, and a character typed in it takes 35 ms / 13 ms
+-- (tree-sitter parses the block again from the tree it had); in a
+-- 1,000-line block, parsed whole with its injected languages, 19 ms / 5 ms.
+describe("perf: src blocks", function()
+  setup()
+  local ui = config.opts.ui
+  local saved_engine, saved_rtp
+  before_each(function()
+    saved_engine, saved_rtp = ui.src_highlight_engine, vim.o.runtimepath
+    local lib = vim.fs.normalize(vim.env.VIMRUNTIME .. "/../../../lib/nvim")
+    if vim.uv.fs_stat(lib .. "/parser") then
+      vim.opt.runtimepath:append(lib)
+    end
+  end)
+  after_each(function()
+    ui.src_highlight_engine, vim.o.runtimepath = saved_engine, saved_rtp
+  end)
+
+  for _, engine in ipairs({ "auto", "syntax" }) do
+    it(engine .. ": 1,000 blocks and a 10,000-line block in budget", function()
+      ui.src_highlight_engine = engine
+      local label = engine == "auto" and "tree-sitter" or "syntax"
+      local lines = gen.src_blocks(1000, 20)
+      budget(label .. ": open 1,000 src blocks", 3000, function()
+        open(lines)
+      end)
+      budget(label .. ": draw 1,000 src blocks a screen at a time", 10000, function()
+        for l = 1, #lines, 40 do
+          vim.api.nvim_win_set_cursor(0, { l, 0 })
+          vim.cmd("normal! zt")
+          vim.cmd("redraw")
+        end
+      end)
+      vim.api.nvim_win_set_cursor(0, { 12000, 0 })
+      budget(label .. ": type 10 chars among 1,000 src blocks", 1500, function()
+        for _ = 1, 10 do
+          vim.cmd("normal! ix")
+          vim.cmd("redraw")
+        end
+      end)
+      vim.cmd("silent! %bwipeout!")
+      budget(label .. ": open a 10,000-line src block", 2000, function()
+        open(gen.src_blocks(1, 10000))
+      end)
+      vim.api.nvim_win_set_cursor(0, { 5000, 0 })
+      budget(label .. ": draw the middle of a 10,000-line src block", 3000, function()
+        vim.cmd("normal! zz")
+        vim.cmd("redraw!")
+      end)
+      budget(label .. ": type 10 chars in a 10,000-line src block", 4000, function()
+        for _ = 1, 10 do
+          vim.cmd("normal! ix")
+          vim.cmd("redraw")
+        end
+      end)
+      if engine == "auto" then
+        local ts = require("org.ui.src_highlight")
+        ok(ts.highlights_at(0, 4999)[1] ~= nil, "no tree-sitter highlights")
+      end
+      -- (up to inject_max lines, a block is parsed whole with its injections)
+      vim.cmd("silent! %bwipeout!")
+      open(gen.src_blocks(1, 1000))
+      vim.api.nvim_win_set_cursor(0, { 500, 0 })
+      budget(label .. ": type 10 chars in a 1,000-line src block", 3000, function()
+        for _ = 1, 10 do
+          vim.cmd("normal! ix")
+          vim.cmd("redraw")
+        end
+      end)
+    end)
+  end
+
+  it("tree-sitter: drawing a block grows linearly with its lines", function()
+    -- (the highlights of a row in the middle, as the first row drawn: the
+    -- block found, read and parsed; not the redraw, whose syntax syncing
+    -- in a long region is the same with either engine)
+    local ts = require("org.ui.src_highlight")
+    local parses
+    -- (the slower way: with the injected languages, at any size)
+    local inject_max = ts.inject_max
+    ts.inject_max = math.huge
+    linear("tree-sitter: find, parse and highlight a src block", 2000, function(buf)
+      ok(ts.highlights_at(buf, math.floor(vim.api.nvim_buf_line_count(buf) / 2))[1] ~= nil)
+    end, function(n)
+      vim.cmd("silent! %bwipeout!")
+      -- (opened as a file: its languages are known)
+      local buf = open(gen.src_blocks(1, n))
+      ts.refresh(buf)
+      parses = ts.parses
+      return buf
+    end)
+    ts.inject_max = inject_max
+    eq(parses + 1, ts.parses)
+  end)
+end)
+
 describe("perf: links and footnotes", function()
   setup()
   it("export and lint grow linearly", function()
@@ -713,6 +814,135 @@ describe("perf: links and footnotes", function()
     end, function(n)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.links_footnotes(n))
     end)
+  end)
+end)
+
+-- Many agenda files (:h org-agenda-index): a first agenda view built from
+-- the index on disk (the files read, their outline found, the rest filled
+-- in), the background parse of them all, and a view after it. Without the
+-- index, 2,000 files of 20 headlines took 1.1 s to the first week view on a
+-- laptop; from the index 0.7 s, after the background parse 0.4 s.
+describe("perf: agenda index", function()
+  setup()
+  local files = require("org.files")
+  local index = require("org.agenda.index")
+  local dirs = {}
+  local saved_files, saved_index
+
+  --- A directory of `n` agenda files of 20 headlines each.
+  local function dir_of(n)
+    if not dirs[n] then
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      local lines = gen.headlines(20)
+      for i = 1, n do
+        lines[1] = "#+TITLE: File " .. i
+        vim.fn.writefile(lines, ("%s/f%04d.org"):format(dir, i))
+      end
+      dirs[n] = dir
+    end
+    return dirs[n]
+  end
+
+  --- The agenda files are the `n` files, indexed (on disk), and parsed
+  --- neither in memory nor in the index's memory: a new session.
+  local function indexed(n)
+    index.reset()
+    os.remove(index.path())
+    files.invalidate()
+    config.opts.agenda_files = { dir_of(n) }
+    files.agenda_files()
+    index.flush()
+    index.reset()
+    files.invalidate()
+  end
+
+  local anchor = require("org.date").parse("<2026-05-13 Wed>"):days()
+  local function week()
+    require("org.agenda").open({ type = "agenda" }, { span = "week", anchor = anchor })
+  end
+
+  before_each(function()
+    saved_files = config.opts.agenda_files
+    saved_index = config.opts.agenda.index
+    config.opts.agenda.index = vim.tbl_extend("force", saved_index, { background = false, watch = false })
+  end)
+  after_each(function()
+    index.reset()
+    config.opts.agenda_files = saved_files
+    config.opts.agenda.index = saved_index
+    files.invalidate()
+  end)
+
+  it("builds the first agenda over 300 files from the index in budget", function()
+    indexed(300)
+    budget("agenda week over 300 indexed files", 1500, function()
+      week()
+      vim.cmd("redraw")
+    end)
+    ok(index.status().hits >= 300)
+  end)
+
+  it("parses 300 agenda files in the background in budget, then views them in budget", function()
+    index.reset()
+    os.remove(index.path())
+    files.invalidate()
+    config.opts.agenda_files = { dir_of(300) }
+    config.opts.agenda.index.background = true
+    budget("background parse of 300 agenda files", 5000, function()
+      index.start()
+      ok(index.wait(60000))
+    end)
+    budget("agenda week over 300 files parsed in the background", 1500, function()
+      week()
+      vim.cmd("redraw")
+    end)
+  end)
+
+  -- agenda.index.threads: the main loop finds each file's outline, the
+  -- workers parse the rest. 50 files of 300 headlines took 0.2 s on a
+  -- laptop with 2 workers, the main loop blocked for 12 ms at most (1.3 s
+  -- and 50 ms, a whole file's parse at a time, without them).
+  it("parses large agenda files on worker threads in budget, the main loop free", function()
+    index.reset()
+    os.remove(index.path())
+    files.invalidate()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local lines = gen.headlines(300)
+    for i = 1, 50 do
+      lines[1] = "#+TITLE: File " .. i
+      vim.fn.writefile(lines, ("%s/f%04d.org"):format(dir, i))
+    end
+    config.opts.agenda_files = { dir }
+    config.opts.agenda.index.background = true
+    config.opts.agenda.index.threads = 2
+    local before = index.status().threaded
+    -- the longest the main loop went without running a 1 ms timer
+    local max = 0
+    local timer = assert(vim.uv.new_timer())
+    budget("background parse of 50 large agenda files on 2 threads", 3000, function()
+      local last = vim.uv.hrtime()
+      timer:start(1, 1, function()
+        local t = vim.uv.hrtime()
+        max = math.max(max, (t - last) / 1e6)
+        last = t
+      end)
+      index.start()
+      ok(index.wait(60000))
+      timer:stop()
+    end)
+    timer:close()
+    eq(50, index.status().threaded - before)
+    report("longest main-loop block during it", max, (" (budget %d)"):format(100 * SCALE))
+    ok(max <= 100 * SCALE or not TIMED, ("the main loop was blocked for %.0f ms"):format(max))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("builds an agenda from the index in time linear in the number of files", function()
+    linear("agenda week from the index", 25, week, function(n)
+      indexed(n)
+    end, 1600)
   end)
 end)
 

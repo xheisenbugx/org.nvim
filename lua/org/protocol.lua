@@ -93,7 +93,12 @@ end
 --- org-protocol://capture?template=KEY&url=URL&title=TITLE&body=TEXT:
 --- capture with the template (default `protocol.default_template_key`);
 --- `%a` / `%:link` / `%:description` / `%i` / `%:<key>` come from the URL.
-function M.capture(params)
+--- `opts.run(key, initial)` captures instead of the capture window (the
+--- `org protocol` command line stores it at once); it returns a result
+--- (nil when nothing was captured) and `capture` returns it.
+---@param params table
+---@param opts? { run?: fun(key: string|nil, initial: string): any }
+function M.capture(params, opts)
   local url = params.url and M.sanitize_uri(params.url) or nil
   local title = params.title or ""
   local orglink = url and require("org.links").format(url, title ~= "" and title or url) or title
@@ -117,7 +122,14 @@ function M.capture(params)
   }
   local key = params.template or cfg().default_template_key
   local ok, err
-  if key and key ~= "" then
+  if opts and opts.run then
+    ok, err = pcall(opts.run, key ~= "" and key or nil, params.body or "")
+    capture.link_store_props = nil
+    if not ok then
+      error(err, 0)
+    end
+    return err
+  elseif key and key ~= "" then
     ok, err = pcall(utils.run, capture.capture, key, { initial = params.body })
   else
     ok, err = pcall(utils.run, capture.prompt, { initial = params.body })
@@ -260,15 +272,16 @@ local DEFAULT_HANDLERS = {
   { name = "org-open-source", protocol = "open-source", fn = M.open_source, order = { "url" } },
 }
 
---- Handle an `org-protocol://SUB?key=val&...` URL (or the old
---- `org-protocol://SUB://a/b` form). Returns the handler's result, or nil
---- when the URL is not an org-protocol URL (org-protocol-check-filename-for-protocol).
+--- The handler of an org-protocol URL and its parameters, or nil and a
+--- message (not an org-protocol URL, no handler for it). The handler is
+--- a `protocol.handlers` entry; `name` is "org-capture",
+--- "org-store-link" or "org-open-source" for the built-in ones.
 ---@param url string
-function M.handle(url)
+---@return table|nil handler, table|string params
+function M.parse(url)
   local rest = url:match("org%-protocol:/+(.*)$")
   if not rest then
-    utils.warn("Not an org-protocol URL: " .. url)
-    return nil
+    return nil, "Not an org-protocol URL: " .. url
   end
   local handlers = vim.deepcopy(cfg().handlers or {})
   local names = vim.tbl_keys(M.extension_handlers)
@@ -300,11 +313,23 @@ function M.handle(url)
         end
         params = M.parse_old_style(data, order)
       end
-      return h.fn(params)
+      return h, params
     end
   end
-  utils.warn("No org-protocol handler for: " .. url)
-  return nil
+  return nil, "No org-protocol handler for: " .. url
+end
+
+--- Handle an `org-protocol://SUB?key=val&...` URL (or the old
+--- `org-protocol://SUB://a/b` form). Returns the handler's result, or nil
+--- when the URL is not an org-protocol URL (org-protocol-check-filename-for-protocol).
+---@param url string
+function M.handle(url)
+  local h, params = M.parse(url)
+  if not h then
+    utils.warn(tostring(params))
+    return nil
+  end
+  return h.fn(params)
 end
 
 return M

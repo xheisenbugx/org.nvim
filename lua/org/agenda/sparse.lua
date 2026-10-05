@@ -154,26 +154,155 @@ local function occur_case_fold(pattern)
   return opt ~= false
 end
 
---- Regexp (Vim regex) occurrences.
-function M.regexp(pattern)
+--- The regexp a sparse-tree search for `pattern` uses, or nil when it
+--- is not a valid Vim regexp.
+local function occur_regex(pattern)
   local re_pattern = pattern
   if not pattern:find("\\[cC]") then
     re_pattern = (occur_case_fold(pattern) and "\\c" or "\\C") .. pattern
   end
   local ok, re = pcall(vim.regex, re_pattern)
-  if not ok then
-    utils.error("Invalid regexp: " .. pattern)
-    return
-  end
+  return ok and re or nil
+end
+
+--- The first match of `re` in each line of `lines`: { lnum, col, end_col }.
+--- With `budget` (nanoseconds), stops looking when it runs out.
+local function occurrences(re, lines, budget)
   local out = {}
-  for i, line in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+  local deadline = budget and (vim.uv.hrtime() + budget)
+  for i, line in ipairs(lines) do
     local s, e = re:match_str(line)
     if s then
       out[#out + 1] = { lnum = i, col = s + 1, end_col = e }
     end
+    if deadline and i % 256 == 0 and vim.uv.hrtime() > deadline then
+      break
+    end
   end
+  return out
+end
+
+--- Regexp (Vim regex) occurrences.
+function M.regexp(pattern)
+  local re = occur_regex(pattern)
+  if not re then
+    utils.error("Invalid regexp: " .. pattern)
+    return
+  end
+  local out = occurrences(re, vim.api.nvim_buf_get_lines(0, 0, -1, false))
   M.show(out, "/" .. pattern .. "/")
   return out
+end
+
+--- `:Org occur [REGEXP]`: the sparse tree of REGEXP (org-occur, `C-c / /`);
+--- without one, ask for it.
+function M.occur_command(pattern)
+  if not utils.ensure_org() then
+    return
+  end
+  if pattern == nil or pattern == "" then
+    pattern = utils.input({ prompt = "Regexp: " })
+    if not pattern or pattern == "" then
+      return
+    end
+  end
+  return M.regexp(pattern)
+end
+
+--- `:Org tags_sparse_tree [MATCH]`: the sparse tree of a tags/property
+--- match (org-match-sparse-tree); without one, ask for it (`C-c \`).
+function M.tags_tree_command(match)
+  if match == nil or match == "" then
+    return M.tags_tree()
+  end
+  if not utils.ensure_org() then
+    return
+  end
+  return M.match(match)
+end
+
+---------------------------------------------------------------------------
+-- Live previews of :Org occur and :Org tags_sparse_tree ('inccommand')
+---------------------------------------------------------------------------
+
+--- How long a preview may look for matches, in nanoseconds.
+M.preview_budget = 50 * 1e6
+
+--- Highlight `matches` ({ lnum, col?, end_col? }) of the current buffer in
+--- the preview namespace and, with `pbuf` ('inccommand' "split"), list
+--- their lines there like |:s| does: `|lnum| text`.
+local function preview_matches(matches, ns, pbuf)
+  require("org.highlights").ensure()
+  require("org.agenda.highlights").setup()
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local out = {}
+  for _, m in ipairs(matches) do
+    local line = lines[m.lnum] or ""
+    local s = m.col and (m.col - 1) or 0
+    local e = m.col and math.min(m.end_col or #line, #line) or #line
+    vim.api.nvim_buf_set_extmark(0, ns, m.lnum - 1, s, { end_col = e, hl_group = "OrgSparseMatch", priority = 150 })
+    if pbuf then
+      local prefix = "|" .. m.lnum .. "| "
+      out[#out + 1] = { prefix .. line, #prefix + s, #prefix + e }
+    end
+  end
+  if not pbuf or #out == 0 then
+    return #matches > 0 and 1 or 0
+  end
+  vim.api.nvim_buf_set_lines(
+    pbuf,
+    0,
+    -1,
+    false,
+    vim.tbl_map(function(o)
+      return o[1]
+    end, out)
+  )
+  for i, o in ipairs(out) do
+    vim.api.nvim_buf_set_extmark(pbuf, ns, i - 1, o[2], { end_col = o[3], hl_group = "OrgSparseMatch" })
+  end
+  return 2
+end
+
+--- Live preview of `:Org occur REGEXP` (|:command-preview|): highlights
+--- the first match in each line as you type. Nothing is folded until the
+--- command runs.
+---@return integer
+function M.occur_preview(pattern, ns, pbuf)
+  if pattern == nil or pattern == "" or vim.bo.filetype ~= "org" then
+    return 0
+  end
+  local re = occur_regex(pattern)
+  if not re then
+    return 0
+  end
+  local matches = occurrences(re, vim.api.nvim_buf_get_lines(0, 0, -1, false), M.preview_budget)
+  return preview_matches(matches, ns, pbuf)
+end
+
+--- Live preview of `:Org tags_sparse_tree MATCH`: highlights the
+--- headlines MATCH selects. A match that does not parse yet shows nothing.
+---@return integer
+function M.match_preview(match, ns, pbuf)
+  if match == nil or match == "" or vim.bo.filetype ~= "org" then
+    return 0
+  end
+  local pred = require("org.agenda.search").try_compile(match)
+  if not pred then
+    return 0
+  end
+  local out = {}
+  local deadline = vim.uv.hrtime() + M.preview_budget
+  for i, hl in ipairs(files.get_buffer(0).headlines) do
+    local ok, yes = pcall(pred, hl)
+    if ok and yes then
+      out[#out + 1] = { lnum = hl.line }
+    end
+    if i % 256 == 0 and vim.uv.hrtime() > deadline then
+      break
+    end
+  end
+  return preview_matches(out, ns, pbuf)
 end
 
 --- The date types of the before/after/range sparse trees, in the order `c`

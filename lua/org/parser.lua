@@ -110,6 +110,34 @@ function Headline.__newindex(hl, key, value)
   rawset(hl, key, value)
 end
 
+--- The fields a parse leaves to be parsed on first use, the headline
+--- line's parts and the section's (what the agenda index stores).
+M.LAZY_FIELDS = vim.list_extend(vim.tbl_keys(HEAD_FIELDS), vim.tbl_keys(SECTION_FIELDS))
+table.sort(M.LAZY_FIELDS)
+
+--- Parse what is still left to parse in `hl` (its LAZY_FIELDS) now.
+---@param hl org.Headline
+function M.load_all(hl)
+  if rawget(hl, "_lazy_head") then
+    load_head(hl)
+  end
+  if rawget(hl, "_lazy_section") then
+    load_section(hl)
+  end
+end
+
+--- Set the LAZY_FIELDS of `hl` from `fields` (what `load_all` would set,
+--- saved from an earlier parse of the same text) instead of parsing them.
+---@param hl org.Headline
+---@param fields table<string, any>
+function M.restore(hl, fields)
+  for _, key in ipairs(M.LAZY_FIELDS) do
+    rawset(hl, key, fields[key])
+  end
+  rawset(hl, "_lazy_head", nil)
+  rawset(hl, "_lazy_section", nil)
+end
+
 ---@class org.File
 ---@field filename string|nil
 ---@field lines string[]

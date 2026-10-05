@@ -66,6 +66,12 @@ M.FLAGS = {
   { key = "verbose", names = { "-v", "--verbose" }, global = true, desc = "also org.nvim's messages on stderr" },
   { key = "help", names = { "-h", "--help" }, global = true, desc = "usage" },
   { key = "version", names = { "--version" }, global = true, desc = "the org.nvim version" },
+  {
+    key = "no_server",
+    names = { "--no-server" },
+    global = true,
+    desc = "run here even when a Neovim session server listens (remote.enabled)",
+  },
   { key = "date", names = { "--date" }, value = "DATE", desc = "start date (2026-10-01, +1, fri, ...)" },
   { key = "span", names = { "--span" }, value = "N", desc = "days shown, or day/week/month/year" },
   { key = "csv", names = { "--csv" }, desc = "CSV output (org-batch-agenda-csv)" },
@@ -436,6 +442,16 @@ M.COMMANDS = {
       id = NS,
       headline = nullable(ref("Headline")),
     }),
+  },
+  {
+    name = "protocol",
+    summary = "Handle an org-protocol:// URL: in the running Neovim, else a capture is stored at once",
+    args = {
+      { name = "url", required = true, rest = true, desc = "org-protocol://capture?..., store-link, open-source" },
+    },
+    flags = { "field", "force" },
+    writes = true,
+    output = obj({ url = S, protocol = S, session = B, file = NS, line = NI }),
   },
   {
     name = "set todo",

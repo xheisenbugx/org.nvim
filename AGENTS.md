@@ -44,7 +44,8 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
   checks the code isn't annotated well enough for yet (`need-check-nil`,
   `param-type-mismatch`, `undefined-field`, ...) are demoted to hints,
   except in the paths listed in `scripts/typecheck_strict.txt`
-  (`lua/org/api/`, `lua/org/parser.lua`), where they fail it too. Fix a
+  (`lua/org/api/`, `parser.lua`, `element.lua`, `files.lua`, `date.lua`,
+  `timestamps.lua`), where they fail it too. Fix a
   new warning (usually a wrong `---@param`/`---@return`, or a missing nil
   check) rather than silencing it. To make a module strict, add its path
   as one line there and fix what `make typecheck` reports; never remove
@@ -63,9 +64,17 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `lua/org/fold.lua`, `fold/` | fold levels (`foldexpr` and its cache, a hot path) in `fold.lua`; visibility cycling and commands in `fold/` |
 | `lua/org/structure.lua`, `structure/` | outline editing: shared helpers in the facade; heading insertion, templates, promote/demote, moves, kill ring and clone, sorting, narrowing, toggles, motions in the parts |
 | `lua/org/links.lua`, `links/` | hyperlinks: the facade, and parse / search / open / shell / store / insert / commands parts |
+| `lua/org/lists.lua`, `lists/` | plain lists: the item parser (a hot path) and shared helpers in the facade; list structures, statistics cookies, checkboxes, item editing, motions, bullets and conversions in the parts |
+| `lua/org/ui/images.lua`, `ui/images/` | image and LaTeX previews: options, cell size and image files in the facade; element scan, image links, LaTeX rendering, backends, previews, native placement (redrawn every frame, a hot path) and commands in the parts |
+| `lua/org/columns.lua`, `columns/` | column view: the format parser and property values in the facade; summaries, the columnview dynamic block, drawing, editing and opening the view in the parts |
+| `lua/org/mobile.lua`, `mobile/` | MobileOrg sync: MD5, file helpers and encryption in the facade; index.org, agendas.org, push, pull edits, applying the inbox and flagged entries in the parts |
+| `lua/org/export/element.lua`, `export/element/` | the export parser (port of org-element): node and text helpers in the facade; line classification, parser state, blocks, element parsers, lists, markup, links, objects, document and tree helpers in the parts |
+| `lua/org/export/odt.lua`, `export/odt/` | ODT export: constants, per-export state and encoding in the facade; headlines, labels, media, LaTeX, source code, timestamps, transcoders, tables, template, back-end, packaging, conversion in the parts |
 | `lua/org/api/` | the public Lua API (`:h org-api`); everything else is internal |
 | `lua/org/pickers/` | picker sources and the snacks / fzf-lua / telescope / mini.pick / `vim.ui.select` adapters |
 | `lua/org/extensions/` | optional extensions, each enabled under `extensions` in `setup()` |
+| `lua/org/symbols.lua`, `lua/org/integrations/` | the outline as document symbols, and the aerial.nvim / outline.nvim providers built on it |
+| `lua/aerial/`, `lua/outline/`, `lua/telescope/` | one-line shims those plugins `require` by name; they load only when the plugin is installed |
 | `lua/org/_meta/` | LuaLS type annotations for `setup()` options (no runtime code) |
 | `plugin/`, `ftplugin/`, `syntax/` | Vim runtime files |
 | `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags |

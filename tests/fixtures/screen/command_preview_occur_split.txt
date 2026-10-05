@@ -1,0 +1,16 @@
+screen 60x10
+|{1:* Alpha}|
+|{2:                                                            }|
+||2| Some {3:pears}.|
+||4| Apples and {3:pears}.|
+||
+||
+||
+||
+||
+|{4::Org occur pears}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} StatusLine
+{3} Search
+{4} MsgArea

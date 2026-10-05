@@ -1,5 +1,5 @@
--- Options: Encryption, org-protocol, pasting files, tags-file links, feeds,
--- timers and the mouse.
+-- Options: Encryption, org-protocol, the session server, pasting files,
+-- tags-file links, feeds, timers and the mouse.
 --
 -- One part of `require("org.config").defaults`, merged in the order of
 -- `M.parts` in lua/org/config/init.lua. Keys keep the indentation of the
@@ -47,6 +47,21 @@ local defaults = {
     --- Vim regex splitting the data of old-style URLs
     --- (`org-protocol://sub://a/b/c`) (org-protocol-data-separator).
     data_separator = [[/\+\|?]],
+  },
+
+  ---------------------------------------------------------------------------
+  -- The session server (see `:h org-remote`)
+  ---------------------------------------------------------------------------
+  remote = {
+    --- Make the first Neovim that sets org up listen on `address`, where
+    --- the `org` command line, `org protocol` URLs and
+    --- `api.remote.call()` send their requests: they then edit that
+    --- Neovim's buffers instead of the files behind its back.
+    enabled = false,
+    --- Its address (a socket path, or a named pipe on Windows); nil =
+    --- `org.nvim.sock` in the per-user runtime directory.
+    --- $ORG_NVIM_SERVER overrides it ("none" turns the server off).
+    address = nil,
   },
 
   ---------------------------------------------------------------------------

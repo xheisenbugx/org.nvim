@@ -181,6 +181,32 @@ describe("screen snapshot", function()
     screen:expect("blocks")
   end)
 
+  it("source blocks highlighted with tree-sitter", function()
+    new()
+    -- the parsers bundled with Neovim (lib/nvim/parser), which the child's
+    -- runtimepath leaves out
+    screen:lua([[
+      local dir = vim.fs.normalize(vim.env.VIMRUNTIME .. "/../../../lib/nvim")
+      if vim.uv.fs_stat(dir .. "/parser") then
+        vim.opt.runtimepath:append(dir)
+      end
+    ]])
+    screen:org({
+      "* Code",
+      "#+begin_src lua :results output",
+      'local x = "string" -- comment',
+      "print(x)",
+      "#+end_src",
+      "#+begin_src vim",
+      "let g:done = 1",
+      "#+end_src",
+      "#+begin_src c",
+      "int main(void) { return 0; }",
+      "#+end_src",
+    })
+    screen:expect("blocks_treesitter")
+  end)
+
   it("timestamps, planning and clocks", function()
     new()
     screen:org({
@@ -279,6 +305,59 @@ describe("screen snapshot", function()
     screen:input("<C-c><C-q>")
     screen:request("nvim_eval", "1")
     screen:expect("fast_tag_selection")
+    screen:input("<Esc>")
+  end)
+
+  it("a running src block: placeholder result and spinner", function()
+    skip_on_windows("the block runs sh")
+    -- one frame, and no redraw that could add the elapsed seconds
+    new({ babel = { confirm_evaluate = false, async = true, spinner = { "*" }, spinner_interval = 600000 } }, 60, 8)
+    screen:org({ "* Build", "#+begin_src sh :results output", "sleep 30; echo done", "#+end_src" })
+    screen:lua([[
+      require("org.babel").execute({ bufnr = 0, lnum = 2 })
+      -- the placeholder id is random: show a fixed one
+      vim.api.nvim_buf_set_lines(0, 6, 7, false, { ": 00000000-0000-4000-8000-000000000000" })
+    ]])
+    screen:expect("babel_running")
+    screen:lua([[require("org.babel.jobs").cancel_all({ quiet = true })]])
+  end)
+
+  it("a running src block: its output so far below it", function()
+    skip_on_windows("the block runs sh")
+    -- no spinner timer: the header redraws only for output, within a second
+    new({ babel = { confirm_evaluate = false, spinner = { "*" }, spinner_interval = 600000, live_output = 3 } }, 60, 12)
+    screen:org({
+      "* Build",
+      "#+begin_src sh :results output",
+      "for i in 1 2 3 4; do echo step $i; done; sleep 30",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": previous",
+    })
+    screen:lua([[
+      local jobs = require("org.babel.jobs")
+      require("org.babel").execute({ bufnr = 0, lnum = 2 })
+      vim.wait(5000, function()
+        local m = vim.api.nvim_buf_get_extmarks(0, jobs.live_ns, 0, -1, { details = true })[1]
+        return m and m[4].virt_lines and #m[4].virt_lines == 4 and m[4].virt_lines[4][2][1] == "step 4"
+      end, 10)
+    ]])
+    screen:expect("babel_live_output")
+    screen:lua([[require("org.babel.jobs").cancel_all({ quiet = true })]])
+  end)
+
+  it("the live preview of :Org table_formula and :Org occur ('inccommand')", function()
+    new(nil, 60, 10)
+    screen:org({ "| a | b | c |", "|---+---+---|", "| 1 | 2 |   |", "| 3 | 4 |   |" }, { cursor = { 3, 10 } })
+    screen:cmd("set inccommand=nosplit")
+    screen:input(":Org table_formula $1*$2")
+    screen:expect("command_preview_formula")
+    screen:input("<Esc>")
+    screen:org({ "* Alpha", "Some pears.", "* Beta", "Apples and pears." })
+    screen:cmd("set inccommand=split")
+    screen:input(":Org occur pears")
+    screen:expect("command_preview_occur_split")
     screen:input("<Esc>")
   end)
 

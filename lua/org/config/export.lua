@@ -500,6 +500,10 @@ local defaults = {
       convert_process = "LibreOffice", -- org-odt-convert-process
       convert_processes = nil, -- org-odt-convert-processes ({ { name, cmd }, ... }; nil = Emacs list)
       convert_capabilities = nil, -- org-odt-convert-capabilities (nil = Emacs list)
+      --- Convert to preferred_output_format in the background with
+      --- vim.system (plugin option; Emacs blocks unless the export is
+      --- asynchronous).
+      async_convert = true,
     },
     --- Legacy alias of ascii.text_width (org-ascii-text-width).
     text_width = 72,

@@ -101,6 +101,24 @@ local function debug_step(trace)
   return go_on
 end
 
+--- The context `formula.apply` evaluates the formulas of the table at
+--- line `lnum` of `bufnr` in: remote tables, constants, `$PROP_`
+--- properties and the formula debugger (left out with `no_debug`).
+local function formula_ctx(bufnr, lnum, no_debug)
+  return {
+    bufnr = bufnr,
+    get_table = function(name)
+      return M.find_named_table(bufnr, name)
+    end,
+    constants = formula_constants(bufnr),
+    property = function(name)
+      local hl = require("org.files").get_buffer(bufnr):headline_at(lnum)
+      return hl and hl:get_property(name, true)
+    end,
+    debug = (M.formula_debug and not no_debug) and debug_step or nil,
+  }
+end
+
 --- Recalculate the table at the cursor (or at `lnum`) with its first
 --- #+TBLFM line. Options: `line` recalculates only the column formulas of
 --- that buffer line (Emacs C-c * without prefix; field formulas always
@@ -211,19 +229,9 @@ function M.recalc_lines(bufnr, lines, tblfm, lnum, opts)
   pad_rows(t)
   if tblfm ~= "" then
     local formula = require("org.table.formula")
-    local ok, err = pcall(formula.apply, t, formula.parse_tblfm(tblfm), {
-      bufnr = bufnr,
-      row = opts.row or (opts.only_row and 0) or nil,
-      get_table = function(name)
-        return M.find_named_table(bufnr, name)
-      end,
-      constants = formula_constants(bufnr),
-      property = function(name)
-        local hl = require("org.files").get_buffer(bufnr):headline_at(lnum)
-        return hl and hl:get_property(name, true)
-      end,
-      debug = M.formula_debug and debug_step or nil,
-    })
+    local ctx = formula_ctx(bufnr, lnum)
+    ctx.row = opts.row or (opts.only_row and 0) or nil
+    local ok, err = pcall(formula.apply, t, formula.parse_tblfm(tblfm), ctx)
     if not ok then
       if err ~= "Abort" then
         utils.error("Table formula error: " .. tostring(err))
@@ -909,6 +917,181 @@ function M.recalc_buffer(bufnr)
     end
   end
   utils.warn("Table formulas did not converge after 10 iterations")
+end
+
+---------------------------------------------------------------------------
+-- :Org table_formula FORMULA, and its live preview ('inccommand')
+---------------------------------------------------------------------------
+
+--- Tables with more fields than this get no live preview.
+M.preview_max_fields = 20000
+
+--- What `:Org table_formula ARG` does at the cursor, computed but not
+--- written: the formulas to store and the table recalculated with them.
+--- `ARG` is the right side of the current column's formula, or
+--- `LHS=RHS` with its own target (`$3=...`, `@2$3=...`, `$name=...`); a
+--- leading `=` is dropped and an empty right side removes the formula.
+--- Returns nil and a message when it does not apply. With `preview`, a
+--- huge table gives nil, nothing asks or reports, and no debugger runs.
+local function formula_plan(arg, preview)
+  local info, row, field = current_field()
+  if not info then
+    return nil, "Not in a table"
+  end
+  local t = info.tbl
+  if t.rows[row].hline then
+    return nil, "Not in a table data field"
+  end
+  if preview and #t.rows * math.max(t.ncols, 1) > M.preview_max_fields then
+    return nil
+  end
+  local s = formula_from_user((vim.trim(arg or ""):gsub("^=%s*", "")))
+  local lhs, rhs = s:match("^([@%$][%w_<>%$@%-%+%.]*)%s*=(.*)$")
+  if not lhs or rhs:sub(1, 1) == "=" then
+    lhs, rhs = "$" .. field, s
+  end
+  rhs = vim.trim(rhs)
+  local parts = formula_parts(0, info)
+  local idx = find_formula(parts, lhs)
+  local plan = { info = info, row = row, field = field, parts = parts, lhs = lhs, old = t, errors = {} }
+  if rhs == "" then
+    if idx then
+      table.remove(parts, idx)
+    end
+    plan.removed = true
+    return plan
+  end
+  parts[idx or (#parts + 1)] = lhs .. "=" .. rhs
+  if lhs == "$" .. field then
+    -- the column formula replaces the field's own formula
+    local dl = dline(t, row)
+    local own = find_formula(parts, field_name(t, dl, field) or ("@" .. dl .. "$" .. field))
+    if own then
+      table.remove(parts, own)
+    end
+  end
+  local formula = require("org.table.formula")
+  local nt = M.parse(info.lines)
+  pad_rows(nt)
+  local ctx = formula_ctx(0, info.start, preview)
+  if preview then
+    ctx.confirm = function()
+      return false
+    end
+  end
+  local ok, errors = pcall(formula.apply, nt, formula.parse_tblfm(table.concat(parts, "::")), ctx)
+  if not ok then
+    return nil, errors ~= "Abort" and ("Table formula error: " .. tostring(errors)) or nil
+  end
+  pad_rows(nt)
+  plan.new, plan.lines, plan.errors = nt, M.render(nt), errors or {}
+  return plan
+end
+
+--- `:Org table_formula [FORMULA]`: store FORMULA as the formula of the
+--- current column (or of the target it names, `$3=...`, `@2$3=...`) and
+--- recalculate the table, so the whole column fills at once (`C-c =`
+--- followed by `C-u C-c *`). Without FORMULA, ask for it like `C-c =`.
+function M.formula_command(arg)
+  if vim.trim(arg or "") == "" then
+    return M.eval_formula()
+  end
+  local plan, err = formula_plan(arg)
+  if not plan then
+    if err then
+      utils.error(err)
+    end
+    return false
+  end
+  local info = plan.info
+  write_formulas(0, info, plan.parts)
+  if plan.removed then
+    utils.notify("Formula removed")
+    return
+  end
+  local cur = vim.api.nvim_buf_get_lines(0, info.start - 1, info.finish, false)
+  if not vim.deep_equal(cur, plan.lines) then
+    vim.api.nvim_buf_set_lines(0, info.start - 1, info.finish, false, plan.lines)
+  end
+  require("org.table.shrink").refresh(0, info.start)
+  restore_cursor(info.start, plan.row, plan.field)
+end
+
+--- Highlight field `c` of table line `line` (0-based `lnum` in `buf`).
+local function hl_field(buf, ns, lnum, line, c)
+  local pipes = pipe_positions(line)
+  local s, e = pipes[c], pipes[c + 1]
+  if s and e and e - 1 > s then
+    vim.api.nvim_buf_set_extmark(buf, ns, lnum, s, { end_col = e - 1, hl_group = "OrgCommandPreview", priority = 200 })
+  end
+end
+
+--- Highlight the formula `lhs=...` in the #+TBLFM line `line`.
+local function hl_tblfm(buf, ns, lnum, line, lhs)
+  local s = line:find(lhs .. "=", 1, true)
+  if s then
+    local e = line:find("::", s, true)
+    vim.api.nvim_buf_set_extmark(buf, ns, lnum, s - 1, {
+      end_col = e and e - 1 or #line,
+      hl_group = "OrgCommandPreview",
+      priority = 200,
+    })
+  end
+end
+
+--- Live preview of `:Org table_formula ARG` (|:command-preview|): the
+--- table recalculated with the formula, the fields it changes and the
+--- formula in the #+TBLFM line highlighted. With 'inccommand' "split",
+--- the preview window shows the new table. A formula that does not
+--- evaluate yet (half typed) shows nothing.
+---@param arg string
+---@param ns integer the preview namespace
+---@param pbuf? integer the preview window's buffer
+---@return integer
+function M.formula_preview(arg, ns, pbuf)
+  if vim.trim(arg or "") == "" then
+    return 0
+  end
+  local plan = formula_plan(arg, true)
+  if not plan or plan.removed then
+    return 0
+  end
+  local changed, good = {}, false
+  for r, nrow in ipairs(plan.new.rows) do
+    local orow = plan.old.rows[r]
+    if not nrow.hline and orow and not orow.hline then
+      for c = 1, plan.new.ncols do
+        local a, b = vim.trim(orow.cells[c] or ""), vim.trim(nrow.cells[c] or "")
+        if a ~= b then
+          changed[#changed + 1] = { r, c }
+          good = good or not b:find("#ERROR", 1, true)
+        end
+      end
+    end
+  end
+  if #plan.errors > 0 and not good then
+    return 0
+  end
+  local info = plan.info
+  write_formulas(0, info, plan.parts)
+  vim.api.nvim_buf_set_lines(0, info.start - 1, info.finish, false, plan.lines)
+  local tblfm_lnum = info.tblfm[1] or (info.start + #plan.lines)
+  local tblfm = vim.api.nvim_buf_get_lines(0, tblfm_lnum - 1, tblfm_lnum, false)[1] or ""
+  require("org.highlights").ensure()
+  for _, rc in ipairs(changed) do
+    hl_field(0, ns, info.start + rc[1] - 2, plan.lines[rc[1]], rc[2])
+  end
+  hl_tblfm(0, ns, tblfm_lnum - 1, tblfm, plan.lhs)
+  if not pbuf then
+    return 1
+  end
+  local out = vim.list_extend(vim.list_slice(plan.lines), { tblfm })
+  vim.api.nvim_buf_set_lines(pbuf, 0, -1, false, out)
+  for _, rc in ipairs(changed) do
+    hl_field(pbuf, ns, rc[1] - 1, plan.lines[rc[1]], rc[2])
+  end
+  hl_tblfm(pbuf, ns, #out - 1, tblfm, plan.lhs)
+  return 2
 end
 
 shared.before_move = before_move

@@ -60,6 +60,8 @@ local function affiliated(line)
 end
 
 --- Kind of element starting at `line` (nil = paragraph line).
+---@param line string
+---@return string?
 local function starts(line)
   if line:match("^%s*|") then
     return "table"
@@ -527,10 +529,12 @@ function M.up()
       return goto_line(el.first)
     end
     -- at the bullet: the list, or at its first item the list's parent
-    if p.first ~= lnum then
-      return goto_line(p.first)
+    if p then
+      if p.first ~= lnum then
+        return goto_line(p.first)
+      end
+      p = p.parent
     end
-    p = p.parent
   end
   if p then
     return goto_line(p.first)
@@ -570,7 +574,7 @@ function M.down()
       return
     end
     if vim.fn.foldclosed(el.first) ~= -1 then
-      pcall(vim.cmd, el.first .. "foldopen")
+      pcall(vim.api.nvim_command, el.first .. "foldopen")
     end
     return goto_line(el.cfirst)
   end
@@ -815,7 +819,7 @@ function M.next_block(dir)
     return
   end
   goto_line(target)
-  pcall(vim.cmd, "normal! zv")
+  pcall(vim.api.nvim_command, "normal! zv")
 end
 
 function M.previous_block()

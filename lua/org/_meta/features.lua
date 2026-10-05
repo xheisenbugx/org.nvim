@@ -187,6 +187,21 @@
 ---(default: `[[/\+\|?]]`)
 ---@field data_separator? string
 
+---------------------------------------------------------------------------
+-- The session server
+---------------------------------------------------------------------------
+
+---The session server (`:h org-remote`).
+---@class org.Config.Remote
+---Make the first Neovim that sets org up listen on `address`, where the
+---`org` command line, `org protocol` URLs and `api.remote.call()` send
+---their requests. (default: `false`)
+---@field enabled? boolean
+---Its address: a socket path, or a named pipe on Windows. `$ORG_NVIM_SERVER`
+---overrides it. (default: `nil`, `org.nvim.sock` in the per-user runtime
+---directory)
+---@field address? string|fun(): string
+
 ---A custom org-protocol sub-protocol.
 ---@class org.Config.ProtocolHandler
 ---The sub-protocol name in `org-protocol://NAME?...`.
@@ -706,6 +721,24 @@
 ---Kill evaluation after this many milliseconds; for a `:session`, stop
 ---waiting for the answer. (default: `30000`)
 ---@field timeout? integer
+---Every interactive evaluation (C-c C-c, executing the buffer or a subtree)
+---writes a placeholder result at once and replaces it when the output
+---arrives, as `:async yes` does for session blocks in Emacs
+---(`org-babel-comint-async`); `:async no` opts a block out. Evaluations
+---never block Neovim either way. (default: `false`)
+---@field async? boolean
+---Frames of the spinner shown as virtual text after the first line of a
+---running block; `false` shows a still "executing…".
+---(default: `{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }`)
+---@field spinner? string[]|false
+---Milliseconds between spinner frames. (default: `100`)
+---@field spinner_interval? integer
+---While a block's program runs in the background, show the last this many
+---lines of what it has printed (stdout and stderr) as virtual lines below
+---the block, under a header with the spinner and the seconds elapsed; the
+---result replaces them when the run ends. `false` or `0`: show nothing
+---until the result. (default: `10`)
+---@field live_output? integer|false
 ---Evaluate code blocks, `#+CALL` lines and inline code when exporting, like
 ---Emacs `org-export-use-babel`: `:exports results|both` blocks get fresh
 ---results in the exported copy (the buffer is not changed); each block is
@@ -1433,6 +1466,9 @@
 ---@field convert_processes? string[][]
 ---(`org-odt-convert-capabilities`) (default: `nil` = the Emacs list)
 ---@field convert_capabilities? table
+---Convert to `preferred_output_format` in the background with `vim.system`;
+---the conversion goes on the export stack. (default: `true`)
+---@field async_convert? boolean
 
 ---Citation export options (oc, oc-basic).
 ---@class org.Config.Export.Cite

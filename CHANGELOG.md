@@ -8,6 +8,21 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.2.0] - 2026-10-05
+
+### Features
+
+- Background agenda index, async babel and export, outline symbols, strict core types, module splits ([#194](https://github.com/xheisenbugx/org.nvim/pull/194))
+- **textobjects:** Element, list item, table, link and timestamp objects; counts repeat edits ([#195](https://github.com/xheisenbugx/org.nvim/pull/195))
+- **babel:** Show a running block's output live below it ([#196](https://github.com/xheisenbugx/org.nvim/pull/196))
+- **commands:** Live 'inccommand' previews for :Org subcommands ([#197](https://github.com/xheisenbugx/org.nvim/pull/197))
+- **syntax:** Highlight src blocks with tree-sitter when a parser exists ([#198](https://github.com/xheisenbugx/org.nvim/pull/198))
+- **remote:** Run CLI and org-protocol requests in the running Neovim ([#199](https://github.com/xheisenbugx/org.nvim/pull/199))
+
+### Performance
+
+- **agenda:** Parse agenda files on worker threads in the background ([#200](https://github.com/xheisenbugx/org.nvim/pull/200))
+
 ## [v2.1.0] - 2026-10-04
 
 ### Features
@@ -313,6 +328,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.1.0...v2.2.0
 [v2.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.6...v2.1.0
 [v2.0.6]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.5...v2.0.6
 [v2.0.5]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.4...v2.0.5

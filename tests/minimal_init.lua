@@ -7,6 +7,9 @@ if (vim.env.ORG_COVERAGE_DIR or "") ~= "" then
   package.loaded["tests.coverage"].start(vim.env.ORG_COVERAGE_DIR)
 end
 vim.opt.rtp = { root, vim.env.VIMRUNTIME }
+-- never reach a session server of the user's own Neovim (:h org-remote):
+-- the CLI specs and the Neovims they start inherit this
+vim.env.ORG_NVIM_SERVER = "none"
 vim.opt.swapfile = false
 vim.opt.hidden = true
 vim.opt.shadafile = "NONE"
@@ -24,12 +27,16 @@ vim.api.nvim_create_autocmd("FileChangedShell", {
 })
 -- Resolving dangling clocks on clock in, resuming a saved clock and
 -- quitting with a running clock prompt, which would block (or, on EOF,
--- quit) headless tests: off unless a test turns them on.
+-- quit) headless tests: off unless a test turns them on. The agenda index
+-- stays on (agenda views use it and add to it as they are built), but
+-- without background parsing and watchers, whose timing would vary from
+-- run to run (agenda_index_spec.lua turns them on).
 local config = require("org.config")
 local config_setup = config.setup
 config.setup = function(opts)
   return config_setup(vim.tbl_deep_extend("keep", opts or {}, {
     clock = { auto_clock_resolution = false, ask_before_exiting = false, persist_query_resume = false },
+    agenda = { index = { background = false, watch = false } },
   }))
 end
 require("org").setup({

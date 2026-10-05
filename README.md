@@ -264,8 +264,9 @@ a formula in a field to add a field formula to `#+TBLFM`.
 
 ### Code that runs in your notes
 
-`<C-c><C-c>` on a source block runs it asynchronously and writes the
-output back into the file:
+`<C-c><C-c>` on a source block runs it asynchronously, with a spinner
+while it runs (`<prefix>bC` cancels it), and writes the output back into
+the file:
 
 ![Running Python, shell and Lua blocks and inserting their results](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/babel.gif)
 
@@ -444,7 +445,7 @@ searches it, and `{` / `}` jump between sections:
 
 | | Area | Highlights |
 | --- | --- | --- |
-| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` and `VISIBILITY` visibility, archived subtrees that stay folded, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
+| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` and `VISIBILITY` visibility, archived subtrees that stay folded, motions (`]]` `[[` `g{`), text objects (`dar`, `vic`, `ci-`, `daL`, ...), and `.` repeat |
 | ✂️ | **Structure editing** | A context-aware `M-RET`, promote and demote, move, cut/copy/paste/clone subtrees, sort, narrow, structure templates |
 | 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering, `TAB` on a new item to indent it |
 | ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, `LOGGING` / `LOG_INTO_DRAWER` properties, repeaters (`+1w`, `++1d`, `.+2d`, `REPEAT_TO_STATE`), `ORDERED` / `NOBLOCKING` dependencies, tag triggers, `#+TYP_TODO` type sequences, priorities |
@@ -456,7 +457,7 @@ searches it, and `{` / `}` jump between sections:
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:` (with an `*Org Shell Output*` buffer), `elisp:`, wildcard `file:*.org` listings, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history with default and interrupted tasks, Emacs's clock resolution (keep, subtract, got-back) for dangling clocks and idle time, auto clock-out, effort estimates with an overrun alert, a statusline component, `clocktable` blocks matching Emacs output (`:step`, `:formula`, `:sort`, `:lang`…), agenda clock check, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, column shrinking, row/column/cell editing with formula fixing, copy-down, CSV/TSV import and export, `#+TBLFM` formulas with a Calc-compatible evaluator, a formula editor and debugger, radio tables, orgtbl-mode (including the unicode and table.el translators) and plots (including radar); Calc symbolic algebra (`simplify`, `deriv`, `integ`, `solve`), vectors and matrices, modulo forms, complex numbers, HMS forms, error forms, intervals and units; table.el grid tables (`C-c ~`, `C-c '`, export) |
-| 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
+| 🧪 | **Babel** | Asynchronous execution in many languages (with a spinner, placeholder results and cancelling), `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, GitHub-flavoured Markdown, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
 | 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
@@ -480,7 +481,9 @@ together with the examples, searchable.
 - [Completion](#completion)
 - [Pickers](#pickers)
 - [Statusline](#statusline)
+- [Outline and breadcrumb plugins](#outline-and-breadcrumb-plugins)
 - [Lua API](#lua-api)
+- [Session server](#session-server)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
 - [Extensions](#-extensions)
@@ -657,8 +660,10 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>be` `bb` `bs` `bt` `bk` `bn` `bp` | Babel: execute block/buffer/subtree, tangle, remove result, next/prev block |
 | `<prefix>bv` `bd` `bg` `br` `bo` `bj` `bi` | Babel: expand, split/wrap, go to named block/result, open result, insert header arg, ingest library |
 | `<prefix>bz` `bZ` `bl` `bK` | Babel sessions: show session, show session + edit block, load block into session, kill session |
+| `<prefix>bC` | Babel: cancel the running block |
 | `]]` `[[` `][` `[]` `g{` `<prefix>.` | Next/prev heading, next/prev sibling, parent, pick heading |
-| `ih` `ah` `ir` `ar` | Text objects: heading section / subtree |
+| `ih` `ah` `ir` `ar` `ie` `ae` `i-` `a-` | Text objects: heading section / subtree / element (block, drawer, ...) / list item; a count picks an ancestor (`d2ar`) |
+| `ic` `ac` `iR` `aR` `iC` `aC` `iL` `aL` `id` `ad` | Text objects: table cell / row / column / link / timestamp (`dac`, `yiC`, `ciL`) |
 | `g?` | Show all keymaps |
 
 </details>
@@ -910,6 +915,23 @@ followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
 
 ---
 
+## Outline and breadcrumb plugins
+
+Outline windows, breadcrumbs and symbol pickers usually need tree-sitter or
+a language server. org.nvim gives them its own outline instead: headings
+(with TODO, priority and tags), named src blocks and tables.
+
+- [aerial.nvim](https://github.com/stevearc/aerial.nvim): `backends = { org = { "org" } }`
+- [outline.nvim](https://github.com/hedyhli/outline.nvim): add `"org"` to `providers.priority`
+- nvim-navic, dropbar.nvim, trouble.nvim and the snacks / fzf-lua / Telescope
+  LSP symbol pickers: enable the [`lsp` extension](#-extensions), an
+  in-process language server
+- your own winbar or statusline: `require("org.api").symbol_path()`
+
+See `:h org-integrations`.
+
+---
+
 ## Lua API
 
 `require("org.api")` is a stable, versioned API for plugins and configs:
@@ -931,6 +953,31 @@ api.on("OrgClockOut", function(data) print(data.title, data.minutes) end)
 ```
 
 See [`:h org-api`](doc/org.txt) for every function, field and event.
+
+---
+
+## Session server
+
+Capturing from a shell, a browser bookmarklet or a script used to write
+the org file behind the back of the Neovim you have it open in. Turn the
+session server on and they ask that Neovim instead:
+
+```lua
+require("org").setup({ remote = { enabled = true } })
+```
+
+The first Neovim listens on a well-known socket. The `org` command line
+(`org capture`, `org clock in`, `org set todo`, `org agenda`, ...),
+`org protocol URL` for org-protocol links and `api.remote.call()` then
+run in it: a capture lands in the open buffer (one `u` takes it back),
+`org clock in` starts that Neovim's clock, and files with unsaved changes
+stay unsaved. With no Neovim running they work on the files as before.
+See [`:h org-remote`](doc/org.txt).
+
+```sh
+org capture -t t "Call the bank"   # appears in the inbox buffer you have open
+org clock in "Write release notes" # the clock in your statusline starts
+```
 
 ---
 
@@ -1173,6 +1220,8 @@ its options may still change):
   prints a versioned envelope with stable error codes, and `org schema`
   describes the commands as JSON Schema, so scripts and AI agents can use
   it as a tool (`:h org-extensions-cli`, `:h org-extensions-cli-json`).
+  With the [session server](#session-server) on, its commands run in your
+  open Neovim instead of on the files.
 
   ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/org-cli.gif)
 

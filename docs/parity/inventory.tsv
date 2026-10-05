@@ -48,7 +48,7 @@ org	org-copy-special	cmd	done	action copy_special (context.lua:605)	-	-
 org	org-copy-subtree	cmd	done	action copy_subtree (structure.lua:1169)	-	-
 org	org-copy-visible	cmd	done	action copy_visible (fold.lua:1206)	-	-
 org	org-create-customize-menu	cmd	done	lua/org/customize.lua create_menu; action customize_menu; tests/spec/menu_spec.lua "expands the Customize menu"	Org > Customize gets an "Org" submenu with one entry per option (sections as submenus) opening the options buffer on it; Custom's Set/Save/Reset entries have no counterpart (no Save for Lua config)	-
-org	org-create-math-formula	cmd	done	export/odt.lua:1040 latex_to_mathml	used by ODT export; no interactive prompt	-
+org	org-create-math-formula	cmd	done	export/odt/latex.lua:69 latex_to_mathml	used by ODT export; no interactive prompt	-
 org	org-ctrl-c-ctrl-c	cmd	done	action context_action (context.lua:46)	-	-
 org	org-ctrl-c-minus	cmd	done	action ctrl_c_minus (context.lua:580)	-	-
 org	org-ctrl-c-ret	cmd	done	action ctrl_c_ret (context.lua:593)	-	-

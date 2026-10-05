@@ -18,6 +18,7 @@
 ---| "agenda" # Agenda dispatcher
 ---| "agenda_file_remove" # Remove file from agenda files
 ---| "agenda_file_to_front" # Add file to agenda files
+---| "agenda_index_rebuild" # Rebuild the agenda index
 ---| "agenda_kill_all_buffers" # Delete all agenda buffers (org-agenda-kill-all-agenda-buffers)
 ---| "agenda_remove_restriction_lock" # Remove agenda restriction lock
 ---| "agenda_set_restriction_lock" # Lock agenda to subtree / file
@@ -28,6 +29,7 @@
 ---| "archive_to_sibling" # Archive to Archive sibling (Visual: all headlines)
 ---| "attach" # Attachments
 ---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
+---| "babel_cancel" # Cancel running src block (count: all)
 ---| "babel_check" # Check src block header args
 ---| "babel_demarcate" # Split / wrap src block
 ---| "babel_describe_bindings" # List Babel key bindings
@@ -173,6 +175,7 @@
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "export_stack" # Export stack: results of background exports
+---| "export_stack_cancel" # Cancel a background export (the stack entry at the cursor, else the newest)
 ---| "export_stack_clear" # Remove every entry from the export stack
 ---| "feed_goto_inbox" # Go to the inbox of a feed
 ---| "feed_update_all" # Update all RSS/Atom feeds
@@ -731,6 +734,8 @@
 ---@field babel_switch_to_session_with_code? org.MappingLhs
 --- Kill src block session. Default: `<prefix>bK`
 ---@field babel_kill_session? org.MappingLhs
+--- Cancel running src block (count: all). Default: `<prefix>bC`
+---@field babel_cancel? org.MappingLhs
 --- Show src block hash. Default: `<prefix>ba`
 ---@field babel_sha1_hash? org.MappingLhs
 --- List Babel key bindings. Default: `<prefix>bh`
@@ -1088,6 +1093,34 @@
 ---@field inner_subtree? org.MappingLhs
 --- Text object: around subtree (whole subtree). Default: `ar`
 ---@field around_subtree? org.MappingLhs
+--- Text object: inner element (a block's or drawer's contents, else the element without affiliated keywords and trailing blank lines). Default: `ie`
+---@field inner_element? org.MappingLhs
+--- Text object: around element (the whole element with its affiliated keywords and trailing blank lines). Default: `ae`
+---@field around_element? org.MappingLhs
+--- Text object: inner list item (its text after the bullet and checkbox, without children). Default: `i-`
+---@field inner_item? org.MappingLhs
+--- Text object: around list item (the item with its children, linewise). Default: `a-`
+---@field around_item? org.MappingLhs
+--- Text object: inner table cell (the field's text). Default: `ic`
+---@field inner_cell? org.MappingLhs
+--- Text object: around table cell (the field with its blanks and a separator). Default: `ac`
+---@field around_cell? org.MappingLhs
+--- Text object: inner table row (between its first and last `|`). Default: `iR`
+---@field inner_row? org.MappingLhs
+--- Text object: around table row (the whole line; a count selects that many rows). Default: `aR`
+---@field around_row? org.MappingLhs
+--- Text object: inner table column (Visual block of the fields; the table must be aligned). Default: `iC`
+---@field inner_column? org.MappingLhs
+--- Text object: around table column (the column with a separator). Default: `aC`
+---@field around_column? org.MappingLhs
+--- Text object: inner link (its description, or its target). Default: `iL`
+---@field inner_link? org.MappingLhs
+--- Text object: around link (the whole link and the blanks after it). Default: `aL`
+---@field around_link? org.MappingLhs
+--- Text object: inner timestamp (the text inside its brackets). Default: `id`
+---@field inner_timestamp? org.MappingLhs
+--- Text object: around timestamp (the whole timestamp or range and the blanks after it). Default: `ad`
+---@field around_timestamp? org.MappingLhs
 
 --- Keys in the agenda buffer (normal mode). Only the agenda action names listed here are recognised.
 ---@class org.Config.Mappings.Agenda

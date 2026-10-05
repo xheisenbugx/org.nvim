@@ -19,13 +19,13 @@
 ---@field diagnostics? org.Config.Extensions.Lsp.Diagnostics
 ---Hover options.
 ---@field hover? { preview_lines?: integer, backlinks_all_headings?: boolean }
----List named src blocks and tables in the document symbols.
----(default: `{ src_blocks = true, tables = true }`)
----@field document_symbols? { src_blocks?: boolean, tables?: boolean }
+---List named src blocks and tables, and `<<targets>>`, in the document
+---symbols. (default: `{ src_blocks = true, tables = true, targets = false }`)
+---@field document_symbols? { src_blocks?: boolean, tables?: boolean, targets?: boolean }
 ---Symbol kinds by `vim.lsp.protocol.SymbolKind` name.
 ---(default: `{ heading = "Namespace", todo = "Event", done = "Constant",
----src_block = "Function", table = "Struct" }`)
----@field symbol_kinds? table<"heading"|"todo"|"done"|"src_block"|"table", string|integer>
+---src_block = "Function", table = "Struct", target = "Key" }`)
+---@field symbol_kinds? table<"heading"|"todo"|"done"|"src_block"|"table"|"target", string|integer>
 ---The files references, rename and workspace symbols look at.
 ---@field workspace? org.Config.Extensions.Lsp.Workspace
 ---Most workspace symbols returned. (default: `1000`)

@@ -42,6 +42,8 @@ function M.setup(opts)
   require("org.yank").setup_paste()
   -- the Org menus (ui.menus)
   require("org.menu").setup()
+  -- the agenda index: background parsing of the agenda files
+  require("org.agenda.index").setup()
   local cfg = require("org.config").opts
   if #(cfg.entities_user or {}) > 0 or package.loaded["org.entities"] then
     -- org-entities-user
@@ -54,6 +56,10 @@ function M.setup(opts)
         n.start()
       end
     end)
+  end
+  if cfg.remote.enabled or package.loaded["org.remote"] then
+    -- the session server (remote.enabled), or stop it when turned off
+    require("org.remote").setup()
   end
   if cfg.clock.persist then
     vim.schedule(function()

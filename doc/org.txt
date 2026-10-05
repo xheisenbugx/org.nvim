@@ -274,7 +274,8 @@ stars alone is text, like in Emacs): >org
                 `#+index: `, and `<I` asks for a file to `#+include:`.
 
                                                        *org-promote-demote*
-<< / >>         (ctx) Promote / demote headline or list item. Count repeats.
+<< / >>         (ctx) Promote / demote headline or list item. Count repeats
+                (`3>>`: three levels, one undo step).
 <s / >s         (ctx) Promote / demote the whole subtree or item and its
                 children.
 <M-h> / <M-l>   (ctx) Promote / demote. In a table: move column.
@@ -393,7 +394,7 @@ p / P           Put (org-yank). When the register holds whole subtrees
 <C-c>:          Toggle fixed-width markup `: ` (org-toggle-fixed-width) on
                 the line or the Visual selection.
 
-Motions and text objects:                           *org-motions* *org-textobj*
+Motions and text objects:                                     *org-motions*
 ]] / [[         Next / previous visible headline.
 ][ / []         Next / previous sibling.
 g{              Parent headline.
@@ -424,8 +425,46 @@ gO              The headlines in the location list, indented by level,
                 buffers: Emacs's imenu index (org-imenu-depth). The text is
                 the headline's without TODO keyword, priority, COMMENT and
                 tags, links shown by their description (`:Org imenu`).
-ih / ah         Headline section without / with the headline line.
+
+Text objects                                                   *org-textobj*
+In Operator-pending and Visual mode (`dar`, `yie`, `vic`, `ci-`), like
+Vim's |text-objects|: "i" is the inner part, "a" adds the delimiters or
+surroundings. Each is a key under `mappings.text_objects` (`false` removes
+one, `text_objects = false` all).
+ih / ah         Headline section (up to the first child) without / with
+                the headline line.
 ir / ar         Subtree without / with the headline line.
+ie / ae         Element (|org-elements|): `ie` is the contents of a block
+                or drawer (between its begin and end lines), else the
+                element without affiliated keywords (`#+name:`, ...) and
+                blank lines after it; `ae` is the element with both.
+i- / a-         List item: `i-` is its text after the bullet and checkbox
+                up to its first child (charwise: `ci-` rewrites the text);
+                `a-` is the item with its children and the blank lines
+                before the next item (linewise).
+ic / ac         Table field: `ic` its text (the blanks of an empty
+                field); `ac` the field with its blanks and the separator
+                after it (before it for the last field), so `dac` removes
+                a field and leaves a table.
+iR / aR         Table row: `iR` between its first and last `|`; `aR` the
+                line (`3daR`: three rows).
+iC / aC         Table column, as a Visual block over every row (rules
+                included): `iC` the fields, `aC` with a separator like
+                `ac`, so `daC` deletes the column. The table must be
+                aligned (<C-c><C-c>, |org-tables|).
+iL / aL         Link: `iL` its description, or its target when it has
+                none; `aL` the whole link and the blanks after it (before
+                it at the end of a line), like |aw|.
+id / ad         Timestamp, a range `<...>--<...>` as one: `id` the text
+                inside its brackets, `ad` the timestamp and the blanks
+                after it.
+Links and timestamps are found under the cursor or, like |iquote|, after it on
+the line. A count selects an ancestor for the objects that nest: `d2ar`
+deletes the parent subtree, `y2a-` copies the parent item, `2ae` is the
+block around the paragraph; typing the object again in Visual mode grows
+the selection to the enclosing one (`varar`, `vaeae`). Where there is no
+such object, nothing is selected and the operator is cancelled. "."
+repeats an operator with its text object (`dic` then `j.`).
 
 Elements                                                    *org-elements*
 Paragraphs, lists and items, blocks, drawers, tables, fixed-width areas,
@@ -1582,6 +1621,65 @@ agenda is built: `r` removes it from the list (for the session), any
 other key aborts (org-check-agenda-file); `agenda.skip_unavailable_files
 = true` skips such files silently (org-agenda-skip-unavailable-files).
 
+Agenda index                                                *org-agenda-index*
+
+With many agenda files, most of the time of the first agenda view goes
+into parsing them. Emacs has nothing like it; it changes when the files
+are parsed, never what a view shows. Options under `agenda.index`:
+
+  enabled        true    false: agenda files are parsed when a view needs
+                         them, as without an index.
+  cache          true    keep what the parse found (the parts of each
+                         headline and its section) in
+                         stdpath("cache")/org/agenda-index.bin, so that
+                         the next session only reads the files and finds
+                         their outline. Needs LuaJIT (Neovim's usual
+                         build); without it nothing is kept on disk.
+  background     true    from the first org buffer (or the first agenda
+                         view), parse the agenda files in the background,
+                         a few milliseconds at a time, so that the first
+                         view finds them parsed. false: files are parsed
+                         (and added to the index) when a view needs them.
+  threads        2       worker threads for that background parse: each
+                         file's outline is found in Neovim's main loop,
+                         the rest of it (headline parts, planning,
+                         properties, drawers, clocks, timestamps) in a
+                         worker, so typing doesn't wait for it and a
+                         parse of many files uses more than one core.
+                         The workers run on libuv's thread pool (4
+                         threads unless $UV_THREADPOOL_SIZE says more),
+                         which file reads share. 0: parse in the main
+                         loop, a few milliseconds at a time. A file is
+                         parsed in the main loop when
+                         `property_separators` has a regexp (no
+                         |vim.regex()| in a worker); after a worker
+                         fails, all are, until
+                         `:Org agenda_index_rebuild`.
+  watch          true    after that, watch the directories of the agenda
+                         files and parse a changed file again in the
+                         background.
+  max_watchers   32      directories watched at most; the others, and
+                         those whose watcher fails (some network file
+                         systems), are polled ...
+  poll_interval  30      ... every this many seconds (0: never).
+
+A view built before the background is done is still complete: it parses
+what is left itself, taking what it can from the index. The index is only
+used for the same file: same modification and change time, same size,
+same lines, under the same options (`todo_keywords`, `log_into_drawer`,
+`inlinetask_min_level`, `property_separators`) and version of org.nvim;
+anything else is parsed again. A file loaded in a buffer is always taken
+from the buffer, with its unsaved changes. Watchers only save time: a view
+checks every file itself. A broken or partly written index file is
+ignored and replaced; entries of files no agenda used for 30 days are
+dropped.
+
+:Org agenda_index_rebuild   delete the index and parse the agenda files
+                            again (in the background with `background`).
+`:checkhealth org` shows the index file, its size and what the background
+is doing. It is written when the background is done, a little after a
+view added files to it, and when Neovim exits.
+
 Agenda contents                                          *org-agenda-contents*
 
 For each day, per file, in this order (org-agenda-get-day-entries):
@@ -1955,7 +2053,10 @@ bar (Emacs shows them in the mode line).
   <     keep the category of the entry at point (again to clear); with a
         count, hide that category
   =     keep entries matching an Emacs regexp; with a count 1, hide them;
-        again to clear
+        again to clear. `:Org agenda_filter_regexp [-]{regexp}` adds the
+        filter on top of the active ones (`-` hides the matches); while
+        you type it, the entries it would hide are dimmed
+        (|org-command-preview|)
   _     effort: `<`, `>` or `=`, then a digit selecting a value of
         `global_properties.Effort_ALL` (default "0 0:10 0:30 1:00 2:00
         3:00 4:00 5:00 6:00 7:00"); `_` again clears. Entries without
@@ -2591,6 +2692,13 @@ stay folded, with their headline visible, unless
 
 <C-c>\         Tags / property match sparse tree (org-match-sparse-tree).
                With a count, only TODO entries match.
+:Org occur {regexp}
+               Regexp sparse tree (org-occur, like `/` in the menu).
+:Org tags_sparse_tree {match}
+               Tags / property match sparse tree for {match}.
+               While you type either command, the matches are highlighted
+               live (|org-command-preview|); the buffer is folded when you
+               press <CR>. Without an argument, they ask for it.
 
 The buffer is folded so only matching entries are visible, the matches are
 highlighted, and the location list is filled (|:lnext|). The highlights go
@@ -2876,21 +2984,69 @@ Call it from Lua with `require("org.protocol").handle(url)` or
                         the same with the defaults of the publishing
                         project of the current file (org-protocol-create-for-org)
 
-Neovim must listen on a socket (`nvim --listen ~/.cache/nvim/org.sock`, or
-|v:servername|) and the OS must send `org-protocol:` URLs to a handler
-that forwards them, e.g. on Linux a desktop file with
+The OS must send `org-protocol:` URLs to a handler that forwards them to
+a running Neovim. With the session server on (`remote.enabled`,
+|org-remote|) the `org` command line (|org-extensions-cli|) does that:
+`org protocol URL` hands the URL to your Neovim, and with no Neovim
+running stores a capture at once in its file. On Linux, a desktop file with
 `MimeType=x-scheme-handler/org-protocol;` and: >sh
-    Exec=nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+    Exec=org protocol %u
 <
 then `xdg-mime default org-protocol.desktop x-scheme-handler/org-protocol`.
+Without the command line, any Neovim listening on a socket
+(`nvim --listen ~/.cache/nvim/org.sock`, |v:servername|) takes them: >sh
+    Exec=nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+<
 On macOS register the scheme with a small app bundle (an AppleScript
-`on open location` handler running the same command). A bookmarklet: >js
+`on open location` handler running the same command). On Windows the
+registry command is `"C:\path\to\org.cmd" protocol "%1"`: keep `%1` in
+quotes, or cmd.exe ends the command at the first `&` of the URL. A
+bookmarklet: >js
     javascript:location.href='org-protocol://capture?'+new URLSearchParams({
       template:'p', url:location.href, title:document.title,
       body:window.getSelection()});void(0)
 <
 Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
 has no counterpart: the handler command above plays that role.
+
+Session server                                                  *org-remote*
+Programs outside Neovim that change your org files (the `org` command line,
+org-protocol URLs, scripts) would otherwise write the files behind the back
+of a Neovim that has them open: its buffers go stale, its undo history
+doesn't know the change, and a clock started from the shell isn't its
+clock. Turn the session server on and they ask that Neovim instead: >lua
+    require("org").setup({ remote = { enabled = true } })
+<
+The first Neovim that sets org up then listens on a well-known address
+(`remote.address`; by default `org.nvim.sock` in your runtime directory,
+$XDG_RUNTIME_DIR or Neovim's `nvim.<user>` directory under the temp
+directory, and the named pipe `\\.\pipe\org.nvim.<user>` on Windows).
+Only one Neovim owns it: another one started later leaves it alone
+without an error, and takes it over when it gets the focus after the
+first one has quit. A socket file left by a Neovim that crashed is
+removed. `$ORG_NVIM_SERVER` overrides the address for the server and its
+clients, and `ORG_NVIM_SERVER=none` turns it off.
+
+What goes there:
+- every command of the `org` command line but `export`, `schema` and
+  `version` (|org-extensions-cli|): a capture lands in the open buffer
+  (one undo step takes it back), `org clock in` starts that Neovim's
+  clock, `org set todo` changes the buffer, `org agenda` sees unsaved
+  changes. A file with unsaved changes there is changed in its buffer but
+  not saved; other files are saved as before. Agendas are built aside:
+  your agenda windows stay as they are. `--no-server`, `--config`,
+  `--files` and `--dir` run the command in its own process instead.
+- `org protocol URL`: the URL is handled as `:Org protocol` would, so a
+  capture opens its capture window there (|org-protocol|).
+- `require("org.api").remote.call(name, ...)` from Lua (|org-api-remote|).
+When nothing listens (or that Neovim waits for a key), they work on the
+files as before. Plain `nvim --server` works too when you give the
+address yourself (`remote.address = "~/.cache/nvim/org.sock"`): >sh
+    nvim --server ~/.cache/nvim/org.sock --remote-expr \
+      "luaeval('vim.inspect(require([[org.api]]).clock.status())')"
+<
+Requests run in that Neovim with its configuration, not the command
+line's. `:checkhealth org` says whether this Neovim is the server.
 
 Plain links through tags files                                   *org-ctags*
 Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
@@ -3769,6 +3925,14 @@ or its `^`/`_` name; count 16: put the active formula into the field as
 removes it. A1-style references (`B3`, `C&`) are accepted when typed
 (`table_use_standard_references`).
 
+`:Org table_formula {formula}` takes the formula on the command line: the
+right side of the current column's formula (`:Org table_formula $1*$2`),
+or a formula with its own target (`$4=$2*$3;%.2f`, `@>$4=vsum(@I..@II)`).
+It is stored like with <C-c>= and the whole table is then recalculated
+(<C-c>= then `4<C-c>*`), so the column fills at once. While you type it,
+the table shows the result live (|org-command-preview|). Without
+{formula}, it asks like <C-c>=.
+
                                                         *org-table-formulas*
 Formulas go in `#+TBLFM:` lines below the table: >org
     | Item  | Qty | Price | Total |
@@ -4107,6 +4271,10 @@ same results in both editors.
                    its :var values there); bZ also opens the edit buffer.
 <prefix>bl         Send the block to its session and show the session.
 <prefix>bK         Kill the block's session.
+<prefix>bC         Cancel the evaluation of the block at the cursor
+                   (elsewhere: the only one running, or pick one); with
+                   a count, every running evaluation. See
+                   |org-babel-async|.
 <prefix>ba         Show the block's hash (the one `:cache yes` stores).
 <prefix>bh         List the Babel key bindings.
 <prefix>bm         Select the block body (Visual line mode).
@@ -4148,6 +4316,55 @@ fails, go to the `*Org-Babel Error Output*` buffer (shown in a split); the
 result keeps the standard output only, like `org-babel-eval`. A missing
 reference or an inline result that cannot be inserted stops the execution
 of the buffer.
+
+Running in the background ~                                *org-babel-async*
+C-c C-c, <prefix>bb and <prefix>bs never block Neovim: the code runs as a
+separate process (or in its session) and its result is inserted when it
+is done; executing the buffer or a subtree still runs the blocks one after
+the other, in order. Meanwhile:
+  - A spinner is drawn after the first line of the running block (virtual
+    text, highlight group `OrgBabelRunning`; the buffer does not change),
+    with the seconds elapsed after the first one. `babel.spinner` sets its
+    frames (`false`: a still "executing…"), `babel.spinner_interval` the
+    milliseconds between them.
+  - What the program prints (standard output and error) shows as it
+    arrives, as virtual lines below the block: a header with the spinner
+    and the seconds elapsed (and "last 10 of 57 lines" once some are
+    hidden), then the last `babel.live_output` lines (default 10;
+    `false` or 0 turns this off). Colour codes and control characters
+    are dropped, and after a carriage return only what follows it shows
+    (progress bars). They are virtual text (highlight groups
+    `OrgBabelRunning` and `OrgBabelOutput`): the result inserted when the
+    run ends is the same as without them, and they go away then, or when
+    the run is cancelled or fails. Blocks run as a separate process
+    stream this way (shell, Python, C, ... without `:session`); session
+    blocks and Lua blocks run inside Neovim show their result only.
+  - You can keep editing. The result follows its block when lines are
+    added or removed above it. Without a placeholder (below), a result is
+    discarded with a warning when its block was changed or deleted during
+    the run.
+  - With `babel.async = true` every run first writes a placeholder id as
+    the result, like `:async` session blocks in Emacs (see Sessions
+    below): the result replaces the placeholder wherever the block is
+    then, even if the block was edited; if the placeholder was deleted,
+    the result is discarded with a warning. `:async no` on a block (or in
+    `default_header_args`) keeps it out. The placeholder and the result
+    are one undo step, when nothing else changed the buffer in between.
+  - <prefix>bC (`:Org babel_cancel`) cancels the evaluation at the cursor:
+    its process is killed (with its child processes), or its session sent
+    an interrupt (C-c). A placeholder becomes
+    `: [ Babel evaluation cancelled ]`; without one the previous result
+    stays as it was. Executing the buffer or a subtree stops there. Not on
+    a running block, it cancels the only running evaluation, or asks which
+    one; with a count, all of them. Unloading (`:bwipeout`, `:bdelete`) a
+    buffer cancels its evaluations; quitting Neovim cancels them all.
+What needs a value at once still waits for it, as in Emacs, with no
+spinner or placeholder: export, the blocks a `:var` reference, a noweb
+call or `:post` evaluates, and `org-sbe` in table formulas. Lua blocks run
+inside Neovim (unless `babel.languages.lua.cmd` names an interpreter), so
+they hold Neovim while they run and cannot be cancelled; so do the few
+steps of some language ports that wait for a helper tool (LaTeX image
+conversion, `screen`).
 
 Hooks are `User` autocommands: `OrgBabelAfterExecute` (after a result is
 inserted; `data` has bufnr, lang, name, result), `OrgBabelTanglePre`,
@@ -4230,7 +4447,9 @@ globals inside Neovim). Other languages ignore `:session` with a warning.
   - Every evaluation runs in the background, so Neovim never blocks (in
     Emacs only `:async` evaluations do); requests to one session run in
     order. Without `:async`, a result is discarded (with a warning) when
-    its block was edited during the run.
+    its block was edited during the run. Cancelling one
+    (|org-babel-async|) interrupts the REPL with C-c and drops its result;
+    the session keeps running for the next block.
   - `:async` (or `:async yes`) on a session block works like Emacs
     (org-babel-comint-async): `#+RESULTS:` gets a placeholder id at
     once, and the result replaces that placeholder when it arrives, even
@@ -4238,6 +4457,8 @@ globals inside Neovim). Other languages ignore `:session` with a warning.
     discards the result. `:async no`, `:session none`, export, `:var`
     references and `:results silent`/`none`/`append`/`prepend` run
     without a placeholder; lua sessions finish at once and ignore it.
+    `babel.async = true` gives every block a placeholder, with a session
+    or not (|org-babel-async|).
 
 Languages ~
 `babel.languages` maps a language name to `{ cmd = "...", ext = "...",
@@ -4530,6 +4751,28 @@ Edit buffers, like Emacs' org-src buffers:
     (org-src-associate-babel-session): `mappings.edit_src.send_to_session`
     (<C-c><C-c>, <prefix>e) sends the buffer, or in Visual mode the
     selected lines, to the session (started when needed) and shows it.
+                                                   *org-src-highlight*
+The body of a src block is highlighted in its language, like Emacs'
+org-src-fontify-natively. When Neovim has a tree-sitter parser and a
+highlights query for the language (Neovim bundles c, lua, markdown, query,
+vim and vimdoc; nvim-treesitter or |treesitter-parsers| add more), the
+body is drawn with tree-sitter's captures, the `@keyword.lua`,
+`@string.c`, ... groups Neovim uses for a buffer of that language, so it
+looks the same as in a file of that language and your colorscheme's
+tree-sitter colors apply. Injected languages are highlighted too (the
+inline markup of a markdown block, Vim script in a Lua `vim.cmd()`
+string) in blocks of up to 1,000 lines. Only the blocks on screen are
+parsed, each once for its text: moving around or editing elsewhere
+doesn't parse a block again; a longer block is parsed again from the tree
+it had after an edit in it. Other
+languages get their Vim syntax (`syntax/<lang>.vim`) included into the
+org syntax, as before. The language name goes through `src_lang_modes`
+first (`elisp` → `lisp`, `shell` → `sh` → the bash parser).
+`ui.src_highlight_engine` chooses: "auto" (the default), "treesitter"
+(languages without a parser stay plain) or "syntax" (always the Vim
+syntax); `ui.src_highlight = false` turns both off. A parser installed
+while the file is open is used after <C-c><C-c> on a `#+` line (which
+refreshes the buffer's setup) or when the file is opened again.
 TAB on a line of a src block (`src_tab_acts_natively`, default true)
 indents it for its language, like a round trip through the edit buffer:
 the body gets the block's content indentation and the line the
@@ -4687,18 +4930,46 @@ Asynchronous export                                      *org-export-stack*
 With the dispatcher's `a` toggle, `export.in_background` or `:Org export
 {format} async`, the dispatcher returns at once and the result is not shown
 but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
-lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
+lists it: number, back-end, age and the file or buffer. <CR> or
 `v` views the entry at the cursor (a file like a file link: HTML or PDF
 with the system opener, `links.file_apps` honoured; with a count in
-Neovim), `d` removes it from the stack, `C` clears the stack
-(`:Org export_stack_clear`), `g` refreshes, `q` closes. Like Emacs'
-org-export-async-start, a separate Neovim (`nvim --clean --headless`)
-exports a copy of the buffer with the session's options, minus their Lua
-functions (filters, hooks, format functions): `export.async_init_file`
-(org-export-async-init-file) is a Lua file it runs first to set them.
-Prompts are answered "no" there, so Babel blocks that need a confirmation
-keep their results. Visible-only exports need the folds and run in this
-Neovim instead, right after the dispatcher closes.
+Neovim), `d` removes it from the stack, `x` cancels it while it runs
+(`:Org export_stack_cancel`, which elsewhere cancels the newest running
+export), `C` clears the stack (`:Org export_stack_clear`), `g`
+refreshes, `q` closes. Like Emacs' org-export-async-start, a separate
+Neovim (`nvim --clean --headless`) exports a copy of the buffer with the
+session's options, minus their Lua functions (filters, hooks, format
+functions): `export.async_init_file` (org-export-async-init-file) is a
+Lua file it runs first to set them. The buffer and the options are copied
+when the export starts, so editing the buffer meanwhile doesn't change
+the result. Prompts are answered "no" there, so Babel blocks that need a
+confirmation keep their results. Visible-only exports need the folds and
+run in this Neovim instead, right after the dispatcher closes.
+
+While an export runs, its age is "run" and its source the buffer with the
+output of its process ("*Org Export Process*", or the compiler's output
+buffer); viewing it shows that output as it comes. When it is done, the
+entry becomes the result and "Asynchronous export finished: FILE" is
+shown. When it fails, the error is shown (for a PDF: the "File ... wasn't
+produced" message of Emacs and the error lines of the LaTeX output), and
+the entry stays with the output, aged "exit", as Emacs keeps the buffer
+of a process that "exited abnormally". Cancelling kills the process with
+the programs it started (pdflatex under latexmk, LibreOffice, the
+separate Neovim): the entry stays as "signal". Running exports are
+cancelled when Neovim quits.
+
+The external part of an ordinary export runs in the background as well:
+the PDF compilation of `l p`, `l o`, `k p`, `M p`, ... (unless
+`export.latex.async_compile` is false) and the conversion of an ODT file
+to `export.odt.preferred_output_format` (unless `export.odt.async_convert`
+is false). Neovim doesn't wait for them; they are on the export stack
+while they run (where `x` cancels them), "and open" opens the file once
+it's there, and a notification says when it's done ("PDF file produced"
+or "Exported to FILE") or why it failed. Without a UI (headless, scripts)
+they run to the end before the export returns. The Lua part of the export
+(Org to LaTeX, ODT XML, HTML) runs in Neovim itself, as in Emacs: on a
+document of 3,000 headlines (16,000 lines) it takes about 0.6 s for
+LaTeX and 1 s for ODT; with `a` it runs in the separate Neovim too.
 
 Convert region                                   *org-export-convert-region*
 In Visual mode the actions `convert_region_to_html`, `_latex`, `_md`,
@@ -4721,7 +4992,8 @@ Output goes next to the source file (named after it or #+EXPORT_FILE_NAME),
 or to `export.output_dir`. PDF compiles the LaTeX file with
 `export.latex.pdf_process` (latexmk when available, else three runs of
 `export.latex.compiler`); it runs in the background with |vim.system()|
-unless `export.latex.async_compile` is false. ODT is written natively
+unless `export.latex.async_compile` is false (|org-export-stack|), its
+output going to the "*Org PDF LaTeX Output*" buffer. ODT is written natively
 (|org-export-odt|). DOCX and other pandoc formats run pandoc on the output
 of the Org back-end.
 
@@ -5062,7 +5334,9 @@ copies the other members into the document (reading .odt/.ott files needs
 addition) adds raw style XML to <office:styles>.
 `export.odt.preferred_output_format` ("pdf", "docx", "doc", ...) converts
 the result with `convert_process` ("LibreOffice": `soffice --headless
---convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`);
+--convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`),
+in the background unless `export.odt.async_convert` is false
+(|org-export-stack|);
 `require("org.export.odt").convert(file, format)` converts any file
 (org-odt-convert); `:Org odt_convert` asks for the file and the output
 format (with a count it opens the result).
@@ -5285,6 +5559,14 @@ These need Emacs Lisp or Emacs itself:
 - Asynchronous export (`a`) runs in a separate Neovim, like Emacs; a
   visible-only export runs on the editor's event loop instead, and so does
   publishing.
+- PDF compilation and ODT conversion run in the background, on the export
+  stack, also without `a` (`export.latex.async_compile`,
+  `export.odt.async_convert`; Emacs waits for them). The stack can cancel
+  a running export (`x`, `:Org export_stack_cancel`; Emacs kills it with
+  its process buffer), shows "signal" for a cancelled one, and names the
+  back-end of a running export (Emacs leaves it empty until the result).
+  A failed compilation's message also quotes the error lines of the LaTeX
+  output.
 - Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
@@ -5518,6 +5800,101 @@ are `{ display = { { text, hl_group }, ... }, filename?, bufnr?, lnum?,
 value? }` and `spec.on_choice(items, query)` gets the chosen ones; see
 `lua/org/pickers/init.lua`.
 
+Outline, breadcrumb and symbol plugins ~
+                                                            *org-integrations*
+Plugins that show a buffer's structure (outline windows, breadcrumbs,
+symbol pickers) usually ask tree-sitter or a language server for it.
+org.nvim has its own parser instead of a tree-sitter one, and gives its
+outline to them in three ways:
+  - aerial.nvim and outline.nvim: a backend / provider made from that
+    parser, nothing else to enable (below);
+  - plugins that speak LSP (nvim-navic, dropbar.nvim, the snacks.nvim,
+    fzf-lua and telescope symbol pickers, trouble.nvim, and the LSP
+    providers of aerial and outline.nvim): the document symbols of the
+    `lsp` extension, an in-process server (|org-extensions-lsp|);
+  - your own code: `api.symbols()` and `api.symbol_path()`
+    (|org-api-symbols|).
+All three give the same symbols: every headline, its range the whole
+subtree and its name the title, with TODO keyword, priority and tags as
+detail; plain, TODO and done headlines get their own kind (Namespace,
+Event, Constant). Named src blocks (Function) and named tables (Struct)
+are children of their entry, `<<targets>>` (Key) too when asked for.
+
+aerial.nvim: add the "org" backend for org buffers: >lua
+    require("aerial").setup({ backends = { org = { "org" } } })
+<It updates `update_delay` ms (300, aerial's `org = { update_delay = N }`)
+after aerial's `update_events`, and shows every symbol: `filter_kind`
+only applies to aerial's LSP and tree-sitter backends. With the "lsp"
+backend instead, set `filter_kind = { org = false }` (its own default
+list leaves out the kinds headlines have).
+
+outline.nvim: add "org" to the providers: >lua
+    require("outline").setup({
+      providers = { priority = { "lsp", "coc", "markdown", "norg", "man", "org" } },
+    })
+<
+LSP plugins need the `lsp` extension. For the outline alone, leave the
+rest of it off: >lua
+    require("org").setup({
+      extensions = {
+        lsp = {
+          features = {
+            diagnostics = false, hover = false, definition = false,
+            references = false, rename = false, code_actions = false,
+            document_links = false,
+          },
+        },
+      },
+    })
+<Then:
+  nvim-navic    attach it from the extension's `on_attach` (LazyVim
+                does that for every server with document symbols):
+                `on_attach = function(client, bufnr)`
+                `require("nvim-navic").attach(client, bufnr) end`
+  dropbar.nvim  nothing to do: without a tree-sitter parser its default
+                sources take the LSP symbols.
+  pickers       `Snacks.picker.lsp_symbols()`, `:FzfLua
+                lsp_document_symbols`, `:Telescope lsp_document_symbols`,
+                and the workspace symbol pickers for the headlines of
+                every workspace file. Pickers that filter by kind leave
+                TODO and done headlines out: in snacks.nvim set
+                `filter = { org = true }` for `lsp_symbols`, in LazyVim
+                `kind_filter = { org = false }`. org.nvim's own pickers
+                need no server (|org-pickers|).
+  trouble.nvim  `:Trouble symbols`.
+The extension's `symbol_kinds` changes the kinds (for icons or filters).
+
+Breadcrumbs and sticky headings: nvim-treesitter-context needs a
+tree-sitter parser, so it can't keep the headlines above the screen in
+view. `api.symbol_path()` gives the headlines around the cursor cheaply
+enough for a 'winbar': >lua
+    function _G.org_breadcrumbs()
+      local path = require("org.api").symbol_path({ win = vim.g.statusline_winid }) or {}
+      local names = vim.tbl_map(function(s) return s.name end, path)
+      return (table.concat(names, " > "):gsub("%%", "%%%%"))
+    end
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "org",
+      callback = function()
+        vim.wo.winbar = "%{%v:lua.org_breadcrumbs()%}"
+      end,
+    })
+<
+Text objects and motions: nvim-treesitter-textobjects needs a parser
+too. org.nvim's own keys (|org-textobj|, |org-elements|) cover its usual
+captures:
+  `@class.outer` / `@class.inner`        `ar` / `ir`: the subtree
+  `@function.outer` / `@function.inner`  `ah` / `ih`: the entry without
+                                         its children
+  `@block.outer`                         `<prefix>v` on the block (the
+                                         element)
+  next / previous `@class.outer`         `]]` / `[[` (visible headlines),
+                                         `][` / `[]` (siblings), `g{`
+                                         (parent)
+  next / previous `@block.outer`         `<C-c><M-f>` / `<C-c><M-b>`
+Folding needs no helper: org.nvim folds org buffers itself (|org-folding|),
+and the `lsp` extension also answers `textDocument/foldingRange`.
+
 ==============================================================================
 25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
@@ -5576,7 +5953,14 @@ Options under `ui`:
                          environments, OrgLatex), "native" (the same with
                          Vim's tex syntax inside), "script" (x^2, a_{i}),
                          "entities" (\alpha)
-  src_highlight          highlight src blocks with the language syntax
+  src_highlight          highlight src blocks in their language
+                         (org-src-fontify-natively); false: plain text
+  src_highlight_engine   "auto" (default): with tree-sitter when Neovim
+                         has a parser and a highlights query for the
+                         language, else with its Vim syntax;
+                         "treesitter": tree-sitter only (other languages
+                         stay plain); "syntax": the Vim syntax only, as
+                         before. See |org-src-highlight|.
   src_block_faces        face of src block bodies by language, like
                          todo_keyword_faces: { python = { bg = "#e5ffb8" } }
                          ("" = blocks without a language)
@@ -5917,7 +6301,8 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
     `OrgInlineSrcMarker`, `OrgInlineSrcLang`, `OrgExportSnippetMarker`,
     `OrgExportSnippetBackend`, `OrgFootnote`, `OrgTarget`, `OrgLatex`,
     `OrgHorizontalRule`, `OrgMacro`, `OrgHiddenStars`, `OrgSuperscript`,
-    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`
+    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`,
+    `OrgBabelOutput`, `OrgCommandPreview`
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
     `OrgMenuOn`, `OrgMenuOff`, `OrgMenuValue`, `OrgMenuSelected` (|org-key-menus|,
     |org-choice-list|)
@@ -6248,7 +6633,9 @@ agenda ~
   insert_diary_extract_time false, skip_unavailable_files false,
   query_register "o", restriction_lock_highlight_subtree true,
   window_frame_fractions { 0.5, 0.75 },
-  columns_add_appointments_to_effort_sum false
+  columns_add_appointments_to_effort_sum false,
+  index { enabled true, cache true, background true, threads 2, watch true,
+  max_watchers 32, poll_interval 30 } (|org-agenda-index|)
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
@@ -6291,6 +6678,10 @@ timer ~
 protocol ~
   default_template_key nil, projects {}, handlers {}, data_separator
   [[/\+\|?]] (|org-protocol|)
+remote ~
+  enabled false (the first Neovim listens for the `org` command line,
+  org-protocol and `api.remote.call`), address nil (`org.nvim.sock` in
+  the runtime directory; $ORG_NVIM_SERVER overrides it) (|org-remote|)
 yank ~
   image_save_method "attach", image_file_name_function nil, dnd_method "ask",
   dnd_default_attach_method nil, dnd_paste true (|org-yank-media|)
@@ -6353,7 +6744,11 @@ mobile ~
   before_process_capture_hook, post_pull_hook (|org-mobile|)
 babel ~
   confirm_evaluate true (or a function), min_lines_for_block_output 10,
-  timeout 30000, evaluate_on_export true, no_eval_on_ctrl_c_ctrl_c false,
+  timeout 30000, async false (|org-babel-async|), spinner (braille
+  frames, or false), spinner_interval 100, live_output 10 (lines of
+  output shown while a block runs, or false; |org-babel-async|),
+  evaluate_on_export true,
+  no_eval_on_ctrl_c_ctrl_c false,
   default_header_args, default_inline_header_args,
   default_lob_header_args, results_keyword "RESULTS",
   inline_result_wrap "=%s=", hash_show_time false, noweb_wrap_start "<<",
@@ -6405,9 +6800,9 @@ export ~                                                   *org-config-export*
   table_default_attributes, table_row_open_tag, table_row_close_tag,
   table_use_header_tags_for_first_column, tag_class_prefix,
   todo_kwd_class_prefix, text_markup_alist, viewport, xml_declaration;
-  latex active_timestamp_format, inactive_timestamp_format,
-  diary_timestamp_format, compiler_file_string, known_warnings,
-  custom_lang_environments, default_footnote_command,
+  latex async_compile true (|org-export-stack|), active_timestamp_format,
+  inactive_timestamp_format, diary_timestamp_format, compiler_file_string,
+  known_warnings, custom_lang_environments, default_footnote_command,
   default_quote_environment, footnote_defined_format, footnote_separator,
   format_drawer_function, format_headline_function,
   format_inlinetask_function, image_default_scale, image_default_height,
@@ -6421,7 +6816,8 @@ export ~                                                   *org-config-export*
   inactive_timestamp_format, diary_timestamp_format,
   link_with_unknown_path_format, tables_verbatim,
   table_scientific_notation, text_markup_alist, format_headline_function,
-  format_drawer_function, format_inlinetask_function.
+  format_drawer_function, format_inlinetask_function; odt async_convert
+  true (|org-export-stack|).
   cite also has the buffer options (|org-cite|): activate_processor,
   follow_processor, insert_processor "basic", basic_max_key_distance 2,
   basic_author_column_end 25, basic_column_separator "  ",
@@ -6474,7 +6870,17 @@ reset_checkbox_state_subtree, the CLOCK shifts (<C-S-Up> / <C-S-Down>),
 inc_effort, babel_remove_result and the table row, column, hline and
 blank-field keys. Keys that prompt (set_tags, schedule, priority, ...) or
 insert text (insert_heading, ...) are not repeated; Emacs's own `C-x z`
-repeat is not bound.
+repeat is not bound. An operator with an org text object (|org-textobj|)
+is a Vim change, so "." repeats it too.
+
+A count on a key whose Emacs command takes a prefix argument keeps the
+Emacs meaning (`4cit`, `4<C-Space>`, ...). On the keys whose Emacs
+command takes none, a count repeats the edit, as one undo step:
+promote / demote of a list item (`3>>`, <M-h> <M-l> <M-H> <M-L>), moving
+a list item, table row or element (<M-k> <M-j>) and moving a table column
+(<M-h> <M-l>). Promote / demote and moving a subtree already take a
+count. A count past what can be done stops there (an item at the margin, a
+row at the table's end).
 
 Section `org` (default key: action):
   g?                               help
@@ -6566,6 +6972,7 @@ Section `org` (default key: action):
   <prefix>bl bz bZ bK              babel_load_in_session,
                                    babel_switch_to_session(_with_code),
                                    babel_kill_session
+  <prefix>bC                       babel_cancel
   <prefix>ba bh bm bx              babel_sha1_hash, babel_describe_bindings,
                                    babel_mark_block, babel_do_key_sequence
 
@@ -6750,8 +7157,11 @@ Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
   x        run keys in edit buffer
   <C-M-h>  select block body
 
-Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
-ir, around_subtree ar.
+Section `text_objects` (|org-textobj|): inner_heading ih, around_heading
+ah, inner_subtree ir, around_subtree ar, inner_element ie, around_element
+ae, inner_item i-, around_item a-, inner_cell ic, around_cell ac,
+inner_row iR, around_row aR, inner_column iC, around_column aC, inner_link
+iL, around_link aL, inner_timestamp id, around_timestamp ad.
 Section `agenda`: see |org-agenda|.
 Section `capture`: finalize, kill, refile.
 Section `edit_src`: save_exit, abort, send_to_session (<C-c><C-c>,
@@ -6776,8 +7186,10 @@ Additional subcommands:
   - `:Org clock_in_last`, `:Org refile_goto`
   - `:Org show_all`, `overview`, `content`, `show_everything`,
     `set_startup_visibility`, `force_cycle_archived`
-  - `:Org delete_property_globally`, `:Org tags_sparse_tree`,
-    `:Org align_tags`, `:Org id_update_locations`
+  - `:Org delete_property_globally`, `:Org tags_sparse_tree [match]`,
+    `:Org occur [regexp]`, `:Org align_tags`, `:Org id_update_locations`
+  - `:Org table_formula [formula]` (|org-table-formulas|),
+    `:Org agenda_filter_regexp [-]regexp` (|org-agenda-filter|)
   - `:Org timer_start`, `timer_stop`, `timer_pause`, `timer_insert`,
     `timer_countdown [min]`, `timer_remaining`
   - `:Org toggle_timestamp_type`
@@ -6787,6 +7199,26 @@ Additional subcommands:
     `feed_show_raw [name]` (|org-feed|)
   - `:Org mobile_push`, `mobile_pull`, `mobile_apply`, `mobile_goto_inbox`,
     `mobile_flagged` (|org-mobile|)
+
+Live previews                                           *org-command-preview*
+Some subcommands show what they will do while you type them, before
+<CR>, like |:substitute| does with 'inccommand' (|:command-preview|):
+  `:Org table_formula {formula}`    the table recalculated with the
+                                    formula; the fields it changes and the
+                                    formula in `#+TBLFM` are highlighted
+  `:Org occur {regexp}`             the matches highlighted
+  `:Org tags_sparse_tree {match}`   the matching headlines highlighted
+  `:Org agenda_filter_regexp {re}`  in the agenda, the entries the filter
+                                    would hide dimmed
+The preview follows 'inccommand': nothing is shown when it is empty;
+"nosplit" (Neovim's default) shows it in the buffer, "split" also lists
+the changed table or the matching lines in the preview window. A formula
+or match that is not complete yet (or has an error) shows nothing, and
+tables of more than 20,000 fields get no preview. Nothing is folded or
+written until you press <CR>; <Esc> leaves the buffer as it was (the
+preview is no change, and leaves no undo step). The highlight is
+`OrgCommandPreview` (linked to |hl-Substitute|); sparse-tree matches use
+`OrgSparseMatch`, as after <CR>.
 
 Menus                                                           *org-menus*
 Emacs's Org menus are Neovim menus (|:menu|): "Org" and "Table" in org
@@ -7103,6 +7535,50 @@ that isn't shown in any window, and archiving the archive file when
       h:schedule("+1d")
     end
 <
+Symbols ~
+                                                         *org-api-symbols*
+The outline of a buffer the way outline, breadcrumb and symbol plugins
+want it (|org-integrations|). Added in API 1.1.
+api.symbols([bufnr], [opts])
+                            The outline of an org buffer (default
+                            current) as a tree of LSP `DocumentSymbol`s:
+                            0-based lines, byte columns. nil and an error
+                            for a buffer that isn't org.
+api.symbol_path([opts])     The headline symbols (without children) from
+                            the outermost to the innermost one around a
+                            line: breadcrumbs. `opts.win` takes a
+                            window's buffer and cursor line (in a
+                            'winbar' expression, `vim.g.statusline_winid`),
+                            else `opts.bufnr` (current) and `opts.lnum`
+                            (its cursor line). Only the headline's
+                            ancestors are built, so it is cheap on every
+                            redraw. An empty list before the first
+                            headline.
+
+A symbol is `{ name, detail, kind, range, selectionRange, children, type,
+lnum, end_lnum, level }`:
+  `name`              a headline's title as shown (links by their
+                      description, no statistics cookie), or the name of
+                      a src block, table or target
+  `detail`            a headline's TODO keyword, priority and tags
+                      (`TODO [#A] :work:`), else "src block", "table",
+                      "target" or "radio target"
+  `kind`              a `vim.lsp.protocol.SymbolKind` value
+  `range`             the whole subtree (block, table, target)
+  `selectionRange`    the title (name)
+  `type`              "headline", "src_block", "table", "target" or
+                      "radio_target"
+  `lnum`, `end_lnum`  first and last line, 1-based
+  `level`             a headline's level
+Named src blocks and tables, and with `opts.targets` `<<targets>>` and
+`<<<radio targets>>>`, are children of their entry, or top-level before
+the first headline. `opts`: `src_blocks` (true), `tables` (true),
+`targets` (false) and `kinds`, the kind by `heading`, `todo`, `done`,
+`src_block`, `table` and `target` (names or values; defaults Namespace,
+Event, Constant, Function, Struct, Key). When the `lsp` extension is on,
+its `document_symbols` and `symbol_kinds` options are the defaults, so
+both agree. Text the `transclusion` extension inserted is left out.
+
 Agenda ~
                                                           *org-api-agenda*
 The entries of the agenda views as data, without opening the agenda.
@@ -7201,6 +7677,27 @@ api.clock.cancel([opts])    Cancel it (<prefix>xq): its CLOCK line is
                             removed.
 Both save the file of the CLOCK line (|org-api-saving|, `opts.save`).
 
+Session server ~
+                                                          *org-api-remote*
+Since API 1.2. The session server (|org-remote|) runs requests of other
+processes in one Neovim.
+api.remote.address()        Its address: $ORG_NVIM_SERVER, else
+                            `remote.address`, else `org.nvim.sock` in the
+                            runtime directory.
+api.remote.is_server()      Is this Neovim the server?
+api.remote.reachable()      Is a server running, this Neovim or another?
+api.remote.call(name, ...)  Call the API function `name` (`"capture"`,
+                            `"clock.status"`, `"headlines"`, ...) in the
+                            server and return its results. It runs here
+                            when this Neovim is the server, when none
+                            runs or when it waits for a key. Arguments and
+                            results cross as plain data: a headline handle
+                            comes back as its fields, without methods. >lua
+    -- from a script: `nvim -l capture.lua`
+    local api = require("org.api")
+    api.remote.call("capture", { template = "* TODO Call Bob", target = "~/org/inbox.org" })
+<
+
 Events ~
                                                           *org-api-events*
 Org fires `User` autocmds with a `data` table. `api.on(name, fn, [opts])`
@@ -7232,8 +7729,10 @@ for `api.off(id)`; `api.events` maps each name to a short description.
                          subtree leaves its file); OrgArchiveFinalize: the
                          same in the archive buffer
     OrgFileLoaded        file, bufnr, source ("disk" or "buffer"): a file
-                         was read from disk, or a buffer parsed for the
-                         first time. Fires on the next event loop turn.
+                         was read from disk (also by the agenda index in
+                         the background, |org-agenda-index|), or a buffer
+                         parsed for the first time. Fires on the next
+                         event loop turn.
 Handlers run during the command, like Emacs hooks, and may edit buffers:
 the command follows its entries where a handler moves them (the region
 command its headlines; a refile the line it returns, its bookmark and the
@@ -7557,7 +8056,12 @@ Differences from Emacs:
   graphics` handling beyond what the code does itself). C-c C-v C-l
   runs the block in the session; Emacs only inserts it at the prompt.
   Timeouts (`babel.timeout`) give up on the result but do not interrupt
-  the REPL. emacs-lisp blocks and
+  the REPL. Every evaluation runs in the background with a spinner (and
+  the output so far below the block, `babel.live_output`) and can be
+  cancelled (`:Org babel_cancel`, Emacs has only C-g for the
+  synchronous ones); `babel.async` gives every block, not only `:async`
+  session blocks, a placeholder result, and a cancelled placeholder
+  becomes `: [ Babel evaluation cancelled ]` (|org-babel-async|). emacs-lisp blocks and
   `elisp:` links run in a separate `emacs --batch` process (or, without
   Emacs, on the table formula Lisp interpreter), not in the editor: they
   cannot see or change buffers, and nothing is kept between evaluations.
@@ -9350,6 +9854,14 @@ The command itself works without the extension: enabling it only adds
 `bin/org` executable, is it the `org` on $PATH, which config it uses).
 $ORG_NVIM_BIN picks the Neovim binary (default `nvim`).
 
+With the session server on in your Neovim (`remote.enabled`,
+|org-remote|), every command but `export`, `schema` and `version` runs in
+that Neovim, on its buffers, its clock and its configuration, and prints
+the same output: a capture or `org set todo` edits the open buffer, and
+`org clock in` starts its clock. With none running, or with
+`--no-server`, `--config`, `--files` or `--dir`, `org` works on the files
+itself, as described below. `-v` says where a command ran.
+
 Configuration ~
 `nvim -l` skips your init.lua, so `org` loads its own configuration, the
 first of:
@@ -9490,6 +10002,11 @@ Writing (each saves the files it changed):
     Archive the subtree with `archive_default_command`.
 `org id TARGET [--create]`
     The heading's ID; `--create` makes one when it has none.
+`org protocol URL [--field NAME=VALUE]`
+    An `org-protocol://` URL (|org-protocol|), for a URL handler: the
+    session server handles it (a capture opens its window there). With no
+    Neovim running, a capture is stored at once with its template, as
+    `org capture` does, and `store-link` and `open-source` fail.
 
 `org schema [COMMAND]`, `org help [--json]`, `org version`
 
@@ -10117,9 +10634,11 @@ What it does ~
   documentSymbol   the outline: each headline with its subtree as range,
                    TODO keyword, priority and tags as detail, and the
                    kind from `symbol_kinds` (TODO and done headlines get
-                   their own); named src blocks and tables are children
-                   of their entry (`document_symbols`). Try
-                   `:lua vim.lsp.buf.document_symbol()`.
+                   their own); named src blocks and tables (and
+                   `<<targets>>` with `document_symbols.targets`) are
+                   children of their entry. Try
+                   `:lua vim.lsp.buf.document_symbol()`. Outline,
+                   breadcrumb and picker plugins: |org-integrations|.
   workspace/symbol headlines of the workspace files (below) whose title,
                    TODO keyword and tags contain every word of the query,
                    ignoring case (|vim.lsp.buf.workspace_symbol()|).
@@ -10263,10 +10782,11 @@ Options ~
                             low = "Warning", checkers = {} } }`
   `hover`                   `{ preview_lines = 8,
                             backlinks_all_headings = false }`
-  `document_symbols`        `{ src_blocks = true, tables = true }`
+  `document_symbols`        `{ src_blocks = true, tables = true,
+                            targets = false }`
   `symbol_kinds`            `{ heading = "Namespace", todo = "Event",
                             done = "Constant", src_block = "Function",
-                            table = "Struct" }`
+                            table = "Struct", target = "Key" }`
   `workspace`               `{ agenda_files = true, org_directory = true,
                             recursive = true, extra = {}, files = nil,
                             max_files = 2000, preload = true }`

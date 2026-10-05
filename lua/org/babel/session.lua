@@ -752,6 +752,48 @@ function M.eval(sess, code, mode, cb, opts)
   end
   sess.queue[#sess.queue + 1] = req
   send_next(sess)
+  return req
+end
+
+--- Stop request `req` (what `eval` returned) of `sess`; its callback is
+--- not called. A queued request is dropped; the running one is
+--- interrupted with C-c. A REPL that catches the interrupt (python, ruby)
+--- still ends the request with its end marker; a shell drops the rest of
+--- the line, so the next request is sent after a moment either way.
+function M.cancel(sess, req)
+  if not req or req.abandoned then
+    return false
+  end
+  req.abandoned = true
+  stop_timer(req)
+  if sess.current ~= req then
+    return true
+  end
+  if sess.job and sess.alive then
+    pcall(vim.fn.chansend, sess.job, "\3")
+  end
+  local t = vim.uv.new_timer()
+  if not t then
+    return true
+  end
+  t:start(
+    500,
+    0,
+    vim.schedule_wrap(function()
+      t:close()
+      if sess.current == req then
+        sess.current = nil
+        sess.acc = ""
+        if sess.dir then
+          for _, ext in ipairs({ ".src", ".req", ".val", ".err" }) do
+            os.remove(sess.dir .. "/" .. req.id .. ext)
+          end
+        end
+        send_next(sess)
+      end
+    end)
+  )
+  return true
 end
 
 --- Synchronous `eval`: waits for the result (for :var references, noweb

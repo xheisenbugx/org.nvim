@@ -233,16 +233,11 @@ function M.attach(bufnr)
   require("org.mouse").attach(bufnr)
   -- text objects (synchronous)
   local to = maps.text_objects or {}
-  local objs = {
-    inner_heading = { "select_heading", true },
-    around_heading = { "select_heading", false },
-    inner_subtree = { "select_subtree", true },
-    around_subtree = { "select_subtree", false },
-  }
-  for name, spec in pairs(objs) do
+  for _, obj in ipairs(require("org.textobjects").list) do
+    local name, kind, inner = obj[1], obj[2], obj[3]
     for _, lhs in ipairs(config.lhs_list(to[name])) do
       set({ "o", "x" }, lhs, function()
-        require("org.structure")[spec[1]](spec[2])
+        require("org.textobjects").select(kind, inner)
       end, { buffer = bufnr, desc = "org: " .. name:gsub("_", " ") }, record)
     end
   end
@@ -536,7 +531,8 @@ local function org_help_rows()
     table.insert(by_group[g], { lhs, a.desc })
   end
   local objects = {}
-  for _, name in ipairs({ "inner_heading", "around_heading", "inner_subtree", "around_subtree" }) do
+  for _, obj in ipairs(require("org.textobjects").list) do
+    local name = obj[1]
     local lhs = config.lhs_list((maps.text_objects or {})[name])
     if #lhs > 0 then
       objects[#objects + 1] = { lhs, humanize(name) }

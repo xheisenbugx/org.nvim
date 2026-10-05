@@ -4,6 +4,7 @@
 --- requires back. Load it through `require("org.babel")`.
 
 local blocks_mod = require("org.babel.blocks")
+local jobs = require("org.babel.jobs")
 local langs = require("org.babel.langs")
 local lisp = require("org.babel.lisp")
 local results = require("org.babel.results")
@@ -47,7 +48,7 @@ end
 --- `opts.current_hash` / `opts.read_cached`), asks for confirmation,
 --- runs the code, then applies :colnames, `:file` and `:post`.
 --- `cb(result, info)`; with `opts.sync` returns them instead.
----@param opts? { sync?: boolean, skip_confirm?: boolean, export?: boolean, depth?: integer, current_hash?: string, read_cached?: (fun(): any), force?: boolean }
+---@param opts? { sync?: boolean, skip_confirm?: boolean, export?: boolean, depth?: integer, current_hash?: string, read_cached?: (fun(): any), force?: boolean, on_start?: fun(), job?: org.babel.Job }
 function M.evaluate(bufnr, src, args, opts, cb)
   opts = opts or {}
   local sync = opts.sync
@@ -201,9 +202,10 @@ function M.evaluate(bufnr, src, args, opts, cb)
     )
   else
     if opts.on_start then
+      -- may set opts.job (org.babel.jobs): the run can then be cancelled
       opts.on_start()
     end
-    M.run(bufnr, lang, body, args, vars, after, { colnames = colnames, graphics_file = graphics_file })
+    M.run(bufnr, lang, body, args, vars, after, { colnames = colnames, graphics_file = graphics_file, job = opts.job })
   end
   return ret_result, ret_info
 end
@@ -349,20 +351,46 @@ local function read_block_result(bufnr, b)
   return v
 end
 
---- org-babel-comint-use-async: `:async` (not "no") on a session block,
---- outside export. Lua sessions run in-process and finish at once.
+--- Whether an interactive run writes a placeholder result at once
+--- (org-babel-comint-use-async): `:async` (not "no") on a session block
+--- like Emacs, or any block with `babel.async` unless it says `:async no`.
+--- Never outside interactive runs, and not for Lua run inside Neovim,
+--- which finishes at once.
 local function use_async(args, lang, opts)
+  if opts.sync or opts.export then
+    return false
+  end
   local async = args.async
-  if async == nil or vim.trim(async) == "no" or opts.sync or opts.export then
+  if async ~= nil and vim.trim(async) == "no" then
+    return false
+  end
+  local rp = results.result_params(args)
+  if args.results_spec.handling ~= "replace" or rp.silent or rp.none then
     return false
   end
   local fam = langs.family(lang)
-  local rp = results.result_params(args)
-  return session_mod.name(args.session) ~= nil
-    and session_mod.supported(lang, fam)
-    and fam ~= "lua"
-    and args.results_spec.handling == "replace"
-    and not (rp.silent or rp.none)
+  local in_session = session_mod.name(args.session) ~= nil and session_mod.supported(lang, fam)
+  if fam == "lua" and (in_session or not langs.lua_external()) then
+    return false
+  end
+  if async ~= nil and in_session then
+    return true
+  end
+  return require("org.config").opts.babel.async == true
+end
+
+--- Run `fn` (a change of `bufnr`) as part of the previous undo step when
+--- nothing changed the buffer since `tick`: the placeholder and the result
+--- that replaces it are one step for `u`.
+local function joined(bufnr, tick, fn)
+  if not tick or vim.api.nvim_buf_get_changedtick(bufnr) ~= tick then
+    return fn()
+  end
+  vim.api.nvim_buf_call(bufnr, function()
+    -- E790 after an undo: then it is a step of its own
+    pcall(vim.cmd, "undojoin")
+    fn()
+  end)
 end
 
 --- A random placeholder id, like org-id-uuid.
@@ -421,12 +449,16 @@ function M.execute(opts)
     args.results_spec.handling = opts.handling
   end
   local last = vim.api.nvim_buf_get_lines(bufnr, b.finish - 1, b.finish, false)[1]
-  local source = track_source(bufnr, b.start - 1, 0, b.finish - 1, #last, {
-    virt_text = { { "  ⏳ executing…", "Comment" } },
-    virt_text_pos = "eol",
-  })
-  local uuid, lost
+  local source = track_source(bufnr, b.start - 1, 0, b.finish - 1, #last)
+  -- uuid: the placeholder result; tick: the changedtick right after it
+  -- was written; job: the running evaluation (org.babel.jobs)
+  local uuid, tick, lost, job, pargs
   local function finish(result, info)
+    if job and job.cancelled then
+      -- cancelled: on_cancel already showed it and called `done`
+      return
+    end
+    jobs.finish(job)
     local pos, abort
     if lost then
       done(false, not vim.api.nvim_buf_is_valid(bufnr))
@@ -468,10 +500,27 @@ function M.execute(opts)
       utils.notify(lisp.prin1(result))
     elseif not rp.none and pos and pos[1] then
       local ctx = { base_dir = buf_dir(bufnr), cwd = info.cwd }
-      insert_results(bufnr, pos[1] + 1, result, iargs, rp.replace and info.hash or nil, src.lang, ctx)
+      joined(bufnr, tick, function()
+        insert_results(bufnr, pos[1] + 1, result, iargs, rp.replace and info.hash or nil, src.lang, ctx)
+      end)
     end
     M.fire("OrgBabelAfterExecute", { bufnr = bufnr, lang = src.lang, name = src.name, result = result })
     done(info.error == nil)
+  end
+  --- The job was cancelled (`:Org babel_cancel`, or its buffer is unloading).
+  local function on_cancel(_, copts)
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, source.mark)
+    local loaded = vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)
+    if uuid and loaded and not copts.unloading then
+      -- the placeholder says so; elsewhere the previous result stays
+      local start = find_async_block(bufnr, uuid)
+      if start then
+        joined(bufnr, tick, function()
+          insert_results(bufnr, start, M.CANCELLED, pargs, nil, src.lang, { base_dir = buf_dir(bufnr) })
+        end)
+      end
+    end
+    done(false, true)
   end
   local eopts = {
     sync = opts.sync,
@@ -483,24 +532,36 @@ function M.execute(opts)
       return b.results and read_block_result(bufnr, b)
     end,
   }
-  if use_async(args, src.lang, opts) then
-    eopts.on_start = function()
-      -- org-babel-comint-async: write a placeholder result right away
-      local start = take_source(bufnr, source)
-      if not start then
-        lost = true
-        return
-      end
-      uuid = async_uuid()
-      source = track_source(bufnr, start[1], 0, start[1], 0, {
-        virt_text = { { "  ⏳ executing…", "Comment" } },
-        virt_text_pos = "eol",
-      })
-      local pargs = vim.deepcopy(args)
-      pargs.results_spec.type = nil
-      pargs.file, pargs.wrap = nil, nil
-      insert_results(bufnr, start[1] + 1, uuid, pargs, nil, src.lang, { base_dir = buf_dir(bufnr) })
+  local placeholder = use_async(args, src.lang, opts)
+  eopts.on_start = function()
+    -- only asynchronous runs get here, right before the code starts
+    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, source.mark, { details = true })
+    local row = pos[1]
+    if row then
+      -- the live output goes below the block's last line
+      local end_row = pos[3] and pos[3].end_row or row
+      job = jobs.start(bufnr, row, { lang = src.lang, name = src.name, end_row = end_row })
+      job.on_cancel = on_cancel
+      eopts.job = job
     end
+    if not placeholder then
+      return
+    end
+    -- org-babel-comint-async: write a placeholder result right away
+    local start = take_source(bufnr, source)
+    if not start then
+      lost = true
+      jobs.finish(job)
+      job, eopts.job = nil, nil
+      return
+    end
+    uuid = async_uuid()
+    source = track_source(bufnr, start[1], 0, start[1], 0)
+    pargs = vim.deepcopy(args)
+    pargs.results_spec.type = nil
+    pargs.file, pargs.wrap = nil, nil
+    insert_results(bufnr, start[1] + 1, uuid, pargs, nil, src.lang, { base_dir = buf_dir(bufnr) })
+    tick = vim.api.nvim_buf_get_changedtick(bufnr)
   end
   if opts.sync then
     local result, info = M.evaluate(bufnr, src, args, eopts)
@@ -508,6 +569,38 @@ function M.execute(opts)
   else
     M.evaluate(bufnr, src, args, eopts, finish)
   end
+end
+
+--- The result that replaces the placeholder of a cancelled evaluation.
+M.CANCELLED = "[ Babel evaluation cancelled ]"
+
+--- Cancel the evaluation of the block (or #+CALL / inline element) at the
+--- cursor: its process is killed, or its session interrupted. Elsewhere,
+--- the only running evaluation, or one picked from the list. With a count,
+--- every running evaluation.
+function M.cancel_block()
+  if vim.v.count > 0 then
+    local n = jobs.cancel_all({ quiet = true })
+    utils.notify(string.format("Cancelled %d evaluation%s", n, n == 1 and "" or "s"))
+    return
+  end
+  local bufnr = vim.api.nvim_get_current_buf()
+  local job = jobs.at(bufnr, vim.api.nvim_win_get_cursor(0)[1])
+  if not job then
+    local all = jobs.list()
+    if #all == 0 then
+      utils.notify("No source block evaluation is running")
+      return
+    elseif #all == 1 then
+      job = all[1]
+    else
+      job = utils.select(all, { prompt = "Cancel evaluation", format_item = jobs.describe })
+      if not job then
+        return
+      end
+    end
+  end
+  jobs.cancel(job)
 end
 
 --- Evaluate a block synchronously and return its result without inserting

@@ -4,6 +4,7 @@
 --- requires back. Load it through `require("org.babel")`.
 
 local blocks_mod = require("org.babel.blocks")
+local jobs = require("org.babel.jobs")
 local langs = require("org.babel.langs")
 local lisp = require("org.babel.lisp")
 local results = require("org.babel.results")
@@ -231,7 +232,7 @@ local function lua_result(res, args)
   return v
 end
 
-local function run_in_session(bufnr, lang, body, args, vars, name, done, sync, graphics_file)
+local function run_in_session(bufnr, lang, body, args, vars, name, done, sync, graphics_file, job)
   local ok, sess = pcall(get_session, bufnr, lang, args, name)
   if not ok then
     utils.error("babel: " .. tostring(sess))
@@ -281,15 +282,22 @@ local function run_in_session(bufnr, lang, body, args, vars, name, done, sync, g
   if sync then
     return done(convert(session_mod.eval_sync(sess, code, mode, eopts)))
   end
-  session_mod.eval(sess, code, mode, function(sres)
+  local req = session_mod.eval(sess, code, mode, function(sres)
     done(convert(sres))
   end, eopts)
+  if req then
+    jobs.set_kill(job, function()
+      session_mod.cancel(sess, req)
+    end)
+  end
 end
 
 --- Run the steps of a spec (see `langs.prepare`) one after the other and
 --- call `cb(stdout)` with the output of the last. Failures are shown in
 --- the error buffer; like `org-babel-eval`, the output is still used.
-local function run_steps(spec, cwd, sync, cb)
+--- `job` (org.babel.jobs) gets a way to kill the running step; once it is
+--- cancelled nothing more runs and `cb` is not called.
+local function run_steps(spec, cwd, sync, cb, job)
   local timeout = require("org.config").opts.babel.timeout
   local outs = {}
   local failed = false
@@ -343,6 +351,9 @@ local function run_steps(spec, cwd, sync, cb)
     return cb(outs[#outs] or "", failed)
   end
   local function nxt()
+    if job and job.cancelled then
+      return
+    end
     i = i + 1
     local step = spec.steps[i]
     if not step then
@@ -352,14 +363,31 @@ local function run_steps(spec, cwd, sync, cb)
       handle(run_fn(step), step)
       return nxt()
     end
-    local ok, err = pcall(vim.system, argv(step), sys_opts(step), function(obj)
+    local opts = sys_opts(step)
+    -- its own process group, so a cancel kills the script's children too
+    -- (jobs.kill_process)
+    opts.detach = vim.fn.has("win32") == 0
+    -- what it prints shows below the block while it runs (babel.live_output)
+    local collected = jobs.stream(job, opts)
+    local ok, proc = pcall(vim.system, argv(step), opts, function(obj)
+      if collected then
+        collected(obj)
+      end
       vim.schedule(function()
+        if job and job.cancelled then
+          -- killed on purpose: no error buffer, no result
+          return
+        end
         handle(obj, step)
         nxt()
       end)
     end)
-    if not ok then
-      M.error_notify(nil, tostring(err))
+    if ok then
+      jobs.set_kill(job, function()
+        jobs.kill_process(proc)
+      end)
+    else
+      M.error_notify(nil, tostring(proc))
       cb(nil, true)
     end
   end
@@ -370,7 +398,8 @@ M.run_steps = run_steps
 --- Run code and call `cb(r)` with `r = { result, error? }`: `result` is
 --- the Babel value `org-babel-execute:LANG` returns. With `opts.sync` the
 --- call blocks and returns `r`.
----@param opts? { sync?: boolean, colnames?: table, graphics_file?: string }
+--- `opts.job` (org.babel.jobs, asynchronous runs only) can cancel it.
+---@param opts? { sync?: boolean, colnames?: table, graphics_file?: string, job?: org.babel.Job }
 function M.run(bufnr, lang, body, args, vars, cb, opts)
   opts = opts or {}
   local sync = opts.sync
@@ -388,7 +417,7 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
   local fam = langs.family(lang)
   local sname = block_session(lang, args)
   if sname then
-    run_in_session(bufnr, lang, body, args, vars, sname, done, sync, opts.graphics_file)
+    run_in_session(bufnr, lang, body, args, vars, sname, done, sync, opts.graphics_file, opts.job)
     return result
   end
   local cwd = block_cwd(bufnr, args)
@@ -426,14 +455,14 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
         return done({ error = true, abort = true })
       end
       done({ result = value, error = failed or nil })
-    end)
+    end, opts.job)
     return result
   end
   local ob = require("org.babel.ob")
   local handler = ob.get(lang)
   if handler then
     -- a language with its own port of ob-LANG.el (org.babel.lang.*)
-    local octx = { bufnr = bufnr, cwd = cwd, sync = sync, colnames = opts.colnames }
+    local octx = { bufnr = bufnr, cwd = cwd, sync = sync, colnames = opts.colnames, job = opts.job }
     ob.run(handler, lang, body, args, vars, octx, done)
     return result
   end
@@ -506,7 +535,7 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
     end
     done({ result = res, error = failed or nil })
   end
-  run_steps(spec, cwd, sync, finish)
+  run_steps(spec, cwd, sync, finish, opts.job)
   return result
 end
 

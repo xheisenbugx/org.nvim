@@ -255,7 +255,7 @@ end
 ---------------------------------------------------------------------------
 
 --- Run a handler: `done({ result, error?, abort? })`.
----@param ctx { bufnr: integer, cwd: string, sync?: boolean }
+---@param ctx { bufnr: integer, cwd: string, sync?: boolean, job?: org.babel.Job }
 function M.run(handler, lang, body, args, vars, ctx, done)
   local babel = require("org.babel")
   local utils = require("org.utils")
@@ -287,7 +287,7 @@ function M.run(handler, lang, body, args, vars, ctx, done)
       result = res
     end
     done({ result = result, error = failed or nil })
-  end)
+  end, ctx.job)
 end
 
 return M
