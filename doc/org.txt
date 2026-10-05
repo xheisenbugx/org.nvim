@@ -2983,7 +2983,10 @@ Without the command line, any Neovim listening on a socket
     Exec=nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
 <
 On macOS register the scheme with a small app bundle (an AppleScript
-`on open location` handler running the same command). A bookmarklet: >js
+`on open location` handler running the same command). On Windows the
+registry command is `"C:\path\to\org.cmd" protocol "%1"`: keep `%1` in
+quotes, or cmd.exe ends the command at the first `&` of the URL. A
+bookmarklet: >js
     javascript:location.href='org-protocol://capture?'+new URLSearchParams({
       template:'p', url:location.href, title:document.title,
       body:window.getSelection()});void(0)

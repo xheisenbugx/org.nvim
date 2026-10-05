@@ -77,8 +77,13 @@ local function contains(lines, pat)
 end
 
 --- Run bin/org (stdin closed) against `address`: code, stdout, stderr.
+--- On Windows the Neovim behind bin/org.cmd runs directly: libuv quotes
+--- only arguments with spaces, and cmd.exe would end the command at the
+--- first `&` of an org-protocol URL.
 local function org(dir, address, args)
-  local cmd = vim.list_extend({ require("org.extensions.cli").bin() }, args)
+  local bin = is_win and { vim.v.progpath, "--headless", "-l", root .. "/lua/org/extensions/cli/main.lua" }
+    or { require("org.extensions.cli").bin() }
+  local cmd = vim.list_extend(bin, args)
   local res = vim.system(cmd, { text = true, stdin = false, env = env(dir, address), cwd = dir }):wait(30000)
   return res.code, res.stdout or "", res.stderr or ""
 end
