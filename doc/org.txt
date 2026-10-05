@@ -458,7 +458,7 @@ iL / aL         Link: `iL` its description, or its target when it has
 id / ad         Timestamp, a range `<...>--<...>` as one: `id` the text
                 inside its brackets, `ad` the timestamp and the blanks
                 after it.
-Links and timestamps are found under the cursor or, like |i"|, after it on
+Links and timestamps are found under the cursor or, like |iquote|, after it on
 the line. A count selects an ancestor for the objects that nest: `d2ar`
 deletes the parent subtree, `y2a-` copies the parent item, `2ae` is the
 block around the paragraph; typing the object again in Visual mode grows
