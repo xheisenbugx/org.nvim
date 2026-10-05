@@ -795,6 +795,8 @@
 ---@field heatmap? org.Config.Extensions.Heatmap|boolean
 ---A "Today" side window (`:h org-extensions-sidebar`).
 ---@field sidebar? org.Config.Extensions.Sidebar|boolean
+---Hugo-compatible Markdown export, like Emacs ox-hugo (`:h org-extensions-hugo`).
+---@field hugo? org.Config.Extensions.Hugo|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

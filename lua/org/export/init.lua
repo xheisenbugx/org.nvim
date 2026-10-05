@@ -1292,11 +1292,35 @@ end
 -- Dispatcher (org-export-dispatch)
 ---------------------------------------------------------------------------
 
+--- Extra dispatcher entries, as Emacs back-ends add theirs with
+--- `:menu-entry` (ox-hugo's `H`). Each is `{ key, label, items }`, where an
+--- item's `value.fn(state, ctx)` runs the export: `state` holds the
+--- dispatcher options (subtree, body_only, visible_only, async, force),
+--- `ctx.subtree_line` the cursor line. Extensions add theirs with
+--- |M.register_menu_entry|.
+---@type table[]
+M.menu_entries = {}
+
+--- Add (or replace, by key) a dispatcher entry.
+---@param entry { key: string, label: string, items: table[] }
+function M.register_menu_entry(entry)
+  M.unregister_menu_entry(entry.key)
+  M.menu_entries[#M.menu_entries + 1] = entry
+end
+
+--- Remove the dispatcher entry with `key`.
+---@param key string
+function M.unregister_menu_entry(key)
+  M.menu_entries = vim.tbl_filter(function(e)
+    return e.key ~= key
+  end, M.menu_entries)
+end
+
 local function dispatcher_items(state)
   local function onoff(v)
     return v and "on" or "off"
   end
-  return {
+  local items = {
     { heading = true, label = "Options" },
     { key = "b", label = "Body only", state = onoff(state.body_only), value = { toggle = "body_only" } },
     {
@@ -1431,6 +1455,18 @@ local function dispatcher_items(state)
     { key = "&", label = "Export stack", value = { stack = true } },
     { key = "#", label = "Insert default export template", value = { template = true } },
   }
+  -- extensions' entries go before "Publish", ordered by key like the rest
+  local publish
+  for i, it in ipairs(items) do
+    if it.key == "P" and it.items then
+      publish = i
+    end
+  end
+  for _, e in ipairs(M.menu_entries) do
+    table.insert(items, publish, e)
+    publish = publish + 1
+  end
+  return items
 end
 
 --- Ctrl-keys of the dispatcher options (C-b C-s C-v C-f C-a in Emacs).
@@ -1536,6 +1572,8 @@ function M.prompt()
     end
     if choice.toggle then
       state[choice.toggle] = not state[choice.toggle]
+    elseif choice.fn then
+      return choice.fn(state, { subtree_line = subtree_line })
     elseif choice.stack then
       return M.stack_show()
     elseif choice.template then

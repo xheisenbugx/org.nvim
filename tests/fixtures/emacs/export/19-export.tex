@@ -1823,8 +1823,67 @@ TODO keyword. Afterwards: \texttt{:!rm examples/19-export.ics}.
 
 \textbf{Try (writes examples/19-export.odt):} \texttt{<prefix>e s o o}, open the file in
 LibreOffice (or \texttt{<prefix>e s o O} to open it right away), then delete it.
-\section{Publishing projects}
+\section{Hugo blog posts (the hugo extension)}
+\label{sec:org2d522f4}
+The \texttt{hugo} extension (a port of Emacs ox-hugo, off by default) writes
+Markdown for the Hugo static site generator. Turn it on in your config:
+
+\begin{verbatim}
+require("org").setup({ extensions = { hugo = true } })
+\end{verbatim}
+
+A heading with an \texttt{EXPORT\_FILE\_NAME} property is one post; its children are
+the post's sections, and it inherits \texttt{EXPORT\_HUGO\_*} properties (section,
+base dir, front matter format, \ldots{}) from its parents. The dispatcher entry
+is \texttt{H}: \texttt{H t} shows the post in a buffer, \texttt{H H} writes the post at the
+cursor to \texttt{<base dir>/content/<section>/<name>.md}, \texttt{H A} writes every
+post of the file. Without such headings, the whole file is one post
+(\texttt{\#+title}, \texttt{\#+hugo\_base\_dir}, \texttt{\#+hugo\_section} keywords).
+\subsection{{\bfseries\sffamily DONE} Sample: a Hugo post\hfill{}\textsc{emacs:@notes}}
+\label{sec:org5060a91}
+Hello from \emph{Org}.
+\subsubsection{A section}
 \label{sec:org20a3d41}
+With a footnote\footnote{Footnotes go to the end of the post.}.
+\subsection{Exercises: a Hugo post}
+\label{sec:orgf7b6e2d}
+\textbf{Try:} with the extension on, put the cursor in the sample above and press
+\texttt{<prefix>e H t} (to a temporary buffer).
+
+\textbf{Expect:} a Markdown buffer whose front matter comes from the heading:
+the CLOSED date, the tags (\texttt{@notes} is a category), \texttt{draft = false}
+because the heading is DONE, and the custom front matter:
+
+\begin{verbatim}
++++
+title = "Sample: a Hugo post"
+author = ["org.nvim examples"]
+date = 2026-10-05T10:30:00+00:00
+tags = ["emacs"]
+categories = ["notes"]
+draft = false
+featured = true
++++
+
+Hello from _Org_.
+
+
+## A section {#a-section}
+
+With a footnote[^fn:1].
+
+[^fn:1]: Footnotes go to the end of the post.
+\end{verbatim}
+
+(The date shows your time zone's offset.) Change \texttt{DONE} to \texttt{TODO}: the
+post becomes a draft. Add \texttt{:EXPORT\_HUGO\_FRONT\_MATTER\_FORMAT: yaml} to the
+drawer and export again: the front matter is YAML between \texttt{-{}-{}-} lines.
+
+\textbf{Try (writes under /tmp):} \texttt{<prefix>e H H}. The post goes to
+\texttt{/tmp/org-nvim-hugo-site/content/blog/my-first-post.md}; see
+\texttt{:h org-extensions-hugo} for page bundles, images and links between posts.
+\section{Publishing projects}
+\label{sec:orgbb3e03c}
 Publishing exports whole directories at once (a website, a set of PDFs):
 projects are set in your config under \texttt{export.publish.projects}, and only
 files changed since the last run are exported again. Dispatcher: \texttt{P f}
@@ -1871,7 +1930,7 @@ are kept in \texttt{export.publish.timestamp\_directory}.
 \textbf{Try:} \texttt{<prefix>e P x}: with the bundled init no project is configured, so
 the prompt offers nothing to choose; press \texttt{<Esc>}.
 \section{Configuring defaults}
-\label{sec:org79b7c23}
+\label{sec:org848e160}
 Every \texttt{\#+OPTIONS} key has a config default under \texttt{export}, named after the
 Emacs variable: \texttt{with\_toc}, \texttt{with\_section\_numbers}, \texttt{headline\_levels},
 \texttt{with\_tags}, \texttt{with\_todo\_keywords}, \texttt{with\_priority}, \texttt{with\_drawers},
@@ -1898,7 +1957,7 @@ require("org").setup({
 Filters and hooks (\texttt{export.filters}, \texttt{export.hooks}) run Lua functions on
 the text or the lines before parsing: see \texttt{:h org-export}.
 \section{Further reading}
-\label{sec:orgf7db64b}
+\label{sec:org7d8833a}
 \begin{itemize}
 \item \texttt{:h org-export} (dispatcher, command and Lua API)
 \item \texttt{:h org-export-settings} (keywords, \texttt{\#+OPTIONS}, macros, \texttt{\#+INCLUDE})
