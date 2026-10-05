@@ -483,6 +483,7 @@ together with the examples, searchable.
 - [Statusline](#statusline)
 - [Outline and breadcrumb plugins](#outline-and-breadcrumb-plugins)
 - [Lua API](#lua-api)
+- [Session server](#session-server)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
 - [Extensions](#-extensions)
@@ -955,6 +956,31 @@ See [`:h org-api`](doc/org.txt) for every function, field and event.
 
 ---
 
+## Session server
+
+Capturing from a shell, a browser bookmarklet or a script used to write
+the org file behind the back of the Neovim you have it open in. Turn the
+session server on and they ask that Neovim instead:
+
+```lua
+require("org").setup({ remote = { enabled = true } })
+```
+
+The first Neovim listens on a well-known socket. The `org` command line
+(`org capture`, `org clock in`, `org set todo`, `org agenda`, ...),
+`org protocol URL` for org-protocol links and `api.remote.call()` then
+run in it: a capture lands in the open buffer (one `u` takes it back),
+`org clock in` starts that Neovim's clock, and files with unsaved changes
+stay unsaved. With no Neovim running they work on the files as before.
+See [`:h org-remote`](doc/org.txt).
+
+```sh
+org capture -t t "Call the bank"   # appears in the inbox buffer you have open
+org clock in "Write release notes" # the clock in your statusline starts
+```
+
+---
+
 ## 📊 Parity with Emacs Org
 
 How much of Emacs Org 9.8 works the same way in org.nvim, **measured**
@@ -1194,6 +1220,8 @@ its options may still change):
   prints a versioned envelope with stable error codes, and `org schema`
   describes the commands as JSON Schema, so scripts and AI agents can use
   it as a tool (`:h org-extensions-cli`, `:h org-extensions-cli-json`).
+  With the [session server](#session-server) on, its commands run in your
+  open Neovim instead of on the files.
 
   ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/org-cli.gif)
 

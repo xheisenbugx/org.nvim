@@ -2969,13 +2969,19 @@ Call it from Lua with `require("org.protocol").handle(url)` or
                         the same with the defaults of the publishing
                         project of the current file (org-protocol-create-for-org)
 
-Neovim must listen on a socket (`nvim --listen ~/.cache/nvim/org.sock`, or
-|v:servername|) and the OS must send `org-protocol:` URLs to a handler
-that forwards them, e.g. on Linux a desktop file with
+The OS must send `org-protocol:` URLs to a handler that forwards them to
+a running Neovim. With the session server on (`remote.enabled`,
+|org-remote|) the `org` command line (|org-extensions-cli|) does that:
+`org protocol URL` hands the URL to your Neovim, and with no Neovim
+running stores a capture at once in its file. On Linux, a desktop file with
 `MimeType=x-scheme-handler/org-protocol;` and: >sh
-    Exec=nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+    Exec=org protocol %u
 <
 then `xdg-mime default org-protocol.desktop x-scheme-handler/org-protocol`.
+Without the command line, any Neovim listening on a socket
+(`nvim --listen ~/.cache/nvim/org.sock`, |v:servername|) takes them: >sh
+    Exec=nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+<
 On macOS register the scheme with a small app bundle (an AppleScript
 `on open location` handler running the same command). A bookmarklet: >js
     javascript:location.href='org-protocol://capture?'+new URLSearchParams({
@@ -2984,6 +2990,45 @@ On macOS register the scheme with a small app bundle (an AppleScript
 <
 Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
 has no counterpart: the handler command above plays that role.
+
+Session server                                                  *org-remote*
+Programs outside Neovim that change your org files (the `org` command line,
+org-protocol URLs, scripts) would otherwise write the files behind the back
+of a Neovim that has them open: its buffers go stale, its undo history
+doesn't know the change, and a clock started from the shell isn't its
+clock. Turn the session server on and they ask that Neovim instead: >lua
+    require("org").setup({ remote = { enabled = true } })
+<
+The first Neovim that sets org up then listens on a well-known address
+(`remote.address`; by default `org.nvim.sock` in your runtime directory,
+$XDG_RUNTIME_DIR or Neovim's `nvim.<user>` directory under the temp
+directory, and the named pipe `\\.\pipe\org.nvim.<user>` on Windows).
+Only one Neovim owns it: another one started later leaves it alone
+without an error, and takes it over when it gets the focus after the
+first one has quit. A socket file left by a Neovim that crashed is
+removed. `$ORG_NVIM_SERVER` overrides the address for the server and its
+clients, and `ORG_NVIM_SERVER=none` turns it off.
+
+What goes there:
+- every command of the `org` command line but `export`, `schema` and
+  `version` (|org-extensions-cli|): a capture lands in the open buffer
+  (one undo step takes it back), `org clock in` starts that Neovim's
+  clock, `org set todo` changes the buffer, `org agenda` sees unsaved
+  changes. A file with unsaved changes there is changed in its buffer but
+  not saved; other files are saved as before. Agendas are built aside:
+  your agenda windows stay as they are. `--no-server`, `--config`,
+  `--files` and `--dir` run the command in its own process instead.
+- `org protocol URL`: the URL is handled as `:Org protocol` would, so a
+  capture opens its capture window there (|org-protocol|).
+- `require("org.api").remote.call(name, ...)` from Lua (|org-api-remote|).
+When nothing listens (or that Neovim waits for a key), they work on the
+files as before. Plain `nvim --server` works too when you give the
+address yourself (`remote.address = "~/.cache/nvim/org.sock"`): >sh
+    nvim --server ~/.cache/nvim/org.sock --remote-expr \
+      "luaeval('vim.inspect(require([[org.api]]).clock.status())')"
+<
+Requests run in that Neovim with its configuration, not the command
+line's. `:checkhealth org` says whether this Neovim is the server.
 
 Plain links through tags files                                   *org-ctags*
 Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
@@ -6615,6 +6660,10 @@ timer ~
 protocol ~
   default_template_key nil, projects {}, handlers {}, data_separator
   [[/\+\|?]] (|org-protocol|)
+remote ~
+  enabled false (the first Neovim listens for the `org` command line,
+  org-protocol and `api.remote.call`), address nil (`org.nvim.sock` in
+  the runtime directory; $ORG_NVIM_SERVER overrides it) (|org-remote|)
 yank ~
   image_save_method "attach", image_file_name_function nil, dnd_method "ask",
   dnd_default_attach_method nil, dnd_paste true (|org-yank-media|)
@@ -7609,6 +7658,27 @@ api.clock.clock_out([opts]) Stop it wherever it runs; returns the minutes.
 api.clock.cancel([opts])    Cancel it (<prefix>xq): its CLOCK line is
                             removed.
 Both save the file of the CLOCK line (|org-api-saving|, `opts.save`).
+
+Session server ~
+                                                          *org-api-remote*
+Since API 1.2. The session server (|org-remote|) runs requests of other
+processes in one Neovim.
+api.remote.address()        Its address: $ORG_NVIM_SERVER, else
+                            `remote.address`, else `org.nvim.sock` in the
+                            runtime directory.
+api.remote.is_server()      Is this Neovim the server?
+api.remote.reachable()      Is a server running, this Neovim or another?
+api.remote.call(name, ...)  Call the API function `name` (`"capture"`,
+                            `"clock.status"`, `"headlines"`, ...) in the
+                            server and return its results. It runs here
+                            when this Neovim is the server, when none
+                            runs or when it waits for a key. Arguments and
+                            results cross as plain data: a headline handle
+                            comes back as its fields, without methods. >lua
+    -- from a script: `nvim -l capture.lua`
+    local api = require("org.api")
+    api.remote.call("capture", { template = "* TODO Call Bob", target = "~/org/inbox.org" })
+<
 
 Events ~
                                                           *org-api-events*
@@ -9766,6 +9836,14 @@ The command itself works without the extension: enabling it only adds
 `bin/org` executable, is it the `org` on $PATH, which config it uses).
 $ORG_NVIM_BIN picks the Neovim binary (default `nvim`).
 
+With the session server on in your Neovim (`remote.enabled`,
+|org-remote|), every command but `export`, `schema` and `version` runs in
+that Neovim, on its buffers, its clock and its configuration, and prints
+the same output: a capture or `org set todo` edits the open buffer, and
+`org clock in` starts its clock. With none running, or with
+`--no-server`, `--config`, `--files` or `--dir`, `org` works on the files
+itself, as described below. `-v` says where a command ran.
+
 Configuration ~
 `nvim -l` skips your init.lua, so `org` loads its own configuration, the
 first of:
@@ -9906,6 +9984,11 @@ Writing (each saves the files it changed):
     Archive the subtree with `archive_default_command`.
 `org id TARGET [--create]`
     The heading's ID; `--create` makes one when it has none.
+`org protocol URL [--field NAME=VALUE]`
+    An `org-protocol://` URL (|org-protocol|), for a URL handler: the
+    session server handles it (a capture opens its window there). With no
+    Neovim running, a capture is stored at once with its template, as
+    `org capture` does, and `store-link` and `open-source` fail.
 
 `org schema [COMMAND]`, `org help [--json]`, `org version`
 
