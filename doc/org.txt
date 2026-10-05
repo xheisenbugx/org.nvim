@@ -70,6 +70,9 @@ Quick start:                                              *org-quickstart*
   4. Press `<prefix>c` then `t` in any buffer to capture a task.
   5. Press `g?` to list every keymap.
 
+New to Org? Run `:Org tutor` for a guided lesson with exercises that are
+checked as you do them (|org-tutor|).
+
 For a hands-on tour, open `examples/tutorial.org` from the plugin
 directory. It has a section with exercises for every feature. To try it
 with a throwaway config (agenda and capture included), run from the plugin
@@ -91,6 +94,62 @@ Conventions used in this manual:
 Press `g?` in an org or agenda buffer for a list of active keymaps, grouped
 by topic. Each row lists every key of one command; `i_` marks Insert-mode
 keys. `/` searches the list and `{` / `}` jump between sections.
+
+Tutor                                                *org-tutor* *:Org-tutor*
+:Org tutor [lesson] [reset]
+    A guided lesson in the spirit of |vimtutor|, in an org buffer of its
+    own, so every org key works in it. Two lessons ship with org.nvim:
+      `basics`     the outline, TODO items and priorities, tags, dates,
+                   lists and checkboxes, tables, links (the default)
+      `workflow`   capture, the agenda and clocking
+    Each lesson is in small numbered sections. An exercise is a headline
+    whose title starts with its number (`1.2 Insert a headline`): once
+    you have done what it asks, a ✓ shows at the end of that headline
+    (✗ until then), and the first line counts the exercises done. The
+    marks are checked from the outline as org.nvim parses it ("this
+    headline is DONE", "has the tag :work:", "the table is aligned"), a
+    moment after each change, including changes made from the agenda.
+
+    The lesson is a copy: `:Org tutor` writes it to
+    `stdpath("data")/org/tutor/{lesson}.org` and opens that file, never
+    the one shipped with the plugin. It is an ordinary file outside your
+    notes, so saving, the agenda (press `<` in the agenda menu to
+    restrict it to the lesson), capture (`:Org capture_here`) and the
+    clock work in it without touching them. Clocking in on a lesson
+    task clocks out the task you were clocked in on, as anywhere. The keys in the text
+    are those of your `mappings` when the copy is made (`:Org {action}`
+    for an action without a key).
+
+    Running `:Org tutor` again opens the same copy: what you saved with
+    `:w` is kept. `reset` starts the lesson over from a fresh copy (the
+    buffer, when it is loaded, keeps its undo history: `u` brings back
+    what you had). Completion lists the lessons.
+
+    `ui.tutor_marks` sets the marks (default `{ done = "✓", todo = "✗" }`),
+    and the highlight groups `OrgTutorDone`, `OrgTutorTodo` and
+    `OrgTutorProgress` (the count on the first line) their colors.
+
+    A lesson is `tutor/org/{lesson}.org` on 'runtimepath', so a plugin or
+    your config can add one; its checks, if any, are a Lua table returned
+    by the module `org.tutor.lessons.{lesson}`, keyed by exercise number.
+    Each value is a condition, or a list of conditions that must all
+    hold, on the exercise's subtree: >lua
+    return {
+      ["1.2"] = { heading = "Pears", parent = "Fruit" },
+      ["2.1"] = { heading = "Buy milk", todo = "DONE" },
+      ["6.1"] = { table_aligned = true },
+    }
+<
+    A condition tests the headline `heading` of the subtree (by its title
+    without keyword, priority or tags; the exercise headline when not
+    given) for `todo`, `priority`, `tags`, `parent`, `depth` (levels below
+    the exercise), `children` (titles in order), `scheduled`, `deadline`,
+    `clocked` and `min_headings`; or the subtree's text for `item` (a list
+    item), `checked` (a checked item), `table_aligned`, `table_row` (first
+    field of a row) and `contains`; `fn(ctx)` returns a boolean for
+    anything else. `{{org.cycle}}` in the lesson text is replaced by the key
+    of `mappings.org.cycle` (any `mappings` section works), `{{leader}}` by
+    the leader key, `{{done}}` and `{{todo}}` by the `ui.tutor_marks`.
 
 ==============================================================================
 2. INSTALLATION                                             *org-installation*
@@ -5913,6 +5972,8 @@ Options under `ui`:
                          (#+STARTUP: hidestars / showstars)
   bullets                list of symbols replacing the stars, per level
   checkboxes             { unchecked, partial, checked } icons
+  tutor_marks            marks of the exercises of |org-tutor| done and
+                         not yet: { done = "✓", todo = "✗" }
   indent_mode            virtual indentation like org-indent-mode: the
                          text of a level-n entry starts at column 2n and
                          headlines get n-1 columns of prefix; turns on
@@ -6309,6 +6370,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
     `OrgMenuOn`, `OrgMenuOff`, `OrgMenuValue`, `OrgMenuSelected` (|org-key-menus|,
     |org-choice-list|)
+  - `OrgTutorDone`, `OrgTutorTodo`, `OrgTutorProgress` (|org-tutor|)
   - `OrgAgenda*`
 
 ==============================================================================
@@ -7198,6 +7260,7 @@ Additional subcommands:
   - `:Org toggle_timestamp_type`
   - `:Org notifications_start`, `notifications_stop`
   - `:Org lint [checker ...]` (|org-lint|)
+  - `:Org tutor [lesson] [reset]` (|org-tutor|)
   - `:Org feed_update [name]`, `feed_update_all`, `feed_goto_inbox [name]`,
     `feed_show_raw [name]` (|org-feed|)
   - `:Org mobile_push`, `mobile_pull`, `mobile_apply`, `mobile_goto_inbox`,

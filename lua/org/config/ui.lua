@@ -51,6 +51,9 @@ local defaults = {
     bullets = false, -- e.g. { "◉", "○", "✸", "✿" }
     --- Replace checkboxes with icons. false or { unchecked, partial, checked }
     checkboxes = false, -- e.g. { " ", "◐", "✓" }
+    --- Marks `:Org tutor` shows after an exercise that is done and one
+    --- that is not yet (`:h org-tutor`).
+    tutor_marks = { done = "✓", todo = "✗" },
     --- Virtual indentation of body text (org-indent-mode, org-startup-indented;
     --- #+STARTUP: indent / noindent).
     indent_mode = false,

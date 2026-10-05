@@ -106,7 +106,12 @@ return {
 }
 ```
 
-Restart Neovim and run `:checkhealth org`. Then open
+Restart Neovim and run `:checkhealth org`. New to Org? Run `:Org tutor`:
+a guided lesson, like `vimtutor`, in a copy of its own where every org key
+works and each exercise gets a ✓ once you have done it (`:Org tutor
+workflow` continues with capture, the agenda and clocking; `:h org-tutor`).
+
+For a longer tour, open
 [`examples/tutorial.org`](examples/tutorial.org), a hands-on tour with a
 section and exercises for every feature. To try it without touching your
 config or your notes, run it from a checkout with the bundled init file:

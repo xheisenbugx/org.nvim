@@ -199,6 +199,10 @@ local function defaults()
     OrgMenuOff = { link = "Comment" },
     OrgMenuValue = { link = "Constant" },
     OrgMenuSelected = { link = "Visual" },
+    -- :Org tutor marks (org.tutor)
+    OrgTutorDone = { link = first_existing({ "DiagnosticOk" }, "DiffAdd") },
+    OrgTutorTodo = { link = first_existing({ "DiagnosticError" }, "ErrorMsg") },
+    OrgTutorProgress = { link = "Comment" },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }

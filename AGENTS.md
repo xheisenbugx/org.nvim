@@ -79,6 +79,7 @@ make fuzz                                  # fuzz specs with 40x the seeds, rand
 | `plugin/`, `ftplugin/`, `syntax/` | Vim runtime files |
 | `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags |
 | `examples/` | per-feature tutorial `.org` files |
+| `tutor/org/`, `lua/org/tutor/` | `:Org tutor` lessons (`.org` text with `{{org.action}}` key placeholders) and their exercise checks (`lessons/<name>.lua`) |
 | `tests/run.lua`, `tests/minimal_init.lua` | the test runner and headless init |
 | `tests/spec/*_spec.lua`, `tests/fixtures/` | specs and the fixture org files |
 | `tests/screen.lua`, `tests/fixtures/screen/` | screen snapshot helper and its golden files |

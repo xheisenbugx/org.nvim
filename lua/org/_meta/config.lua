@@ -1033,6 +1033,9 @@
 ---Replace checkboxes with icons `{ unchecked, partial, checked }`, e.g.
 ---`{ " ", "◐", "✓" }`; `false` = off. (default: `false`)
 ---@field checkboxes? string[]|false
+---Marks `:Org tutor` shows after an exercise that is done (`done`) and
+---one that is not yet (`todo`). (default: `{ done = "✓", todo = "✗" }`)
+---@field tutor_marks? { done?: string, todo?: string }
 ---Virtual indentation of body text (`#+STARTUP: indent` / `noindent`).
 ---(Emacs `org-indent-mode` / `org-startup-indented`, default: `false`)
 ---@field indent_mode? boolean
