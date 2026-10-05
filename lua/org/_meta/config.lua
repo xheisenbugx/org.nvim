@@ -1085,6 +1085,11 @@
 ---Highlight src blocks with their language's syntax.
 ---(Emacs `org-src-fontify-natively`, default: `true`)
 ---@field src_highlight? boolean
+---How src blocks are highlighted: `"auto"` (tree-sitter when Neovim has a
+---parser and a highlights query for the language, else its Vim syntax),
+---`"treesitter"` (only tree-sitter) or `"syntax"` (only Vim syntax).
+---(default: `"auto"`)
+---@field src_highlight_engine? "auto"|"treesitter"|"syntax"
 ---Face of src block bodies by language (`""` = no language), like
 ---`todo_keyword_faces`: `{ python = { bg = "#e5ffb8" } }`.
 ---(Emacs `org-src-block-faces`, default: `{}`)

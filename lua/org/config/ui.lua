@@ -104,6 +104,11 @@ local defaults = {
     --- Syntax-include the languages of src blocks for highlighting
     --- (org-src-fontify-natively).
     src_highlight = true,
+    --- How src blocks are highlighted: "auto" (tree-sitter when Neovim has
+    --- a parser and a highlights query for the language, else its Vim
+    --- syntax), "treesitter" (only tree-sitter) or "syntax" (only Vim
+    --- syntax, included into the org syntax).
+    src_highlight_engine = "auto",
     --- Per-language face of src block bodies, like `todo_keyword_faces`:
     --- `{ python = { bg = "#e5ffb8" }, [""] = "CursorLine" }` ("" = blocks
     --- without a language) (org-src-block-faces).

@@ -4688,6 +4688,25 @@ Edit buffers, like Emacs' org-src buffers:
     (org-src-associate-babel-session): `mappings.edit_src.send_to_session`
     (<C-c><C-c>, <prefix>e) sends the buffer, or in Visual mode the
     selected lines, to the session (started when needed) and shows it.
+                                                   *org-src-highlight*
+The body of a src block is highlighted in its language, like Emacs'
+org-src-fontify-natively. When Neovim has a tree-sitter parser and a
+highlights query for the language (Neovim bundles c, lua, markdown, query,
+vim and vimdoc; nvim-treesitter or |treesitter-parsers| add more), the
+body is drawn with tree-sitter's captures, the `@keyword.lua`,
+`@string.c`, ... groups Neovim uses for a buffer of that language, so it
+looks the same as in a file of that language and your colorscheme's
+tree-sitter colors apply. Only the blocks on screen are parsed, each once
+for its text: moving around or editing elsewhere doesn't parse a block
+again, and an edit in one parses it again from the tree it had. Other
+languages get their Vim syntax (`syntax/<lang>.vim`) included into the
+org syntax, as before. The language name goes through `src_lang_modes`
+first (`elisp` → `lisp`, `shell` → `sh` → the bash parser).
+`ui.src_highlight_engine` chooses: "auto" (the default), "treesitter"
+(languages without a parser stay plain) or "syntax" (always the Vim
+syntax); `ui.src_highlight = false` turns both off. A parser installed
+while the file is open is used after <C-c><C-c> on a `#+` line (which
+refreshes the buffer's setup) or when the file is opened again.
 TAB on a line of a src block (`src_tab_acts_natively`, default true)
 indents it for its language, like a round trip through the edit buffer:
 the body gets the block's content indentation and the line the
@@ -5868,7 +5887,14 @@ Options under `ui`:
                          environments, OrgLatex), "native" (the same with
                          Vim's tex syntax inside), "script" (x^2, a_{i}),
                          "entities" (\alpha)
-  src_highlight          highlight src blocks with the language syntax
+  src_highlight          highlight src blocks in their language
+                         (org-src-fontify-natively); false: plain text
+  src_highlight_engine   "auto" (default): with tree-sitter when Neovim
+                         has a parser and a highlights query for the
+                         language, else with its Vim syntax;
+                         "treesitter": tree-sitter only (other languages
+                         stay plain); "syntax": the Vim syntax only, as
+                         before. See |org-src-highlight|.
   src_block_faces        face of src block bodies by language, like
                          todo_keyword_faces: { python = { bg = "#e5ffb8" } }
                          ("" = blocks without a language)

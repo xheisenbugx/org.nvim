@@ -410,6 +410,7 @@ local function syntax_of(lang)
   end
   return M.lang_aliases[lang] or lang
 end
+M.syntax_of = syntax_of
 
 --- Whether src blocks of `lang` can get a language syntax (not "org":
 --- Neovim's bundled syntax/org.vim would redefine orgBold and friends for
@@ -418,9 +419,36 @@ local function includable(syn)
   return syn ~= "" and syn ~= "org" and syn:match("^[%w_]+$") ~= nil and has_syntax(syn)
 end
 
+--- How src blocks of the Vim syntax `syn` are highlighted: "treesitter"
+--- (org.ui.src_highlight draws them), "syntax" (the syntax is included) or
+--- nil (not at all), by `ui.src_highlight` and `ui.src_highlight_engine`.
+---@return "treesitter"|"syntax"|nil
+local function highlighter(syn)
+  local ts = require("org.ui.src_highlight")
+  local engine = ts.engine()
+  if not engine then
+    return nil
+  end
+  if engine ~= "syntax" and ts.ts_lang_of_syntax(syn) then
+    return "treesitter"
+  end
+  if engine ~= "treesitter" and includable(syn) then
+    return "syntax"
+  end
+  return nil
+end
+
 --- Per buffer: the languages seen by the last `apply` (or found to have no
 --- syntax since), and whether a new one is waiting.
 local languages = {} ---@type table<integer, { seen: table<string, boolean>, pending: boolean, watching: boolean }>
+
+--- The src and export block languages seen in `buf` (a superset of those
+--- in it: one deleted since stays), or nil before its syntax was applied.
+---@return table<string, boolean>?
+function M.languages_seen(buf)
+  local l = languages[buf]
+  return l and l.seen
+end
 
 local function reapply(buf)
   local l = languages[buf]
@@ -456,7 +484,7 @@ local function watch_languages(bufnr)
         local lang = line:byte(1) ~= 42 and block_language(line)
         if lang and not l.seen[lang] then
           l.seen[lang] = true
-          if includable(syntax_of(lang)) then
+          if highlighter(syntax_of(lang)) then
             l.pending = true
             vim.schedule(function()
               reapply(buf)
@@ -758,26 +786,33 @@ function M.apply(bufnr)
   languages[bufnr].seen = vim.deepcopy(langs)
   languages[bufnr].pending = false
   watch_languages(bufnr)
-  if ui.src_highlight ~= false then
+  do
     local included = {}
     local modes = config.src_lang_modes or {}
     local sorted = vim.tbl_keys(langs)
     table.sort(sorted)
     for _, lang in ipairs(sorted) do
       local syn = syntax_of(lang)
-      if not included[syn] and includable(syn) then
+      local how = not included[syn] and highlighter(syn)
+      if how then
         included[syn] = true
         local cluster = "orgSrc_" .. syn
-        local saved = vim.b.current_syntax
-        vim.b.current_syntax = nil
-        local ok = pcall(cmd, string.format("syntax include @%s syntax/%s.vim", cluster, syn))
-        if not ok then
-          pcall(cmd, string.format("syntax include @%s syntax/%s.lua", cluster, syn))
+        if how == "syntax" then
+          local saved = vim.b.current_syntax
+          vim.b.current_syntax = nil
+          local ok = pcall(cmd, string.format("syntax include @%s syntax/%s.vim", cluster, syn))
+          if not ok then
+            pcall(cmd, string.format("syntax include @%s syntax/%s.lua", cluster, syn))
+          end
+          vim.b.current_syntax = saved
+          -- an included file's `syntax case ignore` would make the org rules
+          -- below (TODO keywords, priorities) case-insensitive
+          cmd("syntax case match")
+        else
+          -- tree-sitter draws the body (org.ui.src_highlight): the region
+          -- only keeps it plain text, like an included syntax's leftovers
+          cmd(string.format("syntax cluster %s contains=@NoSpell", cluster))
         end
-        vim.b.current_syntax = saved
-        -- an included file's `syntax case ignore` would make the org rules
-        -- below (TODO keywords, priorities) case-insensitive
-        cmd("syntax case match")
         -- all aliases of this syntax
         local names = { esc(lang) }
         local seen = { [lang] = true }
