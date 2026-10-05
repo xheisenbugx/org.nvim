@@ -40,5 +40,9 @@ end, {
   complete = function(...)
     return require("org.commands").complete(...)
   end,
+  -- the 'inccommand' preview of the subcommands that have one
+  preview = function(...)
+    return require("org.commands").preview(...)
+  end,
   desc = "org.nvim commands",
 })

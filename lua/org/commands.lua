@@ -8,11 +8,47 @@ local utils = require("org.utils")
 
 local M = {}
 
---- Extra subcommands: name -> { module, fn, desc, complete? }
---- The function receives the argument string (possibly "").
+--- Extra subcommands: name -> { module, fn, desc, complete?, raw?,
+--- preview?, args_only? }
+--- The function receives the argument string (possibly ""): the words
+--- after the subcommand joined by one space, or with `raw` the text after
+--- it as typed (a regexp keeps its spaces and backslashes).
 --- `complete(arglead, cmdline)` returns candidates for the arguments; they
 --- are filtered by `arglead`.
+--- `preview` names the module's function showing the command's effect as
+--- it is typed ('inccommand', see `M.preview`).
+--- `args_only`: without arguments the action of the same name runs.
 M.extra = {
+  table_formula = {
+    "org.table",
+    "formula_command",
+    desc = "Set the column formula and recalculate: :Org table_formula [$3=]FORMULA",
+    raw = true,
+    preview = "formula_preview",
+    args_only = true,
+  },
+  occur = {
+    "org.agenda.sparse",
+    "occur_command",
+    desc = "Regexp sparse tree: :Org occur REGEXP",
+    raw = true,
+    preview = "occur_preview",
+  },
+  tags_sparse_tree = {
+    "org.agenda.sparse",
+    "tags_tree_command",
+    desc = "Tags / property match sparse tree: :Org tags_sparse_tree MATCH",
+    raw = true,
+    preview = "match_preview",
+    args_only = true,
+  },
+  agenda_filter_regexp = {
+    "org.agenda.view",
+    "filter_regexp_command",
+    desc = "Filter the agenda by regexp: :Org agenda_filter_regexp [-]REGEXP",
+    raw = true,
+    preview = "filter_regexp_preview",
+  },
   agenda = { "org.agenda", "command", desc = "Open agenda: :Org agenda [a|t|m|s|<custom key>|day|week|month]" },
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
   export = {
@@ -126,6 +162,12 @@ local function names()
   return out
 end
 
+--- The text after the subcommand in `args` (the command's <args>), as
+--- typed but for the blanks before it.
+local function raw_args(args)
+  return (args or ""):match("^%s*%S+%s+(.*)$") or ""
+end
+
 function M.run(opts)
   -- the highlight groups are defined on first use, not at setup()
   require("org.highlights").ensure()
@@ -142,6 +184,13 @@ function M.run(opts)
   end
   local rest = table.concat(vim.list_slice(args, 2), " ")
   local extra = M.extra[name]
+  if extra and extra.raw and opts.args then
+    rest = raw_args(opts.args)
+  end
+  if extra and extra.args_only and vim.trim(rest) == "" and actions.list[name] then
+    actions.run(name)
+    return
+  end
   if extra then
     local ok, mod = pcall(require, extra[1])
     if not ok or type(mod[extra[2]]) ~= "function" then
@@ -253,11 +302,38 @@ function M.complete(arglead, cmdline)
   return {}
 end
 
+--- The 'inccommand' preview of `:Org` (|:command-preview|): while the
+--- command line is typed, the subcommand's `preview` function shows what
+--- it will do (`fn(args, ns, preview_buf, opts)` returns 0, 1 or 2 like
+--- the preview callback). Subcommands without one, and any error, show
+--- nothing; Neovim undoes the changes and clears the highlights.
+---@param opts table the command's opts, as for `M.run`
+---@param ns integer the preview namespace
+---@param buf? integer the preview window's buffer ('inccommand' "split")
+---@return integer
+function M.preview(opts, ns, buf)
+  local name = (opts.args or ""):match("^%s*(%S+)")
+  local extra = name and M.extra[name]
+  if not extra or not extra.preview then
+    return 0
+  end
+  local rest = extra.raw and raw_args(opts.args) or table.concat(vim.list_slice(opts.fargs or {}, 2), " ")
+  local ok, res = pcall(function()
+    local fn = require(extra[1])[extra.preview]
+    return fn(rest, ns, buf, opts)
+  end)
+  if ok and (res == 0 or res == 1 or res == 2) then
+    return res
+  end
+  return 0
+end
+
 function M.setup()
   vim.api.nvim_create_user_command("Org", M.run, {
     nargs = "*",
     range = true,
     complete = M.complete,
+    preview = M.preview,
     desc = "org.nvim commands",
   })
 end

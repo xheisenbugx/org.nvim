@@ -2038,7 +2038,10 @@ bar (Emacs shows them in the mode line).
   <     keep the category of the entry at point (again to clear); with a
         count, hide that category
   =     keep entries matching an Emacs regexp; with a count 1, hide them;
-        again to clear
+        again to clear. `:Org agenda_filter_regexp [-]{regexp}` adds the
+        filter on top of the active ones (`-` hides the matches); while
+        you type it, the entries it would hide are dimmed
+        (|org-command-preview|)
   _     effort: `<`, `>` or `=`, then a digit selecting a value of
         `global_properties.Effort_ALL` (default "0 0:10 0:30 1:00 2:00
         3:00 4:00 5:00 6:00 7:00"); `_` again clears. Entries without
@@ -2674,6 +2677,13 @@ stay folded, with their headline visible, unless
 
 <C-c>\         Tags / property match sparse tree (org-match-sparse-tree).
                With a count, only TODO entries match.
+:Org occur {regexp}
+               Regexp sparse tree (org-occur, like `/` in the menu).
+:Org tags_sparse_tree {match}
+               Tags / property match sparse tree for {match}.
+               While you type either command, the matches are highlighted
+               live (|org-command-preview|); the buffer is folded when you
+               press <CR>. Without an argument, they ask for it.
 
 The buffer is folded so only matching entries are visible, the matches are
 highlighted, and the location list is filled (|:lnext|). The highlights go
@@ -3851,6 +3861,14 @@ or its `^`/`_` name; count 16: put the active formula into the field as
 `=...` for editing), stores it and computes the field. An empty formula
 removes it. A1-style references (`B3`, `C&`) are accepted when typed
 (`table_use_standard_references`).
+
+`:Org table_formula {formula}` takes the formula on the command line: the
+right side of the current column's formula (`:Org table_formula $1*$2`),
+or a formula with its own target (`$4=$2*$3;%.2f`, `@>$4=vsum(@I..@II)`).
+It is stored like with <C-c>= and the whole table is then recalculated
+(<C-c>= then `4<C-c>*`), so the column fills at once. While you type it,
+the table shows the result live (|org-command-preview|). Without
+{formula}, it asks like <C-c>=.
 
                                                         *org-table-formulas*
 Formulas go in `#+TBLFM:` lines below the table: >org
@@ -6192,7 +6210,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
     `OrgExportSnippetBackend`, `OrgFootnote`, `OrgTarget`, `OrgLatex`,
     `OrgHorizontalRule`, `OrgMacro`, `OrgHiddenStars`, `OrgSuperscript`,
     `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`,
-    `OrgBabelOutput`
+    `OrgBabelOutput`, `OrgCommandPreview`
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
     `OrgMenuOn`, `OrgMenuOff`, `OrgMenuValue`, `OrgMenuSelected` (|org-key-menus|,
     |org-choice-list|)
@@ -7072,8 +7090,10 @@ Additional subcommands:
   - `:Org clock_in_last`, `:Org refile_goto`
   - `:Org show_all`, `overview`, `content`, `show_everything`,
     `set_startup_visibility`, `force_cycle_archived`
-  - `:Org delete_property_globally`, `:Org tags_sparse_tree`,
-    `:Org align_tags`, `:Org id_update_locations`
+  - `:Org delete_property_globally`, `:Org tags_sparse_tree [match]`,
+    `:Org occur [regexp]`, `:Org align_tags`, `:Org id_update_locations`
+  - `:Org table_formula [formula]` (|org-table-formulas|),
+    `:Org agenda_filter_regexp [-]regexp` (|org-agenda-filter|)
   - `:Org timer_start`, `timer_stop`, `timer_pause`, `timer_insert`,
     `timer_countdown [min]`, `timer_remaining`
   - `:Org toggle_timestamp_type`
@@ -7083,6 +7103,26 @@ Additional subcommands:
     `feed_show_raw [name]` (|org-feed|)
   - `:Org mobile_push`, `mobile_pull`, `mobile_apply`, `mobile_goto_inbox`,
     `mobile_flagged` (|org-mobile|)
+
+Live previews                                           *org-command-preview*
+Some subcommands show what they will do while you type them, before
+<CR>, like |:substitute| does with 'inccommand' (|:command-preview|):
+  `:Org table_formula {formula}`    the table recalculated with the
+                                    formula; the fields it changes and the
+                                    formula in `#+TBLFM` are highlighted
+  `:Org occur {regexp}`             the matches highlighted
+  `:Org tags_sparse_tree {match}`   the matching headlines highlighted
+  `:Org agenda_filter_regexp {re}`  in the agenda, the entries the filter
+                                    would hide dimmed
+The preview follows 'inccommand': nothing is shown when it is empty;
+"nosplit" (Neovim's default) shows it in the buffer, "split" also lists
+the changed table or the matching lines in the preview window. A formula
+or match that is not complete yet (or has an error) shows nothing, and
+tables of more than 20,000 fields get no preview. Nothing is folded or
+written until you press <CR>; <Esc> leaves the buffer as it was (the
+preview is no change, and leaves no undo step). The highlight is
+`OrgCommandPreview` (linked to |hl-Substitute|); sparse-tree matches use
+`OrgSparseMatch`, as after <CR>.
 
 Menus                                                           *org-menus*
 Emacs's Org menus are Neovim menus (|:menu|): "Org" and "Table" in org

@@ -306,5 +306,104 @@ function M.mark_regexp(pattern)
   return n
 end
 
+--- The agenda of the current buffer, a regexp filter `[-]REGEXP` split
+--- into its sign and compiled regexp, or nil.
+local function regexp_filter_arg(arg)
+  if vim.bo.filetype ~= "orgagenda" or M.state.buf ~= vim.api.nvim_get_current_buf() then
+    return nil, "Not in an agenda buffer"
+  end
+  local neg = arg:sub(1, 1) == "-"
+  local src = neg and arg:sub(2) or arg
+  if src == "" then
+    return nil
+  end
+  local ok, re = pcall(require("org.agenda.search").compile_emacs_regexp, src)
+  if not ok then
+    return nil, "Invalid regexp: " .. src
+  end
+  return { neg = neg, src = src, re = re }
+end
+
+--- `:Org agenda_filter_regexp [-]REGEXP`: add a regexp filter to the
+--- agenda (on top of the active filters, like `C-u C-u =`): only entries
+--- whose text matches stay, or with `-` those that don't. Without
+--- REGEXP, the agenda's `=` (org-agenda-filter-by-regexp).
+function M.filter_regexp_command(arg)
+  arg = arg or ""
+  if arg == "" and vim.bo.filetype == "orgagenda" then
+    return M.actions.filter_regexp()
+  end
+  local f, err = regexp_filter_arg(arg)
+  if not f then
+    utils.error(err or "No regexp")
+    return
+  end
+  table.insert(M.state.filters.regexp, 1, (f.neg and "-" or "+") .. f.src)
+  M.redo()
+end
+
+--- Live preview of `:Org agenda_filter_regexp [-]REGEXP`
+--- (|:command-preview|): the entries the filter would hide are dimmed, the
+--- match is highlighted in those that stay; with 'inccommand' "split" the
+--- preview window lists the entries that stay.
+---@return integer
+function M.filter_regexp_preview(arg, ns, pbuf)
+  local f = arg and arg ~= "" and regexp_filter_arg(arg)
+  if not f then
+    return 0
+  end
+  require("org.highlights").ensure()
+  local buf = vim.api.nvim_get_current_buf()
+  local kept = {}
+  for lnum, item in pairs(M.state.line_items) do
+    local line = vim.api.nvim_buf_get_lines(buf, lnum - 1, lnum, false)[1] or ""
+    if (f.re:match_str(item_txt(item)) ~= nil) == f.neg then
+      vim.api.nvim_buf_set_extmark(buf, ns, lnum - 1, 0, {
+        end_row = lnum,
+        end_col = 0,
+        strict = false,
+        hl_group = "OrgAgendaDimmed",
+        priority = 10000,
+      })
+    else
+      local s, e = f.re:match_str(line)
+      if s and not f.neg then
+        vim.api.nvim_buf_set_extmark(
+          buf,
+          ns,
+          lnum - 1,
+          s,
+          { end_col = e, hl_group = "OrgCommandPreview", priority = 10000 }
+        )
+      end
+      kept[#kept + 1] = { lnum, line, s, e }
+    end
+  end
+  if not pbuf or #kept == 0 then
+    return 1
+  end
+  table.sort(kept, function(a, b)
+    return a[1] < b[1]
+  end)
+  local out = {}
+  for i, k in ipairs(kept) do
+    out[i] = "|" .. k[1] .. "| " .. k[2]
+  end
+  vim.api.nvim_buf_set_lines(pbuf, 0, -1, false, out)
+  for i, k in ipairs(kept) do
+    if k[3] and not f.neg then
+      local off = #("|" .. k[1] .. "| ")
+      vim.api.nvim_buf_set_extmark(
+        pbuf,
+        ns,
+        i - 1,
+        off + k[3],
+        { end_col = off + k[4], hl_group = "OrgCommandPreview" }
+      )
+    end
+  end
+  return 2
+end
+
 shared.auto_exclude = auto_exclude
 shared.filter_string = filter_string
