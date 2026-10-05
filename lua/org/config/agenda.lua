@@ -273,6 +273,9 @@ local defaults = {
       --- Parse the agenda files in the background from the first org
       --- buffer; false: when a view needs them (and add them to the index).
       background = true,
+      --- Worker threads that parse agenda files in the background, off
+      --- the main loop (0: parse them on the main loop, a slice at a time).
+      threads = 2,
       --- Watch the agenda files' directories to parse changed files early.
       watch = true,
       --- Directories watched at most; the others are polled.

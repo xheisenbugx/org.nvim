@@ -39,55 +39,7 @@ local DEBOUNCE_MS = 200
 
 local has_buffer, sbuf = pcall(require, "string.buffer")
 
--- Keys of the encoded headline records, sent as indices (string.buffer's
--- `dict`): part of the format, so of the signature.
-local DICT = {
-  "_l",
-  "_r",
-  "active",
-  "clocks",
-  "commented",
-  "date",
-  "day",
-  "drawers",
-  "end",
-  "end_col",
-  "end_hour",
-  "end_min",
-  "first_inactive",
-  "hour",
-  "in_title",
-  "line",
-  "logbook",
-  "min",
-  "minutes",
-  "month",
-  "name",
-  "planning",
-  "planning_line",
-  "priority",
-  "properties",
-  "properties_extend",
-  "properties_range",
-  "property_base",
-  "range_end",
-  "repeater",
-  "start",
-  "start_col",
-  "tags",
-  "timestamps",
-  "title",
-  "todo",
-  "type",
-  "unit",
-  "value",
-  "warning",
-  "year",
-  "closed",
-  "deadline",
-  "scheduled",
-  "max",
-}
+local thread = require("org.agenda.index.thread")
 
 ---@class org.agenda.index.Entry
 ---@field ms integer mtime seconds
@@ -112,6 +64,14 @@ local S = {
   stated = {}, ---@type { path: string, st: uv.fs_stat.result|nil }[]
   ready = {}, ---@type { path: string, st: uv.fs_stat.result, data: string }[]
   in_flight = 0,
+  -- parses in worker threads: id -> what to do with the result
+  ---@type table<integer, { path: string, st: uv.fs_stat.result, file: org.File, gen: integer }>
+  jobs = {},
+  job_id = 0,
+  working = 0, -- jobs the workers have not finished yet
+  ---@type { path: string, st: uv.fs_stat.result, file: org.File, ok: boolean, res: string }[]
+  done = {}, -- jobs finished, to be taken in on the main loop
+  thread_error = nil, ---@type string|nil a worker failed: none are used any more
   gen = 0, -- bumped by stop(): what was in flight before is dropped
   saving = 0, -- background saves not done yet
   warming = false,
@@ -126,7 +86,7 @@ local S = {
   changed = {}, ---@type table<string, boolean> paths reported by watchers
   rescan = false, -- a watcher saw a file come or go
   announce = false, -- say when the queue is done (a rebuild)
-  stats = { hits = 0, misses = 0, indexed = 0, saved = nil, error = nil },
+  stats = { hits = 0, misses = 0, indexed = 0, threaded = 0, saved = nil, error = nil },
 }
 
 ---------------------------------------------------------------------------
@@ -166,6 +126,36 @@ local function background()
   return o.enabled ~= false and o.background ~= false
 end
 
+local lua_dir ---@type string|false|nil
+
+--- The `lua` directory this copy of org.nvim is loaded from (a worker
+--- requires its modules from there); false when it can't be told.
+---@return string|false
+local function get_lua_dir()
+  if lua_dir == nil then
+    local src = debug.getinfo(thread.work, "S").source or ""
+    local dir, n = src:gsub("^@", ""):gsub("[/\\]org[/\\]agenda[/\\]index[/\\]thread%.lua$", "")
+    lua_dir = n == 1 and src:sub(1, 1) == "@" and dir or false
+  end
+  return lua_dir
+end
+
+--- The number of worker threads parsing agenda files in the background
+--- (`agenda.index.threads`): 0 without background parsing, without
+--- string.buffer or vim.uv.new_work, and once a worker failed.
+---@return integer
+local function workers()
+  local o = opts()
+  if o.enabled == false or o.background == false or S.thread_error or not has_buffer then
+    return 0
+  end
+  local n = math.floor(tonumber(o.threads) or 0)
+  if n <= 0 or not uv.new_work or not get_lua_dir() then
+    return 0
+  end
+  return math.min(n, 64)
+end
+
 --- The file the index is kept in.
 ---@return string
 function M.path()
@@ -183,8 +173,8 @@ local code_sig ---@type string|nil
 ---@return string
 local function code_signature()
   if not code_sig then
-    local parts = { tostring(VERSION), jit and jit.version or _VERSION, table.concat(DICT, ",") }
-    for _, f in ipairs({ "parser", "date", "agenda/index", "todo_keywords", "keywords" }) do
+    local parts = { tostring(VERSION), jit and jit.version or _VERSION, table.concat(thread.DICT, ",") }
+    for _, f in ipairs({ "parser", "date", "agenda/index", "agenda/index/thread", "todo_keywords", "keywords" }) do
       local src = vim.api.nvim_get_runtime_file("lua/org/" .. f .. ".lua", false)[1]
       local st = src and uv.fs_stat(src)
       parts[#parts + 1] = st and (st.size .. ":" .. st.mtime.sec .. ":" .. st.mtime.nsec) or "-"
@@ -221,18 +211,6 @@ end
 ---------------------------------------------------------------------------
 -- Entries
 ---------------------------------------------------------------------------
-
-local codec ---@type string.buffer|nil
-
---- The string.buffer that encodes headline records (dates keep their
---- metatable).
----@return string.buffer
-local function get_codec()
-  if not codec then
-    codec = sbuf.new({ metatable = { require("org.date").Date }, dict = DICT })
-  end
-  return codec
-end
 
 ---@param a uv.fs_stat.result
 ---@param b uv.fs_stat.result
@@ -322,8 +300,35 @@ local function load()
   return S.entries
 end
 
+--- Fill in the headlines of `file` from the encoded records `blob`
+--- (what was found in the same text). Every headline must be where and
+--- what it was.
+---@param blob string
+---@param file org.File
+---@return boolean|nil restored, boolean|nil bad nil, true: `blob` doesn't decode
+local function restore(blob, file)
+  local ok, recs = pcall(function()
+    return thread.codec():set(blob):decode()
+  end)
+  local headlines = file.headlines
+  if not ok or type(recs) ~= "table" or #recs ~= #headlines then
+    return nil, true
+  end
+  for i, hl in ipairs(headlines) do
+    local r = recs[i]
+    if type(r) ~= "table" or r._l ~= rawget(hl, "line") or r._r ~= rawget(hl, "raw") then
+      return nil
+    end
+  end
+  local parser = require("org.parser")
+  for i, hl in ipairs(headlines) do
+    parser.restore(hl, recs[i])
+  end
+  return true
+end
+
 --- Fill in the headlines of `file` (parsed from `path`, whose fs_stat is
---- `st`) from its entry. Every headline must be where and what it was.
+--- `st`) from its entry.
 ---@param path string
 ---@param st uv.fs_stat.result
 ---@param file org.File
@@ -334,24 +339,13 @@ local function apply(path, st, file)
   if not entry_matches(e, st) or e.n ~= #file.lines or e.k ~= todo_signature(file) then
     return false
   end
-  local ok, recs = pcall(function()
-    return get_codec():set(e.d):decode()
-  end)
-  local headlines = file.headlines
-  if not ok or type(recs) ~= "table" or #recs ~= #headlines then
+  local ok, bad = restore(e.d, file)
+  if bad then
     entries[path] = nil
     S.dirty = true
+  end
+  if not ok then
     return false
-  end
-  for i, hl in ipairs(headlines) do
-    local r = recs[i]
-    if type(r) ~= "table" or r._l ~= rawget(hl, "line") or r._r ~= rawget(hl, "raw") then
-      return false
-    end
-  end
-  local parser = require("org.parser")
-  for i, hl in ipairs(headlines) do
-    parser.restore(hl, recs[i])
   end
   local now = os.time()
   if now - (tonumber(e.t) or 0) > 86400 then
@@ -363,32 +357,13 @@ end
 
 local schedule_save
 
---- Parse all of `file` now (it was just parsed from `path`, and nothing
---- has read it yet) and, with `cache`, add it to the index.
+--- Add `file` (parsed from `path`, whose fs_stat is `st`) to the index,
+--- with its encoded records `blob`.
 ---@param path string
 ---@param st uv.fs_stat.result
 ---@param file org.File
-local function add(path, st, file)
-  local parser = require("org.parser")
-  local fields = parser.LAZY_FIELDS
-  local recs = {}
-  for i, hl in ipairs(file.headlines) do
-    parser.load_all(hl)
-    local r = { _l = rawget(hl, "line"), _r = rawget(hl, "raw") }
-    for _, k in ipairs(fields) do
-      r[k] = rawget(hl, k)
-    end
-    recs[i] = r
-  end
-  if not use_cache() then
-    return
-  end
-  local ok, blob = pcall(function()
-    return get_codec():reset():encode(recs):tostring()
-  end)
-  if not ok then
-    return
-  end
+---@param blob string
+local function store(path, st, file, blob)
   load()[path] = {
     ms = st.mtime.sec,
     mn = st.mtime.nsec,
@@ -403,6 +378,24 @@ local function add(path, st, file)
   S.dirty = true
   S.stats.indexed = S.stats.indexed + 1
   schedule_save()
+end
+
+--- Parse all of `file` now (it was just parsed from `path`, and nothing
+--- has read it yet) and, with `cache`, add it to the index.
+---@param path string
+---@param st uv.fs_stat.result
+---@param file org.File
+local function add(path, st, file)
+  local recs = thread.records(file.headlines)
+  if not use_cache() then
+    return
+  end
+  local ok, blob = pcall(function()
+    return thread.codec():reset():encode(recs):tostring()
+  end)
+  if ok then
+    store(path, st, file, blob)
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -656,9 +649,57 @@ local function read_async(path, st)
   end)
 end
 
---- Parse a file read in the background and hand it to org.files.
+local work_ctx ---@type uv.luv_work_ctx_t|nil
+
+--- A worker is done with job `id`: `ok`, and the encoded records or the
+--- error in `res`. Runs on the main loop, in a fast callback.
+---@param ok boolean
+---@param id integer
+---@param res string
+local function worked(ok, id, res)
+  S.working = S.working - 1
+  local job = S.jobs[id]
+  S.jobs[id] = nil
+  if not job or job.gen ~= S.gen then
+    return
+  end
+  S.done[#S.done + 1] = { path = job.path, st = job.st, file = job.file, ok = ok, res = res }
+  -- take it in, and give the worker the next file, without a pause: this
+  -- is short (the outline of one file), and a worker waits for it
+  vim.schedule(pump)
+end
+
+--- Have a worker parse all of `file` (just parsed from `item`, its
+--- outline only). False when it can't.
 ---@param item { path: string, st: uv.fs_stat.result, data: string }
-local function parse_ready(item)
+---@param file org.File
+---@return boolean
+local function send(item, file)
+  local dir = get_lua_dir()
+  local job = dir and thread.job(file, require("org.config").opts)
+  if not job then
+    return false
+  end
+  if not work_ctx then
+    work_ctx = uv.new_work(thread.work, worked)
+  end
+  S.job_id = S.job_id + 1
+  local id = S.job_id
+  S.jobs[id] = { path = item.path, st = item.st, file = file, gen = S.gen }
+  local ok, queued = pcall(work_ctx.queue, work_ctx, dir, id, item.data, job)
+  if not (ok and queued) then
+    S.jobs[id] = nil
+    return false
+  end
+  S.working = S.working + 1
+  return true
+end
+
+--- Parse a file read in the background and hand it to org.files: all of
+--- it here, or (`threads`) its outline here and the rest in a worker.
+---@param item { path: string, st: uv.fs_stat.result, data: string }
+---@param threaded? boolean
+local function parse_ready(item, threaded)
   local path, st = item.path, item.st
   if not wanted(path, st) then
     return
@@ -666,7 +707,29 @@ local function parse_ready(item)
   local file = require("org.parser").parse(utils.split_content(item.data), path)
   if use_cache() and apply(path, st, file) then
     S.stats.hits = S.stats.hits + 1
+  elseif threaded and send(item, file) then
+    return -- handed to org.files when the worker is done
   else
+    add(path, st, file)
+  end
+  require("org.files").install(path, st, file)
+end
+
+--- Take in what a worker found: fill in the file's headlines and hand it
+--- to org.files. A failed worker, or records that don't fit the outline,
+--- turn the workers off; the file is then parsed here.
+---@param item { path: string, st: uv.fs_stat.result, file: org.File, ok: boolean, res: string }
+local function take_done(item)
+  local path, st, file = item.path, item.st, item.file
+  local restored = item.ok and restore(item.res, file)
+  if restored then
+    S.stats.threaded = S.stats.threaded + 1
+    if use_cache() then
+      store(path, st, file, item.res)
+    end
+  else
+    S.thread_error = item.ok and ("worker records don't match " .. path) or ("worker failed: " .. item.res)
+    S.stats.error = S.thread_error
     add(path, st, file)
   end
   require("org.files").install(path, st, file)
@@ -692,7 +755,7 @@ end
 --- what was read, for at most SLICE_MS.
 function pump()
   if not background() then
-    S.queue, S.head, S.queued, S.stated, S.ready, S.warming = {}, 1, {}, {}, {}, false
+    S.queue, S.head, S.queued, S.stated, S.ready, S.done, S.warming = {}, 1, {}, {}, {}, {}, false
     return
   end
   local deadline = uv.hrtime() + SLICE_MS * 1e6
@@ -725,17 +788,27 @@ function pump()
   if S.head > #S.queue then
     S.queue, S.head = {}, 1
   end
-  -- parse
-  while #S.ready > 0 and uv.hrtime() < deadline do
-    local item = table.remove(S.ready, 1)
-    local ok, err = pcall(parse_ready, item)
+  -- take in what the workers found
+  while #S.done > 0 and uv.hrtime() < deadline do
+    local ok, err = pcall(take_done, table.remove(S.done, 1))
     if not ok then
       S.stats.error = tostring(err)
     end
   end
-  if #S.ready > 0 or #S.stated > 0 or #S.queue > 0 then
+  -- parse, or have the workers parse while one is free
+  local n = workers()
+  while #S.ready > 0 and uv.hrtime() < deadline and (n == 0 or S.working < n) do
+    local item = table.remove(S.ready, 1)
+    local ok, err = pcall(parse_ready, item, n > 0)
+    if not ok then
+      S.stats.error = tostring(err)
+    end
+  end
+  -- files read wait for a worker to be free, which wakes the background
+  local waiting = n > 0 and S.working >= n
+  if #S.done > 0 or (#S.ready > 0 and not waiting) or #S.stated > 0 or #S.queue > 0 then
     wake()
-  elseif S.in_flight == 0 then
+  elseif S.in_flight == 0 and S.working == 0 and #S.ready == 0 then
     finish()
   end
 end
@@ -918,17 +991,19 @@ function M.stop()
   for _, name in ipairs({ "pump_timer", "debounce_timer", "release_timer" }) do
     stop_timer(name)
   end
-  S.queue, S.head, S.queued, S.stated, S.ready = {}, 1, {}, {}, {}
+  S.queue, S.head, S.queued, S.stated, S.ready, S.done = {}, 1, {}, {}, {}, {}
   S.warming, S.changed, S.rescan, S.announce = false, {}, false, false
   S.gen = S.gen + 1
 end
 
 --- Forget the entries in memory, unsaved ones too (they are read from the
---- index file again when needed).
+--- index file again when needed), and try worker threads again after one
+--- failed.
 function M.reset()
   M.stop()
   stop_timer("save_timer")
   S.entries, S.sig, S.dirty = nil, nil, false
+  S.thread_error = nil
 end
 
 --- Wait until the background queue and saves are done (tests).
@@ -936,7 +1011,7 @@ end
 ---@return boolean done
 function M.wait(timeout)
   return vim.wait(timeout or 10000, function()
-    return not S.warming and S.in_flight == 0 and S.saving == 0
+    return not S.warming and S.in_flight == 0 and S.working == 0 and S.saving == 0
   end, 5) == true
 end
 
@@ -951,6 +1026,7 @@ function M.rebuild()
   end
   M.stop()
   S.entries, S.sig, S.dirty = {}, signature(), use_cache()
+  S.thread_error = nil
   S.known = {}
   os.remove(M.path())
   local files = require("org.files")
@@ -985,7 +1061,11 @@ function M.status()
     size = st and st.size or nil,
     entries = S.entries and vim.tbl_count(S.entries) or nil,
     warming = S.warming,
-    queued = #S.queue - S.head + 1 + #S.stated + #S.ready + S.in_flight,
+    queued = #S.queue - S.head + 1 + #S.stated + #S.ready + S.in_flight + S.working + #S.done,
+    threads = workers(),
+    working = S.working,
+    threaded = S.stats.threaded,
+    thread_error = S.thread_error,
     watchers = vim.tbl_count(S.watchers),
     polled = vim.tbl_count(S.polled),
     hits = S.stats.hits,
@@ -1002,6 +1082,7 @@ function M.setup()
   local group = vim.api.nvim_create_augroup("org.agenda_index", { clear = true })
   M.stop()
   S.known = {}
+  S.thread_error = nil
   if not M.enabled() then
     return
   end

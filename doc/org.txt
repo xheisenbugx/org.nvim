@@ -1640,6 +1640,21 @@ are parsed, never what a view shows. Options under `agenda.index`:
                          a few milliseconds at a time, so that the first
                          view finds them parsed. false: files are parsed
                          (and added to the index) when a view needs them.
+  threads        2       worker threads for that background parse: each
+                         file's outline is found in Neovim's main loop,
+                         the rest of it (headline parts, planning,
+                         properties, drawers, clocks, timestamps) in a
+                         worker, so typing doesn't wait for it and a
+                         parse of many files uses more than one core.
+                         The workers run on libuv's thread pool (4
+                         threads unless $UV_THREADPOOL_SIZE says more),
+                         which file reads share. 0: parse in the main
+                         loop, a few milliseconds at a time. A file is
+                         parsed in the main loop when
+                         `property_separators` has a regexp (no
+                         |vim.regex()| in a worker); after a worker
+                         fails, all are, until
+                         `:Org agenda_index_rebuild`.
   watch          true    after that, watch the directories of the agenda
                          files and parse a changed file again in the
                          background.
@@ -6619,7 +6634,7 @@ agenda ~
   query_register "o", restriction_lock_highlight_subtree true,
   window_frame_fractions { 0.5, 0.75 },
   columns_add_appointments_to_effort_sum false,
-  index { enabled true, cache true, background true, watch true,
+  index { enabled true, cache true, background true, threads 2, watch true,
   max_watchers 32, poll_interval 30 } (|org-agenda-index|)
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
