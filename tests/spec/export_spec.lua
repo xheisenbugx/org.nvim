@@ -386,3 +386,16 @@ describe("export: answers computed once", function()
     has(html, "<thead>")
   end)
 end)
+
+describe("export: sub- and superscripts in the title", function()
+  -- a subscript right in a #+TITLE (a secondary string) has no parent
+  -- element: ^:nil and ^:{} still keep it as text, like Emacs
+  it("follows ^:nil and ^:{}", function()
+    for _, opt in ipairs({ "^:nil", "^:{}" }) do
+      local html =
+        export.to_string("html", { lines = { "#+TITLE: HUGO_DRAFT x^y", "#+OPTIONS: " .. opt, "", "Text." } })
+      has(html, '<h1 class="title">HUGO_DRAFT x^y</h1>')
+    end
+    has(export.to_string("html", { lines = { "#+TITLE: a_b", "", "Text." } }), '<h1 class="title">a<sub>b</sub></h1>')
+  end)
+end)
