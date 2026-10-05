@@ -187,6 +187,21 @@
 ---(default: `[[/\+\|?]]`)
 ---@field data_separator? string
 
+---------------------------------------------------------------------------
+-- The session server
+---------------------------------------------------------------------------
+
+---The session server (`:h org-remote`).
+---@class org.Config.Remote
+---Make the first Neovim that sets org up listen on `address`, where the
+---`org` command line, `org protocol` URLs and `api.remote.call()` send
+---their requests. (default: `false`)
+---@field enabled? boolean
+---Its address: a socket path, or a named pipe on Windows. `$ORG_NVIM_SERVER`
+---overrides it. (default: `nil`, `org.nvim.sock` in the per-user runtime
+---directory)
+---@field address? string|fun(): string
+
 ---A custom org-protocol sub-protocol.
 ---@class org.Config.ProtocolHandler
 ---The sub-protocol name in `org-protocol://NAME?...`.

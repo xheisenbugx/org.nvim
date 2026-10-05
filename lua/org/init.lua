@@ -57,6 +57,10 @@ function M.setup(opts)
       end
     end)
   end
+  if cfg.remote.enabled or package.loaded["org.remote"] then
+    -- the session server (remote.enabled), or stop it when turned off
+    require("org.remote").setup()
+  end
   if cfg.clock.persist then
     vim.schedule(function()
       local ok, clock = pcall(require, "org.clock")

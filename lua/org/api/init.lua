@@ -33,7 +33,7 @@ local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
 --- fields or events; a new MAJOR may break code written for an older one.
-M.version = "1.1.0"
+M.version = "1.2.0"
 
 --- Does this API provide `version` ("1", "1.0" or "1.0.0")? True when the
 --- major versions are equal and this one is not older.
@@ -859,6 +859,69 @@ function M.clock.cancel(opts)
     return nil, last_problem(msgs) or "the clock was not cancelled"
   end
   return true
+end
+
+---------------------------------------------------------------------------
+-- The session server
+---------------------------------------------------------------------------
+
+--- The session server (|org-remote|): with `remote.enabled`, one running
+--- Neovim takes the requests of other processes, so they change its
+--- buffers instead of the files behind its back.
+M.remote = {}
+
+--- The address of the session server: `$ORG_NVIM_SERVER`, else the
+--- `remote.address` option, else `org.nvim.sock` in the per-user runtime
+--- directory.
+---@return string
+function M.remote.address()
+  return require("org.remote").address()
+end
+
+--- Is this Neovim the session server?
+---@return boolean
+function M.remote.is_server()
+  return require("org.remote").is_server()
+end
+
+--- Is a session server running (this Neovim or another one)?
+---@return boolean
+function M.remote.reachable()
+  local remote = require("org.remote")
+  if remote.is_server() then
+    return true
+  end
+  if remote.disabled_by_env() then
+    return false
+  end
+  return remote.request("ping") ~= nil
+end
+
+--- Call the org.api function `name` ("capture", "clock.status",
+--- "headlines", ...) with `...` in the session server, and return its
+--- results. It runs in this Neovim when it is the server, when none is
+--- running, or when the server waits for input. Arguments and results
+--- cross as plain data: functions in them are dropped, and a headline
+--- handle comes back as its fields, without methods.
+---@param name string
+---@param ... any
+---@return any ...
+function M.remote.call(name, ...)
+  local remote = require("org.remote")
+  local fn = remote.api_function(name)
+  if not fn then
+    return nil, "no org.api function " .. tostring(name)
+  end
+  if not remote.is_server() and not remote.disabled_by_env() then
+    local res, err, reason = remote.request("api", { name = name, args = remote.pack(...) })
+    if type(res) == "table" then
+      return remote.unpack(res)
+    end
+    if reason == "failed" then
+      return nil, err
+    end
+  end
+  return fn(...)
 end
 
 ---------------------------------------------------------------------------

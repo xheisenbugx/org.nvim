@@ -191,6 +191,15 @@ function M.check()
     h.info("default_notes_file will be created on first capture: " .. notes)
   end
 
+  if (cfg.remote or {}).enabled then
+    local remote = require("org.remote")
+    if remote.is_server() then
+      h.ok("session server: listening on " .. tostring(remote.serving))
+    else
+      h.info("session server: another Neovim listens on " .. remote.address() .. " (or none; :h org-remote)")
+    end
+  end
+
   local unknown = M.unknown_options(require("org.config").user_opts)
   if #unknown > 0 then
     h.warn("Unknown options passed to setup() (ignored): " .. table.concat(unknown, ", "), {

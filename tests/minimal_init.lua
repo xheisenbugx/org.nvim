@@ -7,6 +7,9 @@ if (vim.env.ORG_COVERAGE_DIR or "") ~= "" then
   package.loaded["tests.coverage"].start(vim.env.ORG_COVERAGE_DIR)
 end
 vim.opt.rtp = { root, vim.env.VIMRUNTIME }
+-- never reach a session server of the user's own Neovim (:h org-remote):
+-- the CLI specs and the Neovims they start inherit this
+vim.env.ORG_NVIM_SERVER = "none"
 vim.opt.swapfile = false
 vim.opt.hidden = true
 vim.opt.shadafile = "NONE"
