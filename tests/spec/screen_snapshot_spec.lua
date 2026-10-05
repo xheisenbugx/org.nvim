@@ -181,6 +181,32 @@ describe("screen snapshot", function()
     screen:expect("blocks")
   end)
 
+  it("source blocks highlighted with tree-sitter", function()
+    new()
+    -- the parsers bundled with Neovim (lib/nvim/parser), which the child's
+    -- runtimepath leaves out
+    screen:lua([[
+      local dir = vim.fs.normalize(vim.env.VIMRUNTIME .. "/../../../lib/nvim")
+      if vim.uv.fs_stat(dir .. "/parser") then
+        vim.opt.runtimepath:append(dir)
+      end
+    ]])
+    screen:org({
+      "* Code",
+      "#+begin_src lua :results output",
+      'local x = "string" -- comment',
+      "print(x)",
+      "#+end_src",
+      "#+begin_src vim",
+      "let g:done = 1",
+      "#+end_src",
+      "#+begin_src c",
+      "int main(void) { return 0; }",
+      "#+end_src",
+    })
+    screen:expect("blocks_treesitter")
+  end)
+
   it("timestamps, planning and clocks", function()
     new()
     screen:org({

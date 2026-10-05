@@ -199,6 +199,33 @@ function M.table(rows, cols, opts)
   return out
 end
 
+--- `blocks` Lua src blocks of `size` lines each, under a headline every 10
+--- blocks, with a paragraph between blocks (a literate config).
+function M.src_blocks(blocks, size)
+  local out = {}
+  for b = 1, blocks do
+    if b % 10 == 1 then
+      out[#out + 1] = "* Section " .. b
+    end
+    out[#out + 1] = "Block " .. b .. ": " .. M.prose(60)
+    out[#out + 1] = "#+begin_src lua"
+    for i = 1, size do
+      local k = i % 4
+      if k == 0 then
+        out[#out + 1] = ("local v%d = { name = %q, n = %d } -- entry %d"):format(i, WORDS[i % #WORDS + 1], i, i)
+      elseif k == 1 then
+        out[#out + 1] = ("if v%d and v%d.n > %d then return %q end"):format(i - 1, i - 1, i, "s" .. i)
+      elseif k == 2 then
+        out[#out + 1] = ("local function f%d(a, b) return a .. b, %d end"):format(i, i)
+      else
+        out[#out + 1] = ('print(f%d(%q, "x"), #{ 1, 2, 3 })'):format(i - 1, WORDS[i % #WORDS + 1])
+      end
+    end
+    out[#out + 1] = "#+end_src"
+  end
+  return out
+end
+
 --- `n` lines: headlines every 20 lines, prose in between (a big notes file).
 function M.big_file(n)
   local out = {}
