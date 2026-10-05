@@ -11,7 +11,9 @@
 --- is placed in its block when it is first drawn after a change (found by
 --- going up to the nearest block delimiter or headline), and a block is
 --- parsed only when its text is not one parsed before. Moving around and
---- editing outside a block don't parse it again.
+--- editing outside a block don't parse it again. Blocks of up to
+--- `inject_max` lines are parsed with their injected languages; a longer
+--- one is parsed again from its previous tree after an edit in it.
 
 local M = {}
 
@@ -108,13 +110,18 @@ end
 
 -- Parsed blocks ------------------------------------------------------------
 
+---@class org.SrcHlTree
+---@field root TSNode
+---@field query vim.treesitter.Query
+---@field lang string
+
 ---@class org.SrcHlEntry
 ---@field lang string tree-sitter language
 ---@field source string
 ---@field lines string[]
----@field root TSNode|false|nil nil = not parsed yet, false = failed
----@field tree TSTree?
----@field query vim.treesitter.Query?
+---@field trees org.SrcHlTree[]|false|nil nil = not parsed yet, false = failed
+---@field tree TSTree? the tree of `lang` when parsed without injections (an edit parses from it)
+---@field parser vim.treesitter.LanguageTree? (keeps the injected trees)
 ---@field rows table<integer, table[]> 0-based row in the block -> marks
 ---@field used integer changedtick it was last used at
 ---@field base? org.SrcHlEntry the same block before an edit, parsed (see `parse_from`)
@@ -221,12 +228,51 @@ local function parse_from(entry, base)
   return ok and tree or nil
 end
 
+-- Blocks up to this many lines get their injected languages too (the
+-- inline markup of markdown, Vim script in a vim.cmd() string, ...): those
+-- are parsed again whole after each edit; longer blocks of a language with
+-- injections are parsed again from their tree, without them.
+M.inject_max = 1000
+
+local has_injections = {} ---@type table<string, boolean>
+local function injects(lang)
+  local v = has_injections[lang]
+  if v == nil then
+    local ok, q = pcall(vim.treesitter.query.get, lang, "injections")
+    v = ok and q ~= nil
+    has_injections[lang] = v
+  end
+  return v
+end
+
+local function highlights_query(lang)
+  local ok, q = pcall(vim.treesitter.query.get, lang, "highlights")
+  return ok and q or nil
+end
+
 local function parse(entry)
   M.parses = M.parses + 1
-  local okq, query = pcall(vim.treesitter.query.get, entry.lang, "highlights")
-  if not okq or not query then
-    entry.root = false
+  local query = highlights_query(entry.lang)
+  if not query then
+    entry.trees = false
     return
+  end
+  if #entry.lines <= M.inject_max and injects(entry.lang) then
+    local ok, parser = pcall(vim.treesitter.get_string_parser, entry.source, entry.lang)
+    if ok and parser and pcall(parser.parse, parser, true) then
+      local trees = {}
+      -- (the block's language first, then the injected ones: like
+      -- Neovim's highlighter, a later tree wins over an earlier one)
+      parser:for_each_tree(function(tree, ltree)
+        local lang = ltree:lang()
+        local q = lang == entry.lang and query or highlights_query(lang)
+        if q then
+          trees[#trees + 1] = { root = tree:root(), query = q, lang = lang }
+        end
+      end)
+      entry.trees, entry.parser, entry.base = trees, parser, nil
+      return
+    end
   end
   local tree = parse_from(entry, entry.base)
   entry.base = nil
@@ -240,10 +286,10 @@ local function parse(entry)
     tree = okp and trees and trees[1]
   end
   if not tree then
-    entry.root = false
+    entry.trees = false
     return
   end
-  entry.tree, entry.query, entry.root = tree, query, tree:root()
+  entry.tree, entry.trees = tree, { { root = tree:root(), query = query, lang = entry.lang } }
 end
 
 local EMPTY = {}
@@ -270,10 +316,11 @@ local function row_marks(entry, rel)
   if marks then
     return marks
   end
-  if entry.root == nil then
+  if entry.trees == nil then
     parse(entry)
   end
-  if not entry.root then
+  local trees = entry.trees
+  if not trees then
     return EMPTY
   end
   local lines = entry.lines
@@ -281,35 +328,36 @@ local function row_marks(entry, rel)
   for r = first, last do
     entry.rows[r] = entry.rows[r] or {}
   end
-  local query = entry.query ---@cast query -nil
-  local root = entry.root ---@cast root TSNode
-  local captures = query.captures
-  -- (a query error leaves the rows with what was found before it)
-  pcall(function()
-    for id, node, metadata in query:iter_captures(root, entry.source, first, last + 1) do
-      local name = captures[id]
-      if name and name:byte(1) ~= 95 and not SKIP[name] then
-        local m = metadata and metadata[id]
-        local sr, sc, er, ec
-        if m and m.range then
-          local range = vim.treesitter.get_range(node, entry.source, m)
-          sr, sc, er, ec = range[1], range[2], range[4], range[5]
-        else
-          sr, sc, er, ec = node:range()
-        end
-        local pri = tonumber(metadata and metadata.priority or (m and m.priority)) or PRIORITY
-        local group = hl_id("@" .. name .. "." .. entry.lang)
-        for r = math.max(sr, first), math.min(er, last) do
-          local s = r == sr and sc or 0
-          local e = r == er and ec or #(lines[r + 1] or "")
-          if e > s and not entry.rows[r].done then
-            local row = entry.rows[r]
-            row[#row + 1] = { s, e, group, pri }
+  for _, t in ipairs(trees) do
+    local query, lang = t.query, t.lang
+    local captures = query.captures
+    -- (a query error leaves the rows with what was found before it)
+    pcall(function()
+      for id, node, metadata in query:iter_captures(t.root, entry.source, first, last + 1) do
+        local name = captures[id]
+        if name and name:byte(1) ~= 95 and not SKIP[name] then
+          local m = metadata and metadata[id]
+          local sr, sc, er, ec
+          if m and m.range then
+            local range = vim.treesitter.get_range(node, entry.source, m)
+            sr, sc, er, ec = range[1], range[2], range[4], range[5]
+          else
+            sr, sc, er, ec = node:range()
+          end
+          local pri = tonumber(metadata and metadata.priority or (m and m.priority)) or PRIORITY
+          local group = hl_id("@" .. name .. "." .. lang)
+          for r = math.max(sr, first), math.min(er, last) do
+            local s = r == sr and sc or 0
+            local e = r == er and ec or #(lines[r + 1] or "")
+            if e > s and not entry.rows[r].done then
+              local row = entry.rows[r]
+              row[#row + 1] = { s, e, group, pri }
+            end
           end
         end
       end
-    end
-  end)
+    end)
+  end
   for r = first, last do
     entry.rows[r].done = true
   end
@@ -384,7 +432,7 @@ local function block_at(buf, st, open, kind, lang, n)
     return false
   end
   local entry = entry_for(buf, st.tick, tslang, body)
-  if entry.root == nil and st.prev then
+  if entry.trees == nil and st.prev then
     -- (the block at this row when it was last drawn: the text it had
     -- before this edit, parsed again from its tree)
     local before = st.prev[open]

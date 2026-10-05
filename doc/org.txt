@@ -4696,9 +4696,12 @@ vim and vimdoc; nvim-treesitter or |treesitter-parsers| add more), the
 body is drawn with tree-sitter's captures, the `@keyword.lua`,
 `@string.c`, ... groups Neovim uses for a buffer of that language, so it
 looks the same as in a file of that language and your colorscheme's
-tree-sitter colors apply. Only the blocks on screen are parsed, each once
-for its text: moving around or editing elsewhere doesn't parse a block
-again, and an edit in one parses it again from the tree it had. Other
+tree-sitter colors apply. Injected languages are highlighted too (the
+inline markup of a markdown block, Vim script in a Lua `vim.cmd()`
+string) in blocks of up to 1,000 lines. Only the blocks on screen are
+parsed, each once for its text: moving around or editing elsewhere
+doesn't parse a block again; a longer block is parsed again from the tree
+it had after an edit in it. Other
 languages get their Vim syntax (`syntax/<lang>.vim`) included into the
 org syntax, as before. The language name goes through `src_lang_modes`
 first (`elisp` → `lisp`, `shell` → `sh` → the bash parser).

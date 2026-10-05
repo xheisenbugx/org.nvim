@@ -43,7 +43,7 @@ local function has_parser(lang)
   return ok and res and true or false
 end
 
-local saved_rtp, saved_ui
+local saved_rtp, saved_ui, saved_inject_max
 
 local function set_ui(opts)
   local ui = require("org.config").opts.ui
@@ -60,11 +60,13 @@ describe("tree-sitter src blocks", function()
     end
     local ui = require("org.config").opts.ui
     saved_ui = { ui.src_highlight, ui.src_highlight_engine }
+    saved_inject_max = ts.inject_max
   end)
   after_each(function()
     local ui = require("org.config").opts.ui
     ui.src_highlight, ui.src_highlight_engine = saved_ui[1], saved_ui[2]
     vim.o.runtimepath = saved_rtp
+    ts.inject_max = saved_inject_max
   end)
 
   it("finds the bundled lua parser", function()
@@ -100,6 +102,22 @@ describe("tree-sitter src blocks", function()
     if ts.ts_lang("C") then
       eq("@type.builtin.c", group_at(5, 0))
     end
+  end)
+
+  it("highlights injected languages: markdown's inline markup, Vim script in vim.cmd()", function()
+    org_buffer({
+      "#+begin_src markdown",
+      "Some *emphasis* and `code`.",
+      "#+end_src",
+      "#+begin_src lua",
+      'vim.cmd("set number")',
+      "#+end_src",
+    })
+    eq("@markup.italic.markdown_inline", group_at(2, 6))
+    eq("@markup.raw.markdown_inline", group_at(2, 21))
+    -- (the injected tree wins over the string of the lua tree)
+    eq("@keyword.vim", group_at(5, 9))
+    eq("@string.lua", group_at(5, 8))
   end)
 
   it("highlights each row of a capture over several lines", function()
@@ -185,6 +203,8 @@ describe("tree-sitter src blocks", function()
   end)
 
   it("parses an edited block from its tree to the same highlights as from scratch", function()
+    -- (as a block longer than inject_max lines is: without injections)
+    ts.inject_max = 0
     local buf = org_buffer({
       "* H",
       "#+begin_src lua",

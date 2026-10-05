@@ -703,12 +703,12 @@ end)
 
 -- Src blocks drawn with tree-sitter (ui.src_highlight_engine "auto", the
 -- bundled lua parser) and, to compare, with the lua syntax included. On a
--- laptop (Neovim 0.12): 1,000 blocks of 20 lines open in 0.15 s with
--- either; going through them a screen at a time takes 0.45 s with
--- tree-sitter, 1.6 s with the syntax; a 10,000-line block opens in 0.14 s
--- (0.06 s), its middle draws in 17 ms (360 ms), a character typed in it
--- takes 37 ms (15 ms: tree-sitter parses the block again, from the tree it
--- had).
+-- laptop (Neovim 0.13-dev), tree-sitter / syntax: 1,000 blocks of 20 lines
+-- open in 0.1 s with either and are gone through a screen at a time in
+-- 0.4 s / 1.6 s; a 10,000-line block opens in 0.14 s / 0.07 s, its middle
+-- draws in 17 ms / 360 ms, and a character typed in it takes 35 ms / 13 ms
+-- (tree-sitter parses the block again from the tree it had); in a
+-- 1,000-line block, parsed whole with its injected languages, 19 ms / 5 ms.
 describe("perf: src blocks", function()
   setup()
   local ui = config.opts.ui
@@ -765,6 +765,16 @@ describe("perf: src blocks", function()
         local ts = require("org.ui.src_highlight")
         ok(ts.highlights_at(0, 4999)[1] ~= nil, "no tree-sitter highlights")
       end
+      -- (up to inject_max lines, a block is parsed whole with its injections)
+      vim.cmd("silent! %bwipeout!")
+      open(gen.src_blocks(1, 1000))
+      vim.api.nvim_win_set_cursor(0, { 500, 0 })
+      budget(label .. ": type 10 chars in a 1,000-line src block", 3000, function()
+        for _ = 1, 10 do
+          vim.cmd("normal! ix")
+          vim.cmd("redraw")
+        end
+      end)
     end)
   end
 
@@ -774,6 +784,9 @@ describe("perf: src blocks", function()
     -- in a long region is the same with either engine)
     local ts = require("org.ui.src_highlight")
     local parses
+    -- (the slower way: with the injected languages, at any size)
+    local inject_max = ts.inject_max
+    ts.inject_max = math.huge
     linear("tree-sitter: find, parse and highlight a src block", 2000, function(buf)
       ok(ts.highlights_at(buf, math.floor(vim.api.nvim_buf_line_count(buf) / 2))[1] ~= nil)
     end, function(n)
@@ -784,6 +797,7 @@ describe("perf: src blocks", function()
       parses = ts.parses
       return buf
     end)
+    ts.inject_max = inject_max
     eq(parses + 1, ts.parses)
   end)
 end)
