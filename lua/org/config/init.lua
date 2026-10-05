@@ -90,6 +90,7 @@ for _, k in ipairs({
   "notifications",
   "protocol",
   "refile",
+  "remote",
   "timer",
   "ui",
   "yank",

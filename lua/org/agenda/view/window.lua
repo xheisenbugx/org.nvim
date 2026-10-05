@@ -355,6 +355,74 @@ function M.open(view, opts)
   end
 end
 
+--- Run `fn` with agenda views of its own: what it opens goes to new
+--- agenda buffers in a float, which are wiped afterwards, and the agendas
+--- open before (their buffers, state, undo list), the windows and the
+--- restriction lock are left as they were. Nothing is drawn meanwhile when
+--- `fn` doesn't wait. The session server builds the agendas of the `org`
+--- command line this way.
+---@generic T
+---@param fn fun(): T
+---@return T
+function M.offscreen(fn)
+  local agenda = require("org.agenda")
+  local acfg = config.opts.agenda
+  local saved_states = {}
+  for b, st in pairs(states) do
+    saved_states[b] = st
+  end
+  for b in pairs(saved_states) do
+    states[b] = nil
+  end
+  local saved = {
+    state = M.state,
+    undo_list = M.undo_list,
+    last_run = M._last_run,
+    lock = agenda.lock,
+    win = vim.api.nvim_get_current_win(),
+    opts = {
+      window = acfg.window,
+      sticky = acfg.sticky,
+      restore_windows_after_quit = acfg.restore_windows_after_quit,
+      persistent_filter = acfg.persistent_filter,
+    },
+  }
+  agenda.lock = nil
+  use(new_state())
+  acfg.window = "float"
+  acfg.sticky = false
+  acfg.restore_windows_after_quit = false
+  acfg.persistent_filter = false
+  local ok, res = pcall(fn)
+  for b, st in pairs(states) do
+    if st.win and vim.api.nvim_win_is_valid(st.win) then
+      pcall(vim.api.nvim_win_close, st.win, true)
+    end
+    states[b] = nil
+    pcall(vim.api.nvim_buf_delete, b, { force = true })
+  end
+  for b, st in pairs(saved_states) do
+    if vim.api.nvim_buf_is_valid(b) then
+      states[b] = st
+    end
+  end
+  for k, v in pairs(saved.opts) do
+    acfg[k] = v
+  end
+  agenda.lock = saved.lock
+  M.undo_list = saved.undo_list
+  M._last_run = saved.last_run
+  use(saved.state)
+  if vim.api.nvim_win_is_valid(saved.win) and vim.api.nvim_get_current_win() ~= saved.win then
+    pcall(vim.api.nvim_set_current_win, saved.win)
+  end
+  use(saved.state)
+  if not ok then
+    error(res, 0)
+  end
+  return res
+end
+
 --- Rebuild the view (re-reading files), keeping the cursor on the same entry.
 function M.redo(opts)
   opts = opts or {}

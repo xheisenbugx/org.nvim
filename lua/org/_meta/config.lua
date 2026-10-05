@@ -709,6 +709,9 @@
 ---@field timer? org.Config.Timer
 ---org-protocol handling.
 ---@field protocol? org.Config.Protocol
+---The session server: one running Neovim takes the requests of the `org`
+---command line and org-protocol (`:h org-remote`).
+---@field remote? org.Config.Remote
 ---Plain links through tags files (`org-ctags`).
 ---@field ctags? org.Config.Ctags
 ---Pasting clipboard images and dropped files (`org-yank-*`).
