@@ -1093,6 +1093,34 @@
 ---@field inner_subtree? org.MappingLhs
 --- Text object: around subtree (whole subtree). Default: `ar`
 ---@field around_subtree? org.MappingLhs
+--- Text object: inner element (a block's or drawer's contents, else the element without affiliated keywords and trailing blank lines). Default: `ie`
+---@field inner_element? org.MappingLhs
+--- Text object: around element (the whole element with its affiliated keywords and trailing blank lines). Default: `ae`
+---@field around_element? org.MappingLhs
+--- Text object: inner list item (its text after the bullet and checkbox, without children). Default: `i-`
+---@field inner_item? org.MappingLhs
+--- Text object: around list item (the item with its children, linewise). Default: `a-`
+---@field around_item? org.MappingLhs
+--- Text object: inner table cell (the field's text). Default: `ic`
+---@field inner_cell? org.MappingLhs
+--- Text object: around table cell (the field with its blanks and a separator). Default: `ac`
+---@field around_cell? org.MappingLhs
+--- Text object: inner table row (between its first and last `|`). Default: `iR`
+---@field inner_row? org.MappingLhs
+--- Text object: around table row (the whole line; a count selects that many rows). Default: `aR`
+---@field around_row? org.MappingLhs
+--- Text object: inner table column (Visual block of the fields; the table must be aligned). Default: `iC`
+---@field inner_column? org.MappingLhs
+--- Text object: around table column (the column with a separator). Default: `aC`
+---@field around_column? org.MappingLhs
+--- Text object: inner link (its description, or its target). Default: `iL`
+---@field inner_link? org.MappingLhs
+--- Text object: around link (the whole link and the blanks after it). Default: `aL`
+---@field around_link? org.MappingLhs
+--- Text object: inner timestamp (the text inside its brackets). Default: `id`
+---@field inner_timestamp? org.MappingLhs
+--- Text object: around timestamp (the whole timestamp or range and the blanks after it). Default: `ad`
+---@field around_timestamp? org.MappingLhs
 
 --- Keys in the agenda buffer (normal mode). Only the agenda action names listed here are recognised.
 ---@class org.Config.Mappings.Agenda
