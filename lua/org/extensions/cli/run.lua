@@ -30,6 +30,7 @@ Read:
 Write (never prompt; --force writes over unsaved changes in a running Neovim):
   capture [-t KEY] [--field NAME=VALUE] [--input FILE|-] [--id] TEXT...
           (TEXT "-" reads stdin; --list lists the templates)
+  protocol URL   an org-protocol:// URL (capture, store-link, open-source)
   clock in [--pick N] TARGET | clock out | clock cancel
   set todo TARGET STATE [--note TEXT]
   set tags TARGET [TAGS] [--add TAG] [--remove TAG]
@@ -62,6 +63,11 @@ Global options:
   --jsonl         JSON lines: one result per line
   -v, --verbose   also print org.nvim's messages on stderr
   -q, --quiet     no warnings on stderr (errors are still printed)
+  --no-server     run here even when a Neovim session server listens
+
+With a Neovim session server running (remote.enabled, :h org-remote) every
+command but export runs in that Neovim, on its buffers and its clock;
+$ORG_NVIM_SERVER is its address ("none": never).
 ]==]
 
 -- Options the CLI forces so nothing waits for input.
@@ -103,6 +109,11 @@ local function reset_state()
     note = nil,
     prompted = nil,
     touched = false,
+    -- run by the session server (M.serve): in the client's directory,
+    -- leaving buffers with unsaved changes unsaved
+    session = false,
+    cwd = nil,
+    dirty_before = {},
   }
 end
 reset_state()
@@ -196,9 +207,24 @@ local function no_input(what)
 end
 
 --- Replace prompts with `--field` answers or errors, and route
---- notifications to stderr (and the JSON envelope).
+--- notifications to stderr (and the JSON envelope). Returns a function
+--- that puts the replaced functions back (the session server runs a
+--- command and then restores them; `nvim -l` just exits).
+---@return fun()
 function M.headless()
   local utils = require("org.utils")
+  local saved = {}
+  local function keep(tbl, names)
+    for _, k in ipairs(names) do
+      saved[#saved + 1] = { tbl, k, rawget(tbl, k) }
+    end
+  end
+  keep(vim.fn, { "input", "inputdialog", "inputsecret", "inputlist", "confirm", "getchar", "getcharstr" })
+  keep(vim.ui, { "input", "select" })
+  keep(utils, { "input", "input_complete", "input_note", "confirm", "getchar" })
+  keep(vim, { "notify" })
+  keep(vim.api, { "nvim_echo" })
+  local notify = vim.notify
   vim.fn.input = function(opts)
     return ask(opts)
   end
@@ -244,6 +270,10 @@ function M.headless()
     if show then
       err(msg)
     end
+    if state.session and level >= vim.log.levels.INFO then
+      -- the session's user sees what the command line did there
+      pcall(notify, msg, level)
+    end
   end
   -- nvim_echo() writes to stderr under `nvim -l`: make its messages
   -- notifications like the others (org-crypt's "No crypt key set, ...")
@@ -260,6 +290,12 @@ function M.headless()
     local msg = table.concat(text)
     if msg ~= "" then
       vim.notify(msg, level)
+    end
+  end
+  return function()
+    for i = #saved, 1, -1 do
+      local e = saved[i]
+      rawset(e[1], e[2], e[3])
     end
   end
 end
@@ -351,9 +387,14 @@ function M.config_file(flags)
   return nil
 end
 
---- A path from the command line, absolute.
+--- A path from the command line, absolute (relative to the client's
+--- directory when the session server runs the command).
 local function arg_path(p)
-  return vim.fs.normalize(vim.fn.fnamemodify(require("org.utils").expand_vars(p), ":p"))
+  p = require("org.utils").expand_vars(p)
+  if state.cwd and not (p:match("^[/\\]") or p:match("^%a:[/\\]")) then
+    p = state.cwd .. "/" .. p
+  end
+  return vim.fs.normalize(vim.fn.fnamemodify(p, ":p"))
 end
 M.arg_path = arg_path
 
@@ -510,7 +551,16 @@ function M.save_all(flags)
   local bufs = {}
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified and vim.api.nvim_buf_get_name(b) ~= "" then
-      bufs[#bufs + 1] = b
+      if state.dirty_before[b] then
+        -- the session's user has unsaved changes there: the change is in
+        -- the buffer, saved when they save it
+        vim.notify(
+          short_path(vim.api.nvim_buf_get_name(b)) .. " has unsaved changes in Neovim; the change is not saved yet",
+          vim.log.levels.WARN
+        )
+      else
+        bufs[#bufs + 1] = b
+      end
     end
   end
   local function failed(b, e)
@@ -841,7 +891,7 @@ function M.agenda_items(S)
   return items
 end
 
-function M.cmd_agenda(words, flags)
+local function agenda_result(words, flags)
   local S, label, key = open_agenda(words, flags)
   if flags.csv then
     if state.machine then
@@ -866,6 +916,16 @@ function M.cmd_agenda(words, flags)
     text[#text + 1] = (l:gsub("%s+$", ""))
   end
   return { text = text }
+end
+
+function M.cmd_agenda(words, flags)
+  if state.session then
+    -- leave the agendas open in the session as they are
+    return require("org.agenda.view").offscreen(function()
+      return agenda_result(words, flags)
+    end)
+  end
+  return agenda_result(words, flags)
 end
 
 ---------------------------------------------------------------------------
@@ -1311,8 +1371,54 @@ local function set_answers(fields, input_fields)
   end
 end
 
-function M.cmd_capture(words, flags)
+--- Store a capture with template `tpl` (finishing at once): the buffer
+--- and line of the entry, or a failure.
+---@return integer bufnr, integer line
+local function store_capture(tpl, opts)
   local capture = require("org.capture")
+  local done, bufnr, line, stored
+  local co = coroutine.create(function()
+    bufnr, line, stored = capture.capture(tpl, opts)
+    done = true
+  end)
+  local ok, e = coroutine.resume(co)
+  if not ok then
+    error(e, 0)
+  end
+  if not done then
+    vim.wait(5000, function()
+      return done or state.prompted ~= nil
+    end, 10)
+  end
+  M.check_prompted()
+  if not done or not bufnr then
+    M.fail_with_messages("capture failed")
+  end
+  -- a template's kill_buffer wipes the buffer the entry went to: it's
+  -- saved, so read it back from its file
+  if not (vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)) then
+    if not stored then
+      M.fail_with_messages("capture failed")
+    end
+    bufnr = require("org.utils").load_buffer(stored)
+  end
+  return bufnr, line
+end
+
+--- Keep the session's unsaved changes in the target of `tpl` unsaved, and
+--- refuse a target another Neovim has unsaved changes in.
+local function capture_target_guard(tpl, flags)
+  local ok_target, target = pcall(require("org.capture").target_path, tpl)
+  if ok_target and target then
+    M.guard(target, flags)
+    local b = state.session and require("org.utils").find_buffer(target)
+    if b and vim.bo[b].modified then
+      tpl.no_save = true
+    end
+  end
+end
+
+function M.cmd_capture(words, flags)
   if flags.list then
     return M.cmd_templates()
   end
@@ -1347,10 +1453,7 @@ function M.cmd_capture(words, flags)
   if text == "" and next(state.answers) == nil and not prompts then
     fail("nothing to capture (org capture [-t KEY] TEXT)", "usage")
   end
-  local ok_target, target = pcall(capture.target_path, tpl)
-  if ok_target and target then
-    M.guard(target, flags)
-  end
+  capture_target_guard(tpl, flags)
   -- The template's prompts are answered by their names as the template
   -- writes them (%^{Size [cm]} by "Size [cm]"), ignoring case; any other
   -- prompt through `ask`, by its question.
@@ -1360,32 +1463,7 @@ function M.cmd_capture(words, flags)
     end,
   })
   M.mark_messages()
-  local done, bufnr, line, stored
-  local co = coroutine.create(function()
-    bufnr, line, stored = capture.capture(tpl, { initial = text, answers = answers })
-    done = true
-  end)
-  local ok, e = coroutine.resume(co)
-  if not ok then
-    error(e, 0)
-  end
-  if not done then
-    vim.wait(5000, function()
-      return done or state.prompted ~= nil
-    end, 10)
-  end
-  M.check_prompted()
-  if not done or not bufnr then
-    M.fail_with_messages("capture failed")
-  end
-  -- a template's kill_buffer wipes the buffer the entry went to: it's
-  -- saved, so read it back from its file
-  if not (vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)) then
-    if not stored then
-      M.fail_with_messages("capture failed")
-    end
-    bufnr = require("org.utils").load_buffer(stored)
-  end
+  local bufnr, line = store_capture(tpl, { initial = text, answers = answers })
   local hl = (tpl.type or "entry") == "entry" and M.headline_at(bufnr, line) or nil
   local id
   if hl then
@@ -1409,6 +1487,60 @@ function M.cmd_capture(words, flags)
       headline = hl and data.headline(hl) or vim.NIL,
     },
     text = { string.format("Captured to %s:%d", short_path(path), line or 0) },
+  }
+end
+
+---------------------------------------------------------------------------
+-- protocol
+---------------------------------------------------------------------------
+
+--- `org protocol URL`: an org-protocol URL for a URL handler. Sent to the
+--- session server, which handles it as `:Org protocol` does (a capture
+--- opens its window there); without one, a capture is stored at once with
+--- its template, as `org capture` does, and the other sub-protocols fail.
+function M.cmd_protocol(words, flags)
+  local url = vim.trim(table.concat(words, " "))
+  if url == "" then
+    fail("usage: org protocol URL", "usage")
+  end
+  local protocol = require("org.protocol")
+  local h, params = protocol.parse(url)
+  if not h then
+    fail(tostring(params), "bad_value", { url = url })
+  end
+  if state.session then
+    -- after the request returns, with this Neovim's own prompts back
+    vim.schedule(function()
+      protocol.handle(url)
+    end)
+    return {
+      data = { url = url, protocol = h.protocol, session = true, file = vim.NIL, line = vim.NIL },
+      text = { "Sent to Neovim: org-protocol " .. h.protocol },
+    }
+  end
+  if h.fn ~= protocol.capture then
+    fail(
+      "org-protocol " .. h.protocol .. " needs a running Neovim (remote.enabled, see :h org-remote)",
+      "failed",
+      { protocol = h.protocol }
+    )
+  end
+  set_answers(flags.field)
+  M.mark_messages()
+  local res = protocol.capture(params, {
+    run = function(key, initial)
+      local tpl = M.capture_template(key or default_template_key())
+      capture_target_guard(tpl, flags)
+      local bufnr, line = store_capture(tpl, { initial = initial })
+      return { bufnr = bufnr, line = line }
+    end,
+  })
+  state.touched = true
+  M.save_all(flags)
+  local path = data.path(vim.api.nvim_buf_get_name(res.bufnr))
+  return {
+    data = { url = url, protocol = h.protocol, session = false, file = path, line = res.line },
+    text = { string.format("Captured to %s:%d", short_path(path), res.line or 0) },
   }
 end
 
@@ -1667,6 +1799,7 @@ M.COMMANDS = {
   tags = M.cmd_tags,
   keywords = M.cmd_keywords,
   capture = M.cmd_capture,
+  protocol = M.cmd_protocol,
   ["set todo"] = write_cmd("cmd_set_todo"),
   ["set tags"] = write_cmd("cmd_set_tags"),
   ["set priority"] = write_cmd("cmd_set_priority"),
@@ -1754,14 +1887,178 @@ local function emit(command, res, flags)
   end
 end
 
+---------------------------------------------------------------------------
+-- The session server
+---------------------------------------------------------------------------
+
+--- Commands a running Neovim (the session server, |org-remote|) runs for
+--- the command line: all but export, schema and version.
+M.SESSION_COMMANDS = {}
+for name in pairs(M.COMMANDS) do
+  if name ~= "export" and name ~= "schema" and name ~= "version" then
+    M.SESSION_COMMANDS[name] = true
+  end
+end
+
+--- Does `argv` read stdin (TEXT "-", --input -)?
+local function reads_stdin(argv)
+  for i, a in ipairs(argv) do
+    if a == "--" then
+      return argv[i + 1] == "-"
+    end
+    if a == "-" or a == "--input=-" then
+      return true
+    end
+  end
+  return false
+end
+
+--- Send the command to the session server when one listens: its exit
+--- code, after printing its output, or nil to run it here (nothing
+--- listens, it waits for input, `--no-server`, `--config`, `--files` or
+--- `--dir`, `ORG_NVIM_SERVER=none`).
+---@param argv string[]
+---@param command string
+---@param flags table
+---@return integer|nil
+function M.forward(argv, command, flags)
+  local remote = require("org.remote")
+  if
+    not M.SESSION_COMMANDS[command]
+    or flags.no_server
+    or flags.config
+    or flags.dir
+    or #flags.files > 0
+    or remote.disabled_by_env()
+  then
+    return nil
+  end
+  local stdin
+  if reads_stdin(argv) then
+    stdin = M.read_stdin()
+    -- read once: a command run here gets the same text
+    M.read_stdin = function()
+      return stdin
+    end
+  end
+  local address = remote.address()
+  local res, e, reason = remote.request("cli", { argv = argv, cwd = vim.fn.getcwd(), stdin = stdin })
+  if reason == "unreachable" then
+    return nil
+  end
+  if reason == "busy" then
+    vim.notify(tostring(e) .. "; running the command here", vim.log.levels.WARN)
+    return nil
+  end
+  if type(res) ~= "table" then
+    fail("the Neovim on " .. address .. " failed: " .. tostring(e), "failed", { server = address })
+  end
+  if state.verbose then
+    err("ran in the Neovim on " .. address)
+  end
+  M.stdout(res.out or "")
+  M.stderr(res.err or "")
+  return tonumber(res.code) or 1
+end
+
+--- What the session server sets up around a command: the prompts of
+--- `M.headless`, the CLI's option overrides and the buffers that already
+--- have unsaved changes. Returns the function that undoes it.
+---@return fun()
+local function session_begin(flags)
+  if flags.config or flags.dir or #flags.files > 0 then
+    fail("--config, --files and --dir are not for a running Neovim (use --no-server)", "usage")
+  end
+  require("org").ensure_setup()
+  local config = require("org.config")
+  local restore_headless = M.headless()
+  local saved = {}
+  local function set(tbl, k, v)
+    saved[#saved + 1] = { tbl, k, tbl[k] }
+    tbl[k] = v
+  end
+  for k, v in pairs(M.OVERRIDES) do
+    if type(v) == "table" then
+      for k2, v2 in pairs(v) do
+        set(config.opts[k], k2, v2)
+      end
+    else
+      set(config.opts, k, v)
+    end
+  end
+  -- commands may set agenda options (a custom command's span)
+  local agenda_opts = config.opts.agenda
+  local agenda_saved = {}
+  for k, v in pairs(agenda_opts) do
+    agenda_saved[k] = v
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
+      state.dirty_before[b] = true
+    end
+  end
+  return function()
+    for i = #saved, 1, -1 do
+      local e = saved[i]
+      e[1][e[2]] = e[3]
+    end
+    for k in pairs(agenda_opts) do
+      if agenda_saved[k] == nil then
+        agenda_opts[k] = nil
+      end
+    end
+    for k, v in pairs(agenda_saved) do
+      agenda_opts[k] = v
+    end
+    config.opts.agenda = agenda_opts
+    restore_headless()
+  end
+end
+
+--- Run a command of the command line in this Neovim, for a client (the
+--- `cli` request of the session server): `argv` as `org` got it, relative
+--- paths taken from `cwd`, `stdin` the text a "-" reads. Returns
+--- { code, out, err }: the exit code and what it would print.
+---@param argv string[]
+---@param cwd? string
+---@param stdin? string
+---@return { code: integer, out: string, err: string }
+function M.serve(argv, cwd, stdin)
+  local out_buf, err_buf = {}, {}
+  local saved = { stdout = M.stdout, stderr = M.stderr, read_stdin = M.read_stdin }
+  M.stdout = function(s)
+    out_buf[#out_buf + 1] = s
+  end
+  M.stderr = function(s)
+    err_buf[#err_buf + 1] = s
+  end
+  M.read_stdin = function()
+    return stdin or ""
+  end
+  local ok, code = pcall(M.main, argv, { session = true, cwd = cwd })
+  M.stdout, M.stderr, M.read_stdin = saved.stdout, saved.stderr, saved.read_stdin
+  if not ok then
+    err_buf[#err_buf + 1] = "org: " .. tostring(code) .. "\n"
+    code = 1
+  end
+  return { code = code, out = table.concat(out_buf), err = table.concat(err_buf) }
+end
+
 --- Run the CLI. Returns the exit code: 0 ok, 1 failure (or nothing
 --- found), 2 usage error, 3 input would be needed, 4 file busy.
+--- `opts.session`: run by the session server for a client in `opts.cwd`
+--- (see |M.serve|).
 ---@param argv string[]
+---@param opts? { session?: boolean, cwd?: string }
 ---@return integer
-function M.main(argv)
+function M.main(argv, opts)
+  opts = opts or {}
   reset_state()
+  state.session = opts.session or false
+  state.cwd = opts.cwd
   local command
   local saved_write = io.write
+  local restore
   local ok, code = pcall(function()
     -- a quick look for --json, so that argument errors are JSON too
     for _, a in ipairs(argv or {}) do
@@ -1779,7 +2076,16 @@ function M.main(argv)
     state.machine = flags.json or flags.jsonl or false
     state.jsonl = flags.jsonl or false
     state.note = flags.note
-    if state.machine then
+    if state.session then
+      -- a Neovim's own stdout may be its UI's channel: never write there
+      io.write = function(...)
+        local put = state.machine and M.stderr or M.stdout
+        for i = 1, select("#", ...) do
+          put(tostring((select(i, ...))))
+        end
+        return io.stdout
+      end
+    elseif state.machine then
       -- nothing but the JSON on stdout
       io.write = function(...)
         return io.stderr:write(...)
@@ -1835,8 +2141,18 @@ function M.main(argv)
       end
       return 0
     end
-    M.headless()
-    M.load_config(flags)
+    if state.session then
+      restore = session_begin(flags)
+    else
+      -- the configuration may enable the session server: not here
+      require("org.remote").inhibit = true
+      M.headless()
+      M.load_config(flags)
+      local forwarded = M.forward(argv or {}, command, flags)
+      if forwarded then
+        return forwarded
+      end
+    end
     local res = M.COMMANDS[command](rest, flags) or {}
     if state.machine then
       emit(command, res, flags)
@@ -1852,6 +2168,9 @@ function M.main(argv)
     return res.code or 0
   end)
   io.write = saved_write
+  if restore then
+    restore()
+  end
   if ok then
     return code or 0
   end
