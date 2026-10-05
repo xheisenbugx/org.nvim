@@ -701,6 +701,93 @@ describe("perf: 100,000 lines", function()
   end)
 end)
 
+-- Src blocks drawn with tree-sitter (ui.src_highlight_engine "auto", the
+-- bundled lua parser) and, to compare, with the lua syntax included. On a
+-- laptop (Neovim 0.12): 1,000 blocks of 20 lines open in 0.15 s with
+-- either; going through them a screen at a time takes 0.45 s with
+-- tree-sitter, 1.6 s with the syntax; a 10,000-line block opens in 0.14 s
+-- (0.06 s), its middle draws in 17 ms (360 ms), a character typed in it
+-- takes 37 ms (15 ms: tree-sitter parses the block again, from the tree it
+-- had).
+describe("perf: src blocks", function()
+  setup()
+  local ui = config.opts.ui
+  local saved_engine, saved_rtp
+  before_each(function()
+    saved_engine, saved_rtp = ui.src_highlight_engine, vim.o.runtimepath
+    local lib = vim.fs.normalize(vim.env.VIMRUNTIME .. "/../../../lib/nvim")
+    if vim.uv.fs_stat(lib .. "/parser") then
+      vim.opt.runtimepath:append(lib)
+    end
+  end)
+  after_each(function()
+    ui.src_highlight_engine, vim.o.runtimepath = saved_engine, saved_rtp
+  end)
+
+  for _, engine in ipairs({ "auto", "syntax" }) do
+    it(engine .. ": 1,000 blocks and a 10,000-line block in budget", function()
+      ui.src_highlight_engine = engine
+      local label = engine == "auto" and "tree-sitter" or "syntax"
+      local lines = gen.src_blocks(1000, 20)
+      budget(label .. ": open 1,000 src blocks", 3000, function()
+        open(lines)
+      end)
+      budget(label .. ": draw 1,000 src blocks a screen at a time", 10000, function()
+        for l = 1, #lines, 40 do
+          vim.api.nvim_win_set_cursor(0, { l, 0 })
+          vim.cmd("normal! zt")
+          vim.cmd("redraw")
+        end
+      end)
+      vim.api.nvim_win_set_cursor(0, { 12000, 0 })
+      budget(label .. ": type 10 chars among 1,000 src blocks", 1500, function()
+        for _ = 1, 10 do
+          vim.cmd("normal! ix")
+          vim.cmd("redraw")
+        end
+      end)
+      vim.cmd("silent! %bwipeout!")
+      budget(label .. ": open a 10,000-line src block", 2000, function()
+        open(gen.src_blocks(1, 10000))
+      end)
+      vim.api.nvim_win_set_cursor(0, { 5000, 0 })
+      budget(label .. ": draw the middle of a 10,000-line src block", 3000, function()
+        vim.cmd("normal! zz")
+        vim.cmd("redraw!")
+      end)
+      budget(label .. ": type 10 chars in a 10,000-line src block", 4000, function()
+        for _ = 1, 10 do
+          vim.cmd("normal! ix")
+          vim.cmd("redraw")
+        end
+      end)
+      if engine == "auto" then
+        local ts = require("org.ui.src_highlight")
+        ok(ts.highlights_at(0, 4999)[1] ~= nil, "no tree-sitter highlights")
+      end
+    end)
+  end
+
+  it("tree-sitter: drawing a block grows linearly with its lines", function()
+    -- (the highlights of a row in the middle, as the first row drawn: the
+    -- block found, read and parsed; not the redraw, whose syntax syncing
+    -- in a long region is the same with either engine)
+    local ts = require("org.ui.src_highlight")
+    local parses
+    linear("tree-sitter: find, parse and highlight a src block", 2000, function(buf)
+      ok(ts.highlights_at(buf, math.floor(vim.api.nvim_buf_line_count(buf) / 2))[1] ~= nil)
+    end, function(n)
+      vim.cmd("silent! %bwipeout!")
+      -- (opened as a file: its languages are known)
+      local buf = open(gen.src_blocks(1, n))
+      ts.refresh(buf)
+      parses = ts.parses
+      return buf
+    end)
+    eq(parses + 1, ts.parses)
+  end)
+end)
+
 describe("perf: links and footnotes", function()
   setup()
   it("export and lint grow linearly", function()
