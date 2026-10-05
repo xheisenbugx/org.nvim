@@ -535,9 +535,12 @@ function M.execute(opts)
   local placeholder = use_async(args, src.lang, opts)
   eopts.on_start = function()
     -- only asynchronous runs get here, right before the code starts
-    local row = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, source.mark, {})[1]
+    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, source.mark, { details = true })
+    local row = pos[1]
     if row then
-      job = jobs.start(bufnr, row, { lang = src.lang, name = src.name })
+      -- the live output goes below the block's last line
+      local end_row = pos[3] and pos[3].end_row or row
+      job = jobs.start(bufnr, row, { lang = src.lang, name = src.name, end_row = end_row })
       job.on_cancel = on_cancel
       eopts.job = job
     end

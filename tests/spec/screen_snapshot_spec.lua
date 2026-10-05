@@ -296,6 +296,31 @@ describe("screen snapshot", function()
     screen:lua([[require("org.babel.jobs").cancel_all({ quiet = true })]])
   end)
 
+  it("a running src block: its output so far below it", function()
+    skip_on_windows("the block runs sh")
+    -- no spinner timer: the header redraws only for output, within a second
+    new({ babel = { confirm_evaluate = false, spinner = { "*" }, spinner_interval = 600000, live_output = 3 } }, 60, 12)
+    screen:org({
+      "* Build",
+      "#+begin_src sh :results output",
+      "for i in 1 2 3 4; do echo step $i; done; sleep 30",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": previous",
+    })
+    screen:lua([[
+      local jobs = require("org.babel.jobs")
+      require("org.babel").execute({ bufnr = 0, lnum = 2 })
+      vim.wait(5000, function()
+        local m = vim.api.nvim_buf_get_extmarks(0, jobs.live_ns, 0, -1, { details = true })[1]
+        return m and m[4].virt_lines and #m[4].virt_lines == 4 and m[4].virt_lines[4][2][1] == "step 4"
+      end, 10)
+    ]])
+    screen:expect("babel_live_output")
+    screen:lua([[require("org.babel.jobs").cancel_all({ quiet = true })]])
+  end)
+
   it("fails with a diff when the screen differs, and on a missing golden file", function()
     local dir, update = Screen.dir, vim.env.ORG_UPDATE_SNAPSHOTS
     Screen.dir = vim.fn.tempname()

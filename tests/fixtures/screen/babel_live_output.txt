@@ -1,0 +1,24 @@
+screen 60x12
+|{1:* Build}|
+|{2:#+begin_src sh :results output} {3:  * executing…}|
+|{4:for} i {4:in} {5:1} {5:2} {5:3} {5:4}{6:;} {4:do} {4:echo}{7: step }{8:$i}{6:;} {4:done}{6:;} {4:sleep} {5:30}|
+|{2:#+end_src}|
+|{3:  * output, last 3 of 4 lines}|
+|{3:  │ }{9:step 2}|
+|{3:  │ }{9:step 3}|
+|{3:  │ }{9:step 4}|
+||
+|{10:#+RESULTS:}|
+|{11:: previous}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgBlockDelimiter -> Comment
+{3} OrgBabelRunning -> Comment
+{4} Statement [bold]
+{5} Constant
+{6} Operator
+{7} String
+{8} PreProc
+{9} OrgBabelOutput -> Comment
+{10} OrgKeyword -> PreProc
+{11} orgFixedWidth -> OrgVerbatim -> String

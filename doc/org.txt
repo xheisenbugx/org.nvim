@@ -4246,6 +4246,18 @@ the other, in order. Meanwhile:
     with the seconds elapsed after the first one. `babel.spinner` sets its
     frames (`false`: a still "executing…"), `babel.spinner_interval` the
     milliseconds between them.
+  - What the program prints (standard output and error) shows as it
+    arrives, as virtual lines below the block: a header with the spinner
+    and the seconds elapsed (and "last 10 of 57 lines" once some are
+    hidden), then the last `babel.live_output` lines (default 10;
+    `false` or 0 turns this off). Colour codes and control characters
+    are dropped, and after a carriage return only what follows it shows
+    (progress bars). They are virtual text (highlight groups
+    `OrgBabelRunning` and `OrgBabelOutput`): the result inserted when the
+    run ends is the same as without them, and they go away then, or when
+    the run is cancelled or fails. Blocks run as a separate process
+    stream this way (shell, Python, C, ... without `:session`); session
+    blocks and Lua blocks run inside Neovim show their result only.
   - You can keep editing. The result follows its block when lines are
     added or removed above it. Without a placeholder (below), a result is
     discarded with a warning when its block was changed or deleted during
@@ -6179,7 +6191,8 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
     `OrgInlineSrcMarker`, `OrgInlineSrcLang`, `OrgExportSnippetMarker`,
     `OrgExportSnippetBackend`, `OrgFootnote`, `OrgTarget`, `OrgLatex`,
     `OrgHorizontalRule`, `OrgMacro`, `OrgHiddenStars`, `OrgSuperscript`,
-    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`
+    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`,
+    `OrgBabelOutput`
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
     `OrgMenuOn`, `OrgMenuOff`, `OrgMenuValue`, `OrgMenuSelected` (|org-key-menus|,
     |org-choice-list|)
@@ -6618,7 +6631,9 @@ mobile ~
 babel ~
   confirm_evaluate true (or a function), min_lines_for_block_output 10,
   timeout 30000, async false (|org-babel-async|), spinner (braille
-  frames, or false), spinner_interval 100, evaluate_on_export true,
+  frames, or false), spinner_interval 100, live_output 10 (lines of
+  output shown while a block runs, or false; |org-babel-async|),
+  evaluate_on_export true,
   no_eval_on_ctrl_c_ctrl_c false,
   default_header_args, default_inline_header_args,
   default_lob_header_args, results_keyword "RESULTS",
@@ -7884,8 +7899,9 @@ Differences from Emacs:
   graphics` handling beyond what the code does itself). C-c C-v C-l
   runs the block in the session; Emacs only inserts it at the prompt.
   Timeouts (`babel.timeout`) give up on the result but do not interrupt
-  the REPL. Every evaluation runs in the background with a spinner and
-  can be cancelled (`:Org babel_cancel`, Emacs has only C-g for the
+  the REPL. Every evaluation runs in the background with a spinner (and
+  the output so far below the block, `babel.live_output`) and can be
+  cancelled (`:Org babel_cancel`, Emacs has only C-g for the
   synchronous ones); `babel.async` gives every block, not only `:async`
   session blocks, a placeholder result, and a cancelled placeholder
   becomes `: [ Babel evaluation cancelled ]` (|org-babel-async|). emacs-lisp blocks and
