@@ -296,6 +296,21 @@ describe("yank (p / P) of subtrees", function()
     ok(closed(2))
   end)
 
+  it("p and P from an empty register give Vim's error, no traceback", function()
+    local buf = org_buffer({ "* A", "* B" }, { 1, 0 })
+    vim.fn.setreg("a", {})
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(msg)
+      msgs[#msgs + 1] = msg
+    end
+    put('"ap')
+    put('"aP')
+    vim.notify = notify
+    eq({ "E353: Nothing in register a", "E353: Nothing in register a" }, msgs)
+    eq({ "* A", "* B" }, buf_lines(buf))
+  end)
+
   it("P puts before the line", function()
     local buf = org_buffer({ "* A", "* B" }, { 2, 0 })
     vim.fn.setreg("a", { "** K", "body" }, "l")

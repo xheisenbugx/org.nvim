@@ -73,6 +73,13 @@ local function resume(co, ...)
     if type(err) == "string" and err:find("org_abort", 1, true) then
       return false
     end
+    -- an error of a key the action ran with `:normal!` (`p` from an empty
+    -- register: E353) is the user's, shown like Vim shows it
+    local vim_err = type(err) == "string" and err:match("Vim%(normal%):(E%d+: .*)$")
+    if vim_err then
+      M.error(vim_err)
+      return false
+    end
     M.error(debug.traceback(co, tostring(err)))
     return false
   end
