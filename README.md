@@ -106,7 +106,12 @@ return {
 }
 ```
 
-Restart Neovim and run `:checkhealth org`. Then open
+Restart Neovim and run `:checkhealth org`. New to Org? Run `:Org tutor`:
+a guided lesson, like `vimtutor`, in a copy of its own where every org key
+works and each exercise gets a ✓ once you have done it (`:Org tutor
+workflow` continues with capture, the agenda and clocking; `:h org-tutor`).
+
+For a longer tour, open
 [`examples/tutorial.org`](examples/tutorial.org), a hands-on tour with a
 section and exercises for every feature. To try it without touching your
 config or your notes, run it from a checkout with the bundled init file:
@@ -425,8 +430,9 @@ a tag or property match, or deadlines. The matches are highlighted, and
 `<leader>oe` opens the export dispatcher. The HTML, LaTeX, Beamer, KOMA
 letter, man page, Markdown, ASCII, Org, iCalendar, ODT and Texinfo
 back-ends are ports of Emacs's, there's a GitHub-flavoured Markdown
-back-end, and pandoc handles DOCX, EPUB and more. You can export to a
-buffer to check the result:
+back-end, Hugo blog posts with the `hugo` extension (a port of ox-hugo),
+and pandoc handles DOCX, EPUB and more. You can export to a buffer to check
+the result:
 
 ![Exporting an Org file to a Markdown buffer](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/export-md.gif)
 
@@ -460,7 +466,7 @@ searches it, and `{` / `}` jump between sections:
 | 🧪 | **Babel** | Asynchronous execution in many languages (with a spinner, placeholder results and cancelling), `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, GitHub-flavoured Markdown, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
-| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
+| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, Hugo blog export (ox-hugo), a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
 | 🎁 | **And more** | Column view, `org-indent` mode, speed keys, footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, BibTeX links (`ol-bibtex`), `org-ctags`, the Org/table/agenda menus and org-mouse, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)), and
@@ -1107,7 +1113,7 @@ its options may still change):
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap`, `hugo` |
 
 > [!NOTE]
 > 🧪 Experimental extensions are prone to change. Their options, commands,
@@ -1201,6 +1207,15 @@ its options may still change):
   `bin/org-merge` (`:h org-extensions-merge`).
 
   ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/merge.gif)
+
+- 🧪 **`hugo`** ([ox-hugo](https://ox-hugo.scripter.co/)): export posts
+  for the Hugo static site generator, one post per file or one per subtree
+  with an `EXPORT_FILE_NAME` (inheriting `EXPORT_HUGO_*` properties from its
+  parents), with TOML or YAML front matter (dates from CLOSED, drafts from
+  TODO states, tags and `@categories`, menus, weights, custom front
+  matter), `{{< figure >}}` for images copied to `static/` or the page
+  bundle, and `{{< relref >}}` links between posts. `<leader>oe H` in the
+  export dispatcher, like `C-c C-e H` (`:h org-extensions-hugo`).
 
 - ✅ **`ics`**: subscribe to Google, Outlook or any iCalendar (`.ics`)
   calendar, a secret URL fetched with curl into a cache or a local file,

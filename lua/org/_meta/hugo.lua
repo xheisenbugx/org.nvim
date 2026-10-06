@@ -1,0 +1,57 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { hugo = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Hugo
+---`false` keeps the extension off.
+---@field enabled? boolean
+---The Hugo site, when files don't set `#+hugo_base_dir` (default: `nil`).
+---@field base_dir? string
+---The content directory under the base dir (default: `"content"`).
+---@field content_folder? string
+---The section of posts (default: `"posts"`).
+---@field section? string
+---Front matter format (default: `"toml"`).
+---@field front_matter_format? "toml"|"yaml"
+---Text put at the end of every post (default: `""`).
+---@field footer? string
+---Keep the line breaks of filled paragraphs (default: `true`).
+---@field preserve_filling? boolean
+---Delete trailing whitespace and blank lines (default: `true`).
+---@field delete_trailing_ws? boolean
+---Export `~code~` as `<kbd>` (default: `false`).
+---@field use_code_for_kbd? boolean
+---Tags `a__b` become "a b" (default: `true`).
+---@field allow_spaces_in_tags? boolean
+---Tags `a_b` become "a-b" and `a___b` "a_b" (default: `true`).
+---@field prefer_hyphen_in_tags? boolean
+---Set `lastmod` to the time of the export (default: `false`).
+---@field auto_set_lastmod? boolean
+---Seconds after the post's date during which the automatic lastmod is left
+---out (default: `0`).
+---@field suppress_lastmod_period? number
+---Table of contents: false, true or a depth (default: `false`).
+---@field with_toc? boolean|integer
+---Section numbers: false, true, a level or "onlytoc" (default: `false`).
+---@field with_section_numbers? boolean|integer|"onlytoc"
+---Subdirectory of `static/` for linked files from outside it (default: `"ox-hugo"`).
+---@field static_subdir? string
+---Extensions of linked files copied to the site (default: images, mp4,
+---pdf and office documents).
+---@field copy_extensions? string[]
+---`format-time-string` format of front matter dates (default: `"%Y-%m-%dT%T%z"`).
+---@field date_format? string
+---Space-separated paired shortcodes, `%name` for Markdown contents (default: `""`).
+---@field paired_shortcodes? string
+---"Figure 1" instead of "1" in links to numbered elements (default: `false`).
+---@field link_desc_insert_type? boolean
+---HTML element wrapping top-level sections (default: `""`, none).
+---@field container_element? string
+---Per special block type: `raw`, `trim-pre`, `trim-post` (default: audio,
+---katex, tikzjax and video raw; mark trimmed).
+---@field special_block_type_properties? table<string, { raw?: boolean, ["trim-pre"]?: boolean, ["trim-post"]?: boolean }>
+---`{#anchor}` after headings (default: `true`).
+---@field headline_anchor? boolean
+---Export the post at the cursor (or the file) when a buffer with a Hugo
+---base dir is written (default: `false`).
+---@field auto_export? boolean

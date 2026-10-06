@@ -100,6 +100,15 @@ M.extra = {
     "open_from_string_command",
     desc = "Open a link: :Org link_open_from_string [link]",
   },
+  tutor = {
+    "org.tutor",
+    "command",
+    desc = "Interactive tutorial: :Org tutor [lesson] [reset]",
+    complete = function()
+      return require("org.tutor").complete()
+    end,
+    args_only = true,
+  },
   lint = { "org.lint", "command", desc = "Check the buffer for syntax problems: :Org lint [checker ...]" },
   feed_update = { "org.feed", "update_command", desc = "Update a feed: :Org feed_update [name]" },
   feed_goto_inbox = { "org.feed", "goto_inbox", desc = "Go to a feed's inbox: :Org feed_goto_inbox [name]" },

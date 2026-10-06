@@ -1,0 +1,85 @@
+#+TITLE: org.nvim tutor 2: capture, agenda and clocking
+#+STARTUP: showall nologdone
+#+TODO: TODO | DONE
+
+This second lesson shows how org.nvim fits into a day: catching ideas
+with capture, seeing what is due in the agenda, and timing your work.
+It assumes you know the keys of the first lesson (=:Org tutor basics=).
+
+- As before, a {{done}} at the end of an exercise's headline means it is
+  done, and {{todo}} that it is not yet. Keys are shown as mapped in your
+  config; =<leader>= is ={{leader}}=.
+- This is a working copy: =:w= saves your progress and =:Org tutor
+  workflow reset= starts over. Capture and the agenda only use this
+  file in the exercises, so your notes stay as they are.
+
+* Lesson 1: capture
+Capture files a note without leaving what you are doing.
+={{global.capture}}= works from any buffer: it asks for a template and
+files the entry where the template says (your =capture.templates=, or
+=default_notes_file=). Here, to keep your notes clean, you capture into
+this file with =:Org capture_here=, which files the entry at the cursor.
+
+** 1.1 Capture a task
+Put the cursor on the =Inbox= headline below and run =:Org
+capture_here=. Pick a template (=t= when you have none of your own),
+type a title such as =Call Bob=, then press ={{capture.finalize}}= to
+file it (={{capture.kill}}= cancels).
+
+*** Inbox
+
+* Lesson 2: the agenda
+The agenda collects the TODO items and dates of your agenda files
+(=agenda_files=). ={{global.agenda}}= opens its menu. Press =<= in the
+menu to restrict it to the current file, then the key of a view: =a= for
+the week, =t= for every TODO item.
+
+** 2.1 Mark a task done from the agenda
+In this file, press ={{global.agenda}}=, then =<= and =t=. The agenda
+lists the TODO items of this file. Move to =Call the dentist= and press
+={{agenda.todo}}=: it becomes DONE, here as well. ={{agenda.quit}}=
+closes the agenda.
+
+*** TODO Call the dentist
+*** TODO Book a table for Friday
+
+** 2.2 See a scheduled task in the week
+Schedule =Water the plants= for today with ={{org.schedule}}= (press
+=<CR>= at the date prompt). Then open the week agenda for this file:
+={{global.agenda}}=, =<=, =a=. In the agenda, ={{agenda.later}}= and
+={{agenda.earlier}}= go a week forward and back, ={{agenda.goto}}= jumps
+to the entry.
+
+*** TODO Water the plants
+
+* Lesson 3: clocking
+The clock records the time you spend on a task in a =CLOCK:= line under
+it. Only one task is clocked at a time: clocking in here clocks out any
+other task you clocked in.
+
+** 3.1 Clock in and out
+Put the cursor on =Write the report= and press ={{org.clock_in}}=. Wait a
+moment, then press ={{org.clock_out}}= (it works from any buffer, and
+={{global.clock_goto}}= jumps back to the clocked task). A =:LOGBOOK:=
+drawer with a =CLOCK:= line appears under the headline.
+
+*** TODO Write the report
+
+** 3.2 Report the time
+Put the cursor on the =Time spent= headline and press
+={{org.clock_report}}=: a clock table that sums the clocked time of this
+file appears below it. ={{org.context_action}}= on its =#+BEGIN:= line
+updates it.
+
+*** Time spent
+
+* What next
+That's the tour. From here:
+
+- ={{org.help}}= lists every key, grouped by topic; =:h org= is the
+  manual, and =:h org-capture-templates= shows how to file captures
+  where you want them.
+- {{examples}} links to one file per feature (refile and archive,
+  properties and column view, spreadsheet formulas, source blocks,
+  export, ...) with examples and exercises.
+- =:Org tutor basics= goes back to the first lesson.

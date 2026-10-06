@@ -1,0 +1,19 @@
+screen 60x8
+|{1:#+TITLE:}{2: Tutor} {3: ✓ 1/2}|
+|{4:* Lesson 1}|
+|{5:** 1.1 Finish a task} {6: ✓}|
+|{7:*** }{8:DONE}{7: Buy milk}|
+|{5:** 1.2 Start a task} {9: ✗}|
+|{10:*** Write a letter}|
+|{5:** 1.3 Read on}|
+
+{1} orgTitleKeyword -> OrgKeyword -> PreProc
+{2} OrgTitle -> Title [bold]
+{3} OrgTutorProgress -> Comment
+{4} OrgHeadlineLevel1 -> Title [bold]
+{5} OrgHeadlineLevel2 -> Constant
+{6} OrgTutorDone -> DiagnosticOk
+{7} OrgHeadlineDone -> Comment
+{8} OrgDone -> @comment.note
+{9} OrgTutorTodo -> DiagnosticError
+{10} OrgHeadlineLevel3 -> Identifier

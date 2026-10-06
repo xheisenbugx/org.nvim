@@ -437,6 +437,10 @@ function M.remove_uninterpreted(data, info)
     end
     if new then
       local sib = element.siblings(d)
+      if not sib and data.type == nil and vim.tbl_contains(data, d) then
+        -- an object at the top of a secondary string (a #+TITLE)
+        sib = data
+      end
       if sib then
         for i, x in ipairs(sib) do
           if x == d then

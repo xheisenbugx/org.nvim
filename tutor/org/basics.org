@@ -1,0 +1,192 @@
+#+TITLE: org.nvim tutor 1: the basics
+#+STARTUP: showall nologdone
+#+TODO: TODO | DONE
+
+Welcome to org.nvim! This is a working copy of the tutor, a normal org
+file: every key of org.nvim works here, and you learn by doing.
+
+- Each lesson below has exercises: the headlines that start with a
+  number such as =1.2=. When you have done one, a {{done}} appears at the
+  end of its headline; until then it shows {{todo}}. The first line counts
+  how many you have done.
+- Keys are shown as they are mapped in your config. =<leader>= is your
+  leader key, ={{leader}}=. =<M-x>= means Alt+x, =<S-x>= Shift+x and
+  =<C-x>= Ctrl+x.
+- Nothing you do here touches your notes. Make a mess if you like: =u=
+  undoes, =:w= saves your progress, and =:Org tutor basics reset= starts
+  the lesson over. =:Org tutor= brings you back here later.
+- ={{org.help}}= lists every key of an org buffer, any time.
+
+Move down with =j= to start.
+
+* Lesson 1: the outline
+An org file is an outline: a line that starts with stars is a headline,
+and the number of stars is its level. Everything under a headline, up to
+the next one of the same or a higher level, is its subtree.
+
+** 1.1 Fold and unfold
+Put the cursor on the =Kitchen= headline below and press ={{org.cycle}}=
+a few times: it cycles the subtree between folded, its children and
+everything. ={{org.global_cycle}}= does the same for the whole file (press
+it until everything shows again).
+
+There is nothing to check here: move on when you are done.
+
+*** Kitchen
+**** Pots
+Two big ones and a small one.
+**** Pans
+A frying pan.
+
+** 1.2 Insert a headline
+Put the cursor on =Apples= and press ={{org.meta_return}}=: a new headline
+of the same level opens, in Insert mode (above when the cursor is at the
+start of the line, else below). Type =Pears= and press =<Esc>=.
+={{org.insert_heading}}= does the same.
+
+*** Fruit
+**** Apples
+**** Bananas
+
+** 1.3 Promote and demote
+={{org.demote_heading}}= moves a headline one level down and
+={{org.promote_heading}}= one level up (={{org.demote_subtree}}= and
+={{org.promote_subtree}}= take its subtree along).
+
+Make =Carrot= a child of =Vegetables= (demote it), and =Spoon= a child of
+=Drawer= (promote it).
+
+*** Vegetables
+*** Carrot
+*** Drawer
+***** Spoon
+
+** 1.4 Move a subtree
+={{org.meta_up}}= and ={{org.meta_down}}= move the subtree at the cursor
+past its siblings. Put the days below in order: Monday, Tuesday,
+Wednesday.
+
+*** Tuesday
+*** Monday
+*** Wednesday
+
+* Lesson 2: TODO items and priorities
+A headline becomes a task when it starts with a TODO keyword. This file
+uses =TODO= and =DONE= (the =#+TODO:= line at the top).
+
+** 2.1 Finish a task
+Put the cursor on =Buy milk= and press ={{org.todo_next}}=: TODO becomes
+DONE. ={{org.shift_right}}= and ={{org.shift_left}}= cycle the keyword
+too.
+
+*** TODO Buy milk
+
+** 2.2 Start a task
+Turn =Write a letter= into a TODO item with ={{org.todo_next}}=.
+
+*** Write a letter
+
+** 2.3 Set a priority
+Put the cursor on =Pay rent=, press ={{org.priority}}= and then =A=.
+={{org.shift_up}}= and ={{org.shift_down}}= raise and lower a priority.
+
+*** TODO Pay rent
+
+* Lesson 3: tags
+Tags go at the end of a headline, between colons: =:work:home:=.
+
+** 3.1 Tag a headline
+Put the cursor on =Prepare slides=, press ={{org.set_tags}}=, type =work=
+and press =<CR>=.
+
+*** TODO Prepare slides
+
+* Lesson 4: dates
+A headline can be scheduled (the day you plan to work on it) or have a
+deadline. The date prompt takes a date like =2026-10-12=, =+3= (in three
+days), =fri= or nothing (today); =<CR>= accepts it.
+
+** 4.1 Schedule a task
+Put the cursor on =Water the plants=, press ={{org.schedule}}= and accept
+a date.
+
+*** TODO Water the plants
+
+** 4.2 Set a deadline
+Put the cursor on =File the tax return=, press ={{org.deadline}}= and
+accept a date. On a date, ={{org.shift_right}}= and ={{org.shift_left}}=
+move it a day, and ={{org.shift_up}}= / ={{org.shift_down}}= change the
+part under the cursor.
+
+*** TODO File the tax return
+
+* Lesson 5: lists and checkboxes
+Lines starting with =-=, =+= or =1.= are list items. =[ ]= makes an item
+a checkbox.
+
+** 5.1 Add a list item
+Put the cursor on =Bread= and press ={{org.meta_return}}=: a new item
+opens below. Type =Butter= and press =<Esc>=.
+
+- Milk
+- Bread
+
+** 5.2 Check a checkbox
+Put the cursor on =Eggs= and press ={{org.context_action}}= (or
+={{org.toggle_checkbox}}=). The =[0/2]= cookie counts the checked items.
+
+- Shopping [0/2]
+  - [ ] Eggs
+  - [ ] Flour
+
+* Lesson 6: tables
+A table is lines that start with =|=. You don't have to line the columns
+up yourself.
+
+** 6.1 Align a table
+Put the cursor anywhere in the table and press ={{org.context_action}}=.
+
+| Fruit | Count |
+|-
+| Apple | 3 |
+| Orange | 12 |
+
+** 6.2 Add a row
+Put the cursor on the =Lemon= row, press =A= for Insert mode at its end
+and then ={{org_insert.insert_tab}}=: past the last field a new row
+opens. Type =Kiwi=, press ={{org_insert.insert_tab}}=, type =5=, and
+leave Insert mode with =<Esc>=. ={{org_insert.insert_tab}}= aligns the
+table as it goes.
+
+| Fruit | Count |
+|-------+-------|
+| Pear  |     7 |
+| Lemon |     2 |
+
+* Lesson 7: links
+A link is written =[[target][description]]=; only the description shows.
+
+** 7.1 Insert a link
+Put the cursor at the end of the =Map= line below, press
+={{org.insert_link}}=, type =*Treasure chest= as the link and =the
+treasure= as the description.
+
+Map:
+
+*** Treasure chest
+You found it.
+
+** 7.2 Follow a link
+Put the cursor on the link you made and press ={{org.open_at_point}}=: the
+cursor jumps to =Treasure chest=. ={{org.store_link}}= stores a link to
+where you are, for ={{org.insert_link}}= to offer later.
+
+* What next
+Well done! Continue with the second lesson, capture, the agenda and
+clocking:
+
+  =:Org tutor workflow=
+
+- ={{org.help}}= lists every key; =:h org= is the manual.
+- {{examples}} links to one file per feature, each with many
+  examples and exercises.
