@@ -151,6 +151,26 @@ describe("screen snapshot", function()
     screen:expect("checkbox_icons")
   end)
 
+  it("the :Org tutor marks of exercises done and not yet done", function()
+    new(nil, 60, 8)
+    screen:org({
+      "#+TITLE: Tutor",
+      "* Lesson 1",
+      "** 1.1 Finish a task",
+      "*** DONE Buy milk",
+      "** 1.2 Start a task",
+      "*** Write a letter",
+      "** 1.3 Read on",
+    })
+    screen:lua([[
+      require("org.tutor").attach(0, {
+        ["1.1"] = { heading = "Buy milk", todo = "DONE" },
+        ["1.2"] = { heading = "Write a letter", todo = "TODO" },
+      })
+    ]])
+    screen:expect("tutor_marks")
+  end)
+
   it("tables", function()
     new()
     screen:org({

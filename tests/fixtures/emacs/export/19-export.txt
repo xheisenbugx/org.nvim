@@ -1113,9 +1113,10 @@
   19. Citations
   20. Broken links
   21. iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)
-  22. Publishing projects
-  23. Configuring defaults
-  24. Further reading
+  22. Hugo blog posts (the hugo extension)
+  23. Publishing projects
+  24. Configuring defaults
+  25. Further reading
 
 
 Preface
@@ -2115,7 +2116,81 @@ Colophon
   delete it.
 
 
-22 Publishing projects
+22 Hugo blog posts (the hugo extension)
+=======================================
+
+  The `hugo' extension (a port of Emacs ox-hugo, off by default) writes
+  Markdown for the Hugo static site generator. Turn it on in your
+  config:
+
+  ,----
+  | require("org").setup({ extensions = { hugo = true } })
+  `----
+
+  A heading with an `EXPORT_FILE_NAME' property is one post; its
+  children are the post's sections, and it inherits `EXPORT_HUGO_*'
+  properties (section, base dir, front matter format, ...) from its
+  parents. The dispatcher entry is `H': `H t' shows the post in a
+  buffer, `H H' writes the post at the cursor to `<base
+  dir>/content/<section>/<name>.md', `H A' writes every post of the
+  file. Without such headings, the whole file is one post (`#+title',
+  `#+hugo_base_dir', `#+hugo_section' keywords).
+
+
+22.1 DONE Sample: a Hugo post                             :emacs:@notes:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Hello from /Org/.
+
+
+22.1.1 A section
+----------------
+
+  With a footnote[5].
+
+
+22.2 Exercises: a Hugo post
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  *Try:* with the extension on, put the cursor in the sample above and
+  press `<prefix>e H t' (to a temporary buffer).
+
+  *Expect:* a Markdown buffer whose front matter comes from the heading:
+  the CLOSED date, the tags (`@notes' is a category), `draft = false'
+  because the heading is DONE, and the custom front matter:
+
+  ,----
+  | +++
+  | title = "Sample: a Hugo post"
+  | author = ["org.nvim examples"]
+  | date = 2026-10-05T10:30:00+00:00
+  | tags = ["emacs"]
+  | categories = ["notes"]
+  | draft = false
+  | featured = true
+  | +++
+  | 
+  | Hello from _Org_.
+  | 
+  | 
+  | ## A section {#a-section}
+  | 
+  | With a footnote[^fn:1].
+  | 
+  | [^fn:1]: Footnotes go to the end of the post.
+  `----
+
+  (The date shows your time zone's offset.) Change `DONE' to `TODO': the
+  post becomes a draft. Add `:EXPORT_HUGO_FRONT_MATTER_FORMAT: yaml' to
+  the drawer and export again: the front matter is YAML between `---'
+  lines.
+
+  *Try (writes under /tmp):* `<prefix>e H H'. The post goes to
+  `/tmp/org-nvim-hugo-site/content/blog/my-first-post.md'; see `:h
+  org-extensions-hugo' for page bundles, images and links between posts.
+
+
+23 Publishing projects
 ======================
 
   Publishing exports whole directories at once (a website, a set of
@@ -2166,7 +2241,7 @@ Colophon
   configured, so the prompt offers nothing to choose; press `<Esc>'.
 
 
-23 Configuring defaults
+24 Configuring defaults
 =======================
 
   Every `#+OPTIONS' key has a config default under `export', named after
@@ -2197,7 +2272,7 @@ Colophon
   on the text or the lines before parsing: see `:h org-export'.
 
 
-24 Further reading
+25 Further reading
 ==================
 
   - `:h org-export' (dispatcher, command and Lua API)
@@ -2236,3 +2311,5 @@ _________
 [3] The definition of the named note.
 
 [4] Defined right here.
+
+[5] Footnotes go to the end of the post.

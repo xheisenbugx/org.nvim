@@ -84,6 +84,12 @@ group("Anywhere", {
     global = true,
   },
   bug_report = { "org.bug_report", "submit", desc = "Report a bug (org-submit-bug-report)", global = true },
+  tutor = {
+    "org.tutor",
+    "open",
+    desc = "Interactive tutorial (:Org tutor [lesson] [reset])",
+    global = true,
+  },
   clock_menu = { "org.menu", "clock_menu", desc = "Pop up the clock menu (org-clock-menu)", global = true },
 })
 

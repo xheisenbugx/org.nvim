@@ -386,6 +386,7 @@
 ---| "toggle_time_stamp_overlays" # Toggle custom timestamp display (C-c C-x C-t)
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "transpose_element" # Swap element with the previous one
+---| "tutor" # Interactive tutorial (:Org tutor [lesson] [reset])
 ---| "unescape_code_in_region" # Remove comma escapes of the selection
 ---| "unindent_buffer" # Remove the common indentation of elements
 ---| "up_element" # Parent element

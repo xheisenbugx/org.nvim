@@ -70,6 +70,9 @@ Quick start:                                              *org-quickstart*
   4. Press `<prefix>c` then `t` in any buffer to capture a task.
   5. Press `g?` to list every keymap.
 
+New to Org? Run `:Org tutor` for a guided lesson with exercises that are
+checked as you do them (|org-tutor|).
+
 For a hands-on tour, open `examples/tutorial.org` from the plugin
 directory. It has a section with exercises for every feature. To try it
 with a throwaway config (agenda and capture included), run from the plugin
@@ -91,6 +94,62 @@ Conventions used in this manual:
 Press `g?` in an org or agenda buffer for a list of active keymaps, grouped
 by topic. Each row lists every key of one command; `i_` marks Insert-mode
 keys. `/` searches the list and `{` / `}` jump between sections.
+
+Tutor                                                *org-tutor* *:Org-tutor*
+:Org tutor [lesson] [reset]
+    A guided lesson in the spirit of |vimtutor|, in an org buffer of its
+    own, so every org key works in it. Two lessons ship with org.nvim:
+      `basics`     the outline, TODO items and priorities, tags, dates,
+                   lists and checkboxes, tables, links (the default)
+      `workflow`   capture, the agenda and clocking
+    Each lesson is in small numbered sections. An exercise is a headline
+    whose title starts with its number (`1.2 Insert a headline`): once
+    you have done what it asks, a ✓ shows at the end of that headline
+    (✗ until then), and the first line counts the exercises done. The
+    marks are checked from the outline as org.nvim parses it ("this
+    headline is DONE", "has the tag :work:", "the table is aligned"), a
+    moment after each change, including changes made from the agenda.
+
+    The lesson is a copy: `:Org tutor` writes it to
+    `stdpath("data")/org/tutor/{lesson}.org` and opens that file, never
+    the one shipped with the plugin. It is an ordinary file outside your
+    notes, so saving, the agenda (press `<` in the agenda menu to
+    restrict it to the lesson), capture (`:Org capture_here`) and the
+    clock work in it without touching them. Clocking in on a lesson
+    task clocks out the task you were clocked in on, as anywhere. The keys in the text
+    are those of your `mappings` when the copy is made (`:Org {action}`
+    for an action without a key).
+
+    Running `:Org tutor` again opens the same copy: what you saved with
+    `:w` is kept. `reset` starts the lesson over from a fresh copy (the
+    buffer, when it is loaded, keeps its undo history: `u` brings back
+    what you had). Completion lists the lessons.
+
+    `ui.tutor_marks` sets the marks (default `{ done = "✓", todo = "✗" }`),
+    and the highlight groups `OrgTutorDone`, `OrgTutorTodo` and
+    `OrgTutorProgress` (the count on the first line) their colors.
+
+    A lesson is `tutor/org/{lesson}.org` on 'runtimepath', so a plugin or
+    your config can add one; its checks, if any, are a Lua table returned
+    by the module `org.tutor.lessons.{lesson}`, keyed by exercise number.
+    Each value is a condition, or a list of conditions that must all
+    hold, on the exercise's subtree: >lua
+    return {
+      ["1.2"] = { heading = "Pears", parent = "Fruit" },
+      ["2.1"] = { heading = "Buy milk", todo = "DONE" },
+      ["6.1"] = { table_aligned = true },
+    }
+<
+    A condition tests the headline `heading` of the subtree (by its title
+    without keyword, priority or tags; the exercise headline when not
+    given) for `todo`, `priority`, `tags`, `parent`, `depth` (levels below
+    the exercise), `children` (titles in order), `scheduled`, `deadline`,
+    `clocked` and `min_headings`; or the subtree's text for `item` (a list
+    item), `checked` (a checked item), `table_aligned`, `table_row` (first
+    field of a row) and `contains`; `fn(ctx)` returns a boolean for
+    anything else. `{{org.cycle}}` in the lesson text is replaced by the key
+    of `mappings.org.cycle` (any `mappings` section works), `{{leader}}` by
+    the leader key, `{{done}}` and `{{todo}}` by the `ui.tutor_marks`.
 
 ==============================================================================
 2. INSTALLATION                                             *org-installation*
@@ -4898,6 +4957,7 @@ letters and man pages matches Emacs.
   t A / t a          ASCII buffer / file
   t L / t l          Latin-1 buffer / file
   t U / t u          UTF-8 buffer / file
+  H H / H h / H A    Hugo post (|org-extensions-hugo|, when it is on)
   P f                publish the file
   P p                publish the current project
   P x                publish a project
@@ -5182,6 +5242,8 @@ Texinfo       |org-export-texinfo|
 ODT           |org-export-odt|
 KOMA letter   |org-export-koma-letter|
 Man           |org-export-man|
+Hugo          ox-hugo's Hugo-compatible Markdown with TOML or YAML front
+              matter, an extension (|org-extensions-hugo|).
 
 ASCII ~                                                     *org-export-ascii*
 `ascii` exports plain text like Emacs ox-ascii. Text is filled to
@@ -5910,6 +5972,8 @@ Options under `ui`:
                          (#+STARTUP: hidestars / showstars)
   bullets                list of symbols replacing the stars, per level
   checkboxes             { unchecked, partial, checked } icons
+  tutor_marks            marks of the exercises of |org-tutor| done and
+                         not yet: { done = "✓", todo = "✗" }
   indent_mode            virtual indentation like org-indent-mode: the
                          text of a level-n entry starts at column 2n and
                          headlines get n-1 columns of prefix; turns on
@@ -6306,6 +6370,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
     `OrgMenuOn`, `OrgMenuOff`, `OrgMenuValue`, `OrgMenuSelected` (|org-key-menus|,
     |org-choice-list|)
+  - `OrgTutorDone`, `OrgTutorTodo`, `OrgTutorProgress` (|org-tutor|)
   - `OrgAgenda*`
 
 ==============================================================================
@@ -7195,6 +7260,7 @@ Additional subcommands:
   - `:Org toggle_timestamp_type`
   - `:Org notifications_start`, `notifications_stop`
   - `:Org lint [checker ...]` (|org-lint|)
+  - `:Org tutor [lesson] [reset]` (|org-tutor|)
   - `:Org feed_update [name]`, `feed_update_all`, `feed_goto_inbox [name]`,
     `feed_show_raw [name]` (|org-feed|)
   - `:Org mobile_push`, `mobile_pull`, `mobile_apply`, `mobile_goto_inbox`,
@@ -8396,7 +8462,7 @@ Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`
 Experimental: `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`,
               `code`, `literate`, `lsp`, `transclusion`, `timeline`,
-              `heatmap`
+              `heatmap`, `hugo`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -9700,6 +9766,186 @@ Limits ~
   - Only the drawers right after the planning line and properties are
     merged item by item; a drawer further down is text.
   - Before git 2.44 the labels are "ours" and "theirs".
+
+------------------------------------------------------------------------------
+Hugo export (ox-hugo)                                   *org-extensions-hugo*
+
+Stability: experimental (|org-extensions-stability|)
+
+`hugo` exports Org to Markdown for the Hugo static site generator, like
+the Emacs package ox-hugo: a post gets a TOML or YAML front matter and
+goes to `<base_dir>/content/<section>/<name>.md`.
+>lua
+    require("org").setup({
+      extensions = { hugo = { base_dir = "~/blog" } },  -- or #+hugo_base_dir
+    })
+<
+It adds `H` to the export dispatcher (<prefix>e, Emacs `C-c C-e H`):
+
+  H H   the post subtree at the cursor, or the file when it has no post
+        subtrees (org-hugo-export-wim-to-md); action `hugo_export_wim`
+  H h   the file as one post (org-hugo-export-to-md; the subtree at the
+        cursor with the dispatcher's `s`); action `hugo_export_file`
+  H O   like `H H`, then open the file
+  H o   like `H h`, then open the file
+  H A   every post subtree (or the file); action `hugo_export_all`
+  H t   to a temporary Markdown buffer; action `hugo_export_buffer`
+
+`:Org hugo [wim|all|file|buffer] [open] [visible]` does the same.
+
+Two ways to write posts ~
+One post per file: the file needs `#+title`; `#+hugo_base_dir` (relative
+to the file), `#+hugo_section` (default `section`, "posts"), `#+date`,
+`#+description`, `#+filetags` and the other keywords below set its front
+matter. The file name (or `#+export_file_name`) names the post.
+>org
+    #+title: My first post
+    #+hugo_base_dir: ..
+    #+hugo_section: blog
+    #+date: 2026-10-05
+    #+filetags: emacs @tech
+<
+One post per subtree: every headline with an `EXPORT_FILE_NAME` property
+is a post, its title the headline. `EXPORT_HUGO_*` properties set its
+front matter, and a post inherits from its parents (and `#+PROPERTY:`)
+the ones ox-hugo inherits: the section, bundle, base dir, front matter
+format, tags, categories, menu, custom front matter, draft, weight, date,
+author and the other `EXPORT_HUGO_*` settings (not the title or file
+name). The keywords of the file are the defaults.
+>org
+    #+hugo_base_dir: ~/blog
+    * Blog                                                         :emacs:
+    :PROPERTIES:
+    :EXPORT_HUGO_SECTION: blog
+    :END:
+    ** DONE First post                                            :@tech:
+    CLOSED: [2026-10-05 Mon 10:30]
+    :PROPERTIES:
+    :EXPORT_FILE_NAME: first-post
+    :END:
+    Hello!
+<
+`EXPORT_HUGO_SECTION_FRAG` values of the post and its parents are added
+to the section as directories, and `EXPORT_HUGO_BUNDLE` (joined the same
+way) makes the post part of a page bundle: `content/<section>/<bundle>/`,
+with `EXPORT_FILE_NAME: index` (leaf bundle) or `_index` (branch bundle).
+Commented posts and posts with an exclude tag (`noexport`) are skipped.
+
+Front matter ~
+  title         `#+title` or the headline, markup removed, `---`, `--`
+                and `...` as dashes and an ellipsis
+  date          the post's CLOSED time, else `#+date` / `EXPORT_DATE`
+                (an Org date, or an RFC 3339 date kept as written)
+  publishDate   SCHEDULED, else `HUGO_PUBLISHDATE`
+  expiryDate    `HUGO_EXPIRYDATE`
+  lastmod       `HUGO_LASTMOD`; with `auto_set_lastmod` (or
+                `HUGO_AUTO_SET_LASTMOD`) the time of the export, unless
+                the date is less than `suppress_lastmod_period` seconds
+                old
+  draft         true for a post in a TODO state (TODO, DRAFT, ...), false
+                when done; else `HUGO_DRAFT` (t, true, yes / nil, false,
+                no)
+  tags          `HUGO_TAGS`, else the Org tags (inherited ones and
+                `#+filetags` too) without `@`: `a_b` -> "a-b", `a___b` ->
+                "a_b" (`prefer_hyphen_in_tags`), `a__b` -> "a b"
+                (`allow_spaces_in_tags`)
+  categories    `HUGO_CATEGORIES`, else the Org tags starting with `@`
+  description   `DESCRIPTION`, or a `#+begin_description` block
+  author        `#+author` / `EXPORT_AUTHOR` (comma separated) as a list
+  aliases       `HUGO_ALIASES`; one without "/" goes under the section
+  weight        `HUGO_WEIGHT`: a number, `auto` (from the post's place
+                among its sibling posts), or `:tags 10 :categories auto`
+                for taxonomy weights (`:page` is the page weight)
+  menu          `HUGO_MENU`: `:menu main :weight 10 :parent docs ...`
+                (identifier and weight are set when missing);
+                `HUGO_MENU_OVERRIDE` changes some of them
+  resources     `HUGO_RESOURCES`: `:src "*.png" :title "..." :key value`;
+                other keys go under `params`, and the files are copied
+                into the bundle
+  custom        `HUGO_CUSTOM_FRONT_MATTER`: `:key value` pairs, lists
+                `'(a b)` and nested maps `'((k . v))`; `PROP+:` lines add
+                to it
+  others        `HUGO_SLUG`, `HUGO_URL`, `HUGO_TYPE`, `HUGO_LAYOUT`,
+                `HUGO_LINKTITLE`, `HUGO_MARKUP`, `HUGO_OUTPUTS`,
+                `HUGO_SERIES`, `HUGO_IMAGES`, `HUGO_VIDEOS`, `KEYWORDS`,
+                `HUGO_AUDIO`, `HUGO_HEADLESS`, `HUGO_ISCJKLANGUAGE`,
+                `HUGO_LOCALE` with `HUGO_WITH_LOCALE`, creator with
+                `creator:t`
+`HUGO_FRONT_MATTER_KEY_REPLACE: old>new` renames a key (`old>nil` drops
+it). A `toml` or `yaml` source block with `:front_matter_extra t` is
+added to the front matter as it is. Each setting is a `#+hugo_...`
+keyword in the per-file flow and an `EXPORT_HUGO_...` property in a post
+subtree. Strings are quoted and escaped for TOML (like tomelr, a string
+with a newline or a double quote becomes a multi-line string) or YAML.
+
+The body ~
+Hugo (Goldmark) Markdown, like ox-hugo's: headings one level below the
+title (`HUGO_LEVEL_OFFSET`) with `{#anchor}` ids (the CUSTOM_ID or a slug
+of the title), fenced code blocks with `{ linenos=true, hl_lines=[...] }`
+for `-n` and `:hl_lines` (the `highlight` shortcode with an empty
+`HUGO_CODE_FENCE`), `[^fn:1]` footnotes, pipe tables, `_italic_`,
+`~~strike~~`, `#+begin_details` / `#+begin_summary` as <details>, other
+special blocks as HTML elements or <div>s, or as paired shortcodes listed
+in `HUGO_PAIRED_SHORTCODES` (`%name` for Markdown contents, arguments
+from `#+attr_shortcode`), `#+hugo: more` as the summary splitter,
+`#+hugo:` lines and `@@hugo:...@@` written as they are, and equations
+escaped for MathJax.
+
+A standalone image becomes a `{{< figure >}}` shortcode with its caption
+and `#+attr_html` (`:alt :title :class :width :link ...`); an image in a
+sentence stays Markdown. A linked local file (with one of
+`copy_extensions`) is copied to the site: kept where it is under
+`static/`, into the bundle of a bundle post, else to
+`static/<static_subdir>/`. Links to headings of other posts of the file,
+and to other Org files (`[[file:other.org::#id]]`), become
+`{{< relref >}}`; `info:` links go to the manuals on the web.
+
+Options ~
+  `base_dir`                 the Hugo site (nil; `#+hugo_base_dir`)
+  `content_folder`           ("content"; `#+hugo_base_content_folder`)
+  `section`                  ("posts"; `#+hugo_section`)
+  `front_matter_format`      "toml" or "yaml" ("toml")
+  `footer`                   text at the end of every post ("")
+  `preserve_filling`         keep the line breaks of paragraphs (true)
+  `delete_trailing_ws`       (true)
+  `use_code_for_kbd`         `~code~` as <kbd> (false)
+  `allow_spaces_in_tags`     (true)
+  `prefer_hyphen_in_tags`    (true)
+  `auto_set_lastmod`         (false)
+  `suppress_lastmod_period`  seconds (0)
+  `with_toc`                 false, true or a depth (false; `toc:`)
+  `with_section_numbers`     false, true, a level or "onlytoc" (false)
+  `static_subdir`            ("ox-hugo")
+  `copy_extensions`          extensions of files copied to the site
+  `date_format`              ("%Y-%m-%dT%T%z")
+  `paired_shortcodes`        ("")
+  `link_desc_insert_type`    "Figure 1" instead of "1" in links (false)
+  `container_element`        HTML element around top-level sections ("")
+  `special_block_type_properties`
+                             `raw`, `trim-pre`, `trim-post` per block
+                             type
+  `headline_anchor`          `{#anchor}` after headings (true)
+  `auto_export`              export the post at the cursor (or the file)
+                             when a buffer with a Hugo base dir is
+                             written, like org-hugo-auto-export-mode
+                             (false)
+
+They are ox-hugo's `org-hugo-*` variables without the prefix.
+`:checkhealth org` checks `base_dir` and whether `hugo` is installed.
+
+Not ported ~
+  - Blackfriday mode (`org-hugo-goldmark` nil), deprecated in ox-hugo.
+  - Dates, lastmod and notes from LOGBOOK drawers (the drawer is left
+    out of the body).
+  - Coderef anchors in code blocks (`(ref:name)` links export as text),
+    `#+toc: headlines :target`, ordered lists with custom counters
+    written as HTML, inlined SVGs (`:inlined t`) and tag groups.
+  - Pandoc citations (`HUGO_PANDOC_CITATIONS`); Org citations work as in
+    the other back-ends.
+  - Asynchronous export: the dispatcher's `a` toggle is ignored.
+On ox-hugo's own test site, 347 of its 406 per-subtree posts come out
+byte for byte the same (most of the others run code blocks or use the
+features above).
 
 ------------------------------------------------------------------------------
 iCalendar subscriptions                                   *org-extensions-ics*

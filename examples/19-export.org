@@ -1891,6 +1891,74 @@ TODO keyword. Afterwards: =:!rm examples/19-export.ics=.
 *Try (writes examples/19-export.odt):* =<prefix>e s o o=, open the file in
 LibreOffice (or =<prefix>e s o O= to open it right away), then delete it.
 
+* Hugo blog posts (the hugo extension)
+The =hugo= extension (a port of Emacs ox-hugo, off by default) writes
+Markdown for the Hugo static site generator. Turn it on in your config:
+
+#+begin_src lua :eval no
+require("org").setup({ extensions = { hugo = true } })
+#+end_src
+
+A heading with an =EXPORT_FILE_NAME= property is one post; its children are
+the post's sections, and it inherits =EXPORT_HUGO_*= properties (section,
+base dir, front matter format, ...) from its parents. The dispatcher entry
+is =H=: =H t= shows the post in a buffer, =H H= writes the post at the
+cursor to =<base dir>/content/<section>/<name>.md=, =H A= writes every
+post of the file. Without such headings, the whole file is one post
+(=#+title=, =#+hugo_base_dir=, =#+hugo_section= keywords).
+
+** DONE Sample: a Hugo post                                  :emacs:@notes:
+CLOSED: [2026-10-05 Mon 10:30]
+:PROPERTIES:
+:EXPORT_FILE_NAME: my-first-post
+:EXPORT_HUGO_BASE_DIR: /tmp/org-nvim-hugo-site
+:EXPORT_HUGO_SECTION: blog
+:EXPORT_HUGO_CUSTOM_FRONT_MATTER: :featured true
+:END:
+Hello from /Org/.
+
+*** A section
+With a footnote[fn:hugo].
+
+[fn:hugo] Footnotes go to the end of the post.
+
+** Exercises: a Hugo post
+*Try:* with the extension on, put the cursor in the sample above and press
+=<prefix>e H t= (to a temporary buffer).
+
+*Expect:* a Markdown buffer whose front matter comes from the heading:
+the CLOSED date, the tags (=@notes= is a category), =draft = false=
+because the heading is DONE, and the custom front matter:
+
+#+begin_example
++++
+title = "Sample: a Hugo post"
+author = ["org.nvim examples"]
+date = 2026-10-05T10:30:00+00:00
+tags = ["emacs"]
+categories = ["notes"]
+draft = false
+featured = true
++++
+
+Hello from _Org_.
+
+
+## A section {#a-section}
+
+With a footnote[^fn:1].
+
+[^fn:1]: Footnotes go to the end of the post.
+#+end_example
+
+(The date shows your time zone's offset.) Change =DONE= to =TODO=: the
+post becomes a draft. Add =:EXPORT_HUGO_FRONT_MATTER_FORMAT: yaml= to the
+drawer and export again: the front matter is YAML between =---= lines.
+
+*Try (writes under /tmp):* =<prefix>e H H=. The post goes to
+=/tmp/org-nvim-hugo-site/content/blog/my-first-post.md=; see
+=:h org-extensions-hugo= for page bundles, images and links between posts.
+
 * Publishing projects
 Publishing exports whole directories at once (a website, a set of PDFs):
 projects are set in your config under =export.publish.projects=, and only

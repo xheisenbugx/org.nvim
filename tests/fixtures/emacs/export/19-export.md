@@ -65,59 +65,63 @@
     1.  [Sample: a subtree is its own document](#orgfb87ab7)
     2.  [Exercises: a subtree is its own document](#orge417ad7)
 8.  [Table of contents](#org6669e35)
-    1.  [Sample: tables of contents](#orgceb5939)
-        -   [Preface](#orgde4cbdf)
-        1.  [Setup](#org908c9ee)
-    2.  [Exercises: tables of contents](#orgd269a94)
+    1.  [Sample: tables of contents](#orgd093eb4)
+        -   [Preface](#org8228d88)
+        1.  [Setup](#orgceb5939)
+    2.  [Exercises: tables of contents](#orgb6d0386)
 9.  [Captions, names and cross-references](#orge018dd6)
-    1.  [Sample: cross-references](#org301e875)
+    1.  [Sample: cross-references](#org627852b)
         1.  [Data](#data)
-        2.  [Discussion](#orgb2d68da)
-    2.  [Exercises: cross-references](#orgf7e9b4c)
+        2.  [Discussion](#org301e875)
+    2.  [Exercises: cross-references](#org93312df)
 10. [Footnotes in export](#orgcf84e55)
-    1.  [Sample: footnotes](#org93312df)
-    2.  [Exercises: footnotes](#org2a5f35e)
+    1.  [Sample: footnotes](#org52a16be)
+    2.  [Exercises: footnotes](#org5739b0a)
 11. [Macros](#org254f1b8)
-    1.  [Sample: macros](#org1fa24c4)
-        1.  [Owned part](#org5739b0a)
-    2.  [Exercises: macros](#orgb810845)
+    1.  [Sample: macros](#orgb33855c)
+        1.  [Owned part](#org1fa24c4)
+    2.  [Exercises: macros](#org99b8178)
 12. [Raw output for one back-end](#orgc1855ad)
-    1.  [Sample: snippets and export blocks](#org4c1a4f0)
-    2.  [Exercises: snippets and export blocks](#org5a17c43)
+    1.  [Sample: snippets and export blocks](#org63a82c9)
+    2.  [Exercises: snippets and export blocks](#org3855050)
 13. [HTML specifics: #+ATTR<sub>HTML</sub> and #+HTML<sub>HEAD</sub>](#org42d1764)
-    1.  [Sample: HTML attributes](#org2ee033a)
-    2.  [Exercises: HTML attributes](#orgbd9c273)
+    1.  [Sample: HTML attributes](#org7e9f4b5)
+    2.  [Exercises: HTML attributes](#orgc998d61)
 14. [LaTeX and PDF specifics](#org2580b9d)
-    1.  [Sample: LaTeX attributes](#orga23d0a3)
-    2.  [Exercises: LaTeX attributes](#org137f381)
+    1.  [Sample: LaTeX attributes](#org37dc0a3)
+    2.  [Exercises: LaTeX attributes](#orgebd05b4)
 15. [Beamer slides](#orga657571)
-    1.  [Sample: slides](#orgc16cabf)
-        1.  [First slide](#orgebd05b4)
-        2.  [Two columns](#orgb998a8e)
-    2.  [Exercises: slides](#org1f202bf)
+    1.  [Sample: slides](#org8b4ae79)
+        1.  [First slide](#orgb998a8e)
+        2.  [Two columns](#orgc16cabf)
+    2.  [Exercises: slides](#org8d32f2f)
 16. [Markdown, GFM, plain text and Org](#org5f1eceb)
-    1.  [Sample: a table and code everywhere](#orgc78895d)
-    2.  [Exercises: a table and code everywhere](#org980c34d)
+    1.  [Sample: a table and code everywhere](#org1153bb5)
+    2.  [Exercises: a table and code everywhere](#org8414234)
 17. [#+INCLUDE: pulling in other files](#org5b7a29e)
-    1.  [Sample: include](#org20a3d41)
-    2.  [Exercises: include](#orgf7b6e2d)
+    1.  [Sample: include](#org5060a91)
+    2.  [Exercises: include](#org2d522f4)
 18. [Source blocks and :exports](#org617150d)
-    1.  [Sample: exports](#orgde53b9c)
-    2.  [Exercises: exports](#org86fefa0)
+    1.  [Sample: exports](#orgeb4a2da)
+    2.  [Exercises: exports](#orgf7db64b)
 19. [Citations](#org4554367)
-    1.  [Sample: citations](#orgf7db64b)
-    2.  [Exercises: citations](#org7dad821)
+    1.  [Sample: citations](#orgaa5f503)
+    2.  [Exercises: citations](#org447f95a)
 20. [Broken links](#org0acc137)
-    1.  [Sample: broken links](#org447f95a)
-    2.  [Exercises: broken links](#org03cc1ed)
+    1.  [Sample: broken links](#org72f1af6)
+    2.  [Exercises: broken links](#org6730c51)
 21. [iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)](#org0373b60)
-    1.  [Sample: calendar entries](#orgedc1d8f)
-        1.  [Team meeting](#org11739dd)
-        2.  [Submit the report](#org3a82934)
-    2.  [Exercises: calendar entries](#org844c224)
-22. [Publishing projects](#orge3c0000)
-23. [Configuring defaults](#org254b633)
-24. [Further reading](#org8185bc2)
+    1.  [Sample: calendar entries](#org537a46d)
+        1.  [Team meeting](#org3a82934)
+        2.  [Submit the report](#orgedc1d8f)
+    2.  [Exercises: calendar entries](#org9fdb3b0)
+22. [Hugo blog posts (the hugo extension)](#orge3c0000)
+    1.  [Sample: a Hugo post](#orgdc74bcd):emacs:@notes:
+        1.  [A section](#org36bb00b)
+    2.  [Exercises: a Hugo post](#orgbda6d3b)
+23. [Publishing projects](#org254b633)
+24. [Configuring defaults](#org8185bc2)
+25. [Further reading](#orgce04e31)
 
 
 
@@ -1662,7 +1666,7 @@ this file, i.e. inside `examples/`.
     keeps it out of the table of contents.
 
 
-<a id="orgceb5939"></a>
+<a id="orgd093eb4"></a>
 
 ## Sample: tables of contents
 
@@ -1690,19 +1694,20 @@ this file, i.e. inside `examples/`.
 19. [Citations](#org4554367)
 20. [Broken links](#org0acc137)
 21. [iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)](#org0373b60)
-22. [Publishing projects](#orge3c0000)
-23. [Configuring defaults](#org254b633)
-24. [Further reading](#org8185bc2)
+22. [Hugo blog posts (the hugo extension)](#orge3c0000)
+23. [Publishing projects](#org254b633)
+24. [Configuring defaults](#org8185bc2)
+25. [Further reading](#orgce04e31)
 
 
-<a id="orgde4cbdf"></a>
+<a id="org8228d88"></a>
 
 ### Preface
 
 No number here.
 
 
-<a id="org908c9ee"></a>
+<a id="orgceb5939"></a>
 
 ### Setup
 
@@ -1718,7 +1723,7 @@ No number here.
 Not in the table of contents.
 
 
-<a id="orgd269a94"></a>
+<a id="orgb6d0386"></a>
 
 ## Exercises: tables of contents
 
@@ -1782,7 +1787,7 @@ now also shows `.. 1. Install` and `.. 2. Configure` under `1. Setup`.
     its table number.
 
 
-<a id="org301e875"></a>
+<a id="org627852b"></a>
 
 ## Sample: cross-references
 
@@ -1791,7 +1796,7 @@ now also shows `.. 1. Install` and `.. 2. Configure` under `1. Setup`.
 
 ### Data
 
-<table id="orga84ef73" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+<table id="org5d404f1" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 <caption class="t-above"><span class="table-number">Table 1:</span> Monthly sales</caption>
 
 <colgroup>
@@ -1823,18 +1828,18 @@ now also shows `.. 1. Install` and `.. 2. Configure` under `1. Setup`.
 The procedure:
 
 1.  Collect the numbers.
-2.  <a id="orgf37d810"></a>Check the totals.
+2.  <a id="org39e4553"></a>Check the totals.
 
 
-<a id="orgb2d68da"></a>
+<a id="org301e875"></a>
 
 ### Discussion
 
-See table [7](#orga84ef73), listing [5](#org39e4553) and section [9.1.1](#data). The
-same section by id: [the data section](#data). Never skip step [2](#orgf37d810).
+See table [7](#org5d404f1), listing [5](#orgb2d68da) and section [9.1.1](#data). The
+same section by id: [the data section](#data). Never skip step [2](#org39e4553).
 
 
-<a id="orgf7e9b4c"></a>
+<a id="org93312df"></a>
 
 ## Exercises: cross-references
 
@@ -1901,7 +1906,7 @@ end of the document (HTML: a "Footnotes" section; LaTeX: real
 named inline `[fn:name:text]` footnotes all work. `f:nil` drops them.
 
 
-<a id="org93312df"></a>
+<a id="org52a16be"></a>
 
 ## Sample: footnotes
 
@@ -1909,7 +1914,7 @@ A named note<sup><a id="fnr.sample" class="footref" href="#fn.sample" role="doc-
 named note again<sup><a id="fnr.sample.3" class="footref" href="#fn.sample" role="doc-backlink">3</a></sup>.
 
 
-<a id="org2a5f35e"></a>
+<a id="org5739b0a"></a>
 
 ## Exercises: footnotes
 
@@ -2011,7 +2016,7 @@ Your config can define global ones: `export = { global_macros = { ... } }`
 (strings, or Lua functions receiving the arguments).
 
 
-<a id="org1fa24c4"></a>
+<a id="orgb33855c"></a>
 
 ## Sample: macros
 
@@ -2021,14 +2026,14 @@ Step 1, step 2, step 3; again step 3.
 Press <kbd>C-c C-e</kbd>.
 
 
-<a id="org5739b0a"></a>
+<a id="org1fa24c4"></a>
 
 ### Owned part
 
 This part is owned by Charles.
 
 
-<a id="orgb810845"></a>
+<a id="org99b8178"></a>
 
 ## Exercises: macros
 
@@ -2078,7 +2083,7 @@ through untouched to **their** back-end and dropped by all others:
     the back-end); edit its content in a split with `<prefix>'`.
 
 
-<a id="org4c1a4f0"></a>
+<a id="org63a82c9"></a>
 
 ## Sample: snippets and export blocks
 
@@ -2091,7 +2096,7 @@ This word is <mark>highlighted</mark> in HTML, emphasized in LaTeX.
 The end.
 
 
-<a id="org5a17c43"></a>
+<a id="org3855050"></a>
 
 ## Exercises: snippets and export blocks
 
@@ -2150,7 +2155,7 @@ A file set up for HTML (example, not live):
     #+HTML_HEAD_EXTRA: <meta name="theme-color" content="#336699" />
 
 
-<a id="org2ee033a"></a>
+<a id="org7e9f4b5"></a>
 
 ## Sample: HTML attributes
 
@@ -2182,7 +2187,7 @@ A file set up for HTML (example, not live):
 -   two
 
 
-<a id="orgbd9c273"></a>
+<a id="orgc998d61"></a>
 
 ## Exercises: HTML attributes
 
@@ -2226,7 +2231,7 @@ exactly like Emacs. The page ends right after the content: no postamble
     message and only the .tex file.
 
 
-<a id="orga23d0a3"></a>
+<a id="org37dc0a3"></a>
 
 ## Sample: LaTeX attributes
 
@@ -2259,7 +2264,7 @@ e^{i\pi} + 1 = 0
 \end{equation}
 
 
-<a id="org137f381"></a>
+<a id="orgebd05b4"></a>
 
 ## Exercises: LaTeX attributes
 
@@ -2303,12 +2308,12 @@ refine it: `BEAMER_env` (`block`, `alertblock`, `example`, `columns`,
 to a buffer; `l P` makes a PDF (needs LaTeX).
 
 
-<a id="orgc16cabf"></a>
+<a id="org8b4ae79"></a>
 
 ## Sample: slides
 
 
-<a id="orgebd05b4"></a>
+<a id="orgb998a8e"></a>
 
 ### First slide
 
@@ -2316,7 +2321,7 @@ to a buffer; `l P` makes a PDF (needs LaTeX).
 -   point two
 
 
-<a id="orgb998a8e"></a>
+<a id="orgc16cabf"></a>
 
 ### Two columns
 
@@ -2329,7 +2334,7 @@ to a buffer; `l P` makes a PDF (needs LaTeX).
     Careful!
 
 
-<a id="org1f202bf"></a>
+<a id="org8d32f2f"></a>
 
 ## Exercises: slides
 
@@ -2371,7 +2376,7 @@ per level-1 heading of the sample:
 # Markdown, GFM, plain text and Org
 
 
-<a id="orgc78895d"></a>
+<a id="org1153bb5"></a>
 
 ## Sample: a table and code everywhere
 
@@ -2403,7 +2408,7 @@ per level-1 heading of the sample:
     print("hi")
 
 
-<a id="org980c34d"></a>
+<a id="org8414234"></a>
 
 ## Exercises: a table and code everywhere
 
@@ -2505,7 +2510,7 @@ the buffer). Variants:
     exclusive, like Emacs: `"1-4"` is lines 1 to 3).
 
 
-<a id="org20a3d41"></a>
+<a id="org5060a91"></a>
 
 ## Sample: include
 
@@ -2520,7 +2525,7 @@ Export options go in `#+OPTIONS:` at the top of a file, for example
 `#+OPTIONS: toc:2 num:nil ^:{} todo:nil`. `#+TITLE:`, `#+AUTHOR:` and
 
 
-<a id="orgf7b6e2d"></a>
+<a id="org2d522f4"></a>
 
 ## Exercises: include
 
@@ -2594,7 +2599,7 @@ confirmation. `:eval never-export` (or `no-export`) keeps the `#+RESULTS:`
 already in the buffer instead. More in [17-babel.org](17-babel.md).
 
 
-<a id="orgde53b9c"></a>
+<a id="orgeb4a2da"></a>
 
 ## Sample: exports
 
@@ -2613,7 +2618,7 @@ already in the buffer instead. More in [17-babel.org](17-babel.md).
 The answer is `(* 6 7)`.
 
 
-<a id="org86fefa0"></a>
+<a id="orgf7db64b"></a>
 
 ## Exercises: exports
 
@@ -2673,7 +2678,7 @@ This file's header has `#+BIBLIOGRAPHY: ../tests/fixtures/export/cite/refs.bib`
 (a test fixture of the repo).
 
 
-<a id="orgf7db64b"></a>
+<a id="orgaa5f503"></a>
 
 ## Sample: citations
 
@@ -2687,7 +2692,7 @@ Doe, John and Smith, Jane (2020). *On the TeXbook and $\alpha$ &alpha; things*, 
 Zed, Anna (2019). *A Book of Strings*, ACME Press.
 
 
-<a id="org7dad821"></a>
+<a id="org447f95a"></a>
 
 ## Exercises: citations
 
@@ -2727,14 +2732,14 @@ an error by default: better than a silently dead link.
 the top so that a whole-file export works despite the sample below.
 
 
-<a id="org447f95a"></a>
+<a id="org72f1af6"></a>
 
 ## Sample: broken links
 
 This points to [BROKEN LINK: \*A heading that does not exist].
 
 
-<a id="org03cc1ed"></a>
+<a id="org6730c51"></a>
 
 ## Exercises: broken links
 
@@ -2773,24 +2778,24 @@ files land in `examples/` (delete them afterwards).
 -   Texinfo (`i t`) writes a .texi manual; `i i` also runs `makeinfo`.
 
 
-<a id="orgedc1d8f"></a>
+<a id="org537a46d"></a>
 
 ## Sample: calendar entries
 
 
-<a id="org11739dd"></a>
+<a id="org3a82934"></a>
 
 ### Team meeting
 
 <span class="timestamp-wrapper"><span class="timestamp">&lt;2026-10-07 Wed 10:00-11:00&gt;</span></span>
 
 
-<a id="org3a82934"></a>
+<a id="orgedc1d8f"></a>
 
 ### Submit the report
 
 
-<a id="org844c224"></a>
+<a id="org9fdb3b0"></a>
 
 ## Exercises: calendar entries
 
@@ -2821,6 +2826,77 @@ LibreOffice (or `<prefix>e s o O` to open it right away), then delete it.
 
 
 <a id="orge3c0000"></a>
+
+# Hugo blog posts (the hugo extension)
+
+The `hugo` extension (a port of Emacs ox-hugo, off by default) writes
+Markdown for the Hugo static site generator. Turn it on in your config:
+
+    require("org").setup({ extensions = { hugo = true } })
+
+A heading with an `EXPORT_FILE_NAME` property is one post; its children are
+the post's sections, and it inherits `EXPORT_HUGO_*` properties (section,
+base dir, front matter format, &hellip;) from its parents. The dispatcher entry
+is `H`: `H t` shows the post in a buffer, `H H` writes the post at the
+cursor to `<base dir>/content/<section>/<name>.md`, `H A` writes every
+post of the file. Without such headings, the whole file is one post
+(`#+title`, `#+hugo_base_dir`, `#+hugo_section` keywords).
+
+
+<a id="orgdc74bcd"></a>
+
+## DONE Sample: a Hugo post     :emacs:@notes:
+
+Hello from *Org*.
+
+
+<a id="org36bb00b"></a>
+
+### A section
+
+With a footnote<sup><a id="fnr.hugo" class="footref" href="#fn.hugo" role="doc-backlink">5</a></sup>.
+
+
+<a id="orgbda6d3b"></a>
+
+## Exercises: a Hugo post
+
+**Try:** with the extension on, put the cursor in the sample above and press
+`<prefix>e H t` (to a temporary buffer).
+
+**Expect:** a Markdown buffer whose front matter comes from the heading:
+the CLOSED date, the tags (`@notes` is a category), `draft = false`
+because the heading is DONE, and the custom front matter:
+
+    +++
+    title = "Sample: a Hugo post"
+    author = ["org.nvim examples"]
+    date = 2026-10-05T10:30:00+00:00
+    tags = ["emacs"]
+    categories = ["notes"]
+    draft = false
+    featured = true
+    +++
+    
+    Hello from _Org_.
+    
+    
+    ## A section {#a-section}
+    
+    With a footnote[^fn:1].
+    
+    [^fn:1]: Footnotes go to the end of the post.
+
+(The date shows your time zone's offset.) Change `DONE` to `TODO`: the
+post becomes a draft. Add `:EXPORT_HUGO_FRONT_MATTER_FORMAT: yaml` to the
+drawer and export again: the front matter is YAML between `---` lines.
+
+**Try (writes under /tmp):** `<prefix>e H H`. The post goes to
+`/tmp/org-nvim-hugo-site/content/blog/my-first-post.md`; see
+`:h org-extensions-hugo` for page bundles, images and links between posts.
+
+
+<a id="org254b633"></a>
 
 # Publishing projects
 
@@ -2869,7 +2945,7 @@ are kept in `export.publish.timestamp_directory`.
 the prompt offers nothing to choose; press `<Esc>`.
 
 
-<a id="org254b633"></a>
+<a id="org8185bc2"></a>
 
 # Configuring defaults
 
@@ -2898,7 +2974,7 @@ Filters and hooks (`export.filters`, `export.hooks`) run Lua functions on
 the text or the lines before parsing: see `:h org-export`.
 
 
-<a id="org8185bc2"></a>
+<a id="orgce04e31"></a>
 
 # Further reading
 
@@ -2924,3 +3000,5 @@ the text or the lines before parsing: see `:h org-export`.
 <sup><a id="fn.3" href="#fnr.3">3</a></sup> The definition of the named note.
 
 <sup><a id="fn.4" href="#fnr.4">4</a></sup> Defined right here.
+
+<sup><a id="fn.5" href="#fnr.5">5</a></sup> Footnotes go to the end of the post.
