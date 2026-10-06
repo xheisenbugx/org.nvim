@@ -110,6 +110,102 @@ describe("folds after typing in Insert mode", function()
   end)
 end)
 
+describe("folds after edits away from the changed lines", function()
+  -- Neovim re-evaluates 'foldexpr' only around the lines an edit changed,
+  -- but an Org edit can change the levels of lines further away (a block
+  -- losing its end, the depth of a subtree): their folds must follow.
+  local function settle(buf)
+    vim.wait(20, function()
+      return false
+    end)
+    return levels(buf)
+  end
+
+  it("drops the fold of a block whose end line is deleted", function()
+    local buf = setup({ "* A", "#+begin_src lua", "x", "", "#+end_src", "* B" })
+    fold.show_all()
+    eq({ 1, 2, 2, 2, 2, 1 }, levels(buf))
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    vim.api.nvim_feedkeys("dd", "xt", false)
+    eq({ 1, 1, 1, 1, 1 }, settle(buf))
+  end)
+
+  it("gives a block its fold back when an undo restores its end", function()
+    local buf = setup({ "* A", "#+begin_src lua", "x", "", "#+end_src", "* B" })
+    fold.show_all()
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    vim.api.nvim_feedkeys("dd", "xt", false)
+    settle(buf)
+    vim.api.nvim_feedkeys("u", "xt", false)
+    eq({ 1, 2, 2, 2, 2, 1 }, settle(buf))
+    vim.cmd("2foldclose")
+    eq(5, vim.fn.foldclosedend(2))
+  end)
+
+  it("folds a headline after J and an undo on the first one", function()
+    -- TAB on `*** C` said FOLDED and hid nothing: its fold had level 0
+    local buf = setup({ "* A", "** B", "b", "** D", "#+begin_src lua", "x", "#+end_src", "*** C", "c", "* E", "e" })
+    fold.show_all()
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.api.nvim_feedkeys("J", "xt", false)
+    settle(buf)
+    vim.api.nvim_feedkeys("u", "xt", false)
+    eq({ 1, 2, 2, 2, 3, 3, 3, 3, 3, 1, 1 }, settle(buf))
+    tab(8)
+    eq(8, vim.fn.foldclosed(8))
+    eq(9, vim.fn.foldclosedend(8))
+  end)
+
+  it("matches a full recompute after random Normal-mode edits", function()
+    local start = {
+      "* One",
+      "text a",
+      "** Two",
+      "body",
+      ":PROPERTIES:",
+      ":ID: x",
+      ":END:",
+      "** Three",
+      "- item",
+      "  more",
+      "* Four",
+      "#+begin_src lua",
+      "x",
+      "#+end_src",
+      "",
+      "* Five",
+      "end",
+    }
+    local buf = setup(start)
+    fold.show_all()
+    local rand = 11
+    local function rnd(n)
+      rand = (rand * 1103515245 + 12345) % 2147483648
+      return rand % n + 1
+    end
+    local ops = { "dd", "yyp", "x", "dj", "J", "ddp", "u", "\18", ">>", "<<" }
+    for step = 1, 120 do
+      local n = vim.api.nvim_buf_line_count(buf)
+      if n < 4 then
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, start)
+        n = #start
+      end
+      vim.api.nvim_win_set_cursor(0, { rnd(n), 0 })
+      local op = ops[rnd(#ops)]
+      pcall(vim.api.nvim_feedkeys, op, "xt", false)
+      local got = settle(buf)
+      local want = {}
+      for l, v in ipairs((fold.compute(buf_lines(buf)))) do
+        want[l] = tonumber(tostring(v):match("%d+"))
+      end
+      if not vim.deep_equal(want, got) then
+        local text = buf_lines(buf)
+        eq({ step = step, op = op, text = text, levels = want }, { step = step, op = op, text = text, levels = got })
+      end
+    end
+  end)
+end)
+
 describe("fold levels", function()
   it("follow the outline depth when a level is skipped", function()
     eq(
