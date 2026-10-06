@@ -8,6 +8,13 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.3.1] - 2026-10-06
+
+### Fixes
+
+- **fold:** Update folds whose levels an edit changed away from it ([#205](https://github.com/xheisenbugx/org.nvim/pull/205))
+- **actions:** Show Vim's error for a failed key, not a Lua traceback ([#206](https://github.com/xheisenbugx/org.nvim/pull/206))
+
 ## [v2.3.0] - 2026-10-05
 
 ### Features
@@ -334,6 +341,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.3.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.0...v2.3.1
 [v2.3.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.2.0...v2.3.0
 [v2.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.1.0...v2.2.0
 [v2.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.6...v2.1.0
