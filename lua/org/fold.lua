@@ -341,12 +341,18 @@ local function signature()
   }, "\0")
 end
 
--- Neovim skips foldUpdate() while State has MODE_INSERT (Insert and
--- Replace mode, `r` included) for 'foldmethod' expr, so the folds of an
--- edit made there stay as they were (a headline typed in Insert mode gets
--- no fold of its own). Like Neovim's treesitter folding, the rows edited
--- there are kept here and their folds updated once that mode is left.
-local stale = {} -- bufnr -> { first, last } (1-based) edited in Insert mode
+-- Neovim re-evaluates 'foldexpr' only around the lines an edit changed,
+-- but the levels of other lines can change with them (deleting a block's
+-- end line unfolds the block, removing a headline changes the depth of
+-- the next ones), and their folds would stay as they were: TAB on such a
+-- headline then says FOLDED and hides nothing. Like Neovim's treesitter
+-- folding, the rows edited are kept here and, once the edit is done, the
+-- folds of the rows whose levels changed are updated (`flush_stale`).
+-- Neovim also skips foldUpdate() while State has MODE_INSERT (Insert and
+-- Replace mode, `r` included), so the update after an edit made there
+-- waits until that mode is left (a headline typed in Insert mode gets its
+-- own fold then).
+local stale = {} -- bufnr -> { first, last } (1-based) edited, folds not updated
 
 local function in_insert_state()
   local m = vim.api.nvim_get_mode().mode
@@ -357,15 +363,21 @@ local flush_stale
 
 local stale_group = vim.api.nvim_create_augroup("org.fold.stale", { clear = true })
 
-local function schedule_flush(bufnr)
-  -- leaving Insert mode (ModeChanged also follows <C-c>, which skips
-  -- InsertLeave), or right away for `r`, which never enters Insert mode
-  vim.api.nvim_create_autocmd("ModeChanged", {
+local waiting -- a ModeChanged autocommand waits for Insert mode to end
+
+--- Update the folds of the edited buffers once Insert mode is left
+--- (ModeChanged also follows <C-c>, which skips InsertLeave).
+local function flush_after_insert()
+  if waiting then
+    return
+  end
+  waiting = vim.api.nvim_create_autocmd("ModeChanged", {
     group = stale_group,
     callback = function()
       if in_insert_state() then
         return
       end
+      waiting = nil
       for b in pairs(stale) do
         if vim.api.nvim_buf_is_valid(b) then
           flush_stale(b)
@@ -376,21 +388,29 @@ local function schedule_flush(bufnr)
       return true
     end,
   })
-  vim.schedule(function()
-    if stale[bufnr] and vim.api.nvim_buf_is_valid(bufnr) and not in_insert_state() then
-      flush_stale(bufnr)
-    end
-  end)
 end
 
 local function note_stale(bufnr, first, last)
+  if in_insert_state() then
+    flush_after_insert()
+  end
   local s = stale[bufnr]
   if s then
     s[1], s[2] = math.min(s[1], first), math.max(s[2], last)
     return
   end
   stale[bufnr] = { first, last }
-  schedule_flush(bufnr)
+  -- once the edit is done (`o` and `r` edit before or without Insert mode)
+  vim.schedule(function()
+    if not stale[bufnr] or not vim.api.nvim_buf_is_valid(bufnr) then
+      return
+    end
+    if in_insert_state() then
+      flush_after_insert()
+    else
+      flush_stale(bufnr)
+    end
+  end)
 end
 
 --- The stars of line `line` when it is an outline headline.
@@ -409,9 +429,7 @@ local function on_bytes(_, bufnr, tick, start_row, start_col, _, old_rows, old_c
   if not tracked[bufnr] then
     return true
   end
-  if in_insert_state() then
-    note_stale(bufnr, start_row + 1, start_row + 1 + new_rows)
-  end
+  note_stale(bufnr, start_row + 1, start_row + 1 + new_rows)
   local c = cache[bufnr]
   if not c or c.late then
     return
@@ -595,15 +613,37 @@ local function update(bufnr, c)
   end
   local part, _, pstars = M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false), stack_at(c, hs), he >= n)
   local levels, stars = c.levels, c.stars
+  -- the rows whose levels changed, whose folds `flush_stale` updates
+  local cs, ce
   for i = hs, he do
-    levels[i] = part[i - hs + 1]
+    local v = part[i - hs + 1]
+    if levels[i] ~= v then
+      cs, ce = cs or i, i
+    end
+    levels[i] = v
     stars[i] = pstars[i - hs + 1]
   end
-  if stale[bufnr] then
-    -- the folds to update once Insert mode is left
+  if cs then
     local r = c.recomputed
-    c.recomputed = r and { math.min(r[1], hs), math.max(r[2], he) } or { hs, he }
+    c.recomputed = r and { math.min(r[1], cs), math.max(r[2], ce) } or { cs, ce }
   end
+end
+
+--- The rows of `new` (`n` rows) between the levels it shares with `old`
+--- (`o` rows) at its start and at its end, nil when it has all of them.
+local function changed_rows(old, o, new, n)
+  local p = 0
+  while p < o and p < n and old[p + 1] == new[p + 1] do
+    p = p + 1
+  end
+  if p == o and p == n then
+    return nil
+  end
+  local q = 0
+  while q < o - p and q < n - p and old[o - q] == new[n - q] do
+    q = q + 1
+  end
+  return { math.min(p + 1, n), math.max(p + 1, n - q) }
 end
 
 local function get(bufnr)
@@ -631,8 +671,17 @@ local function get(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local levels, regions, stars = M.compute(lines)
   local fresh = { tick = tick, expect = tick, n = #lines, levels = levels, stars = stars, sig = sig }
-  if stale[bufnr] then
+  if c and not c.dirty and c.sig == sig then
+    -- after an undo or a redo: the folds of the rows between the levels
+    -- the text before and after it share at its start and at its end
+    fresh.recomputed = changed_rows(c.levels, c.n, levels, #lines)
+  elseif c or stale[bufnr] then
     fresh.recomputed = { 1, #lines }
+  end
+  local r, pr = fresh.recomputed, c and c.recomputed
+  if pr then
+    -- rows not updated yet
+    fresh.recomputed = r and { math.min(r[1], pr[1]), math.max(r[2], pr[2]) } or pr
   end
   fresh.regions, fresh.regions_tick = regions, tick
   if c and (c.late or c.expect ~= tick) then
@@ -643,14 +692,48 @@ local function get(bufnr)
     vim.schedule(function()
       if cache[bufnr] == fresh then
         fresh.late, fresh.dirty = nil, nil
-        if not vim.api.nvim_buf_is_valid(bufnr) or vim.api.nvim_buf_get_changedtick(bufnr) ~= fresh.tick then
+        if not vim.api.nvim_buf_is_valid(bufnr) then
           cache[bufnr] = nil
+        elseif vim.api.nvim_buf_get_changedtick(bufnr) ~= fresh.tick then
+          -- recompute on the next lookup; these levels tell which changed
+          fresh.expect = nil
         end
       end
     end)
   end
   cache[bufnr] = fresh
   return fresh
+end
+
+--- The numeric level of a 'foldexpr' value.
+local function numeric(v)
+  if type(v) == "number" then
+    return v
+  end
+  return #v == 2 and v:byte(2) - 48 or tonumber(v:sub(2))
+end
+
+--- The last rows of the folds around row `l`, innermost first.
+local function fold_ends(levels, n, l)
+  local ends = {}
+  local depth = numeric(levels[l] or 0)
+  for i = l + 1, n do
+    local v = levels[i]
+    -- the folds this row ends: those from level `j` on
+    local j = numeric(v) + 1
+    if type(v) == "string" and v:byte(1) == 62 then -- ">"
+      j = j - 1
+    end
+    if j <= depth then
+      ends[#ends + 1] = i - 1
+      depth = j - 1
+      if depth <= 0 then
+        return ends
+      end
+    end
+  end
+  ends[#ends + 1] = n
+  return ends
 end
 
 flush_stale = function(bufnr)
@@ -667,9 +750,20 @@ flush_stale = function(bufnr)
   if not vim._foldupdate then
     return
   end
+  local ends = fold_ends(c.levels, c.n, last)
   for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
     if vim.wo[win].foldmethod == "expr" then
       pcall(vim._foldupdate, win, first - 1, last)
+      -- Neovim can leave the last row of a fold around the edit at a
+      -- wrong level without evaluating it (`>1 >2 >3 2`, editing the
+      -- first row: the last one gets level 0): check those rows.
+      vim.api.nvim_win_call(win, function()
+        for _, e in ipairs(ends) do
+          if vim.fn.foldlevel(e) ~= numeric(c.levels[e] or 0) then
+            pcall(vim._foldupdate, win, e - 1, e)
+          end
+        end
+      end)
     end
   end
 end
