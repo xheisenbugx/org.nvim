@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.3.0] - 2026-10-05
+
+### Features
+
+- Hugo export (ox-hugo port) and interactive :Org tutor ([#202](https://github.com/xheisenbugx/org.nvim/pull/202))
+
 ## [v2.2.0] - 2026-10-05
 
 ### Features
@@ -328,6 +334,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.3.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.2.0...v2.3.0
 [v2.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.1.0...v2.2.0
 [v2.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.6...v2.1.0
 [v2.0.6]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.5...v2.0.6
