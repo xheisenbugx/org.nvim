@@ -106,11 +106,13 @@ function M.show_level(lnum, level)
 end
 
 --- Remember the state of the last TAB, like Emacs `last-command`: the
---- next TAB continues the cycle only if nothing happened in between.
+--- next TAB continues the cycle only if nothing happened in between (an
+--- edit changes the tick, a cursor motion drops it: see org.fold.setup).
 local function set_last_cycle(lnum, status)
   vim.w.org_last_cycle = {
     buf = curbuf(),
     lnum = lnum,
+    col = vim.api.nvim_win_get_cursor(0)[2],
     tick = vim.api.nvim_buf_get_changedtick(0),
     status = status,
   }

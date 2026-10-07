@@ -651,8 +651,8 @@ hidden (org-cycle-show-empty-lines).
 
 <Tab>           (ctx) Subtree cycling like org-cycle: a folded subtree
                 shows its text and its children (CHILDREN); right after
-                that, <Tab> shows the whole subtree (SUBTREE); otherwise it
-                folds it (FOLDED). A subtree without children goes from
+                that (no edit or cursor motion in between), <Tab> shows the
+                whole subtree (SUBTREE); otherwise it folds it (FOLDED). A subtree without children goes from
                 FOLDED to SUBTREE. On a list item, the same with its
                 sub-items. On a drawer, block or inline task line, toggle
                 that fold. On text, indent the line like org-indent-line
@@ -8330,6 +8330,10 @@ Differences from Emacs:
   commands such as `x` or `J` are not checked; Insert mode opens a closed
   fold, so only hidden lines count as invisible), and <BS>, <Del> and
   <CR> only when no mapping turns them into other keys (Neovim 0.11).
+  A <Tab> or <S-Tab> continues the cycle (CHILDREN to SUBTREE, OVERVIEW
+  to CONTENTS) when nothing edited the buffer or moved the cursor since
+  the previous one, rather than Emacs' `last-command` test: a command
+  that does neither (`zz`, `:w`) does not end the cycle.
 - Sparse-tree searches leave the cursor on the first match; the default
   org-occur-hook of Emacs (org-first-headline-recenter) moves it to the
   first headline. The `OrgOccur` User autocmd runs after each search

@@ -390,6 +390,58 @@ describe("a negative cycle_separator_lines", function()
   end)
 end)
 
+describe("a cursor motion between two TABs", function()
+  local docs = {
+    "* NEXT Write the docs [33%]",
+    "SCHEDULED: <2026-09-30 Wed>",
+    "** DONE Installation guide",
+    "** TODO Configuration reference",
+    "* Other",
+  }
+
+  --- Move the cursor to `pos` as a typed motion would (CursorMoved).
+  local function move(buf, pos)
+    vim.api.nvim_win_set_cursor(0, pos)
+    vim.api.nvim_exec_autocmds("CursorMoved", { buffer = buf })
+  end
+
+  --- TAB once more on the current line, keeping the last cycle.
+  local function again()
+    quiet(fold.cycle)
+  end
+
+  it("ends the cycle: TAB after CHILDREN, j, k folds the subtree", function()
+    local buf = setup(docs)
+    stab(1)
+    tab(1)
+    eq("children", vim.w.org_last_cycle.status)
+    move(buf, { 2, 0 })
+    move(buf, { 1, 0 })
+    again()
+    eq("folded", vim.w.org_last_cycle.status)
+    eq(1, vim.fn.foldclosed(1))
+  end)
+
+  it("keeps the cycle when the cursor stays put: CHILDREN, then SUBTREE", function()
+    local buf = setup(docs)
+    stab(1)
+    tab(1)
+    vim.api.nvim_exec_autocmds("CursorMoved", { buffer = buf })
+    again()
+    eq("subtree", vim.w.org_last_cycle.status)
+  end)
+
+  it("ends the S-TAB cycle too: OVERVIEW, j, k, S-TAB is OVERVIEW again", function()
+    local buf = setup(docs)
+    stab(1)
+    eq({ "* NEXT Write the docs [33%]", "* Other" }, shown())
+    move(buf, { 5, 0 })
+    move(buf, { 1, 0 })
+    quiet(fold.global_cycle)
+    eq({ "* NEXT Write the docs [33%]", "* Other" }, shown())
+  end)
+end)
+
 describe("local cycling and drawers", function()
   it("leaves an open drawer open in CHILDREN and SUBTREE", function()
     setup({ "* A", ":LOGBOOK:", '- State "DONE" from "TODO"', ":END:", "text", "** B", "b", "* C" })
