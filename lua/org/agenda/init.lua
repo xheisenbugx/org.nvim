@@ -8,7 +8,7 @@
 ---   { type = "search", match = "foo +bar" }
 ---   { type = "stuck" }
 --- Every block accepts `header`, `files`, `skip = function(headline)`,
---- `sorting` and the `todo_ignore_*` / `skip_*` agenda options.
+--- `filter = function(item)`, `sorting` and the `todo_ignore_*` / `skip_*` agenda options.
 
 local config = require("org.config")
 local date = require("org.date")

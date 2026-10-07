@@ -2339,6 +2339,21 @@ Block options:
                 notdeadline, timestamp, nottimestamp, regexp RE,
                 notregexp RE, todo KWS, nottodo KWS (KWS: a list of
                 keywords, or "todo", "done", "any")
+  filter        function(item) that returns true to keep an item.
+                Where `skip` drops a whole entry, `filter` sees each
+                line of the block: an entry scheduled on one day with
+                a deadline on another is two items, and `filter` can
+                keep one. `item` is shaped as in |org-api-agenda|
+                (`type`, `kind`, `day`, `date`, `headline`, ...). It
+                applies on top of the agenda filters
+                (|org-agenda-filter|). To list an entry on its
+                scheduled day only, and on its deadline day when it
+                has no scheduled date: >lua
+                  filter = function(item)
+                    return not (item.type == "deadline"
+                      and item.headline and item.headline.scheduled)
+                  end
+<
   sorting       sorting strategies of this block
   *_filter_preset  filters that stay on (|org-agenda-filter|)
   any other `agenda` option (`prefix_format`, `entry_types`,

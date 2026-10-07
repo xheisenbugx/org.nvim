@@ -64,6 +64,9 @@ local function item(it)
   }
 end
 
+-- internal: the agenda blocks' `filter` gets its items in this shape
+M._item = item
+
 --- The parsed files a query reads: `paths` (globs and directories too), or
 --- the agenda files.
 ---@param paths? string|string[]
