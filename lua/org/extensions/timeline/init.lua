@@ -21,6 +21,7 @@ local augroup = vim.api.nvim_create_augroup("OrgTimeline", { clear = true })
 
 --- Zoom levels, finest first: days per cell and cell width.
 M.ZOOMS = {
+  { name = "hour", days = 1, width = 24 },
   { name = "day", days = 1, width = 3 },
   { name = "week", days = 1, width = 1 },
   { name = "month", days = 7, width = 1 },
@@ -37,8 +38,8 @@ M.defaults = {
   tag = nil,
   --- Also show DONE tasks (dimmed).
   show_done = false,
-  --- Starting zoom: "day" (3 columns a day), "week" (a column a day) or
-  --- "month" (a column a week).
+  --- Starting zoom: "hour" (a column an hour), "day" (3 columns a day),
+  --- "week" (a column a day) or "month" (a column a week).
   zoom = "day",
   --- Days before today shown at the left edge when opening.
   days_before = 3,
@@ -84,7 +85,7 @@ M.commands = {
   timeline = {
     MOD,
     "command",
-    desc = "Timeline: :Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]",
+    desc = "Timeline: :Org timeline [agenda|buffer|subtree|<file>] [hour|day|week|month] [filter]",
     complete = function(arglead, cmdline)
       return require(MOD).complete(arglead, cmdline)
     end,
@@ -378,10 +379,12 @@ local function fill(ch, cells)
   return string.rep(ch, n) .. string.rep(" ", math.max(0, cells - n * cw))
 end
 
---- Number of cells that fit in the chart area.
+--- Number of cells that fit in the chart area: at least 4, or 1 at hour
+--- zoom, where a cell is a whole day.
 local function cell_count(st)
   local width = win_width(st) - label_width(st) - 2 - utils.width(G.v)
-  return math.max(4, math.floor(width / zoom(st).width))
+  local w = zoom(st).width
+  return math.max(w > 3 and 1 or 4, math.floor(width / w))
 end
 
 --- First and last day of cell `i` (0-based).
@@ -493,13 +496,13 @@ local function row_features(st, row, n, today, last_day)
   return cov, dls, trail, clk
 end
 
---- Whether sub-cell `p` (a third of the day, at day zoom) of day `day`
---- is under `span`.
-local function covers(span, day, p)
-  if span.start_min and day == span.start and (p + 1) * 480 <= span.start_min then
+--- Whether column `p` of day `day`, `len` minutes of it (a third at day
+--- zoom, an hour at hour zoom), is under `span`.
+local function covers(span, day, p, len)
+  if span.start_min and day == span.start and (p + 1) * len <= span.start_min then
     return false
   end
-  if span.finish_min and day == span.finish and p * 480 >= span.finish_min then
+  if span.finish_min and day == span.finish and p * len >= span.finish_min then
     return false
   end
   return true
@@ -509,7 +512,9 @@ end
 local function draw_row(cv, st, row, n, today, bgs, last_day)
   local z = zoom(st)
   local w = z.width
-  local fine = w == 3 and z.days == 1
+  -- a day of several columns shows the times of day: each is `len` minutes
+  local fine = w > 1 and z.days == 1
+  local len = 1440 / w
   local cov, dls, trail, clk = row_features(st, row, n, today, last_day)
   -- runs of equal characters and highlights become one segment
   local run_ch, run_n, run_hl = nil, 0, nil
@@ -534,14 +539,14 @@ local function draw_row(cv, st, row, n, today, bgs, last_day)
     local dl, sp = dls[i], cov[i]
     if fine then
       local day = st.start + i
-      local dsub = dl and (dl.min and math.min(2, math.floor(dl.min / 480)) or 1) or nil
-      for p = 0, 2 do
+      local dsub = dl and (dl.min and math.min(w - 1, math.floor(dl.min / len)) or math.floor(w / 2)) or nil
+      for p = 0, w - 1 do
         if dsub and p == dsub then
           emit(G.diamond, groups_of(bg, dl.hl))
         elseif dsub and (p > dsub or (sp and sp.start == day and not sp.start_min)) then
           -- after the deadline mark, or a bar that only is the deadline day
           emit(" ", groups_of(bg, nil))
-        elseif sp and covers(sp, day, p) then
+        elseif sp and covers(sp, day, p, len) then
           emit(G.bar, bar_group(sp, bg, clk[i]))
         elseif trail[i] then
           emit(G.trail, groups_of(bg, "OrgTimelineOverdue"))
@@ -574,14 +579,15 @@ local function draw_row(cv, st, row, n, today, bgs, last_day)
   end
 end
 
---- The axis lines: months, then day numbers (and weekdays at day zoom).
+--- The axis lines: months, then day numbers (and weekdays at day zoom;
+--- weekdays with the day, then the hours, at hour zoom).
 local function axis(st, n, today)
   local z = zoom(st)
   local w = z.width
   local total = n * w
   local months = vim.split(string.rep(" ", total), "")
   local days = vim.split(string.rep(" ", total), "")
-  local wdays = z.name == "day" and vim.split(string.rep(" ", total), "") or nil
+  local wdays = (z.name == "day" or z.name == "hour") and vim.split(string.rep(" ", total), "") or nil
   local function write(arr, pos, s)
     local chars = vim.fn.split(s, [[\zs]])
     for k, ch in ipairs(chars) do
@@ -604,7 +610,12 @@ local function axis(st, n, today)
       labels[#labels + 1] = { pos = pos, month = md.month, year = md.year, first = i == 0 }
       last_month = key
     end
-    if z.name == "day" then
+    if z.name == "hour" then
+      write(days, pos, string.format("%s %d", date.DAY_NAMES[d:weekday()], d.day))
+      for h = 0, 21, 3 do
+        write(wdays, pos + h, tostring(h))
+      end
+    elseif z.name == "day" then
       write(days, pos, string.format("%2d", d.day))
       write(wdays, pos, date.DAY_NAMES[d:weekday()]:sub(1, 2))
     elseif z.name == "week" then
@@ -839,23 +850,6 @@ local function start_for(st, day, offset)
   return s
 end
 
---- Zoom in (`dir` = -1) or out (1), keeping the middle day in place.
-function M.zoom(dir)
-  local st = current()
-  if not st then
-    return
-  end
-  local nz = math.max(1, math.min(#M.ZOOMS, st.zoom + dir))
-  if nz == st.zoom then
-    return
-  end
-  local mid = st.start + math.floor(st.cells / 2) * zoom(st).days
-  st.zoom = nz
-  local n = cell_count(st)
-  st.start = start_for(st, mid, math.floor(n / 2))
-  M.draw(st)
-end
-
 --- Pan by half a screen: `dir` = -1 to the past, 1 to the future.
 function M.pan(dir)
   local st = current()
@@ -866,12 +860,43 @@ function M.pan(dir)
   M.draw(st)
 end
 
+--- First day of the view with today `days_before` cells from the left,
+--- or in the middle when fewer cells fit (at hour zoom).
+local function start_today(st)
+  local before = math.min(st.opts.days_before or 3, math.floor((cell_count(st) - 1) / 2))
+  return start_for(st, date.today_days(), math.max(0, before))
+end
+
+--- Zoom in (`dir` = -1) or out (1), keeping today in view when it is,
+--- else the middle day in place.
+function M.zoom(dir)
+  local st = current()
+  if not st then
+    return
+  end
+  local nz = math.max(1, math.min(#M.ZOOMS, st.zoom + dir))
+  if nz == st.zoom then
+    return
+  end
+  local today = date.today_days()
+  local z = zoom(st)
+  local on_screen = today >= st.start and today < st.start + st.cells * z.days
+  local mid = st.start + math.floor(st.cells / 2) * z.days
+  st.zoom = nz
+  if on_screen then
+    st.start = start_today(st)
+  else
+    st.start = start_for(st, mid, math.floor(cell_count(st) / 2))
+  end
+  M.draw(st)
+end
+
 function M.goto_today()
   local st = current()
   if not st then
     return
   end
-  st.start = start_for(st, date.today_days(), st.opts.days_before or 3)
+  st.start = start_today(st)
   M.draw(st)
 end
 
@@ -973,12 +998,12 @@ function M.open(o)
     filter = o.filter,
     tag = o.tag or eopts.tag,
     clocks = eopts.clocks,
-    zoom = zoom_index(o.zoom or eopts.zoom) or 1,
+    zoom = zoom_index(o.zoom or eopts.zoom) or zoom_index("day"),
   }
   M.state = st
   st.win, st.how = views.open(buf, eopts.layout, { width = eopts.width, height = eopts.height, title = "Timeline" })
   vim.wo[st.win].cursorline = true
-  st.start = start_for(st, date.today_days(), eopts.days_before or 3)
+  st.start = start_today(st)
   views.map(buf, eopts.keys, {
     zoom_in = function()
       M.zoom(-1)
@@ -1076,7 +1101,7 @@ function M.complete(arglead)
   return vim.list_extend(out, views.complete_tags())
 end
 
---- `:Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]`.
+--- `:Org timeline [agenda|buffer|subtree|<file>] [hour|day|week|month] [filter]`.
 function M.command(args)
   local o = M.parse_args(args)
   if o.filter then
