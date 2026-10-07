@@ -323,7 +323,12 @@ local function set_last_global()
   if shown ~= lnum then
     vim.api.nvim_win_set_cursor(0, { shown, 0 })
   end
-  vim.w.org_last_global = { buf = curbuf(), tick = vim.api.nvim_buf_get_changedtick(0), lnum = shown }
+  vim.w.org_last_global = {
+    buf = curbuf(),
+    tick = vim.api.nvim_buf_get_changedtick(0),
+    lnum = shown,
+    col = vim.api.nvim_win_get_cursor(0)[2],
+  }
 end
 
 --- Whether the last command in this window was a global cycle.
