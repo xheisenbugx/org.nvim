@@ -1395,6 +1395,16 @@ in each release.
 
 org.nvim is released under the [MIT License](LICENSE).
 
+## ⭐ Star history
+
+<a href="https://www.star-history.com/#xheisenbugx/org.nvim&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=xheisenbugx/org.nvim&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=xheisenbugx/org.nvim&type=Date" />
+    <img alt="Star history of org.nvim" src="https://api.star-history.com/svg?repos=xheisenbugx/org.nvim&type=Date" />
+  </picture>
+</a>
+
 ---
 
 <div align="center">
