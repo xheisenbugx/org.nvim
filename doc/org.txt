@@ -179,7 +179,7 @@ Without lazy.nvim, any plugin manager works: org.nvim has no build step
 and no dependencies. Point it at `xheisenbugx/org.nvim` and call
 `require("org").setup({ ... })`.
 
-Neovim 0.12+ built-in manager (|vim.pack|), in |init.lua|: >lua
+Neovim 0.12+ built-in manager (`vim.pack`), in |init.lua|: >lua
     vim.pack.add({ "https://github.com/xheisenbugx/org.nvim" })
     require("org").setup({ ... })
 <
