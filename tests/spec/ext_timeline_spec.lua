@@ -208,6 +208,11 @@ describe("timeline", function()
     timeline.zoom(-1)
     timeline.zoom(-1)
     eq("day", timeline.ZOOMS[st.zoom].name)
+    timeline.zoom(-1)
+    eq("hour", timeline.ZOOMS[st.zoom].name)
+    ok(st.cells < cells)
+    timeline.zoom(-1)
+    eq("hour", timeline.ZOOMS[st.zoom].name)
   end)
 
   it("pans and goes back to today", function()
@@ -296,6 +301,7 @@ describe("timeline", function()
   it("parses :Org timeline arguments", function()
     eq({}, timeline.parse_args(""))
     eq({ source = "buffer", zoom = "week" }, timeline.parse_args("buffer week"))
+    eq({ zoom = "hour" }, timeline.parse_args("hour"))
     eq({ zoom = "month", filter = "work" }, timeline.parse_args("month work"))
     eq({ filter = '(todo "NEXT")' }, timeline.parse_args('(todo "NEXT")'))
   end)
@@ -370,6 +376,66 @@ describe("timeline details", function()
     c = cells_of(st, "Morning start")
     eq({ "█", "█", "█" }, { c[p + 1], c[p + 2], c[p + 3] })
     eq(" ", c[p + 4])
+  end)
+
+  it("places timed tasks in their hours at hour zoom", function()
+    local st = open_lines({
+      "* TODO Meeting",
+      "  SCHEDULED: " .. ts(0, "14:00-15:30"),
+      "* TODO Evening deadline",
+      "  DEADLINE: " .. ts(0, "20:00"),
+      "* TODO Morning start",
+      "  SCHEDULED: " .. ts(0, "07:00"),
+      "* TODO Plain deadline",
+      "  DEADLINE: " .. ts(0),
+    }, { zoom = "hour" })
+    eq("hour", timeline.ZOOMS[st.zoom].name)
+    local p = (today - st.start) * 24
+    local function hours(title)
+      local c = cells_of(st, title)
+      return table.concat(c, "", p + 1, p + 24)
+    end
+    eq(string.rep(" ", 14) .. "██" .. string.rep(" ", 8), hours("Meeting"))
+    eq(string.rep(" ", 20) .. "◆" .. string.rep(" ", 3), hours("Evening deadline"))
+    eq(string.rep(" ", 7) .. string.rep("█", 17), hours("Morning start"))
+    -- a deadline without a time is at midday
+    eq(string.rep(" ", 12) .. "◆" .. string.rep(" ", 11), hours("Plain deadline"))
+  end)
+
+  it("labels the days and hours at hour zoom, today in the middle", function()
+    local st = open_lines({ "* TODO Task", "  SCHEDULED: " .. ts(0) }, { zoom = "hour" })
+    -- the default window fits fewer than days_before (3) days each side
+    ok(st.cells < 7, st.cells)
+    eq(today - math.floor((st.cells - 1) / 2), st.start)
+    local lines = buf_lines(st.buf)
+    local d = date.from_days(st.start)
+    ok(vim.startswith(chart(lines[4]), date.DAY_NAMES[d:weekday()] .. " " .. d.day), lines[4])
+    eq("0  3  6  9  12 15 18 21 ", chart(lines[5]):sub(1, 24))
+    ok(groups(st).OrgTimelineToday)
+  end)
+
+  it("keeps today in view when zooming, else the middle day", function()
+    local st = open_lines({ "* TODO Task", "  SCHEDULED: " .. ts(0) })
+    timeline.zoom(-1)
+    eq("hour", timeline.ZOOMS[st.zoom].name)
+    ok(today >= st.start and today < st.start + st.cells, "today in view")
+    timeline.zoom(1)
+    eq(today - 3, st.start)
+    -- today panned out of view: the middle day stays in place
+    timeline.pan(1)
+    timeline.pan(1)
+    local mid = st.start + math.floor(st.cells / 2)
+    timeline.zoom(-1)
+    eq(mid, st.start + math.floor(st.cells / 2))
+  end)
+
+  it("pans by days at hour zoom", function()
+    local st = open_lines({ "* TODO Task", "  SCHEDULED: " .. ts(0) }, { zoom = "hour" })
+    local start = st.start
+    timeline.pan(1)
+    eq(start + math.max(1, math.floor(st.cells / 2)), st.start)
+    timeline.goto_today()
+    eq(start, st.start)
   end)
 
   it("pans and zooms without rebuilding", function()

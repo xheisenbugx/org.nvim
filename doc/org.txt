@@ -11422,7 +11422,7 @@ on a date axis.
 >lua
     require("org").setup({ extensions = { timeline = { zoom = "week" } } })
 <
-`:Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]`,
+`:Org timeline [agenda|buffer|subtree|<file>] [hour|day|week|month] [filter]`,
 or the actions `timeline_open` (`<prefix>Vt`) and `timeline_buffer`.
 
 A task's bar runs from its scheduled day to its deadline. With only one of
@@ -11430,15 +11430,19 @@ the two, the bar is as many days long as its Effort takes at
 `hours_per_day` (8) working hours a day, starting on the scheduled day or
 ending on the deadline. The deadline is drawn as ◆. A task past its deadline
 is drawn in the error colour with a dashed trail up to today. Today's
-column is shaded and its date highlighted on the axis; at day zoom
-weekends are shaded too. With `clocks` (or `c`), the days a task was
+column is shaded and its date highlighted on the axis; at hour and day
+zoom weekends are shaded too. With `clocks` (or `c`), the days a task was
 clocked show as ▒. DONE tasks are left out unless `show_done` is set.
 
 Times of day count at day zoom, where a day's three columns are its thirds
 (0-8, 8-16, 16-24 h): `SCHEDULED: <... 14:00-15:00>` fills the middle one,
 a bar starting at 14:00 starts there, and a deadline at 20:00 puts its ◆ in
 the last one. A timed task with an Effort shorter than the rest of its day
-ends when the Effort does. The week and month zooms show whole days.
+ends when the Effort does. Hour zoom, the closest, gives a day 24 columns,
+one an hour, with the hours on the axis: about a week fits a wide window,
+to see what each day holds before scheduling more into it. When fewer than
+`days_before` days fit on each side of today, today is in the middle. The
+week and month zooms show whole days.
 
 A repeating task (`+1w`, `++1m`, `.+2d` on its SCHEDULED or DEADLINE) is
 drawn again at each later occurrence inside the view, in
@@ -11454,8 +11458,8 @@ leaves them out. They can't be opened or rescheduled from here.
 In a narrow window the task names take at most 40% of the width.
 
 Keys ~
-  + = / -   zoom in / out: day (3 columns a day), week (a column a day),
-            month (a column a week)
+  + = / -   zoom in / out: hour (a column an hour), day (3 columns a
+            day), week (a column a day), month (a column a week)
   [ / ]     pan half a screen to the past / future
   .         back to today
   <CR>      open the task
@@ -11468,7 +11472,7 @@ Keys ~
 Options (defaults) ~
   `source`, `query`, `tag`   "agenda", nil, nil
   `show_done`          false
-  `zoom`               "day"
+  `zoom`               "day" ("hour", "day", "week" or "month")
   `days_before`        3 (days before today at the left edge)
   `label_width`        34
   `hours_per_day`      8
