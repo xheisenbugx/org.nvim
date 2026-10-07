@@ -106,6 +106,9 @@ return {
 }
 ```
 
+Not using lazy.nvim? See [Without lazy.nvim](#without-lazynvim) for
+`vim.pack`, other plugin managers and a plain `git clone`.
+
 Restart Neovim and run `:checkhealth org`. New to Org? Run `:Org tutor`:
 a guided lesson, like `vimtutor`, in a copy of its own where every org key
 works and each exercise gets a ✓ once you have done it (`:Org tutor
@@ -545,17 +548,56 @@ return {
 }
 ```
 
-### Other plugin managers
+### Without lazy.nvim
 
-Add the plugin to your `'runtimepath'` and call:
+org.nvim is pure Lua with no build step and no dependencies, so any plugin
+manager works: point it at `xheisenbugx/org.nvim` and call `setup()`.
+
+**Neovim 0.12+ built-in manager (`vim.pack`)**, in `init.lua`:
 
 ```lua
+vim.pack.add({ "https://github.com/xheisenbugx/org.nvim" })
 require("org").setup({
   org_directory = "~/org",
   agenda_files = { "~/org/**/*.org" },
   default_notes_file = "~/org/refile.org",
 })
 ```
+
+`:lua vim.pack.update()` updates it later.
+
+**No plugin manager (Vim packages)**: put the repository in a `start`
+package directory, which Neovim loads at startup:
+
+```sh
+# Linux / macOS
+git clone https://github.com/xheisenbugx/org.nvim \
+  ~/.local/share/nvim/site/pack/plugins/start/org.nvim
+```
+
+```powershell
+# Windows
+git clone https://github.com/xheisenbugx/org.nvim `
+  "$env:LOCALAPPDATA\nvim-data\site\pack\plugins\start\org.nvim"
+```
+
+The directory is `stdpath("data")/site/pack/*/start/`
+(`:echo stdpath("data")` prints the first part). Then call
+`require("org").setup({ … })` as above and run `:helptags ALL` once so
+`:h org` works. Update with `git pull` in that directory.
+
+- **`start` or `opt`?** Packages in `pack/*/opt/` are only loaded by
+  `:packadd`. If you put org.nvim there, call `vim.cmd.packadd("org.nvim")`
+  before `require("org")`, or `require` fails with "module 'org' not found".
+- **From a zip download:** GitHub archives unpack into an extra folder
+  (`org.nvim-main/org.nvim-main/…`). The `lua/`, `plugin/` and `doc/`
+  folders must sit directly inside `…/start/org.nvim/`.
+- **Check it:** `:checkhealth org` runs once the plugin is found.
+
+**`setup()` is optional.** Without it, the defaults are used the first time
+you open an org file or run `:Org`: `org_directory` is `~/org`, the agenda
+sees only the current file, and capture writes to `~/.notes`. Call
+`setup()` to point the agenda and capture at your own files.
 
 ### Local development checkout
 

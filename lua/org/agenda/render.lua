@@ -1167,6 +1167,28 @@ local function render_day(b, list, d, ctx, sorting)
   end
 end
 
+--- The item predicate of a block: the runtime filters (`ctx.filter`) and
+--- the block's own `filter(item)`, which is given the item as
+--- |org-api-agenda| shapes it and returns true to keep it. A `filter`
+--- that errors keeps the item, like a failing `skip`.
+---@param block table
+---@param ctx table
+---@return (fun(it: table): boolean)|nil
+function M.block_filter(block, ctx)
+  local own, base = block.filter, ctx.filter
+  if type(own) ~= "function" then
+    return base
+  end
+  local to_api = require("org.api.agenda")._item
+  return function(it)
+    if base and not base(it) then
+      return false
+    end
+    local ok, keep = pcall(own, to_api(it))
+    return not ok or keep and true or false
+  end
+end
+
 local function filter_list(list, ctx)
   if not ctx.filter then
     return list
@@ -1494,6 +1516,7 @@ local BLOCK_KEYS = {
   start_day = true,
   files = true,
   skip = true,
+  filter = true,
   sorting = true,
   todo_only = true,
   stuck_projects = true,
@@ -1568,6 +1591,7 @@ function M.view(view, ctx)
     b.block_starts = b.block_starts or {}
     b.block_starts[#b.block_starts + 1] = #b.lines + 1
     local bctx = vim.tbl_extend("force", ctx, { files = ctx.files_for(block), multi = multi })
+    bctx.filter = M.block_filter(block, ctx)
     M.with_block_options(block, function()
       if block.type == "agenda" then
         local anchor = ctx.anchor

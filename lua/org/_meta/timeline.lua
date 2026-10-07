@@ -14,9 +14,9 @@
 ---@field tag? string
 ---Also show DONE tasks, dimmed. (default: `false`)
 ---@field show_done? boolean
----Starting zoom: `"day"` (3 columns a day), `"week"` (a column a day) or
----`"month"` (a column a week). (default: `"day"`)
----@field zoom? "day"|"week"|"month"
+---Starting zoom: `"hour"` (a column an hour), `"day"` (3 columns a day),
+---`"week"` (a column a day) or `"month"` (a column a week). (default: `"day"`)
+---@field zoom? "hour"|"day"|"week"|"month"
 ---Days before today at the left edge when opening. (default: `3`)
 ---@field days_before? integer
 ---Width of the task names. (default: `34`)

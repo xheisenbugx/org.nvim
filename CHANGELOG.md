@@ -8,6 +8,17 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.4.0] - 2026-10-07
+
+### Features
+
+- **timeline:** Add an hour zoom that shows about a week ([#216](https://github.com/xheisenbugx/org.nvim/pull/216))
+- **agenda:** Add a per-item `filter` to agenda blocks ([#217](https://github.com/xheisenbugx/org.nvim/pull/217))
+
+### Documentation
+
+- Explain installing without lazy.nvim ([#215](https://github.com/xheisenbugx/org.nvim/pull/215))
+
 ## [v2.3.3] - 2026-10-07
 
 ### Documentation
@@ -353,6 +364,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.3...v2.4.0
 [v2.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.2...v2.3.3
 [v2.3.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.1...v2.3.2
 [v2.3.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.0...v2.3.1

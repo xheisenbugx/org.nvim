@@ -175,9 +175,34 @@ lazy.nvim / LazyVim: >lua
       },
     }
 <
-Other plugin managers: add the plugin to 'runtimepath' and call: >lua
+Without lazy.nvim, any plugin manager works: org.nvim has no build step
+and no dependencies. Point it at `xheisenbugx/org.nvim` and call
+`require("org").setup({ ... })`.
+
+Neovim 0.12+ built-in manager (`vim.pack`), in |init.lua|: >lua
+    vim.pack.add({ "https://github.com/xheisenbugx/org.nvim" })
     require("org").setup({ ... })
 <
+No plugin manager (|packages|): clone the repository into a `start`
+directory, which Neovim loads at startup: >sh
+    # Linux / macOS
+    git clone https://github.com/xheisenbugx/org.nvim \
+      ~/.local/share/nvim/site/pack/plugins/start/org.nvim
+    # Windows (PowerShell)
+    git clone https://github.com/xheisenbugx/org.nvim `
+      "$env:LOCALAPPDATA\nvim-data\site\pack\plugins\start\org.nvim"
+<
+The directory is `stdpath("data")/site/pack/*/start/`. Call
+`require("org").setup({ ... })` in |init.lua| and run `:helptags ALL` once
+so this manual is found. Update with `git pull` in that directory.
+
+- A package under `pack/*/opt/` is only loaded by |:packadd|: call
+  `vim.cmd.packadd("org.nvim")` before `require("org")`, or `require`
+  fails with "module 'org' not found".
+- A zip from GitHub unpacks into an extra folder
+  (`org.nvim-main/org.nvim-main/...`); `lua/`, `plugin/` and `doc/` must
+  sit directly inside `.../start/org.nvim/`.
+- `:checkhealth org` runs once the plugin is found.
 
 Option defaults follow Emacs Org 9.8 (see |org-config|): with no
 `agenda_files` the agenda and refile see only the current file until you
@@ -2339,6 +2364,21 @@ Block options:
                 notdeadline, timestamp, nottimestamp, regexp RE,
                 notregexp RE, todo KWS, nottodo KWS (KWS: a list of
                 keywords, or "todo", "done", "any")
+  filter        function(item) that returns true to keep an item.
+                Where `skip` drops a whole entry, `filter` sees each
+                line of the block: an entry scheduled on one day with
+                a deadline on another is two items, and `filter` can
+                keep one. `item` is shaped as in |org-api-agenda|
+                (`type`, `kind`, `day`, `date`, `headline`, ...). It
+                applies on top of the agenda filters
+                (|org-agenda-filter|). To list an entry on its
+                scheduled day only, and on its deadline day when it
+                has no scheduled date: >lua
+                  filter = function(item)
+                    return not (item.type == "deadline"
+                      and item.headline and item.headline.scheduled)
+                  end
+<
   sorting       sorting strategies of this block
   *_filter_preset  filters that stay on (|org-agenda-filter|)
   any other `agenda` option (`prefix_format`, `entry_types`,
@@ -11397,7 +11437,7 @@ on a date axis.
 >lua
     require("org").setup({ extensions = { timeline = { zoom = "week" } } })
 <
-`:Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]`,
+`:Org timeline [agenda|buffer|subtree|<file>] [hour|day|week|month] [filter]`,
 or the actions `timeline_open` (`<prefix>Vt`) and `timeline_buffer`.
 
 A task's bar runs from its scheduled day to its deadline. With only one of
@@ -11405,15 +11445,19 @@ the two, the bar is as many days long as its Effort takes at
 `hours_per_day` (8) working hours a day, starting on the scheduled day or
 ending on the deadline. The deadline is drawn as ◆. A task past its deadline
 is drawn in the error colour with a dashed trail up to today. Today's
-column is shaded and its date highlighted on the axis; at day zoom
-weekends are shaded too. With `clocks` (or `c`), the days a task was
+column is shaded and its date highlighted on the axis; at hour and day
+zoom weekends are shaded too. With `clocks` (or `c`), the days a task was
 clocked show as ▒. DONE tasks are left out unless `show_done` is set.
 
 Times of day count at day zoom, where a day's three columns are its thirds
 (0-8, 8-16, 16-24 h): `SCHEDULED: <... 14:00-15:00>` fills the middle one,
 a bar starting at 14:00 starts there, and a deadline at 20:00 puts its ◆ in
 the last one. A timed task with an Effort shorter than the rest of its day
-ends when the Effort does. The week and month zooms show whole days.
+ends when the Effort does. Hour zoom, the closest, gives a day 24 columns,
+one an hour, with the hours on the axis: about a week fits a wide window,
+to see what each day holds before scheduling more into it. When fewer than
+`days_before` days fit on each side of today, today is in the middle. The
+week and month zooms show whole days.
 
 A repeating task (`+1w`, `++1m`, `.+2d` on its SCHEDULED or DEADLINE) is
 drawn again at each later occurrence inside the view, in
@@ -11429,8 +11473,8 @@ leaves them out. They can't be opened or rescheduled from here.
 In a narrow window the task names take at most 40% of the width.
 
 Keys ~
-  + = / -   zoom in / out: day (3 columns a day), week (a column a day),
-            month (a column a week)
+  + = / -   zoom in / out: hour (a column an hour), day (3 columns a
+            day), week (a column a day), month (a column a week)
   [ / ]     pan half a screen to the past / future
   .         back to today
   <CR>      open the task
@@ -11443,7 +11487,7 @@ Keys ~
 Options (defaults) ~
   `source`, `query`, `tag`   "agenda", nil, nil
   `show_done`          false
-  `zoom`               "day"
+  `zoom`               "day" ("hour", "day", "week" or "month")
   `days_before`        3 (days before today at the left edge)
   `label_width`        34
   `hours_per_day`      8
