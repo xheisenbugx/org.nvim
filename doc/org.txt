@@ -175,9 +175,34 @@ lazy.nvim / LazyVim: >lua
       },
     }
 <
-Other plugin managers: add the plugin to 'runtimepath' and call: >lua
+Without lazy.nvim, any plugin manager works: org.nvim has no build step
+and no dependencies. Point it at `xheisenbugx/org.nvim` and call
+`require("org").setup({ ... })`.
+
+Neovim 0.12+ built-in manager (|vim.pack|), in |init.lua|: >lua
+    vim.pack.add({ "https://github.com/xheisenbugx/org.nvim" })
     require("org").setup({ ... })
 <
+No plugin manager (|packages|): clone the repository into a `start`
+directory, which Neovim loads at startup: >sh
+    # Linux / macOS
+    git clone https://github.com/xheisenbugx/org.nvim \
+      ~/.local/share/nvim/site/pack/plugins/start/org.nvim
+    # Windows (PowerShell)
+    git clone https://github.com/xheisenbugx/org.nvim `
+      "$env:LOCALAPPDATA\nvim-data\site\pack\plugins\start\org.nvim"
+<
+The directory is `stdpath("data")/site/pack/*/start/`. Call
+`require("org").setup({ ... })` in |init.lua| and run `:helptags ALL` once
+so this manual is found. Update with `git pull` in that directory.
+
+- A package under `pack/*/opt/` is only loaded by |:packadd|: call
+  `vim.cmd.packadd("org.nvim")` before `require("org")`, or `require`
+  fails with "module 'org' not found".
+- A zip from GitHub unpacks into an extra folder
+  (`org.nvim-main/org.nvim-main/...`); `lua/`, `plugin/` and `doc/` must
+  sit directly inside `.../start/org.nvim/`.
+- `:checkhealth org` runs once the plugin is found.
 
 Option defaults follow Emacs Org 9.8 (see |org-config|): with no
 `agenda_files` the agenda and refile see only the current file until you
