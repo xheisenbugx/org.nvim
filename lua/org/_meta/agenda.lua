@@ -585,6 +585,10 @@
 ---@field skip? org.Config.Agenda.SkipFunction
 ---Alias of `skip`.
 ---@field org_agenda_skip_function? org.Config.Agenda.SkipFunction
+---Return true to keep an item (one line of the block: an entry with both a
+---scheduled date and a deadline gives two). It gets the item as
+---`:h org-api-agenda` shapes it and applies on top of the agenda filters.
+---@field filter? fun(item: org.api.AgendaItem): boolean?
 ---Sorting for this block (org-agenda-sorting-strategy).
 ---@field sorting? org.Config.Agenda.SortingStrategy[]
 ---Alias of `sorting`.
