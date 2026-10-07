@@ -222,6 +222,19 @@ local function jumped()
   return s:find("[/?nN*#%%GHML'`:{}()\15]") ~= nil or s:find("gg", 1, true) ~= nil or s:find("[%[%]][%[%]]") ~= nil
 end
 
+--- Forget the last TAB and S-TAB once the cursor leaves where they left
+--- it: in Emacs any other command breaks the cycle (`last-command`), so
+--- TAB, j, k, TAB folds a subtree that the first TAB opened to CHILDREN.
+local function forget_cycles_moved()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  for _, var in ipairs({ "org_last_cycle", "org_last_global" }) do
+    local s = vim.w[var]
+    if s and (s.lnum ~= pos[1] or s.col ~= pos[2]) then
+      vim.w[var] = nil
+    end
+  end
+end
+
 --- Keep the cursor off hidden lines: line motions skip them, other jumps
 --- reveal the line (Emacs never leaves point in invisible text).
 local function on_cursor_moved(bufnr)
@@ -428,6 +441,11 @@ function M.setup_buffer(bufnr)
         setup_win(w)
       end
     end,
+  })
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    buffer = bufnr,
+    group = group,
+    callback = forget_cycles_moved,
   })
   if M.conceal_supported then
     vim.api.nvim_create_autocmd("CursorMoved", {
