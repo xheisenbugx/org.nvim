@@ -433,6 +433,11 @@ describe("capture placement (Emacs parity)", function()
       "* 2026\n\n** 2026-08 August\nx\n\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n",
     },
     {
+      "* 2026\n** 2026-09 September\n*** 2026-09-24 Thursday\nx\n\n\n** 2026-10 October\n",
+      { datetree = true, template = "* new" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-24 Thursday\nx\n*** 2026-09-25 Friday\n**** new\n** 2026-10 October\n",
+    },
+    {
       "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n* Other\n",
       { datetree = true, template = "* new" },
       "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n** 2026\n*** 2026-09 September\n**** 2026-09-25 Friday\n***** new\n* Other\n",

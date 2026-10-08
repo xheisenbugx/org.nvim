@@ -148,8 +148,11 @@ end
 --- lines [s, e] (org-datetree--find-create-subheading): the first one
 --- comparing equal is used, a new one goes before the first later one.
 ---@return integer line
+---@return boolean created
 local function dt_subheading(bufnr, s, e, level, title, cmp)
   local file = files.get_buffer(bufnr)
+  -- something follows the parent's subtree
+  local followed = e < vim.api.nvim_buf_line_count(bufnr)
   local sibling
   for _, hl in ipairs(file.headlines) do
     if hl.line >= s and hl.line <= e and hl.level == level then
@@ -163,7 +166,7 @@ local function dt_subheading(bufnr, s, e, level, title, cmp)
   if sibling then
     local r = cmp(sibling.title, title)
     if r == true or r == 0 then
-      return sibling.line
+      return sibling.line, false
     end
   end
   local at = sibling and sibling.line - 1 or e
@@ -205,7 +208,13 @@ local function dt_subheading(bufnr, s, e, level, title, cmp)
     -- empty first line
     table.insert(new, 1, "")
   end
-  return put(bufnr, at, new) + #new
+  local heading = put(bufnr, at, new) + #new
+  if not sibling and followed then
+    -- Emacs narrows to the parent subtree minus its final newline, so a
+    -- node added at its end keeps one blank line before the next heading
+    vim.api.nvim_buf_set_lines(bufnr, heading, heading, false, { "" })
+  end
+  return heading, true
 end
 
 --- Create/find the date tree for `d` under `parent_lnum` (nil = top level,
@@ -252,18 +261,17 @@ function M.ensure_datetree(bufnr, parent_lnum, d, tree_type)
   end
   local level, s, e = 1, 1, vim.api.nvim_buf_line_count(bufnr)
   local line = parent_lnum
-  local count
+  local created = false
   for _, h in ipairs(hier) do
     if line then
       local hl = files.get_buffer(bufnr):headline_at(line)
       level, s, e = hl.level + 1, hl.line + 1, hl.end_line
     end
-    count = vim.api.nvim_buf_line_count(bufnr)
-    line = dt_subheading(bufnr, s, e, level, h[1], h[2])
+    line, created = dt_subheading(bufnr, s, e, level, h[1], h[2])
   end
   local stamp = config.opts.datetree_add_timestamp
   local grouping = type(tree_type) == "table" and tree_type or GROUPINGS[tree_type]
-  if stamp and grouping and vim.tbl_contains(grouping, "day") and vim.api.nvim_buf_line_count(bufnr) > count then
+  if stamp and grouping and vim.tbl_contains(grouping, "day") and created then
     -- org-datetree-add-timestamp: a new day node gets its date
     local ts = date.Date.new({ year = d.year, month = d.month, day = d.day, active = stamp ~= "inactive" })
     local indent = config.opts.adapt_indentation == true and string.rep(" ", level + 1) or ""
