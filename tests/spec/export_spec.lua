@@ -98,7 +98,8 @@ describe("export", function()
     end)
     it("inlines a remote image whose URL has a query string", function()
       -- org-html-inline-image-rules are unanchored, case-insensitive regexps
-      local l = { "[[https://img.shields.io/badge/b.SVG?style=flat]]", "", "[[https://x.org/][https://x.org/a.png?s=1]]" }
+      local l =
+        { "[[https://img.shields.io/badge/b.SVG?style=flat]]", "", "[[https://x.org/][https://x.org/a.png?s=1]]" }
       local h = body("html", l)
       has(h, '<img src="https://img.shields.io/badge/b.SVG?style=flat"')
       has(h, '<a href="https://x.org/"><img src="https://x.org/a.png?s=1"')
@@ -284,6 +285,30 @@ describe("export", function()
       end
       return d
     end
+
+    it("replaces every macro before parsing objects (org-macro-replace-all)", function()
+      -- expected output from Emacs 9.8.10: emphasis spans macro boundaries,
+      -- macros inside an object are replaced before its extent is known,
+      -- and {{{n}}} counts in document order
+      local out = body("html", {
+        "#+MACRO: b *$1*",
+        "#+MACRO: star *",
+        "#+MACRO: eq =",
+        "a {{{b()}}} q {{{b(case)}}} z",
+        "",
+        "{{{star}}}x {{{b(m2)}}} y* end",
+        "",
+        "{{{eq}}}a {{{b(y)}}}= after",
+        "",
+        "[[https://x.org][l {{{n}}}]] {{{n}}} [fn::fn {{{n}}}] {{{n}}} ^{{{{n}}}} {{{n}}}",
+      })
+      has(out, "a <b>* q *case</b> z")
+      has(out, "<b>x *m2</b> y* end")
+      has(out, "<code>a {{{b(y)}}}</code> after")
+      has(out, '<a href="https://x.org">l 1</a> 2 <sup>')
+      has(out, "</sup> 4 ^{5} 6")
+      has(out, "fn 3</p>")
+    end)
 
     it("aborts on an undefined macro", function()
       local ok_, err = pcall(body, "html", { "Text {{{nope}}} here." })
