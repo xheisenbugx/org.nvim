@@ -46,9 +46,8 @@ function M.parse(hl)
       done_days[d:days()] = true
     end
   end
-  if hl.planning.closed then
-    done_days[hl.planning.closed:days()] = true
-  end
+  -- the CLOSED planning stamp is no completion: org-habit-parse-todo only
+  -- reads the state-change and "done" note lines
   return {
     scheduled_days = s:days(),
     min_days = min_days,

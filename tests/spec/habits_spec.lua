@@ -36,6 +36,22 @@ describe("habits", function()
     ok(not h.done_days[T - 7])
   end)
 
+  -- org-habit-parse-todo reads only the state-change and "done" note
+  -- lines; the CLOSED stamp is no completion (Emacs 9.8.10 graph).
+  it("does not count the CLOSED stamp as a completion", function()
+    local buf = org_buffer({
+      "* TODO Closed line",
+      "  CLOSED: " .. ts(-9, "10:00", true) .. " SCHEDULED: " .. ts(3, ".+1w"),
+      "  :PROPERTIES:",
+      "  :STYLE: habit",
+      "  :END:",
+      '  - State "DONE"       from "TODO"       ' .. ts(-16, "10:00", true),
+    })
+    local h = habits.parse(files.get_buffer(buf).headlines[1])
+    ok(h.done_days[T - 16])
+    ok(not h.done_days[T - 9])
+  end)
+
   it("colours the graph like org-habit", function()
     local buf = org_buffer({
       "* TODO Habit",
