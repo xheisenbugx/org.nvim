@@ -121,19 +121,16 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   if lob then
     return vim.deepcopy(lob.body)
   end
-  -- all blocks with a matching :noweb-ref, joined by their :noweb-sep
-  local text
+  -- all blocks with a matching :noweb-ref, each followed by its own
+  -- :noweb-sep when another one comes after it
+  local text, sep
   for _, b in ipairs(ctx.all) do
     if not b.call and not in_commented(ctx.file, b.start) then
       local args = ctx.header_args(b)
       if blocks_mod.unquote(args["noweb-ref"]) == ref then
         local chunk = table.concat(body_of(b, args), "\n")
-        if text then
-          local sep = args["noweb-sep"] and blocks_mod.unquote(args["noweb-sep"]):gsub("\\n", "\n") or "\n"
-          text = text .. sep .. chunk
-        else
-          text = chunk
-        end
+        text = text and (text .. sep .. chunk) or chunk
+        sep = args["noweb-sep"] and blocks_mod.unquote(args["noweb-sep"]):gsub("\\n", "\n") or "\n"
       end
     end
   end
