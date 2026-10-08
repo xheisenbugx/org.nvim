@@ -86,6 +86,13 @@ describe("changelog", function()
       )
     end)
 
+    it("doesn't capitalize a one-letter key", function()
+      local e = cl.classify("fix(agenda): r turns column view back on")
+      eq("- **agenda:** r turns column view back on", cl.render_entry(e, { url = URL }))
+      e = cl.classify("fix(agenda): e on a DEADLINE cell opens the date prompt")
+      eq("- **agenda:** e on a DEADLINE cell opens the date prompt", cl.render_entry(e, { url = URL }))
+    end)
+
     it("doesn't capitalize an identifier", function()
       local e = cl.classify("fix: toggle_radio works")
       eq("- toggle_radio works", cl.render_entry(e, { url = URL }))
