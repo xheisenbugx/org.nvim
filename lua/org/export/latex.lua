@@ -354,7 +354,9 @@ function M.wrap_math_block(d, info)
     return o
   end, { with_affiliated = true })
   for _, object in ipairs(objs) do
-    if object.parent and object.parent.type ~= "latex-math-block" and valid_math_object(object) then
+    -- A top-level object of a secondary string (TITLE, AUTHOR, DATE) has no
+    -- parent; it is wrapped too, like Emacs does.
+    if (object.parent == nil or object.parent.type ~= "latex-math-block") and valid_math_object(object) then
       local sib = element.siblings(object) or (d.type == nil and d or nil)
       if sib then
         local idx
