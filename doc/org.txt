@@ -8126,6 +8126,9 @@ Differences from Emacs:
   system collation, which is the same on macOS but not on glibc
   systems). BibTeX crossref inheritance copies every missing field
   except the biblatex exclusions (parsebib has per-type rules).
+- A columnview dynamic block writes a `|` in a property value as `\vert`,
+  like a `|` in ITEM (Emacs quotes only ITEM; a `|` in another value
+  splits its cell).
 - Agenda column view (|org-agenda-columns|) writes a parent's summary
   back to its property only in agenda files loaded in a buffer (Emacs
   visits every agenda file, so it updates them all, without saving).

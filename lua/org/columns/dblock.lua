@@ -42,7 +42,8 @@ end
 
 --- A headline title without the objects that cannot be copied into a
 --- table: statistics cookies, footnote references, targets, radio
---- targets, inline src blocks and babel calls; `|` becomes `\vert{}`.
+--- targets, inline src blocks and babel calls; `|` becomes `\vert`
+--- (org-quote-vert).
 --- Emacs org-columns--clean-item.
 function M.clean_item(item)
   local s = item
@@ -52,7 +53,7 @@ function M.clean_item(item)
   s = s:gsub("%s*src_[%w%-]+%b[]%b{}", ""):gsub("%s*src_[%w%-]+%b{}", "")
   s = s:gsub("%s*call_[%w%-_]+%b[]%b()%b[]", ""):gsub("%s*call_[%w%-_]+%b()%b[]", "")
   s = s:gsub("%s*call_[%w%-_]+%b[]%b()", ""):gsub("%s*call_[%w%-_]+%b()", "")
-  return (vim.trim(s):gsub("|", "\\vert{}"))
+  return (vim.trim(s):gsub("|", "\\vert"))
 end
 
 --- Search string of a heading link (org-link-heading-search-string).
@@ -146,7 +147,8 @@ local function write_default(captured, cols, params, file)
     end
     for i, v in ipairs(cells) do
       if i ~= item_index then
-        cells[i] = v:gsub("|", "\\vert{}")
+        -- Emacs writes other values as they are, and a `|` splits the cell
+        cells[i] = v:gsub("|", "\\vert")
       end
     end
     out[#out + 1] = cells
