@@ -3405,6 +3405,18 @@ Syntax: `[[target][description]]`, `[[target]]`, plain links
 of the link, trailing punctuation is not) and <angle> links. Bracket links
 may span lines. With `ui.conceal_links` (org-link-descriptive), only the
 description is shown.
+                                                    *org-conceal-cursor*
+As in Emacs, where point never stays inside invisible text, Normal-mode
+motions skip what is hidden: `l` from the text before a link goes to the
+first letter of its description, `h` from the text after it to the last,
+and a motion that ends inside the hidden part (`w`, `$`, `j`) goes on to
+the next visible character, or back to the previous one at the end of
+the line. The same holds for hidden emphasis markers
+(`ui.hide_emphasis_markers`). It follows 'concealcursor': in the modes
+it leaves out (Insert and Visual with the default "nc") the cursor line
+shows the full link and the cursor goes everywhere. To edit a link's
+target, use Insert mode, <prefix>li on the link, or <prefix>lt to show
+every link in full.
 
 Targets:
   https://… http://… ftp:… mailto:…   opened with |vim.ui.open()|

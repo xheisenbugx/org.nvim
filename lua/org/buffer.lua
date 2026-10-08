@@ -94,13 +94,16 @@ function M.attach(bufnr)
   for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
     set_win_opts(bufnr, win)
   end
+  local group = vim.api.nvim_create_augroup("org.buffer." .. bufnr, { clear = true })
   vim.api.nvim_create_autocmd("BufWinEnter", {
-    group = vim.api.nvim_create_augroup("org.buffer." .. bufnr, { clear = true }),
+    group = group,
     buffer = bufnr,
     callback = function()
       set_win_opts(bufnr, vim.api.nvim_get_current_win())
     end,
   })
+  -- motions skip concealed link markup, like Emacs' invisible text
+  try("org.ui.conceal_cursor", "attach", bufnr, group)
 
   try("org.fold", "setup_buffer", bufnr)
   require("org.mappings").attach(bufnr)
