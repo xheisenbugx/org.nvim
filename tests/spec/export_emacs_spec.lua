@@ -249,6 +249,24 @@ describe("export (Emacs features)", function()
       return html(lines, { filename = dir .. "/t.org" })
     end
 
+    it("makes a search in a missing file a broken link", function()
+      -- find-file-noselect gives an empty buffer: the search finds nothing
+      local links = "[[file:missing.org::target][t]] [[file:missing.org::#cid][c]] "
+        .. "[[file:missing.org::*Head][h]] [[file:missing.org::(ref)][r]]"
+      local h = export_links(links, "mark")
+      has(
+        h,
+        "[BROKEN LINK: No match for fuzzy expression: target] "
+          .. '<a href="missing.html#cid">c</a> '
+          .. "[BROKEN LINK: No match for fuzzy expression: *Head] "
+          .. "[BROKEN LINK: No match for coderef: ref]"
+      )
+      has(export_links(links, "t"), '<a href="missing.html#cid">c</a> \n</p>')
+      local ok_, err = pcall(export_links, links)
+      eq(false, ok_)
+      has(tostring(err), 'Unable to resolve link: "No match for fuzzy expression: target"')
+    end)
+
     it("finds the text of a file that isn't an Org file, and warns", function()
       local h = export_links("See [[file:x.lua::3]] and [[file:x.lua::3][desc]].")
       has(
