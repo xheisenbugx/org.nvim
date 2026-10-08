@@ -206,7 +206,7 @@ local function archive_point(abuf, loc, d, open_line)
   if loc.stars then
     local hline
     local pat = "^" .. vim.pesc(loc.stars) .. "%s*$"
-    local pat_tags = "^" .. vim.pesc(loc.stars) .. "%s+:[%w_@#%%:]+:%s*$"
+    local pat_tags = "^" .. vim.pesc(loc.stars) .. "%s+:[%w_@#%%:\128-\255]+:%s*$"
     for i = s, e do
       local l = get_line(abuf, i)
       if l and (l:match(pat) or l:match(pat_tags)) then

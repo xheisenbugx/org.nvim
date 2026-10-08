@@ -382,7 +382,89 @@ describe("agenda skip helpers, deadlines and blocked tasks", function()
     eq({ "Done" }, kept(agenda.skip_entry_if("todo", "todo")))
     eq({ "Child", "Dead", "Plain", "Sched" }, kept(agenda.skip_entry_if("todo", { "DONE" })))
     eq({ "Dead", "Sched" }, kept(agenda.skip_entry_if("nottimestamp")))
-    eq({ "Dead", "Done", "Plain", "Sched" }, kept(agenda.skip_subtree_if("regexp", ":p:")))
+    -- "Parent :p:" is no TODO entry, so Emacs never asks about it and
+    -- its child stays
+    eq({ "Child", "Dead", "Done", "Plain", "Sched" }, kept(agenda.skip_subtree_if("regexp", ":p:")))
+  end)
+
+  -- Emacs 9.8.10 org-todo-list with org-agenda-skip-function set to
+  -- org-agenda-skip-subtree-if / -entry-if on the same file.
+  describe("skip_subtree_if looks at the whole subtree of the entries the view matches", function()
+    local tree = parser.parse({
+      "* TODO Sched",
+      "  SCHEDULED: " .. ts(4),
+      "* Parent :p:",
+      "** TODO Child",
+      "* Work",
+      "** TODO a",
+      "   SCHEDULED: " .. ts(4),
+      "** TODO b",
+      "* TODO Parent with done kid",
+      "** DONE Done kid",
+      "** TODO Open kid",
+      "* TODO Proj",
+      "** TODO Kid :someday:",
+      "* TODO Inact",
+      "  SCHEDULED: " .. ts(4, nil, true),
+      "* TODO InactDl",
+      "  DEADLINE: " .. ts(2, nil, true),
+    }, "/tmp/skip_subtree.org")
+    local function todos(skip)
+      local out = {}
+      for _, it in ipairs(items.todo({ tree }, nil, { skip = skip })) do
+        out[#out + 1] = it.title
+      end
+      return table.concat(out, ", ")
+    end
+
+    it("subtree conditions", function()
+      eq(
+        "Sched, Child, a, b, Parent with done kid, Open kid, Inact, InactDl",
+        todos(agenda.skip_subtree_if("regexp", ":someday:"))
+      )
+      eq(
+        "Child, b, Parent with done kid, Open kid, Proj, Kid, Inact, InactDl",
+        todos(agenda.skip_subtree_if("scheduled"))
+      )
+      eq("Sched, Child, a, b, Proj, Kid, Inact, InactDl", todos(agenda.skip_subtree_if("todo", "done")))
+      eq("Parent with done kid", todos(agenda.skip_subtree_if("nottodo", "done")))
+    end)
+
+    it("inactive SCHEDULED/DEADLINE stamps are no dates", function()
+      eq(
+        "Child, b, Parent with done kid, Open kid, Proj, Kid, Inact, InactDl",
+        todos(agenda.skip_entry_if("scheduled"))
+      )
+      eq(
+        "Sched, Child, a, b, Parent with done kid, Open kid, Proj, Kid, Inact, InactDl",
+        todos(agenda.skip_entry_if("deadline"))
+      )
+      eq(
+        "Child, b, Parent with done kid, Open kid, Proj, Kid, Inact, InactDl",
+        todos(agenda.skip_entry_if("timestamp"))
+      )
+    end)
+
+    it("asks a tags view about the entries its match selects", function()
+      local out = {}
+      local pred = require("org.agenda.search").compile("LEVEL=2")
+      for _, it in ipairs(items.tags({ tree }, pred, false, { skip = agenda.skip_subtree_if("scheduled") })) do
+        out[#out + 1] = it.title
+      end
+      eq("Child, b, Done kid, Open kid, Kid", table.concat(out, ", "))
+    end)
+
+    it("todo_ignore_scheduled/deadlines only look at active stamps", function()
+      config.opts.agenda.todo_ignore_scheduled = "future"
+      config.opts.agenda.todo_ignore_deadlines = "near"
+      local out = {}
+      for _, it in ipairs(items.todo({ tree })) do
+        out[#out + 1] = it.title
+      end
+      config.opts.agenda.todo_ignore_scheduled = false
+      config.opts.agenda.todo_ignore_deadlines = false
+      eq("Child, b, Parent with done kid, Open kid, Proj, Kid, Inact, InactDl", table.concat(out, ", "))
+    end)
   end)
 
   it("hides deadlines and dims blocked tasks", function()

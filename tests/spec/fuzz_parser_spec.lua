@@ -189,7 +189,9 @@ local function check_sections(lines, file)
       return hl.todo, hl.title, hl.tags, hl.planning, hl.properties, hl.drawers, hl.clocks, hl.timestamps
     end)
     check(ok_, "lazy fields of " .. hl.line .. ": " .. tostring(err))
-    local s, e = hl.line + 1, hl.body_end
+    -- an inline task without END reads the text up to the next heading
+    -- (parser.section_to), as org-back-to-heading finds it there
+    local s, e = hl.line + 1, parser.section_to(hl)
     if hl.planning_line then
       check(hl.planning_line >= s and hl.planning_line <= e, "planning line of " .. hl.line)
     end

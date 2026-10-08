@@ -116,7 +116,8 @@ function M.records(headlines)
 end
 
 ---@class org.agenda.index.Job
----@field outline integer[] each headline's line and body_end, in turn
+---@field outline integer[] each headline's line, body_end and section end (parser.section_to), in turn
+---@field min_inline integer|nil the file's inlinetask_min_level
 ---@field todo string[] the file's TODO keywords
 ---@field log_drawer string the file's log drawer, upper-cased
 ---@field opts table the options the section parse reads
@@ -138,12 +139,14 @@ function M.job(file, cfg)
   for _, hl in ipairs(file.headlines) do
     outline[#outline + 1] = rawget(hl, "line")
     outline[#outline + 1] = rawget(hl, "body_end")
+    outline[#outline + 1] = require("org.parser").section_to(hl)
   end
   local todo = file.settings and file.settings.todo
   return require("string.buffer").encode({
     outline = outline,
     todo = todo and todo:names() or {},
     log_drawer = file._log_drawer,
+    min_inline = file._min_inline,
     opts = { property_separators = seps },
   })
 end
@@ -176,16 +179,22 @@ function M.run(data, job)
   package.loaded["org.keywords"] = package.loaded["org.keywords"] or {}
   local parser = require("org.parser")
   local lines = M.split_content(data)
-  local file = { lines = lines, settings = { todo = keywords(j.todo) }, _log_drawer = j.log_drawer }
+  local file = {
+    lines = lines,
+    settings = { todo = keywords(j.todo) },
+    _log_drawer = j.log_drawer,
+    _min_inline = j.min_inline,
+  }
   local headlines = {}
   local outline = j.outline
-  for i = 1, #outline, 2 do
+  for i = 1, #outline, 3 do
     local l = outline[i]
     headlines[#headlines + 1] = setmetatable({
       file = file,
       line = l,
       raw = lines[l],
       body_end = outline[i + 1],
+      _section_to = outline[i + 2],
       _lazy_head = true,
       _lazy_section = true,
     }, parser.Headline)

@@ -594,7 +594,9 @@ local function cell(hl, col, ts_format, bufname)
     if hl.file.filename and hl.file.filename ~= bufname then
       target = "file:" .. hl.file.filename .. "::" .. search
     end
-    return "[[" .. target:gsub("[%[%]]", "\\%0") .. "][" .. title .. "]]"
+    -- org-link-make-string: escapes the target, and keeps a description
+    -- ending in "]" from closing the link early
+    return require("org.links").format(target, title)
   elseif k == "todo" then
     return hl.todo or ""
   elseif k == "priority" then

@@ -121,6 +121,27 @@ describe("heatmap data", function()
     eq(90, values[today])
   end)
 
+  it("counts the elapsed time of a clock across a DST change", function()
+    skip_on_windows("TZ takes no IANA zone names on Windows")
+    local saved = vim.env.TZ
+    date.set_tz("America/New_York")
+    local ok_, err = pcall(function()
+      local b = org_buffer({
+        "* Spring forward",
+        "  CLOCK: [2026-03-08 Sun 01:00]--[2026-03-08 Sun 04:00] =>  2:00",
+        "* Fall back, across midnight",
+        "  CLOCK: [2026-10-31 Sat 23:00]--[2026-11-01 Sun 03:00] =>  5:00",
+      })
+      local hls = require("org.files").get_buffer(b).headlines
+      local values = heatmap.data("clock", hls)
+      eq(120, values[date.parse("<2026-03-08>"):days()])
+      eq(60, values[date.parse("<2026-10-31>"):days()])
+      eq(240, values[date.parse("<2026-11-01>"):days()])
+    end)
+    date.set_tz(saved)
+    ok(ok_, err)
+  end)
+
   it("counts closed tasks once a day", function()
     local values = heatmap.data("closed", hls())
     eq(1, values[today - 1])

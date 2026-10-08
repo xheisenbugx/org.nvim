@@ -146,8 +146,20 @@ describe("tblfm emacs compat", function()
       eq({ "", "1", "1", "3", "3" }, col(g, 2))
     end)
 
-    it("a leading hline is not counted as @I", function()
+    it("a leading hline is @I", function()
       local g = calc({
+        "|---+-----|",
+        "| h | out |",
+        "|---+-----|",
+        "| 1 |     |",
+        "| 2 |     |",
+        "|---+-----|",
+        "|   |     |",
+        "#+TBLFM: $2=$1*10::@>$2=vsum(@II..@III)",
+      })
+      eq({ "out", "10", "20", "30" }, col(g, 2))
+      -- @I..@II is the header row alone
+      g = calc({
         "|---+-----|",
         "| h | out |",
         "|---+-----|",
@@ -157,7 +169,7 @@ describe("tblfm emacs compat", function()
         "|   |     |",
         "#+TBLFM: $2=$1*10::@>$2=vsum(@I..@II)",
       })
-      eq({ "out", "10", "20", "30" }, col(g, 2))
+      eq({ "out", "10", "20", "out" }, col(g, 2))
     end)
   end)
 
@@ -294,10 +306,27 @@ describe("tblfm emacs compat", function()
       eq("4", g[2][2])
     end)
 
-    pending(
-      "row formula @2=...",
-      "Emacs has no documented row formulas; `@2=` behaviour (expanded via org-table-get-range corners) is unclear"
-    )
+    it("a row formula @2= sets every field of the row", function()
+      local g = calc({
+        "| 1 | 2 | 3 |",
+        "|   |   |   |",
+        "#+TBLFM: @2=@1*2",
+      })
+      eq({ "2", "4", "6" }, g[2])
+    end)
+
+    it("a row formula @>= sums every column", function()
+      local g = calc({
+        "| a | b |",
+        "|---+---|",
+        "| 1 | 2 |",
+        "| 3 | 4 |",
+        "|---+---|",
+        "|   |   |",
+        "#+TBLFM: @>=vsum(@I..@II)",
+      })
+      eq({ "4", "6" }, g[4])
+    end)
   end)
 
   describe("special first-column marks", function()
@@ -567,10 +596,59 @@ describe("tblfm emacs compat", function()
     it("hline reference in the remote table", function()
       eq("a", calc(lines, 8)[2][3])
     end)
+
+    it("a rule above the remote table's first row is @I", function()
+      local _, out = calc({
+        "| x |   |",
+        "#+TBLFM: $2=remote(src,@I$1)",
+        "",
+        "#+NAME: src",
+        "|---+----|",
+        "| a | b  |",
+        "|---+----|",
+        "| 1 | 10 |",
+      })
+      eq("| x | a |", out[1])
+    end)
+
+    it("@# and $# inside the remote reference", function()
+      local g = calc({
+        "| 2 |   |",
+        "| 3 |   |",
+        "#+TBLFM: $2=remote(src, @@#$1)*$1",
+        "",
+        "#+NAME: src",
+        "| 10 |",
+        "| 20 |",
+      })
+      eq({ "20", "60" }, col(g, 2))
+      g = calc({
+        "| 1 | 2 |   |",
+        "#+TBLFM: $3=remote(src, @1$$#)",
+        "",
+        "#+NAME: src",
+        "| 10 | 20 | 30 |",
+      })
+      eq("30", g[1][3])
+    end)
+
+    it("the table name read from a field", function()
+      local g = calc({
+        "| src |    |",
+        "#+TBLFM: $2=remote($1,@1$1)",
+        "",
+        "#+NAME: src",
+        "| 10 | 20 |",
+      })
+      eq("10", g[1][2])
+    end)
   end)
 
-  pending(
-    "date arithmetic",
-    "date(<2024-01-10>) - date(<2024-01-01>) = 9 in Calc, but org's timestamp substitution inside formulas not verified"
-  )
+  it("date(<$1>) on fields holding bare dates", function()
+    local g = calc({
+      "| 2026-01-01 | 2026-03-01 |   |",
+      "#+TBLFM: $3=date(<$2>)-date(<$1>)",
+    })
+    eq("59", g[1][3])
+  end)
 end)

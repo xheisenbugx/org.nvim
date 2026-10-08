@@ -218,6 +218,24 @@ local function pandoc_cmd()
   return list, p.args or {}
 end
 
+--- The output formats the pandoc fallback knows (`pandoc
+--- --list-output-formats`), or nil when pandoc can't be run.
+---@return string[]|nil
+function M.pandoc_output_formats()
+  local cmd = pandoc_cmd()
+  if not cmd[1] or vim.fn.executable(cmd[1]) == 0 then
+    return nil
+  end
+  cmd[#cmd + 1] = "--list-output-formats"
+  local ok, res = pcall(function()
+    return vim.system(cmd, { text = true }):wait(10000)
+  end)
+  if not ok or res.code ~= 0 then
+    return nil
+  end
+  return vim.split(res.stdout or "", "%s+", { trimempty = true })
+end
+
 --- Render with a native back-end.
 ---@return string|nil text, table|nil info, string|nil err
 local function render(backend, lines, opts)
@@ -1091,7 +1109,7 @@ function M.convert_region(format, range)
       end
     else
       -- the end column is inclusive and points at the start of a (multibyte) character
-      ecol0 = ecol + vim.str_utf_end(last, ecol)
+      ecol0 = utils.char_end(last, ecol)
     end
     local parts = vim.api.nvim_buf_get_text(bufnr, srow - 1, scol - 1, erow0, ecol0, {})
     if eol and parts[#parts] == "" then

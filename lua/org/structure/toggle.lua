@@ -196,8 +196,7 @@ function M.emphasize()
     else
       b = tb:pos_of(srow, scol - 1)
       local last = get_lines(bufnr, erow, erow)[1]
-      local char_len = ecol <= #last and #vim.fn.strcharpart(last:sub(ecol), 0, 1) or 1
-      e = tb:pos_of(erow, math.min(ecol - 1 + math.max(char_len, 1), #last))
+      e = tb:pos_of(erow, utils.char_end(last, ecol))
     end
     tb:goto_char(b)
     text = tb:delete(b, e)

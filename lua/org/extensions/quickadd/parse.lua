@@ -158,12 +158,24 @@ local function is_relative(w)
   return what:match("^[hdwmy]$") ~= nil or WEEKDAYS[what] ~= nil
 end
 
+-- A dotted European date as the date prompt reads it: `15.3.` or
+-- `15.3.2027`, with a real day and month (so "1.2.0" or "0.11.2", version
+-- numbers, are not dates).
+local function is_dotted_date(w)
+  local d, m, y = w:match("^(%d%d?)%.(%d%d?)%.(%d*)$")
+  if not d then
+    return false
+  end
+  d, m = tonumber(d), tonumber(m)
+  return d >= 1 and d <= 31 and m >= 1 and m <= 12 and (y == "" or y:match("^[1-9]%d%d%d$") ~= nil)
+end
+
 local function is_numeric_date(w)
   return w:match("^%d%d%d%d%-%d%d?%-%d%d?$")
     or w:match("^%d%d%d%d%-%d%d?%-%d%d?t%d%d?:%d%d$")
     or w:match("^%d%d?/%d%d?$")
     or w:match("^%d%d?/%d%d?/%d+$")
-    or w:match("^%d%d?%.%d%d?%.%d*$")
+    or is_dotted_date(w)
     or w:match("^w%d%d?$")
 end
 
@@ -182,6 +194,11 @@ local function word_class(w)
   elseif w:match("^%d%d?th$") or w:match("^%d%d%d%d$") then
     return "num"
   end
+end
+
+--- A day number next to a month name: `4`, `4th`, `21st`.
+local function is_day(w)
+  return w:match("^%d%d?$") ~= nil or w:match("^%d%d?[snrt][tdh]$") ~= nil
 end
 
 --- The text read_date understands for a word.
@@ -263,33 +280,37 @@ local function parse_every(tokens, i)
       return { value = v, unit = UNITS[nxt] }, nil, i + 2
     end
   end
-  -- every mon, every mon,thu, every mon and thu
-  local days, j = {}, i
-  while true do
-    local word = tokens[j] and lower(tokens[j])
-    if not word then
-      break
-    end
-    local found = false
-    for part in (word .. ","):gmatch("([^,]*),") do
+  -- every mon, every mon,thu, every mon, thu, every mon thu, every mon and thu
+  -- The weekdays of a word ("mon", "mon,", "mon,thu"), or nil.
+  local function weekdays(word)
+    local list = {}
+    for part in ((word or "") .. ","):gmatch("([^,]*),") do
       if part ~= "" then
         if not WEEKDAYS[part] then
-          found = false
-          break
+          return nil
         end
-        days[#days + 1] = WEEKDAYS[part]
-        found = true
+        list[#list + 1] = WEEKDAYS[part]
       end
     end
+    return #list > 0 and list or nil
+  end
+  local days, j = {}, i
+  while true do
+    local found = weekdays(tokens[j] and lower(tokens[j]))
     if not found then
       break
+    end
+    for _, d in ipairs(found) do
+      if not vim.tbl_contains(days, d) then
+        days[#days + 1] = d
+      end
     end
     j = j + 1
     local nw = tokens[j] and lower(tokens[j])
     local after = tokens[j + 1] and lower(tokens[j + 1])
-    if nw == "and" and after and WEEKDAYS[after] then
+    if (nw == "and" or nw == ",") and weekdays(after) then
       j = j + 1
-    else
+    elseif not weekdays(nw) then
       break
     end
   end
@@ -385,9 +406,24 @@ function M.parse(text, now, opts)
           break
         end
       elseif cls == "num" then
+        -- A month takes a day number on one side only ("chapter 3 may 4"
+        -- is May 4th), and a year may follow "may 4" or "4 may".
+        local year = w:match("^%d%d%d%d$") ~= nil
+        local before = run[#run - 1]
         local next_month = nxt and word_class(nxt) == "month"
-        local prev_month = prev and prev.cls == "month"
-        if not (next_month or prev_month) then
+        local after_month = tokens[j + 2] and lower(tokens[j + 2])
+        if next_month and after_month and is_day(after_month) then
+          next_month = false -- the number after the month is its day
+        end
+        local prev_month = prev and prev.cls == "month" and (year or not (before and before.cls == "num"))
+        local month_day = year
+          and prev
+          and prev.cls == "num"
+          and is_day(prev.word or "")
+          and before
+          and before.cls == "month"
+          and not (run[#run - 2] and run[#run - 2].cls == "num")
+        if not (next_month or prev_month or month_day) then
           break
         end
       elseif not cls then
@@ -538,6 +574,42 @@ function M.parse(text, now, opts)
       after_text = true
     end
   end
+
+  local saved_now = date.now
+  if now then
+    date.now = function()
+      return now:clone()
+    end
+  end
+  local ok, err = pcall(function()
+    now = date.now()
+    for _, kind in ipairs({ "scheduled", "deadline" }) do
+      local part = last[kind]
+      if part then
+        local words = {}
+        for _, x in ipairs(part.run) do
+          if x.cls == "rel" then
+            words[#words + 1] = x.text
+          end
+        end
+        for _, x in ipairs(part.run) do
+          if x.cls ~= "rel" then
+            words[#words + 1] = x.text
+          end
+        end
+        item[kind] = date.read_date(table.concat(words, " "))
+        if not item[kind] then
+          -- not a date after all: the words stay in the title
+          part.run = nil
+        end
+      end
+    end
+  end)
+  date.now = saved_now
+  if not ok then
+    error(err, 0)
+  end
+
   for _, part in ipairs(parts) do
     if part.run then
       vim.list_extend(date_words[part.kind], part.run)
@@ -553,41 +625,13 @@ function M.parse(text, now, opts)
   end
 
   local times_only = {}
-  local saved_now = date.now
-  if now then
-    date.now = function()
-      return now:clone()
-    end
-  end
-  local ok, err = pcall(function()
-    now = date.now()
-    for _, kind in ipairs({ "scheduled", "deadline" }) do
-      local words = date_words[kind]
-      times_only[kind] = true
-      for _, x in ipairs(words) do
-        if not is_time(x.text) then
-          times_only[kind] = false
-        end
-      end
-      if #words > 0 then
-        local parts = {}
-        for _, x in ipairs(words) do
-          if x.cls == "rel" then
-            parts[#parts + 1] = x.text
-          end
-        end
-        for _, x in ipairs(words) do
-          if x.cls ~= "rel" then
-            parts[#parts + 1] = x.text
-          end
-        end
-        item[kind] = date.read_date(table.concat(parts, " "))
+  for _, kind in ipairs({ "scheduled", "deadline" }) do
+    times_only[kind] = true
+    for _, x in ipairs(date_words[kind]) do
+      if not is_time(x.text) then
+        times_only[kind] = false
       end
     end
-  end)
-  date.now = saved_now
-  if not ok then
-    error(err, 0)
   end
 
   if every then

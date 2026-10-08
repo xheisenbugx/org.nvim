@@ -142,6 +142,33 @@ describe("export (Emacs features)", function()
     has(h, "Two child</h3>")
   end)
 
+  it("rebases an included file's links onto the top-level document", function()
+    -- org-export--prepare-file-contents: every file link (plain, angle,
+    -- bracket, file+sys / file+emacs), also in a nested include, becomes
+    -- relative to the top-level file; verbatim text and src blocks are kept
+    local dir = tmpdir()
+    vim.fn.mkdir(dir .. "/sub", "p")
+    vim.fn.writefile({
+      "plain file:pic.png and <file:a.txt> and [[file+sys:b.pdf]] and [[file+emacs:c.org][C]]",
+      "[[./d.org]] [[file:e.org::*H][E]] [[file:/abs/x.org]] [[file:p.png][file:thumb.png]] =file:v.png=",
+      "#+begin_src sh",
+      "echo file:src.png",
+      "#+end_src",
+      '#+INCLUDE: "./deeper.org"',
+    }, dir .. "/sub/inc.org")
+    vim.fn.writefile({ "deeper [[file:d2.org][d]] file:dd.png" }, dir .. "/sub/deeper.org")
+    local out = export.to_string("org", {
+      lines = { '#+INCLUDE: "sub/inc.org"' },
+      filename = dir .. "/main.org",
+      body_only = true,
+    })
+    has(out, "plain file:sub/pic.png and <file:sub/a.txt> and [[file+sys:sub/b.pdf]] and [[file+emacs:sub/c.org][C]]")
+    has(out, "[[sub/d.org]] [[file:sub/e.org::*H][E]] [[file:/abs/x.org]] [[file:sub/p.png][file:sub/thumb.png]]")
+    has(out, "=file:v.png=")
+    has(out, "echo file:src.png")
+    has(out, "deeper [[file:sub/d2.org][d]] file:sub/dd.png")
+  end)
+
   it("stops the export on a missing #+INCLUDE file, like Emacs", function()
     local ok_, err = pcall(ox.export_as, "html", { '#+INCLUDE: "nope.org"' }, { filename = tmpdir() .. "/x.org" })
     eq(false, ok_)
@@ -221,6 +248,24 @@ describe("export (Emacs features)", function()
       end
       return html(lines, { filename = dir .. "/t.org" })
     end
+
+    it("makes a search in a missing file a broken link", function()
+      -- find-file-noselect gives an empty buffer: the search finds nothing
+      local links = "[[file:missing.org::target][t]] [[file:missing.org::#cid][c]] "
+        .. "[[file:missing.org::*Head][h]] [[file:missing.org::(ref)][r]]"
+      local h = export_links(links, "mark")
+      has(
+        h,
+        "[BROKEN LINK: No match for fuzzy expression: target] "
+          .. '<a href="missing.html#cid">c</a> '
+          .. "[BROKEN LINK: No match for fuzzy expression: *Head] "
+          .. "[BROKEN LINK: No match for coderef: ref]"
+      )
+      has(export_links(links, "t"), '<a href="missing.html#cid">c</a> \n</p>')
+      local ok_, err = pcall(export_links, links)
+      eq(false, ok_)
+      has(tostring(err), 'Unable to resolve link: "No match for fuzzy expression: target"')
+    end)
 
     it("finds the text of a file that isn't an Org file, and warns", function()
       local h = export_links("See [[file:x.lua::3]] and [[file:x.lua::3][desc]].")

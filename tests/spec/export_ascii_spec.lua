@@ -64,6 +64,24 @@ describe("ascii export", function()
       eq("a b\nc d\n", ascii.fill_string("a\nb" .. ascii.HARD .. "c\nd\n", 72, {}))
     end)
 
+    it("breaks and joins CJK text without spaces, with kinsoku", function()
+      -- Emacs 9.8.10 (fill.el, kinsoku.el): a line breaks between two CJK
+      -- characters, a newline between them is deleted, and a line doesn't
+      -- start with 、 or 。 nor end with 「
+      eq(
+        "漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字\n漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字 end\n",
+        exp(string.rep("漢字", 30) .. " end")
+      )
+      eq(
+        "日本語の文章が二行に分かれている。次の行もある。「かぎ括弧」の中、句読点。\n「かぎ括弧」の中、句読点。「かぎ括弧」の中、句読点。「かぎ括弧」の中、句\n読点。「かぎ括弧」の中、句読点。「かぎ括弧」の中、句読点。\n",
+        exp({
+          "日本語の文章が",
+          "二行に分かれている。",
+          "次の行もある。" .. string.rep("「かぎ括弧」の中、句読点。", 6),
+        })
+      )
+    end)
+
     it("centers and right-justifies", function()
       eq("\t   abc\n", ascii.fill_string("abc\n", 25, {}, "center"))
       eq("\t\t\t abc\n", ascii.fill_string("abc\n", 28, {}, "right"))

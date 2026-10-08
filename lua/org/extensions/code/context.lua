@@ -278,11 +278,7 @@ function M.capture()
     if mode == "v" then
       local lines = vim.api.nvim_buf_get_lines(buf, srow - 1, erow, false)
       -- ecol is the first byte of the last character: take all of it
-      local last = lines[#lines]
-      while ecol < #last and last:byte(ecol + 1) >= 0x80 and last:byte(ecol + 1) < 0xC0 do
-        ecol = ecol + 1
-      end
-      lines[#lines] = last:sub(1, ecol)
+      lines[#lines] = lines[#lines]:sub(1, utils.char_end(lines[#lines], ecol))
       lines[1] = lines[1]:sub(scol)
       text = table.concat(lines, "\n")
     end

@@ -64,6 +64,62 @@ describe("babel (Emacs header args)", function()
     eq({ "-- local x = 1", "local y = 2", "return 'A' .. 'A'" }, body)
   end)
 
+  it("follows each :noweb-ref block with its own :noweb-sep", function()
+    -- Emacs: org-babel-expand-noweb-references => "one AAA two BBB three"
+    local buf = org_buffer({
+      '#+begin_src sh :noweb-ref parts :noweb-sep " AAA "',
+      "one",
+      "#+end_src",
+      '#+begin_src sh :noweb-ref parts :noweb-sep " BBB "',
+      "two",
+      "#+end_src",
+      '#+begin_src sh :noweb-ref parts :noweb-sep " CCC "',
+      "three",
+      "#+end_src",
+      "#+begin_src sh :noweb yes",
+      "<<parts>>",
+      "#+end_src",
+    }, { 11, 0 })
+    local b = babel.at_block(buf, 11)
+    eq({ "one AAA two BBB three" }, babel.expand_noweb(buf, b.body, 0, nil, b.args, "eval"))
+  end)
+
+  it("expands the references of a referenced block by org-babel-noweb-p", function()
+    -- Emacs: (org-babel-expand-noweb-references nil nil CONTEXT) on <<child>>
+    local expect = {
+      ["strip-export"] = { eval = true, tangle = true, export = false },
+      ["strip-tangle"] = { eval = true, tangle = true, export = true },
+      ["no-export"] = { eval = true, tangle = true, export = false },
+      yes = { eval = true, tangle = true, export = true },
+      eval = { eval = true, tangle = false, export = false },
+      tangle = { eval = false, tangle = true, export = false },
+    }
+    for nw, by in pairs(expect) do
+      local buf = org_buffer({
+        "#+NAME: inner",
+        "#+begin_src sh",
+        "INNER",
+        "#+end_src",
+        "",
+        "#+NAME: child",
+        "#+begin_src sh :noweb " .. nw,
+        "child <<inner>>",
+        "#+end_src",
+        "",
+        "#+begin_src sh :noweb yes",
+        "<<child>>",
+        "#+end_src",
+      }, { 12, 0 })
+      local b = babel.at_block(buf, 12)
+      for purpose, expands in pairs(by) do
+        eq(
+          { nw .. " " .. purpose, expands and "child INNER" or "child <<inner>>" },
+          { nw .. " " .. purpose, babel.expand_noweb(buf, b.body, 0, nil, b.args, purpose)[1] }
+        )
+      end
+    end
+  end)
+
   it("skips blocks in COMMENT subtrees for noweb and tangling", function()
     local dir = tmpdir()
     local buf = org_buffer({

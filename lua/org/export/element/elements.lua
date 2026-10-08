@@ -107,9 +107,9 @@ function P:headline_title(node, line, inlinetask)
     rest = rest:gsub("^COMMENT[ \t]*", "")
   end
   local tags = {}
-  local before, tagstr = rest:match("^(.-)[ \t]+(:[%w_@#%%:]+:)[ \t]*$")
+  local before, tagstr = rest:match("^(.-)[ \t]+(:[%w_@#%%:\128-\255]+:)[ \t]*$")
   if not before then
-    tagstr = rest:match("^(:[%w_@#%%:]+:)[ \t]*$")
+    tagstr = rest:match("^(:[%w_@#%%:\128-\255]+:)[ \t]*$")
     before = tagstr and "" or nil
   end
   if tagstr then

@@ -346,20 +346,54 @@ local function hidden(hl, include_archived, memo)
   return v
 end
 
+--- Skip predicates that skip the whole subtree of an entry they hold for
+--- (org-agenda-skip-subtree-if), set by `org.agenda.skip_subtree_if`.
+---@type table<function, boolean>
+M.subtree_skips = setmetatable({}, { __mode = "k" })
+
 --- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT
 --- subtrees unless `all` is set, and those `agenda.skip_function_global`
 --- or `opts.skip` skip, org-agenda-skip).
+---
+--- Like Emacs, which calls the skip function only at the entries a view
+--- matches, a subtree skip (`M.subtree_skips`) is asked about the
+--- headlines `opts.candidate` accepts (every headline without it), and
+--- when it holds the headlines below are left out too.
 ---@param files org.File[]
----@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean, all?: boolean }
+---@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean, all?: boolean, candidate?: fun(hl): any }
 function M.each_headline(files, opts, fn)
   opts = opts or {}
   local r = opts.restrict
   -- whether each headline is hidden, so that a subtree's ancestors are
   -- checked once rather than for every headline in it
   local memo = {}
+  local skips = {}
   local global = config.opts.agenda.skip_function_global
-  if type(global) ~= "function" then
-    global = nil
+  if type(global) == "function" then
+    skips[#skips + 1] = { fn = global, subtree = M.subtree_skips[global] }
+  end
+  if opts.skip then
+    skips[#skips + 1] = { fn = opts.skip, subtree = M.subtree_skips[opts.skip] }
+  end
+  local function skipped(s, hl)
+    if s.subtree then
+      local below = s.below
+      if below and below.file == hl.file and hl.line <= below.end_line then
+        return true
+      end
+      s.below = nil
+      if opts.candidate and not opts.candidate(hl) then
+        return false
+      end
+    end
+    local s_ok, skip = pcall(s.fn, hl)
+    if s_ok and skip then
+      if s.subtree then
+        s.below = hl
+      end
+      return true
+    end
+    return false
   end
   for fidx, file in ipairs(files) do
     for _, hl in ipairs(file.headlines) do
@@ -367,19 +401,29 @@ function M.each_headline(files, opts, fn)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
       end
-      if ok and global then
-        local s_ok, skip = pcall(global, hl)
-        ok = not (s_ok and skip)
-      end
-      if ok and opts.skip then
-        local s_ok, skip = pcall(opts.skip, hl)
-        ok = not (s_ok and skip)
+      for i = 1, #skips do
+        if not ok then
+          break
+        end
+        ok = not skipped(skips[i], hl)
       end
       if ok then
         fn(hl, file, fidx)
       end
     end
   end
+end
+
+--- `opts` with `candidate` set: the entries a subtree skip is asked about.
+local function with_candidate(opts, candidate)
+  return vim.tbl_extend("force", opts, { candidate = candidate })
+end
+
+--- Can the entry show in a day agenda (the timestamps
+--- org-agenda-get-day-entries looks at)?
+local function has_agenda_date(hl)
+  local p = hl.planning
+  return p.scheduled or p.deadline or p.closed or #hl.timestamps > 0 or #hl.clocks > 0 or hl.first_inactive
 end
 
 ---------------------------------------------------------------------------
@@ -743,7 +787,7 @@ function M.agenda(files, from, to, opts)
     end
   end
 
-  M.each_headline(files, opts, function(hl, _, fidx)
+  M.each_headline(files, with_candidate(opts, has_agenda_date), function(hl, _, fidx)
     cur_fidx = fidx
     local done = hl:is_done()
     local sexps = has_sexps(hl.file)
@@ -1357,7 +1401,9 @@ local function ignored_by_date(hl, acfg, today)
     end
   end
   local is = acfg.todo_ignore_scheduled
-  if is and s then
+  -- org-scheduled-time-regexp and org-deadline-time-regexp only match
+  -- active timestamps
+  if is and s and s.active then
     local diff = to_now(s)
     if is == "future" then
       if diff > 0 then
@@ -1376,7 +1422,7 @@ local function ignored_by_date(hl, acfg, today)
     end
   end
   local id = acfg.todo_ignore_deadlines
-  if id and dl then
+  if id and dl and dl.active then
     local diff = to_now(dl)
     local wdays = acfg.deadline_warning_days or config.opts.deadline_warning_days
     -- org-deadline-close-p always compares days
@@ -1438,19 +1484,22 @@ function M.todo(files, keywords, opts)
   end
   local out = {}
   local skip_below
-  M.each_headline(files, opts, function(hl)
+  -- the entries org-agenda-get-todos matches
+  local function matches(hl)
+    if not hl.todo then
+      return false
+    end
+    if set and not any then
+      return set[hl.todo] == true
+    end
+    return set ~= nil or hl:is_todo()
+  end
+  M.each_headline(files, with_candidate(opts, matches), function(hl)
     if skip_below and hl.file == skip_below.file and hl.line <= skip_below.end_line then
       return
     end
     skip_below = nil
-    if not hl.todo then
-      return
-    end
-    if set and not any then
-      if not set[hl.todo] then
-        return
-      end
-    elseif not set and not hl:is_todo() then
+    if not matches(hl) then
       return
     end
     if ignored_by_date(hl, acfg, today) then
@@ -1478,7 +1527,10 @@ function M.tags(files, predicate, todo_only, opts)
   local today = date.today_days()
   local out = {}
   local skip_below
-  M.each_headline(files, opts, function(hl)
+  local function matches(hl)
+    return (not todo_only or hl:is_todo()) and predicate(hl)
+  end
+  M.each_headline(files, with_candidate(opts, matches), function(hl)
     if skip_below and hl.file == skip_below.file and hl.line <= skip_below.end_line then
       return
     end
@@ -1505,7 +1557,7 @@ end
 --- Text search (org-search-view).
 function M.search(files, predicate, opts)
   local out = {}
-  M.each_headline(files, opts, function(hl)
+  M.each_headline(files, with_candidate(opts or {}, predicate), function(hl)
     if predicate(hl) then
       out[#out + 1] = new_item(hl, {
         type = "search",
@@ -1569,7 +1621,7 @@ function M.stuck(files, opts)
     return false
   end
   local out = {}
-  M.each_headline(files, opts, function(hl)
+  M.each_headline(files, with_candidate(opts, pred), function(hl)
     if not pred(hl) then
       return
     end

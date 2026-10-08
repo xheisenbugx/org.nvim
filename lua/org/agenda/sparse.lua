@@ -430,17 +430,23 @@ function M.dates(kind, d1, d2, type)
   return out
 end
 
---- Deadlines that are past due or within their warning period.
-function M.deadlines()
+--- Deadlines that are past due or due within `ndays` days, by default
+--- the absolute value of `deadline_warning_days` (org-check-deadlines:
+--- a stamp's own `-Nd` lead time is not used, and only active DEADLINE
+--- stamps count).
+---@param ndays? integer
+function M.deadlines(ndays)
   local today = date.today_days()
-  local warn_default = require("org.config").opts.deadline_warning_days
-  return M.headlines(function(hl)
+  local warn = ndays or math.abs(require("org.config").opts.deadline_warning_days or 14)
+  local out = {}
+  for _, hl in ipairs(files.get_buffer(0).headlines) do
     local dl = hl.planning.deadline
-    if not dl or hl:is_done() then
-      return false
+    if dl and dl.active and not hl:is_done() and dl:days() - today <= warn then
+      out[#out + 1] = { lnum = hl.line }
     end
-    return dl:days() - today <= date.deadline_warning_days(dl, warn_default)
-  end, "deadlines")
+  end
+  M.show(out, "deadlines", nil, string.format("%d deadlines past-due or due within %d days", #out, warn))
+  return out
 end
 
 local function pick_date(prompt)
@@ -459,6 +465,7 @@ function M.prompt(date_type)
   if not utils.ensure_org() then
     return
   end
+  local count = vim.v.count
   if date_type == nil then
     date_type = require("org.config").opts.sparse_tree_default_date_type or false
   end
@@ -535,7 +542,8 @@ function M.prompt(date_type)
       return pred(hl)
     end, input, "tags")
   elseif choice == "d" then
-    M.deadlines()
+    -- a count before the menu key tests that many days
+    M.deadlines(count > 0 and count or nil)
   elseif choice == "b" or choice == "a" then
     local d = pick_date(choice == "b" and "Before date" or "After date")
     if d then

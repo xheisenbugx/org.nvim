@@ -574,18 +574,23 @@ local function save_if_hidden(bufnr)
   end
 end
 
---- Where the last refile / capture went: { filename|bufnr, lnum, raw }.
-M.last_stored = nil
+--- Where the last refile and the last capture went, each kept apart like
+--- Emacs's :last-refile bookmark and org-capture-last-stored-marker:
+--- { last_refile = loc, last_capture = loc }, loc = { filename|bufnr, lnum, raw }.
+M.last_stored = {}
 
---- Remember the headline at (bufnr, lnum) as the last stored location,
---- and set the `kind` bookmark ("last_refile" or "last_capture", see
---- `bookmark_names`), which lasts across sessions.
-function M.remember(bufnr, lnum, kind)
+--- Remember the headline at (bufnr, lnum) as the last stored location of
+--- `kind` ("last_refile", the default, or "last_capture"), and set the
+--- bookmark `bookmark` (default `kind`, see `bookmark_names`), which lasts
+--- across sessions.
+---@param kind? "last_refile"|"last_capture"
+---@param bookmark? string
+function M.remember(bufnr, lnum, kind, bookmark)
+  kind = kind or "last_refile"
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local name = vim.api.nvim_buf_get_name(bufnr)
-  M.last_stored = { bufnr = bufnr, filename = name ~= "" and name or nil, lnum = lnum, raw = line }
-  M.last_stored_kind = kind
-  require("org.bookmarks").set(kind or "last_refile", bufnr, lnum)
+  M.last_stored[kind] = { bufnr = bufnr, filename = name ~= "" and name or nil, lnum = lnum, raw = line }
+  require("org.bookmarks").set(bookmark or kind, bufnr, lnum)
 end
 
 --- Log a refile note under the moved entry (org-log-refile). `note`: the
@@ -834,18 +839,19 @@ M["goto"] = function()
   utils.open_file(dest.filename, lnum)
 end
 
---- Jump to the location of the last refile or capture
---- (org-refile-goto-last-stored, C-u C-u C-c C-w).
---- In a new session, the saved bookmark `bookmark` ("last_refile" or
---- "last_capture") is used.
-function M.goto_last_stored(bookmark)
+--- Jump to the location of the last refile (org-refile-goto-last-stored,
+--- C-u C-u C-c C-w), or with `kind` "last_capture" of the last capture.
+--- In a new session, the saved bookmark of that name is used.
+---@param kind? "last_refile"|"last_capture"
+function M.goto_last_stored(kind)
+  kind = kind or "last_refile"
   local bookmarks = require("org.bookmarks")
-  local l = M.last_stored
+  local l = M.last_stored[kind]
   if not l then
-    l = bookmarks.get(bookmarks.name(bookmark or "last_refile"))
+    l = bookmarks.get(bookmarks.name(kind))
   end
   if not l then
-    utils.warn("No refile or capture location stored yet")
+    utils.warn(kind == "last_capture" and "No capture location stored yet" or "No refile location stored yet")
     return
   end
   bookmarks.goto_location(l)

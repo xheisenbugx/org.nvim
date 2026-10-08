@@ -106,38 +106,56 @@ local function state_file()
   return type(f) == "string" and f ~= "" and vim.fn.expand(f) or nil
 end
 
+--- Find the entry again in its file (loading it) by its saved line and
+--- title, and put a fresh extmark on it: after a restore, or once the
+--- entry's buffer was unloaded (`:bdelete`), which drops the extmark.
+---@param st org.PomodoroState
+---@return boolean
+local function relocate(st)
+  if not st.path then
+    return false
+  end
+  local ok, b = pcall(utils.load_buffer, st.path)
+  if not ok or not b then
+    return false
+  end
+  local file = require("org.files").get_buffer(b)
+  local hl = file:headline_at(st.lnum or 1)
+  if not (hl and hl:plain_title() == st.title) then
+    hl = file:find_headline(function(h)
+      return h:plain_title() == st.title
+    end)
+  end
+  if not hl then
+    return false
+  end
+  st.bufnr = b
+  st.mark = vim.api.nvim_buf_set_extmark(b, ns, hl.line - 1, 0, {})
+  return true
+end
+
 local function entry_line(st)
   st = st or M.state
   if not st then
     return nil
   end
-  if not (st.bufnr and vim.api.nvim_buf_is_valid(st.bufnr)) and st.path then
-    -- restored: find the entry in its file (loaded now)
-    local ok, b = pcall(utils.load_buffer, st.path)
-    if not ok or not b then
+  local pos
+  if st.bufnr and st.mark and vim.api.nvim_buf_is_loaded(st.bufnr) then
+    pos = vim.api.nvim_buf_get_extmark_by_id(st.bufnr, ns, st.mark, {})
+  end
+  if not (pos and pos[1]) then
+    if not relocate(st) then
       return nil
     end
-    local file = require("org.files").get_buffer(b)
-    local hl = file:headline_at(st.lnum or 1)
-    if not (hl and hl:plain_title() == st.title) then
-      hl = file:find_headline(function(h)
-        return h:plain_title() == st.title
-      end)
-    end
-    if not hl then
+    pos = vim.api.nvim_buf_get_extmark_by_id(st.bufnr, ns, st.mark, {})
+    if not pos[1] then
       return nil
     end
-    st.bufnr = b
-    st.mark = vim.api.nvim_buf_set_extmark(b, ns, hl.line - 1, 0, {})
-  end
-  if not (st.bufnr and st.mark and vim.api.nvim_buf_is_valid(st.bufnr)) then
-    return nil
-  end
-  local pos = vim.api.nvim_buf_get_extmark_by_id(st.bufnr, ns, st.mark, {})
-  if not pos[1] then
-    return nil
   end
   local hl = require("org.files").get_buffer(st.bufnr):headline_at(pos[1] + 1)
+  if hl then
+    st.lnum = hl.line
+  end
   return hl and hl.line or nil
 end
 

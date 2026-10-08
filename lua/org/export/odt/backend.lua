@@ -170,7 +170,7 @@ local function translate_list_tables(tree, _, info)
 end
 
 local function translate_image_links(tree, _, info)
-  return ox.insert_image_links(tree, info, info.odt_inline_image_rules)
+  return ox.insert_image_links(tree, info, info.odt_inline_image_rules, true)
 end
 
 --- org-odt--remove-forbidden: characters not allowed in XML 1.0.

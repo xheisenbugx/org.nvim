@@ -173,7 +173,7 @@ local function visual_selection()
   utils.exit_visual()
   local lines = vim.api.nvim_buf_get_lines(0, srow - 1, erow, false)
   if mode == "v" and #lines > 0 then
-    lines[#lines] = lines[#lines]:sub(1, ecol)
+    lines[#lines] = lines[#lines]:sub(1, utils.char_end(lines[#lines], ecol))
     lines[1] = lines[1]:sub(scol)
   end
   return table.concat(lines, "\n")

@@ -417,8 +417,7 @@ local function visual_region()
     scol = #first:match("^%s*") + 1
     ecol = #line
   else
-    local ch = vim.fn.strcharpart(line:sub(ecol), 0, 1)
-    ecol = math.min(#line, ecol + math.max(#ch, 1) - 1)
+    ecol = utils.char_end(line, ecol)
   end
   return { srow, scol, erow, ecol }
 end

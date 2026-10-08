@@ -767,7 +767,7 @@ function Doc:parse_title(el)
   while back > 1 and line:sub(back - 1, back - 1):match("[ \t]") do
     back = back - 1
   end
-  local ts, tagstr = line:match("()[ \t]+(:[%w_@#%%:]+:)[ \t]*$", back)
+  local ts, tagstr = line:match("()[ \t]+(:[%w_@#%%:\128-\255]+:)[ \t]*$", back)
   if ts and #tagstr > 2 then
     title_end = ts
     el.tags = {}

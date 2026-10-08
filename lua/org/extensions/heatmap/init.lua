@@ -174,21 +174,38 @@ function M.done_days(hl)
 end
 
 --- Add a clock's minutes to the days it covers, within minutes
---- [lo, hi).
-local function add_clock(values, c, now_min, lo, hi)
+--- [lo, hi). Days are split at local midnight; each part counts the time
+--- that elapsed (like the clock table), so a clock across a DST change
+--- counts one hour less or more than its wall-clock span.
+local function add_clock(values, c, now, lo, hi)
+  local stop_date = c["end"] or now
   local s = c.start:minutes()
   if s >= hi then
     return
   end
-  local e = c["end"] and c["end"]:minutes() or now_min
+  local e = stop_date:minutes()
+  local s0, e0 = s, e
   s, e = math.max(s, lo), math.min(e, hi)
   if e <= s then
     return
   end
+  -- seconds since the epoch of a wall-clock minute: the clock's own ends,
+  -- else a local midnight
+  local function epoch(w)
+    if w == s0 then
+      return c.start:to_time()
+    elseif w == e0 then
+      return stop_date:to_time()
+    end
+    return date.from_days(math.floor(w / 1440)):to_time()
+  end
   while s < e do
     local day = math.floor(s / 1440)
     local stop = math.min(e, (day + 1) * 1440)
-    values[day] = (values[day] or 0) + (stop - s)
+    local minutes = (epoch(stop) - epoch(s)) / 60
+    if minutes > 0 then
+      values[day] = (values[day] or 0) + minutes
+    end
     s = stop
   end
 end
@@ -203,7 +220,7 @@ end
 ---@return table<integer, number> values, table<integer, table[]> details
 function M.data(kind, hls, first, last)
   local values, details = {}, {}
-  local now_min = date.now():minutes()
+  local now = date.now()
   first, last = first or -math.huge, last or math.huge
   local lo, hi = first * 1440, (last + 1) * 1440
   local first_key = -math.huge
@@ -232,7 +249,7 @@ function M.data(kind, hls, first, last)
         local e = c["end"]
         if not (e and (e.year * 10000 + e.month * 100 + e.day) < first_key) then
           own = own or {}
-          add_clock(own, c, now_min, lo, hi)
+          add_clock(own, c, now, lo, hi)
         end
       end
       for day, v in pairs(own or {}) do

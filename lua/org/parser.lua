@@ -32,7 +32,7 @@ local M = {}
 ---@field drawers { name: string, start: integer, ["end"]: integer }[]
 ---@field logbook { start: integer, ["end"]: integer }|nil
 ---@field clocks { start: table, ["end"]: table|nil, minutes: integer|nil, line: integer }[]
----@field timestamps { date: table, line: integer, start_col: integer, end_col: integer }[]
+---@field timestamps { date: table, line: integer, start_col: integer, end_col: integer, in_title?: boolean, in_property?: boolean }[]
 ---@field parent org.Headline|nil
 ---@field children org.Headline[]
 ---@field index integer position in file.headlines
@@ -77,10 +77,34 @@ local function load_head(hl)
   rawset(hl, "tags", parts.tags)
 end
 
+--- Last line of the text `hl`'s section parse reads: its body, or for an
+--- inline task without an END line, the lines up to the next heading
+--- (org-back-to-heading finds the inline task from them).
+---@param hl org.Headline
+---@return integer
+function M.section_to(hl)
+  local to = rawget(hl, "_section_to")
+  if to then
+    return to
+  end
+  to = rawget(hl, "body_end")
+  if rawget(hl, "inlinetask") and rawget(hl, "end_line") == rawget(hl, "line") then
+    local lines = rawget(hl, "file").lines
+    to = #lines
+    for k = rawget(hl, "line") + 1, #lines do
+      if lines[k]:byte(1) == 42 and M.headline_level(lines[k]) then
+        to = k - 1
+        break
+      end
+    end
+  end
+  return to
+end
+
 local function load_section(hl)
   rawset(hl, "_lazy_section", nil)
   local file = rawget(hl, "file")
-  parse_section(hl, file.lines, rawget(hl, "line") + 1, rawget(hl, "body_end"), file._log_drawer)
+  parse_section(hl, file.lines, rawget(hl, "line") + 1, M.section_to(hl), file._log_drawer, file._min_inline)
 end
 
 function Headline.__index(hl, key)
@@ -151,6 +175,7 @@ end
 ---@field properties_range integer[]|nil {start, end} of the file-level property drawer
 ---@field bufnr? integer the buffer it was parsed from (set by org.files)
 ---@field _log_drawer string the drawer state changes and notes go into, upper-cased
+---@field _min_inline? integer inlinetask_min_level when the file was parsed
 local File = {}
 File.__index = File
 M.File = File
@@ -185,6 +210,10 @@ function M.parse_headline_line(line, todo_cfg)
   end
   todo_cfg = todo_cfg or todo_keywords.global()
   local parts = { level = #stars, stars = stars, tags = {}, commented = false }
+  -- org-element: a keyword is followed by a space or the end of the line
+  -- (a tab is not enough, even before the tags)
+  local kw_word, kw_sep = rest:match("^(%S+)(.?)")
+  local kw_ok = kw_word ~= nil and (kw_sep == "" or kw_sep == " ") and todo_cfg:is_keyword(kw_word)
 
   -- tags
   -- tags use org-tag-re characters: letters, digits, _ @ # % (and any
@@ -206,31 +235,84 @@ function M.parse_headline_line(line, todo_cfg)
 
   -- todo keyword
   local word, after = rest:match("^(%S+)(.*)$")
-  if word and todo_cfg:is_keyword(word) and (after == "" or after:match("^%s")) then
+  if kw_ok and word == kw_word then
     parts.todo = word
     rest = after:gsub("^%s+", "")
   end
-  -- priority
-  -- org-priority-value-regexp: A-Z or 0-64
-  local prio, after2 = rest:match("^%[#([A-Z])%](.*)$")
+  -- priority (org-priority-regexp, value org-priority-value-regexp: A-Z
+  -- or 0-64), then at most one space; the title may follow at once
+  local prio, after2 = rest:match("^%[#([A-Z])%] ?(.*)$")
   if not prio then
-    prio, after2 = rest:match("^%[#(%d%d?)%](.*)$")
+    prio, after2 = rest:match("^%[#(%d%d?)%] ?(.*)$")
     if prio and tonumber(prio) > 64 then
       prio = nil
     end
   end
-  if prio and (after2 == "" or after2:match("^%s")) then
+  if prio then
     parts.priority = prio
-    rest = after2:gsub("^%s+", "")
+    rest = after2
   end
-  -- COMMENT
+  -- COMMENT, followed by a space or the end of the line
   local c_after = rest:match("^COMMENT(.*)$")
-  if c_after and (c_after == "" or c_after:match("^%s")) then
+  if c_after and (c_after == "" or c_after:byte(1) == 32) then
     parts.commented = true
-    rest = c_after:gsub("^%s+", "")
+    rest = c_after
   end
-  parts.title = rest
+  parts.title = rest:gsub("^%s+", "")
   return parts
+end
+
+--- org-remove-tabs: tabs become spaces up to the next multiple of 8.
+---@param s string
+---@return string
+local function remove_tabs(s)
+  if not s:find("\t", 1, true) then
+    return s
+  end
+  local out, col = {}, 0
+  for ch in s:gmatch(".") do
+    if ch == "\t" then
+      local n = 8 - col % 8
+      out[#out + 1] = string.rep(" ", n)
+      col = col + n
+    else
+      out[#out + 1] = ch
+      col = col + 1
+    end
+  end
+  return table.concat(out)
+end
+
+--- The ITEM special property of headline line `line`: its title as
+--- org-complex-heading-regexp reads it, COMMENT kept, tabs expanded.
+---@param line string
+---@param todo_cfg? org.TodoConfig
+---@return string
+function M.item_text(line, todo_cfg)
+  todo_cfg = todo_cfg or todo_keywords.global()
+  local body = line:match("^%*+(.*)$") or ""
+  -- org-tag--group-optional-re, then [ \t]*$
+  local before = body:match("^(.-)[ \t]+:[%w_@#%%:\128-\255]+:[ \t]*$")
+  if before then
+    -- an empty title before the tags: " +(.*?)" is optional
+    body = before
+  else
+    body = body:gsub("[ \t]+$", "")
+  end
+  local kw, rest = body:match("^ +(%S+)(.*)$")
+  if kw and todo_cfg:is_keyword(kw) and (rest == "" or rest:byte(1) == 32) then
+    body = rest
+  end
+  local cookie, rest2 = body:match("^ +%[#([%w]+)%](.*)$")
+  if cookie and (rest2 == "" or rest2:byte(1) == 32) then
+    local n = tonumber(cookie)
+    if cookie:match("^[A-Z]$") or (cookie:match("^%d%d?$") and n and n <= 64) then
+      body = rest2
+    end
+  end
+  -- " +(.*?)": a title must follow spaces
+  local title = body:match("^ +(.*)$")
+  return title and remove_tabs(title) or ""
 end
 
 ---------------------------------------------------------------------------
@@ -530,10 +612,152 @@ local function no_objects(line)
   return key ~= nil and not key:upper():match("^CAPTION")
 end
 
+--- Spans of inline code and verbatim (`~...~`, `=...=`) in `line`.
+---@param line string
+---@return integer[][] { start, end } byte columns
+function M.verbatim_spans(line)
+  local spans = {}
+  local init = 1
+  while true do
+    local s = line:find("[=~]", init)
+    if not s then
+      break
+    end
+    local m = line:sub(s, s)
+    local pre = line:sub(s - 1, s - 1)
+    local nxt = line:sub(s + 1, s + 1)
+    if (pre == "" or pre:match("[%s%(%{'\"%-]")) and nxt ~= "" and not nxt:match("%s") then
+      local e = s + 1 ---@type integer|nil
+      local found
+      while e do
+        e = line:find(m, e + 1, true)
+        if not e then
+          break
+        end
+        local after = line:sub(e + 1, e + 1)
+        if not line:sub(e - 1, e - 1):match("%s") and (after == "" or after:match("[%s%-%.,;:!%?'\"%)%}%[%]]")) then
+          found = e
+          break
+        end
+      end
+      if found then
+        spans[#spans + 1] = { s, found }
+        init = found + 1
+      else
+        init = s + 1
+      end
+    else
+      init = s + 1
+    end
+  end
+  return spans
+end
+
+--- Spans of `line` whose text holds no timestamp objects: verbatim and
+--- code, inline source blocks (`src_lang[...]{...}`) and bracket links
+--- (path and description). nil when the line has none of them.
+---@param line string
+---@return integer[][]|nil
+local function objectless_spans(line)
+  local spans
+  if line:find("[=~]") then
+    spans = M.verbatim_spans(line)
+  end
+  if line:find("[[", 1, true) then
+    spans = spans or {}
+    local init = 1
+    while true do
+      local s, e = line:find("%[%[.-%]%]", init)
+      if not s then
+        break
+      end
+      spans[#spans + 1] = { s, e }
+      init = e + 1
+    end
+  end
+  if line:find("src_", 1, true) then
+    spans = spans or {}
+    local init = 1
+    while true do
+      local s, e = line:find("src_[^%s%[{]+", init)
+      if not s then
+        break
+      end
+      init = e + 1
+      if s == 1 or not line:sub(s - 1, s - 1):match("[%w_]") then
+        local after = e + 1
+        if line:sub(after, after) == "[" then
+          local _, oe = line:find("^%b[]", after)
+          after = oe and oe + 1 or after
+        end
+        local _, be = line:find("^%b{}", after)
+        if be then
+          spans[#spans + 1] = { s, be }
+          init = be + 1
+        end
+      end
+    end
+  end
+  return spans
+end
+
+--- The timestamps of `line` that are timestamp objects (date.parse_all,
+--- without those inside verbatim, inline source blocks and links).
+---@param line string
+local function object_stamps(line)
+  local found = date.parse_all(line)
+  if #found == 0 then
+    return found
+  end
+  local spans = objectless_spans(line)
+  if not spans or #spans == 0 then
+    return found
+  end
+  local out = {}
+  for _, item in ipairs(found) do
+    local inside = false
+    for _, sp in ipairs(spans) do
+      if item.start_col >= sp[1] and item.start_col <= sp[2] then
+        inside = true
+        break
+      end
+    end
+    if not inside then
+      out[#out + 1] = item
+    end
+  end
+  return out
+end
+
+--- Last line of the LaTeX environment opening at `lines[i]`
+--- (org-element-latex-environment-parser), or nil.
+---@param lines string[]
+---@param i integer
+---@param to integer
+---@return integer|nil
+local function latex_environment_end(lines, i, to)
+  local name = lines[i]:match("^%s*\\begin{([%w*]+)}")
+  if not name then
+    return nil
+  end
+  local close = "^%s*\\end{" .. vim.pesc(name) .. "}%s*$"
+  for k = i, to do
+    if lines[k]:match(close) then
+      return k
+    end
+  end
+end
+
 -- The closing line of a drawer, any case (org-element-drawer-parser).
 local DRAWER_END = "^%s*:[Ee][Nn][Dd]:%s*$"
 
-function parse_section(hl, lines, from, to, log_drawer)
+---@param hl table
+---@param lines string[]
+---@param from integer
+---@param to integer
+---@param log_drawer string
+---@param min_inline? integer inline tasks start at this level
+function parse_section(hl, lines, from, to, log_drawer, min_inline)
   hl.planning = {}
   hl.properties = {}
   hl.property_base = {}
@@ -541,8 +765,23 @@ function parse_section(hl, lines, from, to, log_drawer)
   hl.clocks = {}
   hl.timestamps = {}
 
+  -- An inline task's heading ends the section's text: like
+  -- org-back-to-heading, what follows belongs to the inline task.
+  if min_inline then
+    for k = from, to do
+      local l = lines[k]
+      if l:byte(1) == 42 then
+        local lv = M.headline_level(l)
+        if lv and lv >= min_inline then
+          to = k - 1
+          break
+        end
+      end
+    end
+  end
+
   -- timestamps in the title
-  for _, item in ipairs(date.parse_all(hl.title)) do
+  for _, item in ipairs(object_stamps(hl.title)) do
     if not item.date.active and not hl.first_inactive then
       hl.first_inactive = item.date
     end
@@ -574,6 +813,24 @@ function parse_section(hl, lines, from, to, log_drawer)
     for key, value in pairs(drawer) do
       hl[key] = value
     end
+    -- active timestamps in property values count for the agenda, but
+    -- are no timestamp objects (TIMESTAMP, TIMESTAMP_IA skip them)
+    for k = i + 1, drawer.properties_range[2] - 1 do
+      local line = lines[k]
+      if line:find("<", 1, true) then
+        for _, item in ipairs(date.parse_all(line)) do
+          if item.date.active then
+            hl.timestamps[#hl.timestamps + 1] = {
+              date = item.date,
+              line = k,
+              start_col = item.start_col,
+              end_col = item.end_col,
+              in_property = true,
+            }
+          end
+        end
+      end
+    end
     i = drawer.properties_range[2] + 1
   end
 
@@ -587,19 +844,19 @@ function parse_section(hl, lines, from, to, log_drawer)
   while i <= to do
     local line = lines[i]
     if i <= verbatim_end then
-      -- inside a src/example/export/comment block: no timestamps
-    elseif in_drawer then
-      if line:match(DRAWER_END) then
-        in_drawer["end"] = i
-        hl.drawers[#hl.drawers + 1] = in_drawer
-        if in_drawer.name:upper() == log_drawer and not hl.logbook then
-          hl.logbook = { start = in_drawer.start, ["end"] = i }
-        end
-        in_drawer = nil
+      -- inside a src/example/export/comment block or a LaTeX
+      -- environment: no timestamps
+    elseif in_drawer and line:match(DRAWER_END) then
+      in_drawer["end"] = i
+      hl.drawers[#hl.drawers + 1] = in_drawer
+      if in_drawer.name:upper() == log_drawer and not hl.logbook then
+        hl.logbook = { start = in_drawer.start, ["end"] = i }
       end
+      in_drawer = nil
     else
-      local dname = line:match("^%s*:([%w_%-\128-\255]+):%s*$")
-      local block_end = line:find("^%s*#%+") and M.verbatim_block_end(lines, i, to)
+      local dname = not in_drawer and line:match("^%s*:([%w_%-\128-\255]+):%s*$")
+      local block_end = (line:find("^%s*#%+") and M.verbatim_block_end(lines, i, to))
+        or (line:find("\\begin{", 1, true) and latex_environment_end(lines, i, to))
       if dname and dname:upper() ~= "END" and next_end and next_end <= i then
         next_end = false
         for k = i + 1, to do
@@ -616,18 +873,22 @@ function parse_section(hl, lines, from, to, log_drawer)
         -- in its section is a paragraph, whose timestamps count
         in_drawer = { name = dname, start = i }
       elseif not (line:find("^%s*[#:]") and no_objects(line)) then
+        -- text, in a drawer too (LOGBOOK notes, :org-gcal:); a CLOCK
+        -- line's timestamps are the clock's
         local is_clock = line:find("CLOCK:", 1, true) and line:match("^%s*CLOCK:")
-        for _, item in ipairs(date.parse_all(line)) do
-          if not item.date.active and not hl.first_inactive and not is_clock then
-            hl.first_inactive = item.date
-          end
-          if item.date.active then
-            hl.timestamps[#hl.timestamps + 1] = {
-              date = item.date,
-              line = i,
-              start_col = item.start_col,
-              end_col = item.end_col,
-            }
+        if not (is_clock and in_drawer) then
+          for _, item in ipairs(object_stamps(line)) do
+            if not item.date.active and not hl.first_inactive and not is_clock then
+              hl.first_inactive = item.date
+            end
+            if item.date.active then
+              hl.timestamps[#hl.timestamps + 1] = {
+                date = item.date,
+                line = i,
+                start_col = item.start_col,
+                end_col = item.end_col,
+              }
+            end
           end
         end
       end
@@ -680,6 +941,7 @@ function M.parse(lines, filename, base)
   local stack = {}
   local headlines = file.headlines
   local min_inline = M.inlinetask_min_level()
+  file._min_inline = min_inline
   local skip_to = 0
   for i, line in ipairs(lines) do
     if line:byte(1) == 42 and i > skip_to then -- '*'
@@ -887,8 +1149,11 @@ function File:get_todo_config()
   return self.settings.todo
 end
 
+--- The file's category: a CATEGORY in the file-level property drawer
+--- wins over #+CATEGORY (org-get-category reads the property first).
 function File:category()
-  return self.settings.category or "???"
+  local props = self.properties
+  return props and props.CATEGORY or self.settings.category or "???"
 end
 
 function File:title()
@@ -1233,7 +1498,7 @@ end
 function Headline:get_property(name, inherit)
   local key = name:upper()
   if key == "ITEM" then
-    return self.title
+    return M.item_text(self.raw, self.file.settings.todo)
   elseif key == "TODO" then
     return self.todo
   elseif key == "PRIORITY" then
@@ -1253,7 +1518,13 @@ function Headline:get_property(name, inherit)
     local d = self.planning[key:lower()]
     return d and d:to_string() or nil
   elseif key == "TIMESTAMP" then
-    return self.timestamps[1] and self.timestamps[1].date:to_string() or nil
+    -- the first timestamp object: a property value's stamp is none
+    for _, t in ipairs(self.timestamps) do
+      if not t.in_property then
+        return t.date:to_string()
+      end
+    end
+    return nil
   elseif key == "TIMESTAMP_IA" then
     return self.first_inactive and self.first_inactive:to_string() or nil
   elseif key == "BLOCKED" then

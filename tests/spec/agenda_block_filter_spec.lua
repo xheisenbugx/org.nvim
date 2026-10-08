@@ -18,13 +18,19 @@ local dir = utils.realpath((function()
 end)())
 local path = dir .. "/filter.org"
 
+-- start_on_weekday = false: a 7-day span would otherwise start on Monday and
+-- drop the entry four days out whenever today is Thursday or later
 local function open(lines, spec)
   utils.writefile(path, lines)
   local b = utils.find_buffer(path)
   if b then
     vim.api.nvim_buf_delete(b, { force = true })
   end
-  config.setup({ agenda_files = { path }, org_directory = dir, agenda = { deadline_warning_days = 0 } })
+  config.setup({
+    agenda_files = { path },
+    org_directory = dir,
+    agenda = { deadline_warning_days = 0, start_on_weekday = false },
+  })
   config.opts.clock.persist = false
   agenda.open(spec)
 end

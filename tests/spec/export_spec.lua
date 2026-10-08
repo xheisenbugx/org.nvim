@@ -93,6 +93,21 @@ describe("export", function()
       has(html, "Deep heading")
       has(html, "MathJax")
     end)
+    it("gives a src block without a language the class src-nil", function()
+      has(body("html", { "#+begin_src", "x", "#+end_src" }), '<pre class="src src-nil"><code>x')
+    end)
+    it("inlines a remote image whose URL has a query string", function()
+      -- org-html-inline-image-rules are unanchored, case-insensitive regexps
+      local l =
+        { "[[https://img.shields.io/badge/b.SVG?style=flat]]", "", "[[https://x.org/][https://x.org/a.png?s=1]]" }
+      local h = body("html", l)
+      has(h, '<img src="https://img.shields.io/badge/b.SVG?style=flat"')
+      has(h, '<a href="https://x.org/"><img src="https://x.org/a.png?s=1"')
+      -- ox-md uses the HTML rules
+      has(body("md", l), "![img](https://img.shields.io/badge/b.SVG?style=flat)")
+      -- the LaTeX rules are anchored at the end of the path
+      has(body("latex", l), "\\url{https://img.shields.io/badge/b.SVG?style=flat}")
+    end)
     it("excludes noexport and COMMENT subtrees", function()
       hasnt(html, "secret")
       hasnt(html, "hidden comment")
@@ -132,6 +147,24 @@ describe("export", function()
       has(md, "[the first](#first)")
       hasnt(md, "secret")
     end)
+    it("writes code spans with backticks as valid CommonMark", function()
+      -- like ox-md (a space inside when a backtick is at an edge), with a
+      -- fence longer than any run of backticks in the code
+      eq("``` `` ``` and `` ` `` and ``a`b`` and ```x``y```\n", body("gfm", { "=``= and ~`~ and =a`b= and =x``y=" }))
+    end)
+    it("links headings with GitHub's ids, from the text GitHub renders", function()
+      local out = body("gfm", {
+        "#+OPTIONS: toc:t tags:t",
+        "* Install [[https://neovim.io][Neovim]] first",
+        "* TODO Ça \\alpha /it/ ~co_de~ — x 🎬 :tag1:t2:",
+        "* Install Neovim first",
+      })
+      has(out, "- [Install Neovim first](#install-neovim-first)\n")
+      has(out, "(#todo-ça-α-it-co_de--x-tag1-t2)")
+      -- GitHub numbers a repeated id itself
+      has(out, "- [Install Neovim first](#install-neovim-first-1)")
+      hasnt(out, '<a id="install-neovim-first"></a>')
+    end)
   end)
 
   describe("latex", function()
@@ -148,6 +181,19 @@ describe("export", function()
       has(tex, "\\hypersetup{")
       has(tex, " pdfauthor={Jane Doe},")
       has(tex, "\\label{sec:org")
+    end)
+    it("wraps math entities of TITLE, AUTHOR and DATE in \\(...\\)", function()
+      local out = export.to_string("latex", { lines = { "#+TITLE: \\alpha", "#+AUTHOR: x \\beta", "#+DATE: \\gamma" } })
+      has(out, "\\title{\\(\\alpha\\)}")
+      has(out, "\\author{x \\(\\beta\\)}")
+      has(out, "\\date{\\(\\gamma\\)}")
+      has(out, " pdfauthor={x \\(\\beta\\)},")
+      has(out, " pdftitle={\\(\\alpha\\)},")
+    end)
+    it("sets enumi for a counter in an unordered list", function()
+      -- ox-latex: (nth (1- 0) '("i" ...)) is "i"
+      has(body("latex", { "- [@5] five" }), "\\begin{itemize}\n\\setcounter{enumi}{4}\n\\item five")
+      has(body("latex", { "1. a", "   - [@3] b" }), "\\setcounter{enumi}{2}\n\\item b")
     end)
   end)
 
@@ -239,6 +285,30 @@ describe("export", function()
       end
       return d
     end
+
+    it("replaces every macro before parsing objects (org-macro-replace-all)", function()
+      -- expected output from Emacs 9.8.10: emphasis spans macro boundaries,
+      -- macros inside an object are replaced before its extent is known,
+      -- and {{{n}}} counts in document order
+      local out = body("html", {
+        "#+MACRO: b *$1*",
+        "#+MACRO: star *",
+        "#+MACRO: eq =",
+        "a {{{b()}}} q {{{b(case)}}} z",
+        "",
+        "{{{star}}}x {{{b(m2)}}} y* end",
+        "",
+        "{{{eq}}}a {{{b(y)}}}= after",
+        "",
+        "[[https://x.org][l {{{n}}}]] {{{n}}} [fn::fn {{{n}}}] {{{n}}} ^{{{{n}}}} {{{n}}}",
+      })
+      has(out, "a <b>* q *case</b> z")
+      has(out, "<b>x *m2</b> y* end")
+      has(out, "<code>a {{{b(y)}}}</code> after")
+      has(out, '<a href="https://x.org">l 1</a> 2 <sup>')
+      has(out, "</sup> 4 ^{5} 6")
+      has(out, "fn 3</p>")
+    end)
 
     it("aborts on an undefined macro", function()
       local ok_, err = pcall(body, "html", { "Text {{{nope}}} here." })

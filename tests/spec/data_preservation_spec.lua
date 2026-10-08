@@ -221,7 +221,7 @@ describe("capture, archive and refile data preservation", function()
   it("does not finalize clock state or last-stored position before a capture is saved", function()
     local target, path = file("capture-clock-readonly", { "* Inbox" }, true)
     vim.bo[target].readonly = true
-    local last = refile.last_stored
+    local last = vim.deepcopy(refile.last_stored.last_capture)
     local buf = run(capture.capture, {
       template = "* Precious",
       target = path,
@@ -231,7 +231,7 @@ describe("capture, archive and refile data preservation", function()
     })
     eq(nil, run(capture.finalize, buf, { jump = false }))
     eq(nil, clock.state)
-    eq(last, refile.last_stored)
+    eq(last, refile.last_stored.last_capture)
     ok(capture.sessions[buf])
     vim.bo[target].readonly = false
     ok(run(capture.finalize, buf, { jump = false }))

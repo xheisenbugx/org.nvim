@@ -131,3 +131,14 @@ describe("export SETUPFILE collection", function()
     )
   end)
 end)
+
+describe("export headline tags", function()
+  it("takes non-ASCII tags as tags, not title", function()
+    local html = export.to_string("html", {
+      lines = { "#+OPTIONS: tags:nil", "* Hello :café:" },
+      body_only = true,
+    })
+    ok(html:find("Hello", 1, true), html)
+    ok(not html:find("café", 1, true), html)
+  end)
+end)

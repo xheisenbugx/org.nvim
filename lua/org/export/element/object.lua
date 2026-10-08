@@ -294,7 +294,7 @@ function P:object_at(s, p, R)
           local e = p + #v + 6
           local ws = s:match("^[ \t]*", e)
           local node = M.node("radio-target", { value = v, post_blank = #ws })
-          node.contents = self:parse_objects(v, M.RESTRICTIONS["radio-target"], node)
+          node.contents = self:parse_contents(v, M.RESTRICTIONS["radio-target"], node, p + 3)
           return node, e + #ws
         end
       end
@@ -371,7 +371,8 @@ function P:object_at(s, p, R)
           post_blank = #ws,
         })
         if ftype == "inline" then
-          node.contents = self:parse_objects(s:sub(k + 1, close - 1), M.RESTRICTIONS["footnote-reference"], node)
+          node.contents =
+            self:parse_contents(s:sub(k + 1, close - 1), M.RESTRICTIONS["footnote-reference"], node, k + 1)
         end
         return node, close + 1 + #ws
       end
@@ -454,7 +455,7 @@ function P:citation(s, p)
   end
   if semi then
     if start < semi then
-      node.prefix = self:parse_objects(s:sub(start, semi - 1), types, node)
+      node.prefix = self:parse_contents(s:sub(start, semi - 1), types, node, start)
     end
     cbeg = semi + 1
   end
@@ -473,21 +474,22 @@ function P:citation(s, p)
   end
   if semi and not s:sub(semi + 1, cend - 1):find(CITE_KEY) then
     if semi + 1 < cend then
-      node.suffix = self:parse_objects(s:sub(semi + 1, cend - 1), types, node)
+      node.suffix = self:parse_contents(s:sub(semi + 1, cend - 1), types, node, semi + 1)
     end
     cend = semi
   end
   -- References, separated by ";" (org-element-citation-reference-parser).
   local refs = {}
-  for part in (s:sub(cbeg, cend - 1) .. ";"):gmatch("([^;]*);") do
+  for ppos, part in (s:sub(cbeg, cend - 1) .. ";"):gmatch("()([^;]*);") do
+    local poff = cbeg + ppos - 1
     local kpos, key, kend = part:match(CITE_KEY)
     if kpos then
       local ref = M.node("citation-reference", { key = key, post_blank = 0 })
       if kpos > 1 then
-        ref.prefix = self:parse_objects(part:sub(1, kpos - 1), types, ref)
+        ref.prefix = self:parse_contents(part:sub(1, kpos - 1), types, ref, poff)
       end
       if kend <= #part then
-        ref.suffix = self:parse_objects(part:sub(kend), types, ref)
+        ref.suffix = self:parse_contents(part:sub(kend), types, ref, poff + kend - 1)
       end
       ref.parent = node
       refs[#refs + 1] = ref
@@ -530,15 +532,118 @@ function M.macro_args(s)
   return out
 end
 
---- Parse objects of string `s` allowed by restriction set R.
+--- Objects of `text`, the contents of an object found at byte `off` of
+--- the string being lexed. While macros are looked for, only `text` and
+--- `off` are noted (find_macro searches them).
+function P:parse_contents(text, R, parent, off)
+  if self.scanning then
+    local kids = self.scan_kids
+    kids[#kids + 1] = { text = text, R = R, off = off }
+    return {}
+  end
+  return self:parse_objects(text, R, parent)
+end
+
+--- The first macro of `s` starting at or after byte `from` that the
+--- lexer finds, at the top level or in the contents of an object (as
+--- org-element-context does), lexing from byte `start`: its position,
+--- node and end, and the start of the top-level object holding it.
+function P:find_macro(s, R, from, start)
+  local p, n = start or 1, #s
+  local lows = #self.radios > 0 and s:lower() or nil
+  while p <= n do
+    self.scan_kids = {}
+    local node, e = self:object_at(s, p, R)
+    if not node and R.link and lows then
+      node, e = self:radio_at(s, p, lows)
+    end
+    if node and node.type == "macro" and p >= from then
+      return p, node, e, p
+    elseif node then
+      if e > from then
+        -- the contents: of emphasis and sub/superscripts (`inner`, right
+        -- after the opening marker), or parsed by the object's parser
+        local kids = self.scan_kids
+        if node.inner then
+          kids[#kids + 1] = {
+            text = node.inner,
+            R = M.RESTRICTIONS[node.type] or M.RESTRICTIONS.paragraph,
+            off = s:find(node.inner, p + 1, true),
+          }
+        end
+        table.sort(kids, function(x, y)
+          return (x.off or 0) < (y.off or 0)
+        end)
+        for _, kid in ipairs(kids) do
+          if kid.off and kid.text:find("{{{", 1, true) then
+            local q, mnode, me = self:find_macro(kid.text, kid.R, from - kid.off + 1)
+            if q then
+              return q + kid.off - 1, mnode, me + kid.off - 1, p
+            end
+          end
+        end
+      end
+      p = e
+    else
+      p = p + 1
+    end
+  end
+end
+
+--- Replace the macros of `s` by their expansion, in order, before its
+--- objects are parsed (org-macro-replace-all): the text a macro expands
+--- to can open or close emphasis around the text after it. The search
+--- goes on at the start of each replacement, so a value may hold more
+--- macros; one without a value stays a macro.
+function P:replace_macros(s, R)
+  local from, start, expansions = 1, 1, 0
+  -- object parsers parse their contents (and expand macros there) only
+  -- when objects are built, not while macros are looked for
+  self.scanning = true
+  local ok, err = pcall(function()
+    while expansions < 10000 do
+      local p, node, e, top = self:find_macro(s, R, from, start)
+      if not p then
+        break
+      end
+      -- lexing goes on at the top-level object holding the macro: a
+      -- replacement can change the extent of that object, not of the
+      -- ones before it
+      start = top
+      self.scanning = false
+      local value = self.opts.macro(node, self)
+      self.scanning = true
+      if value ~= nil then
+        s = s:sub(1, p - 1) .. value .. string.rep(" ", node.post_blank) .. s:sub(e)
+        expansions = expansions + 1
+        from = p
+      else
+        from = p + 1
+      end
+    end
+  end)
+  self.scanning = false
+  if not ok then
+    error(err, 0)
+  end
+  return s
+end
+
+--- Parse objects of string `s` allowed by restriction set R. `replaced`:
+--- the macros of `s` have been replaced already.
 ---@return table[] nodes
-function P:parse_objects(s, R, parent, depth)
+function P:parse_objects(s, R, parent, depth, replaced)
+  if self.scanning then
+    return {}
+  end
   depth = depth or 0
+  if not replaced and self.opts.macro and s:find("{{{", 1, true) then
+    s = self:replace_macros(s, R)
+  end
   local out = {}
   local buf_start = 1
   local p = 1
   local n = #s
-  local expansions = 0
   local function flush(upto)
     if upto >= buf_start then
       local t = M.text(s:sub(buf_start, upto), parent)
@@ -551,34 +656,19 @@ function P:parse_objects(s, R, parent, depth)
     if not node and R.link and lows then
       node, e = self:radio_at(s, p, lows)
     end
-    local replaced = false
-    if node then
-      if node.type == "macro" and self.opts.macro and expansions < 10000 then
-        local value = self.opts.macro(node, self)
-        if value ~= nil then
-          -- textual replacement, then continue lexing from here
-          local ws = string.rep(" ", node.post_blank)
-          s = s:sub(1, p - 1) .. value .. ws .. s:sub(e)
-          n = #s
-          lows = lows and s:lower()
-          expansions = expansions + 1
-          node = nil
-          replaced = true
-        end
-      end
-    end
     if node then
       flush(p - 1)
       node.parent = parent
       if node.inner then
+        -- replace_macros has replaced the macros of the contents too
         node.contents =
-          self:parse_objects(node.inner, M.RESTRICTIONS[node.type] or M.RESTRICTIONS.paragraph, node, depth)
+          self:parse_objects(node.inner, M.RESTRICTIONS[node.type] or M.RESTRICTIONS.paragraph, node, depth, true)
         node.inner = nil
       end
       out[#out + 1] = node
       p = e
       buf_start = e
-    elseif not replaced then
+    else
       p = p + 1
     end
   end

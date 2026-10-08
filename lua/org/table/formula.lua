@@ -185,19 +185,31 @@ end
 -- Table model
 ---------------------------------------------------------------------------
 
---- Build a grid view: data rows and hline positions.
+--- Build a grid view: data rows and hline positions. Every hline counts
+--- for `@I`, `@II`, ... (Emacs org-table-hlines), a rule above the first
+--- row too: it is `@I`, at position 0.
 local function model(t)
   local m = { data = {}, hlines = {}, ncols = t.ncols, special = {} }
   for _, row in ipairs(t.rows) do
     if row.hline then
-      if #m.data > 0 then -- a hline above the first row does not count
-        m.hlines[#m.hlines + 1] = #m.data -- data rows before this hline
-      end
+      m.hlines[#m.hlines + 1] = #m.data -- data rows before this hline
     else
       m.data[#m.data + 1] = row.cells
     end
   end
   return m
+end
+
+--- The number of header rows: the data rows above the first hline that
+--- has a row above it and one below it (org-table-recalculate looks for a
+--- data line, an hline, then a data line), or 0 when there is none.
+local function header_rows(m)
+  for _, h in ipairs(m.hlines) do
+    if h > 0 then
+      return h < #m.data and h or 0
+    end
+  end
+  return 0
 end
 
 local function is_name(s)
@@ -237,7 +249,7 @@ local function collect_names(m)
       end
     end
   end
-  if (m.hlines[1] or 0) > 0 then
+  if header_rows(m) > 0 then
     for c, v in ipairs(m.data[1]) do
       v = vim.trim(v)
       if is_name(v) and header[v] == nil then
@@ -770,6 +782,23 @@ local function substitute(m, rhs, r, c, flags, mode, ctx)
       if not name then
         error("bad remote reference")
       end
+      -- `@#` / `$#` are the current row and column, here too
+      -- (org-table-eval-formula substitutes them first)
+      local function counters(x)
+        return (x:gsub("([@$])#", function(k)
+          return tostring(k == "@" and r or c)
+        end))
+      end
+      name, ref = counters(name), counters(ref)
+      if name:match("^[@$]") then
+        -- `remote($1, ...)`: the table name is read from a field
+        -- (org-table-remote-reference-indirection)
+        local kind, v, k = read_ref(m, name, 1, r, c, ctx)
+        if kind ~= "field" or k <= #name then
+          error("bad remote reference: " .. name)
+        end
+        name = vim.trim(v)
+      end
       local rm = remote_model(ctx, name)
       local kind, v, k = read_ref(rm, ref, 1, r, c, {})
       if k <= #ref then
@@ -882,6 +911,8 @@ function evaluate(m, rhs, flags, r, c, ctx, trace)
     expr = expr:gsub("%[(%d%d%d%d%-%d%d%-%d%d[^%]\n]*)%]", "<%1>")
     -- `date(<$1>)`: a timestamp field inside a date form
     expr = expr:gsub("<%((<%d%d%d%d%-%d%d%-%d%d[^>\n]*>)%)>", "%1")
+    -- `date(<$1>)` on a field holding a bare date (`2026-03-01`)
+    expr = expr:gsub("<%((%d%d%d%d%-%d%d%-%d%d[^>)\n]*)%)>", "<%1>")
     trace.form = expr
     if flags.duration and expr:match("^%d+:%d+$") or expr:match("^%d+:%d+:%d+$") and flags.duration then
       ev = expr
@@ -968,6 +999,15 @@ local function targets(m, lhs, ctx)
     return out, false
   end
   local r = resolve_row(m, spec.row, 1, "single")
+  local kind = spec.row and not spec.col and spec.row.kind
+  if kind == "first" or kind == "last" or (kind == "abs" and spec.row.n > 0) then
+    -- `@2=` / `@>=`: a row formula sets every field of the row
+    -- (org-table-expand-lhs-ranges)
+    for c = 1, m.ncols do
+      out[#out + 1] = { r, c }
+    end
+    return out, false
+  end
   local c = resolve_col(m, spec.col, 1)
   out[1] = { r, c }
   return out, false
@@ -1087,7 +1127,7 @@ function M.apply(t, formulas, ctx)
         marked = true
       end
     end
-    local first = (not marked and m.hlines[1] and m.hlines[1] > 0) and m.hlines[1] + 1 or 1
+    local first = marked and 1 or header_rows(m) + 1
     for r = first, #m.data do
       local mark = vim.trim(m.data[r][1] or "")
       if not marked or mark == "#" or mark == "*" then
@@ -1166,6 +1206,7 @@ function M._parse_duration(s)
 end
 
 M._model = model
+M._header_rows = header_rows
 M._collect_names = collect_names
 
 return M

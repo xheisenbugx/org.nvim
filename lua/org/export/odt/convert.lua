@@ -209,7 +209,7 @@ function M.export_as_odf(latex_frag, odf_file)
       local text
       if mode == "v" then
         local last = vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or ""
-        local e = math.min(#last, ecol)
+        local e = utils.char_end(last, ecol)
         text = table.concat(vim.api.nvim_buf_get_text(0, srow - 1, scol - 1, erow - 1, e, {}), "\n")
       else
         text = table.concat(vim.api.nvim_buf_get_lines(0, srow - 1, erow, false), "\n")
