@@ -46,16 +46,23 @@ local M = {}
 ---@field create_label? string
 ---@field query? string initial query (not vim.ui.select)
 ---@field preview? boolean show a preview of the item's file (default: when items have one)
+---The items are places to go to: the `picker_keys` (split, vsplit, tab)
+---choose too, and `on_choice` gets how to open the item as its third
+---argument (`pick_*` pass it on to `jump()`).
+---@field split? boolean
 
 ---@class org.PickerSpec: org.PickerOpts
 ---Called with the chosen items (and the typed query) once the picker has
 ---closed, inside a coroutine, so it may prompt. The picker plugins' resume
 ---(snacks.nvim, fzf-lua, telescope, mini.pick) reopens the picker, which
----calls it again for what is chosen then.
----@field on_choice fun(items: org.PickerItem[], query?: string)
+---calls it again for what is chosen then. With `split`, `how` says which
+---of the `picker_keys` chose ("split", "vsplit", "tab"; nil for <CR>).
+---@field on_choice fun(items: org.PickerItem[], query?: string, how?: org.PickerHow)
 ---Called when the picker is first closed without a choice (not when a
 ---resumed picker is).
 ---@field on_cancel? fun()
+
+---@alias org.PickerHow "split"|"vsplit"|"tab"
 
 --- The backends, in the order `picker = "auto"` tries them.
 M.backends = { "snacks", "fzf-lua", "telescope", "mini", "select" }
@@ -104,6 +111,39 @@ end
 function M.create_prompt(spec)
   local label = (spec.create_label or "New"):gsub("^%+%s*", ""):gsub("…$", "")
   return label .. ": "
+end
+
+-- the order the `picker_keys` are bound in
+local HOWS = { "split", "vsplit", "tab" }
+
+--- The `picker_keys` of a spec with `split`, in Vim's key notation: a list
+--- of `{ how, lhs }` (keys set to false are left out).
+---@param spec org.PickerOpts
+---@return { [1]: org.PickerHow, [2]: string }[]
+function M.split_keys(spec)
+  if not spec.split then
+    return {}
+  end
+  local keys = require("org.config").opts.picker_keys or {}
+  local out = {}
+  for _, how in ipairs(HOWS) do
+    local lhs = keys[how]
+    if type(lhs) == "string" and lhs ~= "" then
+      out[#out + 1] = { how, lhs }
+    end
+  end
+  return out
+end
+
+--- The options of `picker_opts[name]` for a backend, with `extra` (the
+--- options of `:Telescope org ...`) over them.
+---@param name string
+---@param extra? table
+---@return table
+function M.backend_opts(name, extra)
+  local all = require("org.config").opts.picker_opts or {}
+  local own = type(all[name]) == "table" and all[name] or {}
+  return vim.tbl_deep_extend("force", {}, own, extra or {})
 end
 
 --- Whether a backend's plugin is loaded (or can be loaded) right now.
@@ -188,8 +228,9 @@ end
 --- to choose from.
 ---@param spec org.PickerSpec
 ---@param backend? string a backend name, over the `picker` option
+---@param backend_opts? table options for the picker plugin, over `picker_opts`
 ---@return string|nil
-function M.pick(spec, backend)
+function M.pick(spec, backend, backend_opts)
   if #spec.items == 0 and not spec.allow_query then
     utils.warn("Nothing to choose from: " .. spec.title)
     return nil
@@ -201,7 +242,7 @@ function M.pick(spec, backend)
   -- prompt or open a capture). The first close answers either way; a
   -- picker reopened by the plugin's resume answers again with a choice.
   local answered = false
-  local function finish(items, query)
+  local function finish(items, query, how)
     local chose = items ~= nil and (#items > 0 or (spec.allow_query and query ~= nil and query ~= "")) or false
     if answered and not chose then
       return
@@ -209,7 +250,7 @@ function M.pick(spec, backend)
     answered = true
     vim.schedule(function()
       if chose then
-        utils.run(spec.on_choice, items, query)
+        utils.run(spec.on_choice, items, query, how)
       elseif spec.on_cancel then
         utils.run(spec.on_cancel)
       end
@@ -219,21 +260,22 @@ function M.pick(spec, backend)
   if opts.preview == nil then
     opts.preview = has_preview(spec.items)
   end
-  require("org.pickers.backends." .. modules[name]).pick(opts, finish)
+  require("org.pickers.backends." .. modules[name]).pick(opts, finish, M.backend_opts(name, backend_opts))
   return name
 end
 
 --- `pick()` inside a coroutine: wait for the choice. Returns the chosen
---- items and the query, or nil when cancelled. It returns once: choosing
---- in the picker reopened by a resume does nothing.
+--- items, the query and, with `split`, how to open them, or nil when
+--- cancelled. It returns once: choosing in the picker reopened by a resume
+--- does nothing.
 ---@param spec org.PickerOpts
 ---@param backend? string
----@return org.PickerItem[]|nil, string|nil
+---@return org.PickerItem[]|nil, string|nil, org.PickerHow|nil
 function M.choose(spec, backend)
   return utils.await(function(cb)
     local s = vim.tbl_extend("force", {}, spec, {
-      on_choice = function(items, query)
-        cb(items, query)
+      on_choice = function(items, query, how)
+        cb(items, query, how)
       end,
       on_cancel = function()
         cb(nil)
@@ -245,10 +287,17 @@ function M.choose(spec, backend)
   end)
 end
 
+-- the command opening the window of each `how`
+local OPEN = { split = "split", vsplit = "vsplit", tab = "tab split" }
+
 --- Jump to an item's file (or buffer) and line, opening the folds around
---- it.
+--- it; with `how`, in a new split, vertical split or tab page.
 ---@param item org.PickerItem
-function M.jump(item)
+---@param how? org.PickerHow
+function M.jump(item, how)
+  if how and OPEN[how] then
+    vim.cmd(OPEN[how])
+  end
   vim.cmd("normal! m'")
   local col = math.max((item.col or 1) - 1, 0)
   if item.filename then

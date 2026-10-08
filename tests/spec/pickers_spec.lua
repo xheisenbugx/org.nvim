@@ -533,6 +533,47 @@ describe("pickers", function()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
     end)
 
+    it("binds the picker_keys to split, vsplit and tab actions", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline")
+      eq({ "org_split", mode = { "n", "i" } }, captured.win.input.keys["<C-s>"])
+      eq("org_vsplit", captured.win.list.keys["<C-v>"])
+      eq("org_tab", captured.win.list.keys["<C-t>"])
+      local p = fake_picker({})
+      captured.actions.org_split(p, captured.items[4])
+      eq(true, p.closed)
+      settle()
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      eq(6, vim.api.nvim_win_get_cursor(0)[1])
+      vim.cmd("silent! only")
+      require("org.actions").run("pick_tag")
+      eq({}, captured.win.input.keys)
+      eq(nil, captured.actions.org_split)
+    end)
+
+    it("merges picker_opts over its own options, keeping its handlers", function()
+      local user_closed = 0
+      stub(require("org.config").opts, "picker_opts", {
+        snacks = {
+          layout = { preset = "ivy" },
+          title = "Mine",
+          on_close = function()
+            user_closed = user_closed + 1
+          end,
+          items = {},
+        },
+      })
+      local events = {}
+      require("org.pickers").pick(recorder(events))
+      eq({ preset = "ivy" }, captured.layout)
+      eq("Mine", captured.title)
+      eq(2, #captured.items)
+      fake_picker({}):close()
+      settle()
+      eq(1, user_closed)
+      eq({ "cancel" }, events)
+    end)
+
     it("returns the multi-selection and the query, and cancels on close", function()
       local got, query, cancelled
       local spec = {
@@ -678,6 +719,78 @@ describe("pickers", function()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
     end)
 
+    it("opens the place in a split, vsplit or tab with the picker_keys", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline")
+      local keys = vim.tbl_keys(opts.actions)
+      table.sort(keys)
+      eq({ "ctrl-s", "ctrl-t", "ctrl-v", "enter" }, keys)
+      opts.actions["ctrl-v"]({ entries[4] }, {})
+      settle()
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      eq(6, vim.api.nvim_win_get_cursor(0)[1])
+      eq(a_path, vim.api.nvim_buf_get_name(0))
+      require("org.actions").run("pick_headline")
+      opts.actions["ctrl-t"]({ entries[2] }, {})
+      settle()
+      eq(2, #vim.api.nvim_list_tabpages())
+      eq(3, vim.api.nvim_win_get_cursor(0)[1])
+      vim.cmd("silent! tabonly | silent! only")
+      -- other pickers choose with enter only
+      require("org.actions").run("pick_tag")
+      eq({ "enter" }, vim.tbl_keys(opts.actions))
+    end)
+
+    it("takes the picker_keys in Vim's notation, false turning one off", function()
+      local fzf = require("org.pickers.backends.fzf_lua")
+      eq("ctrl-s", fzf.fzf_key("<C-s>"))
+      eq("alt-x", fzf.fzf_key("<M-x>"))
+      eq("alt-x", fzf.fzf_key("<A-x>"))
+      eq("enter", fzf.fzf_key("<CR>"))
+      eq("f2", fzf.fzf_key("<F2>"))
+      eq("ctrl-o", fzf.fzf_key("ctrl-o"))
+      stub(require("org.config").opts, "picker_keys", { split = "<M-s>", vsplit = false, tab = "<C-t>" })
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline")
+      local keys = vim.tbl_keys(opts.actions)
+      table.sort(keys)
+      eq({ "alt-s", "ctrl-t", "enter" }, keys)
+      opts.actions["alt-s"]({ entries[4] }, {})
+      settle()
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      vim.cmd("silent! only")
+    end)
+
+    it("merges picker_opts over its own options, keeping its handlers", function()
+      local user_closed = 0
+      stub(require("org.config").opts, "picker_opts", {
+        ["fzf-lua"] = {
+          prompt = "Org> ",
+          winopts = {
+            height = 0.4,
+            on_close = function()
+              user_closed = user_closed + 1
+            end,
+          },
+          fzf_opts = { ["--layout"] = "reverse", ["--delimiter"] = "x" },
+          actions = { ["ctrl-x"] = function() end },
+        },
+      })
+      local events = {}
+      require("org.pickers").pick(recorder(events))
+      eq("Org> ", opts.prompt)
+      eq(0.4, opts.winopts.height)
+      eq(" T ", opts.winopts.title)
+      eq("reverse", opts.fzf_opts["--layout"])
+      -- the entries need org's delimiter and actions
+      eq("\t", opts.fzf_opts["--delimiter"])
+      eq({ "enter" }, vim.tbl_keys(opts.actions))
+      opts.winopts.on_close()
+      settle()
+      eq(1, user_closed)
+      eq({ "cancel" }, events)
+    end)
+
     it("previews the buffer of the item's own file, not one whose name it matches", function()
       local work = write("work.org", { "* Work" })
       local archive = write("work.org_archive", { "* Archived" })
@@ -774,10 +887,10 @@ describe("pickers", function()
   end)
 
   describe("telescope adapter", function()
-    local conf, select_fn, closed, multi, selected, line
+    local conf, select_fn, closed, multi, selected, line, mapped, replaced
     before_each(function()
       conf, select_fn, closed = nil, nil, nil
-      multi, selected, line = {}, nil, ""
+      multi, selected, line, mapped, replaced = {}, nil, "", {}, {}
       fake_module("telescope.pickers", {
         new = function(o, c)
           conf = c
@@ -785,7 +898,12 @@ describe("pickers", function()
           return {
             find = function()
               c.prompt_bufnr = vim.api.nvim_create_buf(false, true)
-              eq(true, c.attach_mappings(c.prompt_bufnr, function() end))
+              eq(
+                true,
+                c.attach_mappings(c.prompt_bufnr, function(mode, lhs, fn)
+                  mapped[lhs] = { mode = mode, fn = fn }
+                end)
+              )
             end,
           }
         end,
@@ -820,6 +938,21 @@ describe("pickers", function()
         select_default = {
           replace = function(_, fn)
             select_fn = fn
+          end,
+        },
+        select_horizontal = {
+          replace = function(_, fn)
+            replaced.select_horizontal = fn
+          end,
+        },
+        select_vertical = {
+          replace = function(_, fn)
+            replaced.select_vertical = fn
+          end,
+        },
+        select_tab = {
+          replace = function(_, fn)
+            replaced.select_tab = fn
           end,
         },
         close = function(bufnr)
@@ -884,6 +1017,55 @@ describe("pickers", function()
       eq(conf.prompt_bufnr, closed)
       settle()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it("maps the picker_keys, and telescope's own split keys, to split, vsplit and tab", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline")
+      eq({ "i", "n" }, mapped["<C-s>"].mode)
+      eq(
+        { "<C-s>", "<C-t>", "<C-v>" },
+        (function()
+          local keys = vim.tbl_keys(mapped)
+          table.sort(keys)
+          return keys
+        end)()
+      )
+      selected = conf.finder.entry_maker(conf.finder.results[4])
+      mapped["<C-s>"].fn()
+      settle()
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      eq(6, vim.api.nvim_win_get_cursor(0)[1])
+      vim.cmd("silent! only")
+      require("org.actions").run("pick_headline")
+      selected = conf.finder.entry_maker(conf.finder.results[2])
+      replaced.select_tab()
+      settle()
+      eq(2, #vim.api.nvim_list_tabpages())
+      eq(3, vim.api.nvim_win_get_cursor(0)[1])
+      vim.cmd("silent! tabonly")
+    end)
+
+    it("passes picker_opts, and :Telescope org's options over them", function()
+      stub(require("org.config").opts, "picker_opts", {
+        telescope = { layout_strategy = "vertical", layout_config = { width = 0.5 } },
+      })
+      require("org.pickers").pick(recorder({}))
+      eq({ layout_strategy = "vertical", layout_config = { width = 0.5 } }, conf.topts)
+      eq({}, mapped)
+      package.loaded["telescope"] = {
+        register_extension = function(ext)
+          return ext
+        end,
+      }
+      package.loaded["telescope._extensions.org"] = nil
+      local ext = require("telescope._extensions.org")
+      package.loaded["telescope._extensions.org"] = nil
+      package.loaded["telescope"] = nil
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      ext.exports.headlines({ layout_config = { height = 0.3 } })
+      settle()
+      eq({ layout_strategy = "vertical", layout_config = { width = 0.5, height = 0.3 } }, conf.topts)
     end)
 
     it("previews an entry of a buffer without a file", function()
@@ -1073,6 +1255,42 @@ describe("pickers", function()
       eq({ "Comment", "OrgTodo", "OrgPriority", "OrgTags" }, groups)
       settle()
       eq(6, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it("maps the picker_keys over its own split keys", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      local current
+      stub(rawget(_G, "MiniPick"), "get_picker_matches", function()
+        return { current = current }
+      end)
+      behaviour = function(source)
+        current = source.items[4]
+        return started.mappings.org_vsplit.func()
+      end
+      require("org.actions").run("pick_headline")
+      eq("", started.mappings.choose_in_split)
+      eq("", started.mappings.choose_in_vsplit)
+      eq("", started.mappings.choose_in_tabpage)
+      eq("<C-s>", started.mappings.org_split.char)
+      eq("<C-t>", started.mappings.org_tab.char)
+      settle()
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      eq(6, vim.api.nvim_win_get_cursor(0)[1])
+      vim.cmd("silent! only")
+      -- other pickers keep mini.pick's keys
+      behaviour = nil
+      require("org.actions").run("pick_tag")
+      eq({}, started.mappings)
+    end)
+
+    it("merges picker_opts under its own source", function()
+      stub(require("org.config").opts, "picker_opts", {
+        mini = { window = { config = { width = 50 } }, source = { name = "Mine", cwd = "/" } },
+      })
+      require("org.pickers").pick(recorder({}))
+      eq({ config = { width = 50 } }, started.window)
+      eq("T", started.source.name)
+      eq("/", started.source.cwd)
     end)
 
     it("previews the buffer of a loaded file, with its unsaved edits", function()

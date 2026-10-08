@@ -5912,6 +5912,41 @@ action section (|org-keymaps|), e.g. >lua
 `picker` says. The roam extension's node finder uses the same pickers
 (|org-extensions-roam|).
 
+Opening in a window ~
+                                                        *org-picker-keys*
+In the pickers that go to a place (`pick_headline`, `pick_headline_all`,
+the headlines of `pick_tag`, `pick_agenda`, `pick_agenda_week`,
+`pick_todo`, `pick_agenda_file`) <C-s> opens it in a split, <C-v> in a
+vertical split and <C-t> in a new tab page, in every picker but
+vim.ui.select. `picker_keys` changes them, in Vim's key notation (fzf-lua
+gets "ctrl-s" for "<C-s>", "alt-x" for "<M-x>"); `false` turns one
+off: >lua
+    picker_keys = { split = "<C-x>", vsplit = "<C-v>", tab = false },
+<In mini.pick they replace its own choose_in_split / vsplit / tabpage
+keys there; in telescope its select_horizontal / vertical / tab actions
+(<C-x>, <C-v>, <C-t>) do the same.
+
+Picker options ~
+                                                        *org-picker-opts*
+`picker_opts` gives each picker plugin options of your own, merged over
+the ones org.nvim passes: >lua
+    picker_opts = {
+      ["fzf-lua"] = { winopts = { height = 0.5, width = 0.6 } },
+      snacks = { layout = { preset = "ivy" } },
+      telescope = require("telescope.themes").get_dropdown(),
+      mini = { window = { config = { width = 60 } } },
+    },
+<They are fzf-lua's `fzf_exec` options, `Snacks.picker()` options,
+telescope's picker options and `MiniPick.start()` options. What org.nvim
+needs to show its items and act on the choice is kept: the items and
+their format, the preview, the `fzf_opts` that hide the index of an
+entry, fzf-lua's `actions` (use `picker_keys`), snacks.nvim's `confirm`
+and the picker_keys actions, telescope's `finder`, and the items and
+functions of mini.pick's `source`. An `on_close` of yours (fzf-lua's `winopts.on_close`,
+snacks.nvim's `on_close`) runs too, and a telescope `attach_mappings` runs
+after org.nvim's. `:Telescope org headlines theme=dropdown` and other
+options on that command line go over `picker_opts.telescope`.
+
 Resuming (`Snacks.picker.resume()`, `:FzfLua resume`, `:Telescope resume`,
 `:Pick resume`) reopens the last picker as it was left, and choosing there
 acts again: jumps, toggles the tags, captures. A resumed roam node finder
@@ -5919,7 +5954,10 @@ closes without effect.
 
 From Lua, `require("org.pickers").pick(spec)` shows any list: `spec.items`
 are `{ display = { { text, hl_group }, ... }, filename?, bufnr?, lnum?,
-value? }` and `spec.on_choice(items, query)` gets the chosen ones; see
+value? }` and `spec.on_choice(items, query)` gets the chosen ones; with
+`spec.split = true` the picker keys choose too, and `on_choice` gets
+"split", "vsplit" or "tab" as its third argument, which
+`require("org.pickers").jump(item, how)` takes; see
 `lua/org/pickers/init.lua`.
 
 Outline, breadcrumb and symbol plugins ~
@@ -6601,6 +6639,12 @@ Structure and visibility ~
                                       "auto"|"snacks"|"fzf-lua"|
                                       "telescope"|"mini"|"select"
                                       (|org-pickers|)
+  picker_opts               {}        options for the picker plugin, by
+                                      picker (|org-picker-opts|)
+  picker_keys               { split = "<C-s>", vsplit = "<C-v>",
+                              tab = "<C-t>" }
+                                      open a place in a split, vsplit or
+                                      tab from a picker (|org-picker-keys|)
   bookmark_names            { last_capture = "org-capture-last-stored",
                               last_refile = "org-refile-last-stored",
                               last_capture_marker =

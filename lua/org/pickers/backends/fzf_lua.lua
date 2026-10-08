@@ -61,9 +61,33 @@ local function colored(item, ansi)
   return table.concat(parts)
 end
 
+--- An fzf key name for a key in Vim's notation: "<C-s>" is "ctrl-s",
+--- "<M-x>" "alt-x", "<CR>" "enter", "<F2>" "f2"; a name without angle
+--- brackets is taken as it is.
+---@param lhs string
+---@return string
+function M.fzf_key(lhs)
+  local inner = lhs:match("^<(.+)>$")
+  if not inner then
+    return lhs
+  end
+  local lower = inner:lower()
+  local named = { cr = "enter", enter = "enter", ["return"] = "enter", tab = "tab", ["s-tab"] = "btab", esc = "esc" }
+  if named[lower] then
+    return named[lower]
+  end
+  local mod, key = lower:match("^([cma])%-(.+)$")
+  if mod then
+    return (mod == "c" and "ctrl-" or "alt-") .. key
+  end
+  return lower
+end
+
 ---@param spec org.PickerSpec
----@param finish fun(items?: org.PickerItem[], query?: string)
-function M.pick(spec, finish)
+---@param finish fun(items?: org.PickerItem[], query?: string, how?: org.PickerHow)
+---@param user? table `picker_opts["fzf-lua"]`, merged over these options
+function M.pick(spec, finish, user)
+  user = user or {}
   local fzf = api()
   local ok_u, futils = pcall(require, "fzf-lua.utils")
   local ansi
@@ -76,11 +100,12 @@ function M.pick(spec, finish)
   for i, it in ipairs(spec.items) do
     entries[i] = i .. "\t" .. colored(it, ansi)
   end
-  -- Every close answers once: enter with its choice, any other way (esc,
-  -- ctrl-c, ctrl-q, ctrl-z, an abort bind, hide) with a cancel. Only enter
-  -- runs an action of ours, so the cancel comes from the window closing.
+  -- Every close answers once: enter (or a picker key) with its choice, any
+  -- other way (esc, ctrl-c, ctrl-q, ctrl-z, an abort bind, hide) with a
+  -- cancel. Only our actions answer, so the cancel comes from the window
+  -- closing.
   local answered = false
-  local function accept(selected, o)
+  local function accept(selected, o, how)
     answered = true
     local chosen = {}
     for _, e in ipairs(selected or {}) do
@@ -94,33 +119,53 @@ function M.pick(spec, finish)
       finish(nil)
       return
     end
-    finish(chosen, query)
+    finish(chosen, query, how)
   end
-  fzf.fzf_exec(entries, {
-    prompt = spec.title .. "> ",
-    winopts = {
-      title = " " .. spec.title .. " ",
-      -- fzf-lua closes the window before it runs the action of the key
-      on_close = function()
-        vim.schedule(function()
-          if not answered then
-            finish(nil)
+  local actions = { ["enter"] = accept }
+  for _, k in ipairs(pickers.split_keys(spec)) do
+    local how = k[1]
+    actions[M.fzf_key(k[2])] = function(selected, o)
+      accept(selected, o, how)
+    end
+  end
+  local user_close = user.winopts and user.winopts.on_close
+  local opts = vim.tbl_deep_extend(
+    "force",
+    {
+      prompt = spec.title .. "> ",
+      winopts = { title = " " .. spec.title .. " " },
+    },
+    user,
+    {
+      winopts = {
+        -- fzf-lua closes the window before it runs the action of the key
+        on_close = function(...)
+          if type(user_close) == "function" then
+            user_close(...)
           end
-          answered = false
-        end)
-      end,
-    },
-    query = spec.query,
-    fzf_opts = {
-      ["--ansi"] = true,
-      ["--delimiter"] = "\t",
-      ["--with-nth"] = "2..",
-      ["--multi"] = spec.multi and true or false,
-      ["--no-multi"] = not spec.multi and true or nil,
-    },
-    previewer = spec.preview and previewer(spec.items) or nil,
-    actions = { ["enter"] = accept },
-  })
+          vim.schedule(function()
+            if not answered then
+              finish(nil)
+            end
+            answered = false
+          end)
+        end,
+      },
+      query = spec.query,
+      fzf_opts = {
+        ["--ansi"] = true,
+        ["--delimiter"] = "\t",
+        ["--with-nth"] = "2..",
+        ["--multi"] = spec.multi and true or false,
+        ["--no-multi"] = not spec.multi and true or nil,
+      },
+      previewer = spec.preview and previewer(spec.items) or nil,
+    }
+  )
+  -- only org's actions: an entry is "<index>\t<text>", which a user action
+  -- couldn't use
+  opts.actions = actions
+  fzf.fzf_exec(entries, opts)
 end
 
 M._item_of = item_of
