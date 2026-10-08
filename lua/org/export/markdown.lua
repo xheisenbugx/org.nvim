@@ -435,7 +435,7 @@ T.link = function(el, desc, info)
       return nil
     end
   end
-  if ox.inline_image_p(el, html.inline_image_rules) then
+  if ox.inline_image_p(el, html.inline_image_rules, true) then
     local p
     if ltype ~= "file" then
       p = ltype .. ":" .. raw

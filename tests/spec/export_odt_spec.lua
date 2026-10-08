@@ -103,6 +103,16 @@ describe("export odt", function()
       local _, get = export({ "[[file:i-`echo x`.png]]" }, tmp .. "/doc.org")
       eq(read(dir .. "/img.png"), get("Images/0001.png"))
     end)
+
+    it("inlines an image whose path has text after the extension", function()
+      -- org-odt-inline-image-rules is an unanchored, case-insensitive regexp
+      local tmp = vim.fn.tempname()
+      vim.fn.mkdir(tmp, "p")
+      vim.uv.fs_copyfile(dir .. "/img.png", tmp .. "/a.PNG.orig")
+      local _, get = export({ "[[file:a.PNG.orig]]" }, tmp .. "/doc.org")
+      eq(read(dir .. "/img.png"), get("Images/0001.orig"))
+      has(get("content.xml"), '<draw:image xlink:href="Images/0001.orig"')
+    end)
   end)
 
   describe("package", function()

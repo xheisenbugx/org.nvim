@@ -93,6 +93,17 @@ describe("export", function()
       has(html, "Deep heading")
       has(html, "MathJax")
     end)
+    it("inlines a remote image whose URL has a query string", function()
+      -- org-html-inline-image-rules are unanchored, case-insensitive regexps
+      local l = { "[[https://img.shields.io/badge/b.SVG?style=flat]]", "", "[[https://x.org/][https://x.org/a.png?s=1]]" }
+      local h = body("html", l)
+      has(h, '<img src="https://img.shields.io/badge/b.SVG?style=flat"')
+      has(h, '<a href="https://x.org/"><img src="https://x.org/a.png?s=1"')
+      -- ox-md uses the HTML rules
+      has(body("md", l), "![img](https://img.shields.io/badge/b.SVG?style=flat)")
+      -- the LaTeX rules are anchored at the end of the path
+      has(body("latex", l), "\\url{https://img.shields.io/badge/b.SVG?style=flat}")
+    end)
     it("excludes noexport and COMMENT subtrees", function()
       hasnt(html, "secret")
       hasnt(html, "hidden comment")

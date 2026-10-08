@@ -657,7 +657,7 @@ T.link = function(el, desc, info)
   if desc == "" then
     desc = nil
   end
-  local imagep = ox.inline_image_p(el, info.odt_inline_image_rules)
+  local imagep = ox.inline_image_p(el, info.odt_inline_image_rules, true)
   local path
   if ltype == "file" then
     local uri = ox.file_uri(raw)
@@ -677,7 +677,7 @@ T.link = function(el, desc, info)
   if not desc and imagep then
     return inline_image(el, info)
   end
-  if not desc and ox.inline_image_p(el, info.odt_inline_formula_rules) then
+  if not desc and ox.inline_image_p(el, info.odt_inline_formula_rules, true) then
     local unit = el.parent and el.parent.type == "paragraph" and el.parent or nil
     return inline_formula(info, formula_file_data(expand_path(el.path, info)), standalone_link_p(el, info), unit)
   end
@@ -742,7 +742,7 @@ T.link = function(el, desc, info)
   end
   if desc then
     local c = el.contents
-    if #c == 1 and c[1].type == "link" and ox.inline_image_p(c[1], info.odt_inline_image_rules) then
+    if #c == 1 and c[1].type == "link" and ox.inline_image_p(c[1], info.odt_inline_image_rules, true) then
       return fmt('\n<draw:a xlink:type="simple" xlink:href="%s">\n%s\n</draw:a>', path, desc)
     end
     return fmt('<text:a xlink:type="simple" xlink:href="%s">%s</text:a>', path, desc)
