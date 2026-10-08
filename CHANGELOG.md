@@ -8,6 +8,16 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.5.0] - 2026-10-08
+
+### Features
+
+- **pickers:** Add picker_opts and split / vsplit / tab keys ([#222](https://github.com/xheisenbugx/org.nvim/pull/222))
+
+### Fixes
+
+- **links:** Move the cursor through concealed link text like Emacs ([#223](https://github.com/xheisenbugx/org.nvim/pull/223))
+
 ## [v2.4.1] - 2026-10-07
 
 ### Fixes
@@ -370,6 +380,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.5.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.4.1...v2.5.0
 [v2.4.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.4.0...v2.4.1
 [v2.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.3...v2.4.0
 [v2.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.2...v2.3.3

@@ -98,10 +98,13 @@ function M.display(item)
 end
 
 ---@param spec org.PickerSpec
----@param finish fun(items?: org.PickerItem[], query?: string)
----@param topts? table telescope picker options (theme, layout)
+---@param finish fun(items?: org.PickerItem[], query?: string, how?: org.PickerHow)
+---@param topts? table telescope picker options (theme, layout):
+---`picker_opts.telescope`, with those of `:Telescope org ...` over them
 function M.pick(spec, finish, topts)
   topts = topts or {}
+  -- telescope's options win over the defaults below: keep org's items
+  topts.finder = nil
   local tpickers = require("telescope.pickers")
   local finders = require("telescope.finders")
   local conf = require("telescope.config").values
@@ -130,9 +133,9 @@ function M.pick(spec, finish, topts)
       sorter = conf.generic_sorter(topts),
       previewer = spec.preview and M.previewer(topts) or nil,
       -- runs for each prompt: builtin.resume() makes a new picker of this one
-      attach_mappings = function(prompt_bufnr)
+      attach_mappings = function(prompt_bufnr, map)
         local answered = false
-        actions.select_default:replace(function()
+        local function choose(how)
           local picker = action_state.get_current_picker(prompt_bufnr)
           local chosen = {}
           if spec.multi and picker and picker.get_multi_selection then
@@ -153,8 +156,25 @@ function M.pick(spec, finish, topts)
           -- before closing: closing wipes the prompt
           answered = true
           actions.close(prompt_bufnr)
-          finish(chosen, query)
+          finish(chosen, query, how)
+        end
+        actions.select_default:replace(function()
+          choose(nil)
         end)
+        if spec.split then
+          -- telescope's own keys (<C-x>, <C-v>, <C-t>) and the picker_keys
+          for action, how in pairs({ select_horizontal = "split", select_vertical = "vsplit", select_tab = "tab" }) do
+            actions[action]:replace(function()
+              choose(how)
+            end)
+          end
+          for _, k in ipairs(pickers.split_keys(spec)) do
+            local how = k[1]
+            map({ "i", "n" }, k[2], function()
+              choose(how)
+            end)
+          end
+        end
         -- closed without a choice
         vim.api.nvim_create_autocmd("BufWipeout", {
           buffer = prompt_bufnr,

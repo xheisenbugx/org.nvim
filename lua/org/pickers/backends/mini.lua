@@ -22,8 +22,9 @@ function M.available()
 end
 
 ---@param spec org.PickerSpec
----@param finish fun(items?: org.PickerItem[], query?: string)
-function M.pick(spec, finish)
+---@param finish fun(items?: org.PickerItem[], query?: string, how?: org.PickerHow)
+---@param user? table `picker_opts.mini`, merged under org.nvim's source
+function M.pick(spec, finish, user)
   local MiniPick = api()
   local items = {}
   local create
@@ -87,7 +88,7 @@ function M.pick(spec, finish)
   -- MiniPick.builtin.resume() (start() has returned by then). The answer
   -- comes once the picker has stopped.
   local answered = false
-  local function take(list)
+  local function take(list, how)
     answered = true
     local out, new = {}, false
     for _, x in ipairs(list) do
@@ -108,7 +109,29 @@ function M.pick(spec, finish)
       end)
       return
     end
-    finish(out, query)
+    finish(out, query, how)
+  end
+  -- the picker_keys replace mini.pick's choose_in_split / vsplit / tabpage,
+  -- which split before choosing
+  local mappings = {}
+  local keys = pickers.split_keys(spec)
+  if #keys > 0 then
+    mappings = { choose_in_split = "", choose_in_vsplit = "", choose_in_tabpage = "" }
+    for _, k in ipairs(keys) do
+      local how = k[1]
+      mappings["org_" .. how] = {
+        char = k[2],
+        func = function()
+          local ok, matches = pcall(MiniPick.get_picker_matches)
+          local x = ok and type(matches) == "table" and matches.current or nil
+          if x then
+            take({ x }, how)
+          end
+          -- stop the picker
+          return true
+        end,
+      }
+    end
   end
   local source_items = items
   if spec.query and spec.query ~= "" then
@@ -118,7 +141,8 @@ function M.pick(spec, finish)
       return items
     end
   end
-  MiniPick.start({
+  MiniPick.start(vim.tbl_deep_extend("force", user or {}, {
+    mappings = mappings,
     source = {
       name = spec.title,
       items = source_items,
@@ -163,7 +187,7 @@ function M.pick(spec, finish)
         take(spec.multi and marked or { marked[1] })
       end,
     },
-  })
+  }))
   if not answered then
     finish(nil)
   end
