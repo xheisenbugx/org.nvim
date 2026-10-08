@@ -135,3 +135,22 @@ describe("parser: inline tasks are not their parent's text", function()
     eq(1, #by_day[T + 1])
   end)
 end)
+
+describe("parser: the file-level CATEGORY property", function()
+  it("wins over #+CATEGORY for every headline", function()
+    local f = parser.parse({
+      ":PROPERTIES:",
+      ":CATEGORY: fromdrawer",
+      ":END:",
+      "#+CATEGORY: fromkeyword",
+      "* TODO x",
+      "** y",
+      "   :PROPERTIES:",
+      "   :CATEGORY: own",
+      "   :END:",
+    }, "/tmp/cat2.org")
+    eq("fromdrawer", f.headlines[1]:get_category())
+    eq("own", f.headlines[2]:get_category())
+    eq("fromdrawer", f:category())
+  end)
+end)

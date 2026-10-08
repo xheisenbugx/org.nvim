@@ -1092,8 +1092,11 @@ function File:get_todo_config()
   return self.settings.todo
 end
 
+--- The file's category: a CATEGORY in the file-level property drawer
+--- wins over #+CATEGORY (org-get-category reads the property first).
 function File:category()
-  return self.settings.category or "???"
+  local props = self.properties
+  return props and props.CATEGORY or self.settings.category or "???"
 end
 
 function File:title()
