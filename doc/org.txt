@@ -4049,11 +4049,14 @@ the formula editor) rewrites only the first line (or the edited one), with
 the formulas sorted like Emacs.
 References:
   $2 $> $< $>> $+1 $-1       columns
-  @3 @> @< @<< @-1 @I @II    rows / hlines
+  @3 @> @< @<< @-1 @I @II    rows / hlines (a rule above the first row
+                             is @I)
   @2$3                       a single field
   @2$1..@4$3 $1..$3          ranges
   @# $#                      the current row / column number
-  remote(name, @2$1)         a field of a named table (#+NAME:)
+  remote(name, @2$1)         a field of a named table (#+NAME:); `@#`
+                             and `$#` work inside, and `remote($1, @2$1)`
+                             reads the table name from field $1
   $name                      a named column, field, parameter or constant
 Names, looked up in this order:
   `!` row           `| ! | | qty | price |` names the columns below it
@@ -4066,11 +4069,12 @@ Names, looked up in this order:
   $PROP_Name        the Name property of the entry (inherited)
   header row        (extension) `$Total=$Qty*$Price` uses the header above
                     the first hline when there is no `!` row
-Column formulas run on the rows below the first hline (all rows without
-one); when the first column holds marks (`! $ ^ _ # *`), only on rows
+Column formulas run on the rows below the first hline that has a row
+above it and one below it (all rows without one); when the first column holds marks (`! $ ^ _ # *`), only on rows
 marked `#` or `*`. Rows marked `! ^ _ $ /` are never changed. Formulas run
 row by row in the order of their sorted left sides, column formulas first,
-then field formulas. A relative row reference (`@-1`, `@+2`) may cross an
+then field formulas. A row formula (`@2=`, `@>=`) sets every field of
+that row. A relative row reference (`@-1`, `@+2`) may cross an
 hline (`table_relative_ref_may_cross_hline`: false stops at the row next to
 the hline, "error" stops the recalculation). `table_formula_field_format`
 ("%s") formats every result, e.g. "~%s~".

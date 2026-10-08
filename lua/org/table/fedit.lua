@@ -272,7 +272,7 @@ local function test_row(st)
     end
     return d, m, info
   end
-  return (m.hlines[1] and m.hlines[1] > 0) and m.hlines[1] + 1 or 1, m, info
+  return formula()._header_rows(m) + 1, m, info
 end
 
 --- Highlight the fields the formula on the editor's current line refers
