@@ -684,3 +684,64 @@ describe("sort_function", function()
     eq({ "* P", "** c", "** b", "** a" }, buf_lines(buf))
   end)
 end)
+
+-- org-fixup-indentation with org-adapt-indentation t; expected buffers
+-- from Emacs 9.8.10 (org-demote-subtree / org-promote-subtree)
+describe("adapt_indentation = true (org-fixup-indentation)", function()
+  local config = require("org.config")
+  local structure = require("org.structure")
+  local saved, saved_p
+  before_each(function()
+    saved, saved_p = config.opts.adapt_indentation, config.opts.src_preserve_indentation
+    config.opts.adapt_indentation = true
+  end)
+  after_each(function()
+    config.opts.adapt_indentation, config.opts.src_preserve_indentation = saved, saved_p
+  end)
+
+  local function demote(lines)
+    local buf = org_buffer(lines, { 1, 0 })
+    structure.demote_subtree()
+    return buf_lines(buf)
+  end
+  local function promote(lines)
+    local buf = org_buffer(lines, { 1, 0 })
+    structure.promote_subtree()
+    return buf_lines(buf)
+  end
+
+  it("leaves footnote definitions and their contents alone", function()
+    eq(
+      { "** A", "   body", "[fn:1] def", "#+begin_src sh", "echo", "#+end_src" },
+      demote({ "* A", "  body", "[fn:1] def", "#+begin_src sh", "echo", "#+end_src" })
+    )
+    -- two blank lines end the definition
+    eq(
+      { "** A", "   text", "[fn:1] def", "  more", "", "", " after" },
+      demote({ "* A", "  text", "[fn:1] def", "  more", "", "", "after" })
+    )
+  end)
+
+  it("promoting shifts nothing in an entry with a line that cannot move", function()
+    eq({ "* A", "   body", "flush" }, promote({ "** A", "   body", "flush" }))
+    -- decided entry by entry
+    eq(
+      { "* A", "   body", "flush", "** B", "   text", "  [fn:2] x" },
+      promote({ "** A", "   body", "flush", "*** B", "    text", "   [fn:2] x" })
+    )
+    eq({ "* A", "  text", " * item" }, promote({ "** A", "   text", "  * item" }))
+  end)
+
+  it("shifts block delimiters, and their contents unless indentation is preserved", function()
+    eq(
+      { "** A", " #+begin_src sh -i", "echo", " #+end_src" },
+      demote({ "* A", "#+begin_src sh -i", "echo", "#+end_src" })
+    )
+    eq(
+      { "* A", "  #+begin_example", "  x", "  #+end_example" },
+      promote({ "** A", "   #+begin_example", "   x", "   #+end_example" })
+    )
+    config.opts.src_preserve_indentation = true
+    eq({ "** A", " #+begin_src sh", "echo", " #+end_src" }, demote({ "* A", "#+begin_src sh", "echo", "#+end_src" }))
+  end)
+end)
