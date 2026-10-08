@@ -5938,6 +5938,18 @@ off: >lua
 keys there; in telescope its select_horizontal / vertical / tab actions
 (<C-x>, <C-v>, <C-t>) do the same.
 
+                                                        *org-picker-qflist*
+Several entries can be chosen there too (multi-select, above). <CR> puts
+them in the quickfix list, titled after the picker, and opens it; <C-s>,
+<C-v> and <C-t> open each in a window of its own. <C-q> (`picker_keys`'
+`qflist`) puts every entry matching the typed text in the quickfix list.
+From there |:cdo| / |:cfdo| edit them all, and plugins reading the
+quickfix list take them: grug-far.nvim searches and replaces in their files
+with `<qflist>` as its paths, trouble.nvim and quicker.nvim show them. In
+telescope its own
+send_to_qflist (<C-q>) and send_selected_to_qflist (<M-q>) actions do the
+same; in fzf-lua <C-q> needs fzf 0.53 or later to take every match.
+
 Picker options ~
                                                         *org-picker-opts*
 `picker_opts` gives each picker plugin options of your own, merged over
@@ -6654,9 +6666,10 @@ Structure and visibility ~
   picker_opts               {}        options for the picker plugin, by
                                       picker (|org-picker-opts|)
   picker_keys               { split = "<C-s>", vsplit = "<C-v>",
-                              tab = "<C-t>" }
+                              tab = "<C-t>", qflist = "<C-q>" }
                                       open a place in a split, vsplit or
-                                      tab from a picker (|org-picker-keys|)
+                                      tab from a picker, or every match in
+                                      the quickfix list (|org-picker-keys|)
   bookmark_names            { last_capture = "org-capture-last-stored",
                               last_refile = "org-refile-last-stored",
                               last_capture_marker =
