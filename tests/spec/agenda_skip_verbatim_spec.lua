@@ -108,4 +108,74 @@ describe("agenda: timestamps outside timestamp objects", function()
       })
     )
   end)
+  -- Emacs Org 9.8.10 (emacs -Q --batch, org-agenda-list)
+  it("ignores verbatim, code, inline src, links and LaTeX environments", function()
+    eq(
+      { "Plain" },
+      day_titles({
+        "* Verbatim",
+        "  see =" .. stamp .. "= here",
+        "* Code",
+        "  see ~" .. stamp .. "~ here",
+        "* Inline src",
+        "  src_sh{echo " .. stamp .. "} src_sh[:exports none]{x " .. stamp .. "}",
+        "* Link desc",
+        "  see [[https://x.org][" .. stamp .. "]] here",
+        "* Link path [[" .. stamp .. "]]",
+        "* Title =" .. stamp .. "= verbatim",
+        "* Latex",
+        "  \\begin{align*}",
+        "  " .. stamp,
+        "  \\end{align*}",
+        "* Plain",
+        "  " .. stamp,
+      })
+    )
+  end)
+
+  it("keeps a timestamp after an inline src block on the same line", function()
+    eq({ "Src" }, day_titles({ "* Src", "  src_sh{echo x} and " .. stamp }))
+  end)
+
+  it("lists active timestamps inside drawers, not on CLOCK lines", function()
+    eq(
+      { "Drawer", "Logbook", "Prop" },
+      day_titles({
+        "* Prop",
+        "  :PROPERTIES:",
+        "  :WHEN: " .. stamp,
+        "  :END:",
+        "* Drawer",
+        "  :org-gcal:",
+        "  " .. stamp,
+        "  :END:",
+        "* Logbook",
+        "  :LOGBOOK:",
+        "  - Note taken on [2026-09-10 Thu 10:00] \\\\",
+        "    follow up " .. stamp,
+        "  :END:",
+        "* Clock",
+        "  :LOGBOOK:",
+        "  CLOCK: <2026-09-25 Fri 10:00>--<2026-09-25 Fri 11:00> =>  1:00",
+        "  :END:",
+      })
+    )
+  end)
+
+  it("todo_ignore_timestamp sees a property drawer timestamp", function()
+    local config = require("org.config")
+    local saved = config.opts.agenda.todo_ignore_timestamp
+    config.opts.agenda.todo_ignore_timestamp = "past"
+    local file = parser.parse({
+      "* TODO Prop ts",
+      "  :PROPERTIES:",
+      "  :WHEN: <2026-09-20 Sun>",
+      "  :END:",
+      "* TODO Kept",
+    }, "/tmp/agenda_skip_verbatim.org")
+    local ok_, list = pcall(items.todo, { file }, nil, { today = T })
+    config.opts.agenda.todo_ignore_timestamp = saved
+    assert(ok_, list)
+    eq({ "Kept" }, titles(list))
+  end)
 end)
