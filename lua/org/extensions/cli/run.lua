@@ -811,7 +811,21 @@ local function open_agenda(words, flags)
     end
     anchor = d:days()
   end
-  local span = flags.span and (tonumber(flags.span) or flags.span)
+  local span
+  if flags.span then
+    local n = tonumber(flags.span)
+    if n and n >= 1 and n == math.floor(n) then
+      span = n
+    elseif SPANS[flags.span] then
+      span = SPANS[flags.span]
+    else
+      fail(
+        "--span needs a positive whole number or day, week, fortnight, month or year, not " .. flags.span,
+        "bad_value",
+        { span = flags.span }
+      )
+    end
+  end
   local label, key = what, vim.NIL
   local custom = not (what == "todo" or what == "tags" or what == "tags-todo")
     and type((config.opts.agenda.custom_commands or {})[what]) == "table"
@@ -1729,11 +1743,31 @@ function M.cmd_export(words, flags)
     fail("no such file: " .. file, "bad_value", { file = file })
   end
   local export = require("org.export")
+  local to_stdout = flags.stdout or flags.output == "-"
+  if not export.FORMATS[backend] then
+    -- other formats go through pandoc, which writes files only; without
+    -- pandoc the export itself says so
+    local pandoc = not to_stdout and export.pandoc_output_formats()
+    if not (pandoc == nil and not to_stdout) and not (pandoc and vim.tbl_contains(pandoc, backend)) then
+      local names = vim.tbl_keys(export.FORMATS)
+      table.sort(names)
+      fail(
+        string.format(
+          "unknown export back-end %s (%s%s)",
+          backend,
+          table.concat(names, ", "),
+          to_stdout and "" or ", or a pandoc output format"
+        ),
+        "bad_value",
+        { backend = backend }
+      )
+    end
+  end
   local bufnr = load_buffer(file)
   vim.api.nvim_set_current_buf(bufnr)
   stop_export_at_prompt()
   M.mark_messages()
-  if flags.stdout or flags.output == "-" then
+  if to_stdout then
     local ok, text = pcall(export.to_string, backend, { bufnr = bufnr })
     M.check_prompted()
     if not ok then

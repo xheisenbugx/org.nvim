@@ -10244,7 +10244,9 @@ Reading:
     `todo [KEYWORD]`, `tags MATCH`, `tags-todo MATCH` or the key of one
     of your `agenda.custom_commands`; without it, the date agenda with
     your `agenda.span`. `--date` takes anything the date prompt reads
-    (`2026-10-01`, `+1`, `fri`). `--csv` is `org-batch-agenda-csv`.
+    (`2026-10-01`, `+1`, `fri`). `--span` takes a number of days or
+    `day`, `week`, `fortnight`, `month`, `year`; anything else is a
+    `bad_value` error (exit code 2). `--csv` is `org-batch-agenda-csv`.
 `org search [QUERY...] [--match MATCH] [--limit N]`
     Headings of the agenda files matching QUERY, as `file:line: heading`:
     the agenda search syntax (|org-agenda-search|), or org-ql queries
@@ -10278,7 +10280,9 @@ Reading:
 `org export FILE BACKEND [-o OUTPUT|--stdout]`
     Export FILE with a back-end of `:Org export` (`html`, `md`, `latex`,
     `pdf`, `ascii`, ...) and print the output path, or write the text to
-    stdout. Code blocks are evaluated as in `:Org export`, but one that
+    stdout. Other formats go through pandoc (to a file only); a
+    BACKEND that is neither is a `bad_value` error (exit code 2).
+    Code blocks are evaluated as in `:Org export`, but one that
     would ask first (`babel.confirm_evaluate`, `:eval query`) stops the
     export with exit code 3 and nothing written, as in Emacs's batch
     export; `babel.confirm_evaluate = false` in the CLI's configuration
