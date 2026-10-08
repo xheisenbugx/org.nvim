@@ -67,6 +67,20 @@ describe("ics parser: content lines", function()
     eq("a\nb, c; d\\e", parser.text("a\\nb\\, c\\; d\\\\e"))
   end)
 
+  it("splits CATEGORIES on unescaped commas only", function()
+    local cal = parser.parse(table.concat({
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:1",
+      "DTSTART;VALUE=DATE:20261010",
+      "CATEGORIES:Work\\, Home,Other,,a\\\\",
+      "CATEGORIES:Last",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    }, "\r\n"))
+    eq({ "Work, Home", "Other", "a\\", "Last" }, cal.events[1].categories)
+  end)
+
   it("reads dates, times, durations and offsets", function()
     eq({ naive = N(2026, 10, 5), all_day = true }, parser.time("20261005"))
     eq({ naive = N(2026, 10, 5, 14, 30), utc = true }, parser.time("20261005T143000Z"))

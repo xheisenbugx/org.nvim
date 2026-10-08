@@ -83,7 +83,7 @@ end
 --- Where the tags of headline `line` start, minus the whitespace before
 --- them, or nil without tags.
 local function tags_start(line)
-  local s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
+  local s = line:find("[ \t]+:[%w_@#%%:\128-\255]+:[ \t]*$")
   return s and s - 1
 end
 

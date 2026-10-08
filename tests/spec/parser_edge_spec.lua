@@ -24,12 +24,42 @@ describe("parser edge cases", function()
     eq(1, #hl.timestamps)
   end)
 
-  it("still hides timestamps inside closed drawers", function()
+  it("keeps timestamps inside closed drawers, like Emacs", function()
+    -- Emacs Org 9.8.10: a drawer's paragraphs hold timestamp objects, and
+    -- the agenda lists both of these
     local f = parser.parse({ "* Task", ":note:", "<2024-01-02 Tue>", ":END:", ":x:", "<2024-01-03 Wed>" }, "/x.org")
     local hl = f.headlines[1]
     eq(1, #hl.drawers)
-    eq(1, #hl.timestamps)
-    eq(6, hl.timestamps[1].line)
+    eq(2, #hl.timestamps)
+    eq(3, hl.timestamps[1].line)
+    eq(6, hl.timestamps[2].line)
+  end)
+
+  it("keeps drawer timestamps but not a CLOCK line's", function()
+    local f = parser.parse({
+      "* Task",
+      "  :PROPERTIES:",
+      "  :WHEN: <2024-01-02 Tue>",
+      "  :END:",
+      "  :LOGBOOK:",
+      "  CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:00] =>  1:00",
+      '  - State "DONE"       from "TODO"       [2024-01-01 Mon 12:00]',
+      "  - Note taken on [2024-01-01 Mon 13:00] \\\\",
+      "    follow up <2024-01-03 Wed>",
+      "  :END:",
+    }, "/x.org")
+    local hl = f.headlines[1]
+    eq(
+      { 3, 9 },
+      vim.tbl_map(function(t)
+        return t.line
+      end, hl.timestamps)
+    )
+    eq(true, hl.timestamps[1].in_property)
+    -- TIMESTAMP skips the property value (a node property, no timestamp
+    -- object); TIMESTAMP_IA is the State note's, not the clock's
+    eq("<2024-01-03 Wed>", hl:get_property("TIMESTAMP"))
+    eq("[2024-01-01 Mon 12:00]", hl:get_property("TIMESTAMP_IA"))
   end)
 end)
 
@@ -53,5 +83,119 @@ describe("element motion on an inline task END line", function()
     org_buffer(lines, { 5, 0 })
     require("org.element").up()
     eq(1, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+end)
+
+-- Expected values below are Emacs Org 9.8.10's (emacs -Q --batch).
+describe("parser: inline tasks are not their parent's text", function()
+  with_config({ inlinetask_min_level = 4 })
+
+  it("keeps an inline task's lines out of the enclosing entry's section", function()
+    local f = parser.parse({
+      "* TODO A",
+      "  [2026-10-01 Thu]",
+      "**** TODO Inline",
+      "     SCHEDULED: <2026-10-07 Wed>",
+      "     <2026-10-07 Wed>",
+      "**** END",
+      "text <2026-10-09 Fri>",
+      "* B",
+      "**** Inline2",
+      "     <2026-10-08 Thu>",
+      "     [2026-10-02 Fri]",
+    }, "/tmp/inl.org")
+    local a, inline, b, inline2 = f.headlines[1], f.headlines[2], f.headlines[3], f.headlines[4]
+    eq(0, #a.timestamps)
+    eq("[2026-10-01 Thu]", a:get_property("TIMESTAMP_IA"))
+    eq(5, inline.timestamps[1].line)
+    eq(0, #b.timestamps)
+    eq(nil, b.first_inactive)
+    -- without END, the text up to the next heading is the inline task's
+    eq(10, inline2.timestamps[1].line)
+    eq("[2026-10-02 Fri]", inline2:get_property("TIMESTAMP_IA"))
+  end)
+
+  it("lists only the inline tasks in the agenda", function()
+    local items = require("org.agenda.items")
+    local date = require("org.date")
+    local f = parser.parse({
+      "* TODO A",
+      "**** TODO Inline",
+      "     SCHEDULED: <2026-10-07 Wed>",
+      "**** END",
+      "* B",
+      "**** Inline2",
+      "     <2026-10-08 Thu>",
+    }, "/tmp/inl.org")
+    local T = date.parse("<2026-10-07 Wed>"):days()
+    local by_day = items.agenda({ f }, T, T + 1, { today = T })
+    eq("Inline", by_day[T][1].title)
+    eq(1, #by_day[T])
+    eq("Inline2", by_day[T + 1][1].title)
+    eq(1, #by_day[T + 1])
+  end)
+end)
+
+describe("parser: the file-level CATEGORY property", function()
+  it("wins over #+CATEGORY for every headline", function()
+    local f = parser.parse({
+      ":PROPERTIES:",
+      ":CATEGORY: fromdrawer",
+      ":END:",
+      "#+CATEGORY: fromkeyword",
+      "* TODO x",
+      "** y",
+      "   :PROPERTIES:",
+      "   :CATEGORY: own",
+      "   :END:",
+    }, "/tmp/cat2.org")
+    eq("fromdrawer", f.headlines[1]:get_category())
+    eq("own", f.headlines[2]:get_category())
+    eq("fromdrawer", f:category())
+  end)
+end)
+
+describe("parser: headline keyword, priority and COMMENT like org-element", function()
+  with_config({ todo_keywords = { "TODO | DONE" } })
+  local function hl(line)
+    return parser.parse({ line }, "/x.org").headlines[1]
+  end
+
+  it("needs a space (not a tab) after the TODO keyword", function()
+    eq(nil, hl("* TODO\tTabbed").todo)
+    eq("TODO\tTabbed", hl("* TODO\tTabbed").title)
+    eq(nil, hl("* TODO\t:t:").todo)
+    eq("TODO", hl("* TODO :t:").todo)
+    eq("TODO", hl("* TODO").todo)
+  end)
+
+  it("reads a priority cookie glued to the title", function()
+    eq("A", hl("* TODO [#A]Fix bug").priority)
+    eq("Fix bug", hl("* TODO [#A]Fix bug").title)
+    local b = hl("* [#B]COMMENT x")
+    eq({ "B", true, "x" }, { b.priority, b.commented, b.title })
+  end)
+
+  it("needs a space (not a tab) after COMMENT", function()
+    eq(false, hl("* COMMENT\tx").commented)
+    eq(true, hl("* COMMENT x").commented)
+  end)
+
+  it("ITEM is the title as org-complex-heading-regexp reads it", function()
+    local cases = {
+      ["* TODO COMMENT foo :t:"] = "COMMENT foo",
+      ["* TODO [#A]Fix bug"] = "[#A]Fix bug",
+      ["* TODO\tTabbed"] = "TODO    Tabbed",
+      ["* TODO\t:t:"] = "",
+      ["* [#B]COMMENT x"] = "[#B]COMMENT x",
+      ["* TODO [#A]"] = "",
+      ["* TODO [#A]\tx"] = "[#A]    x",
+      ["* COMMENT\tx"] = "COMMENT x",
+      ["* TODO a\tb"] = "a       b",
+      ["* TODO   [#A]   x  y   :t:"] = "x  y",
+    }
+    for line, want in pairs(cases) do
+      eq(want, hl(line):get_property("ITEM"), line)
+    end
   end)
 end)

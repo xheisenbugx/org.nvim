@@ -197,6 +197,11 @@ local function prepare(rows, params, opts)
       end
     end
   end
+  if opts.keep_rules then
+    -- every hline is a rule row of the export (orgtbl-to-generic with
+    -- :hline, orgtbl-to-latex): leading, trailing and doubled ones too
+    return out
+  end
   -- leading and trailing hlines and repeated ones are not rows
   while out[1] == "hline" do
     table.remove(out, 1)
@@ -213,12 +218,38 @@ local function prepare(rows, params, opts)
   return clean
 end
 
---- Number of header rows (before the first hline, when a data row
---- follows it).
+--- Column group borders of a `/` row's `groups` (org-export-table-cell-borders):
+--- `bar[c]` is a border left of column c, `bar[ncols + 1]` one after the
+--- last column. A column has a left border when it starts a group (`<`,
+--- `<>`) or the column before ends one (`>`, `<>`).
+local function group_bars(groups)
+  local bar = {}
+  for c, g in ipairs(groups or {}) do
+    if g == "<" or g == "<>" then
+      bar[c] = true
+    end
+    if g == ">" or g == "<>" then
+      bar[c + 1] = true
+    end
+  end
+  return bar
+end
+
+--- Index of the last header row: the rows before the first hline that
+--- has a data row above it and one below it (leading hlines do not end
+--- the header), or 0 when there is no header.
 local function header_count(rows)
+  local seen = false
   for i, r in ipairs(rows) do
-    if r == "hline" then
-      return i - 1
+    if r ~= "hline" then
+      seen = true
+    elseif seen then
+      for k = i + 1, #rows do
+        if rows[k] ~= "hline" then
+          return i - 1
+        end
+      end
+      return 0
     end
   end
   return 0
@@ -451,7 +482,7 @@ local EXP = "^([-+]?%d*%.?%d+)[eE]([-+]?%d+)$"
 --- (the backend's transcoder).
 ---@param rows (string[]|string)[]
 ---@param params table
----@param backend? { cell?: (fun(s: string): string), row?: (fun(cells: string[], info: table): string), hline?: (fun(info: table): string?), table?: fun(body: string, info: table): string }
+---@param backend? { keep_rules?: boolean, cell?: (fun(s: string): string), row?: (fun(cells: string[], info: table): string), hline?: (fun(info: table): string?), table?: fun(body: string, info: table): string }
 function M.generic(rows, params, backend)
   params = params or {}
   -- without a backend, Emacs exports through the Org backend, which keeps
@@ -459,7 +490,11 @@ function M.generic(rows, params, backend)
   local keep = backend == nil and params.backend == nil
   backend = backend or {}
   local pinfo = {}
-  rows = prepare(rows, params, { keep_special = keep, info = pinfo })
+  rows = prepare(rows, params, {
+    keep_special = keep,
+    info = pinfo,
+    keep_rules = params.hline ~= nil or backend.keep_rules,
+  })
   local tx = backend.cells and not params.raw and backend.cells(rows) or nil
   local nheader = header_count(rows)
   local ndata = 0
@@ -551,7 +586,7 @@ function M.generic(rows, params, backend)
     return frame(body, params)
   end
   if backend.table then
-    return backend.table(body, { rows = rows, params = params, cells = tx, align = pinfo.align })
+    return backend.table(body, { rows = rows, params = params, cells = tx, align = pinfo.align, groups = pinfo.groups })
   end
   return body
 end
@@ -694,28 +729,47 @@ function M.translators.latex(rows, params)
   local booktabs = params.booktabs
   local env = params.environment or "tabular"
   return M.generic(rows, params, {
+    keep_rules = true,
     cell = latex_cell,
     cells = function(prepared)
       return export_cells("latex", prepared)
     end,
-    row = function(cells)
-      return table.concat(cells, " & ") .. "\\\\"
+    row = function(cells, info)
+      -- :sep replaces the LaTeX column separator (org-table--to-generic-cell)
+      local line = (info.sep or table.concat(cells, " & ")) .. "\\\\"
+      if booktabs then
+        -- org-latex-table-row: booktabs puts a top rule before a first row
+        -- and a bottom rule after a last one
+        if info.index == 1 then
+          line = "\\toprule\n" .. line
+        end
+        if info.index == #info.rows then
+          line = line .. "\n\\bottomrule"
+        end
+      end
+      return line
     end,
-    hline = function()
-      -- leading and trailing hlines are gone: every rule is a mid one
-      return booktabs and "\\midrule" or "\\hline"
+    hline = function(info)
+      -- every hline is a rule (org-latex-table-row)
+      if not booktabs then
+        return "\\hline"
+      elseif info.index == 1 then
+        return "\\toprule"
+      elseif info.index == #info.rows then
+        return "\\bottomrule"
+      end
+      return "\\midrule"
     end,
     table = function(body, info)
       local align, ncols = export_alignments(info.rows, info.cells, info.align)
-      local spec = table.concat(align, "", 1, ncols)
+      -- column groups put `|` in the column spec (org-latex--align-string)
+      local bar, parts = group_bars(info.groups), {}
+      for c = 1, ncols do
+        parts[#parts + 1] = (c == 1 and bar[c] and "|" or "") .. align[c] .. (bar[c + 1] and "|" or "")
+      end
+      local spec = table.concat(parts)
       local lines = { "\\begin{" .. env .. "}{" .. spec .. "}" }
-      if booktabs then
-        lines[#lines + 1] = "\\toprule"
-      end
       lines[#lines + 1] = body
-      if booktabs then
-        lines[#lines + 1] = "\\bottomrule"
-      end
       lines[#lines + 1] = "\\end{" .. env .. "}"
       return table.concat(lines, "\n")
     end,
@@ -772,14 +826,16 @@ function M.translators.html(rows, params)
     end,
     table = function(_, info)
       -- rebuild with row groups: thead for the header, tbody per group
-      local lines = { "<table" .. attr_text .. ">", "", "", "<colgroup>" }
+      -- one <colgroup> per column group (org-html-table)
+      local bar, specs = group_bars(pinfo.groups), {}
       for c = 1, #align do
-        lines[#lines + 1] = '<col  class="org-' .. (names[align[c]] or "left") .. '" />'
-        if c < #align then
-          lines[#lines + 1] = ""
-        end
+        specs[c] = ((c == 1 or bar[c]) and "\n<colgroup>" or "")
+          .. '\n<col  class="org-'
+          .. (names[align[c]] or "left")
+          .. '" />'
+          .. ((c == #align or bar[c + 1]) and "\n</colgroup>" or "")
       end
-      lines[#lines + 1] = "</colgroup>"
+      local lines = { "<table" .. attr_text .. ">\n\n" .. table.concat(specs, "\n") }
       local groups, cur = {}, {}
       for i, r in ipairs(info.rows) do
         if r == "hline" then
@@ -964,15 +1020,7 @@ function M.translators.unicode(rows, params)
     widths[c] = w
   end
   -- bar[c]: a vertical line before column c (ncols + 1: after the last)
-  local bar = {}
-  for c, g in ipairs(info.groups or {}) do
-    if g == "<" or g == "<>" then
-      bar[c] = true
-    end
-    if g == ">" or g == "<>" then
-      bar[c + 1] = true
-    end
-  end
+  local bar = group_bars(info.groups)
   local function rule(fill, left, mid, right)
     local parts = {}
     for c = 1, ncols do

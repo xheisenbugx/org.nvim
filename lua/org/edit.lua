@@ -113,6 +113,11 @@ end
 function M.with_tags(before, tags)
   before = before:gsub("%s+$", "")
   if not tags or #tags == 0 then
+    -- A stars-only headline keeps its space, or it stops being a headline
+    -- (Emacs leaves "* ").
+    if before:match("^%*+$") then
+      return before .. " "
+    end
     return before
   end
   local tagstr = ":" .. table.concat(tags, ":") .. ":"

@@ -535,6 +535,19 @@ describe("ql extension", function()
       eq("| [[*c][c]]       | TODO |", lines[7])
       eq("#+END:", lines[8])
     end)
+    it("links a heading that ends in ]", function()
+      local buf = org_buffer({
+        "* TODO Fix arr[0]",
+        '#+BEGIN: org-ql :query (todo "TODO")',
+        "#+END:",
+      }, { 2, 0 })
+      require("org.dblock").update_at_cursor()
+      local row = buf_lines(buf)[5]
+      local l = require("org.links").parse_links(row, { bracket_only = true })[1]
+      ok(l, row)
+      eq("Fix arr[0]", vim.trim((l.desc or ""):gsub("\226\128\139", "")))
+      eq("*Fix arr[0]", l.target)
+    end)
   end)
 
   it("gives the agenda its save key back when turned off", function()

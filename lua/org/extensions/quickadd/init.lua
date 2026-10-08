@@ -346,6 +346,15 @@ function M.resolve_target(target)
         p = utils.expand(require("org.config").opts.org_directory) .. "/" .. p
       end
       if vim.fn.filereadable(p) == 0 then
+        -- no such file: `@Parent/Child`, an outline path
+        local m = target.heading and find_heading(paths, target.raw)
+        if m then
+          return {
+            filename = m.path,
+            lnum = m.hl.line,
+            label = file_label(m.path) .. "/" .. m.hl:plain_title(),
+          }
+        end
         return fallback(target.raw)
       end
       file_paths = { vim.fs.normalize(p) }

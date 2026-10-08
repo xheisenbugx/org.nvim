@@ -35,6 +35,44 @@ describe("datetree_add_timestamp (org-datetree-add-timestamp)", function()
     }, buf_lines(buf))
   end)
 
+  it("stamps a new day node that replaces blank lines, keeping one before the next month", function()
+    -- Emacs: org-datetree-find-date-create '(10 7 2026), for 0 to 3 blank lines
+    for n = 0, 3 do
+      config.setup({ datetree_add_timestamp = "inactive" })
+      local lines = { "* 2026", "** 2026-10 October", "*** 2026-10-06 Tuesday", "entry" }
+      for _ = 1, n do
+        lines[#lines + 1] = ""
+      end
+      lines[#lines + 1] = "** 2026-11 November"
+      local buf = org_buffer(lines, { 1, 0 })
+      capture.ensure_datetree(buf, nil, D(2026, 10, 7))
+      eq({
+        "* 2026",
+        "** 2026-10 October",
+        "*** 2026-10-06 Tuesday",
+        "entry",
+        "*** 2026-10-07 Wednesday",
+        "[2026-10-07 Wed]",
+        "",
+        "** 2026-11 November",
+      }, buf_lines(buf))
+    end
+  end)
+
+  it("stamps a new day node at the end of the buffer over trailing blank lines", function()
+    config.setup({ datetree_add_timestamp = "inactive" })
+    local buf = org_buffer({ "* 2026", "** 2026-10 October", "*** 2026-10-06 Tuesday", "entry", "", "" }, { 1, 0 })
+    capture.ensure_datetree(buf, nil, D(2026, 10, 7))
+    eq({
+      "* 2026",
+      "** 2026-10 October",
+      "*** 2026-10-06 Tuesday",
+      "entry",
+      "*** 2026-10-07 Wednesday",
+      "[2026-10-07 Wed]",
+    }, buf_lines(buf))
+  end)
+
   it("indents an active stamp with adapt_indentation, and skips month trees", function()
     config.setup({ datetree_add_timestamp = "active", adapt_indentation = true })
     local buf = org_buffer({ "" }, { 1, 0 })

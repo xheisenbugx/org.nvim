@@ -99,7 +99,7 @@ local function link_unescape(s)
   )
 end
 
-function P:make_link(raw, format, desc_text, e, s)
+function P:make_link(raw, format, desc_text, e, s, desc_off)
   local ltype, path
   local explicit = false
   if require("org.utils").is_absolute(raw) or raw:match("^~") or raw:match("^%.%.?/") then
@@ -135,7 +135,7 @@ function P:make_link(raw, format, desc_text, e, s)
     node.path = node.path:gsub("^///*(%a:)/", "%1/")
   end
   if desc_text then
-    node.contents = self:parse_objects(desc_text, M.RESTRICTIONS.link, node)
+    node.contents = self:parse_contents(desc_text, M.RESTRICTIONS.link, node, desc_off)
   end
   local ws = s:match("^[ \t]*", e)
   node.post_blank = #ws
@@ -231,7 +231,7 @@ function P:link_at(s, p)
     end
     local raw = rawpath:gsub("[ \t]*\n[ \t]*", " ")
     raw = self:expand_abbrev(link_unescape(raw))
-    return self:make_link(raw, "bracket", desc, e, s)
+    return self:make_link(raw, "bracket", desc, e, s, path_end + 2)
   elseif c == "<" then
     local t, rest = s:match("^<([%w%+%-]+):([^>]*)>", p)
     if t and (self.link_types[t] or (self.opts.extra_link_types and self.opts.extra_link_types[t])) then
@@ -303,7 +303,7 @@ function P:radio_at(s, p, lows)
       if not word_char(nextc) then
         local text = s:sub(p, p + pos - 2)
         local node = M.node("link", { link_type = "radio", path = text, format = "plain", raw_link = text })
-        node.contents = self:parse_objects(text, M.RESTRICTIONS["radio-target"], node)
+        node.contents = self:parse_contents(text, M.RESTRICTIONS["radio-target"], node, p)
         local e = p + pos - 1
         local ws = s:match("^[ \t]*", e)
         node.post_blank = #ws

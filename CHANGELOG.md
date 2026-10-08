@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.4.1] - 2026-10-07
+
+### Fixes
+
+- 56 bugs from a bug hunt across core, agenda, export, tables and extensions ([#219](https://github.com/xheisenbugx/org.nvim/pull/219))
+
 ## [v2.4.0] - 2026-10-07
 
 ### Features
@@ -364,6 +370,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.4.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.4.0...v2.4.1
 [v2.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.3...v2.4.0
 [v2.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.2...v2.3.3
 [v2.3.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.1...v2.3.2

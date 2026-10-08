@@ -114,12 +114,93 @@ local function sibling_index(hl)
   end
 end
 
+-- org-footnote-definition-re (column 0)
+local FN_DEF = "^%[fn:[-_%w\128-\255]+%]"
+
+--- Affiliated keyword (org-element--affiliated-re), kept out of a
+--- footnote definition that ends at the next one.
+local function is_affiliated(l)
+  local key = l:match("^[ \t]*#%+([%w_]+)%[?[^:]*:")
+  if not key then
+    return false
+  end
+  key = key:upper()
+  return key == "CAPTION"
+    or key == "HEADER"
+    or key == "NAME"
+    or key == "PLOT"
+    or key == "RESULTS"
+    or key:match("^ATTR_") ~= nil
+end
+
+--- Index of the first line after the footnote definition starting at line
+--- `i` (org-element-footnote-definition-parser), at most `last + 1`.
+local function footnote_end(lines, i, last)
+  local j = i + 1
+  while j <= last do
+    local l = lines[j]
+    if l:match("^%*+[ \t]") or l:match("^%*+$") then
+      return j
+    elseif l:match(FN_DEF) then
+      while j - 1 > i and is_affiliated(lines[j - 1]) do
+        j = j - 1
+      end
+      return j
+    elseif is_blank(l) and j < last and is_blank(lines[j + 1]) then
+      while j <= last and is_blank(lines[j]) do
+        j = j + 1
+      end
+      return j
+    end
+    j = j + 1
+  end
+  return last + 1
+end
+
+--- When line `i` opens a src or example block whose indentation is
+--- preserved (org-src-preserve-indentation-p), the index of its closing
+--- line, else nil.
+local function preserved_block_end(lines, i, last)
+  local kind, switches = lines[i]:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_(%a+)(.*)$")
+  if not kind then
+    return nil
+  end
+  kind = kind:lower()
+  if kind ~= "src" and kind ~= "example" then
+    return nil
+  end
+  if kind == "src" then
+    switches = switches:match("^[ \t]+%S+(.*)$") or ""
+  end
+  if not require("org.babel.blocks").preserve_indentation(switches) then
+    return nil
+  end
+  for j = i + 1, last do
+    if lines[j]:lower():match("^[ \t]*#%+end_" .. kind .. "[ \t]*$") then
+      return j
+    end
+  end
+end
+
+--- Indentation column of `l` (tabs to multiples of 8).
+local function indent_col(l)
+  local col = 0
+  for c in l:match("^[ \t]*"):gmatch(".") do
+    col = c == "\t" and (math.floor(col / 8) + 1) * 8 or col + 1
+  end
+  return col
+end
+
 --- Rewrite headline lines in `lines` with level delta, realigning tags and
 --- fixing the indentation when `adapt_indentation` is on, like
 --- org-fixup-indentation: the planning line and property drawer right after
 --- a headline are indented to its new level (properties aligned), the
---- LOGBOOK drawer and, unless it is "headline-data", the other lines are
---- shifted by the level change.
+--- LOGBOOK drawer and, when it is `true`, the other lines of each entry are
+--- shifted by the level change. Footnote definitions, headlines and inline
+--- task boundaries, blank lines and the contents of src/example blocks
+--- that preserve their indentation are left alone; an entry where
+--- promoting would push a line before column 0 or turn it into a headline
+--- or footnote definition is not shifted at all.
 local function relevel(lines, delta, todo_cfg)
   local adapt = require("org.ui.decorations").adapt_indentation(0)
   -- headline data: i -> "planning" | "properties" | "log", with the level
@@ -158,6 +239,55 @@ local function relevel(lines, delta, todo_cfg)
     local n = math.min(-delta, #l:match("^(%s*)"))
     return l:sub(n + 1)
   end
+  -- the lines of each entry to shift (org-fixup-indentation's body pass)
+  local shifted = {}
+  if adapt == true and delta ~= 0 then
+    local s = 1
+    while s <= #lines do
+      local e = s
+      while e < #lines and not parser.outline_level(lines[e + 1]) do
+        e = e + 1
+      end
+      -- visit the body lines of entry s..e: `fn(i)` for each line to shift
+      local function walk(fn)
+        local i = s
+        while i <= e do
+          local l = lines[i]
+          if data[i] or is_blank(l) or (i == s and parser.outline_level(l)) then
+            i = i + 1
+          elseif l:match(FN_DEF) then
+            i = footnote_end(lines, i, e)
+          elseif l:match("^%*+ ") then
+            i = i + 1
+          else
+            if fn(i) == false then
+              return false
+            end
+            -- a preserved block: on to its closing line, which is shifted
+            i = preserved_block_end(lines, i, e) or i + 1
+          end
+        end
+      end
+      local can = true
+      if delta < 0 then
+        local diff = -delta
+        can = walk(function(i)
+          local l = lines[i]
+          local ind = indent_col(l)
+          local text = l:sub(#l:match("^[ \t]*") + 1)
+          if ind < diff or (ind == diff and (text:match("^%*+ ") or text:match(FN_DEF))) then
+            return false
+          end
+        end) ~= false
+      end
+      if can then
+        walk(function(i)
+          shifted[i] = true
+        end)
+      end
+      s = e + 1
+    end
+  end
   local out = {}
   for i, l in ipairs(lines) do
     -- inline tasks keep their level (org-with-limited-levels)
@@ -183,13 +313,7 @@ local function relevel(lines, delta, todo_cfg)
       end
     elseif kind == "log" then
       out[i] = is_blank(l) and l or shift(l)
-    elseif
-      adapt
-      and adapt ~= "headline-data"
-      and not is_blank(l)
-      and not l:match("^#%+")
-      and not parser.headline_level(l)
-    then
+    elseif shifted[i] then
       out[i] = shift(l)
     else
       out[i] = l

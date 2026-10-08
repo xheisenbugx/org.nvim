@@ -233,6 +233,103 @@ function M.include_location(content, search, only_contents)
   error(string.format("No match for fuzzy expression: %s", s))
 end
 
+-- The link types whose path is rebased (org-element-link-parser gives
+-- them the type "file").
+local FILE_PREFIXES = { ["file:"] = true, ["file+sys:"] = true, ["file+emacs:"] = true }
+
+--- `target` (the raw text of a link's target) with its relative file path
+--- made relative to `top_dir` instead of `fdir`, or nil when it is not a
+--- relative file link (org-export--update-included-link).
+local function rebase_target(target, fdir, top_dir, bracket)
+  local prefix = target:match("^[Ff][Ii][Ll][Ee][+%w]*:")
+  if prefix and not FILE_PREFIXES[prefix:lower()] then
+    return nil
+  end
+  if not prefix and not (bracket and target:match("^%.%.?/")) then
+    return nil
+  end
+  local rest = target:sub(#(prefix or "") + 1)
+  local path, search = rest:match("^(.-)(::.*)$")
+  path = path or rest
+  search = search or ""
+  local links = require("org.links")
+  if bracket then
+    path = links.unescape(path)
+  end
+  if path == "" or utils.is_absolute(path) or path:match("^~") then
+    return nil
+  end
+  local new = M.relative_path(vim.fs.normalize(fdir .. "/" .. path), top_dir)
+  if bracket then
+    new = links.escape(new)
+  end
+  return (prefix or "") .. new .. search
+end
+
+--- `text` with its file links rebased; `desc_only` keeps bracket links
+--- (in a description only plain and angle links are looked for).
+local function rebase_text(text, fdir, top_dir, desc_only)
+  local found = require("org.links").parse_links(text)
+  local skip = require("org.ui").verbatim_ranges(text)
+  local function in_verbatim(col)
+    for _, r in ipairs(skip) do
+      if col >= r[1] and col <= r[2] then
+        return true
+      end
+    end
+  end
+  for k = #found, 1, -1 do
+    local l = found[k]
+    local s, e = l.start_col, l.end_col
+    if not in_verbatim(s) and not (desc_only and not (l.plain or l.angle)) then
+      local repl
+      if l.plain then
+        repl = rebase_target(text:sub(s, e), fdir, top_dir, false)
+      elseif l.angle then
+        local t = rebase_target(text:sub(s + 1, e - 1), fdir, top_dir, false)
+        repl = t and ("<" .. t .. ">")
+      else
+        local desc = l.desc and rebase_text(l.desc, fdir, top_dir, true)
+        local t = rebase_target(l.raw_target, fdir, top_dir, true)
+        if t or desc ~= l.desc then
+          repl = "[[" .. (t or l.raw_target) .. "]" .. (desc and ("[" .. desc .. "]") or "") .. "]"
+        end
+      end
+      if repl then
+        text = text:sub(1, s - 1) .. repl .. text:sub(e + 1)
+      end
+    end
+  end
+  return text
+end
+
+--- Rebase the relative file links of the included `body` (lines of a file
+--- in `fdir`) onto `top_dir`, in place. Links in verbatim blocks, comments,
+--- fixed-width lines, keywords other than CAPTION and =verbatim= / ~code~
+--- objects are left alone, as Emacs only updates link objects.
+function M.rebase_included_links(body, fdir, top_dir)
+  if vim.fs.normalize(fdir) == vim.fs.normalize(top_dir) then
+    return
+  end
+  local parser = require("org.parser")
+  local i = 1
+  while i <= #body do
+    local close = parser.verbatim_block_end(body, i, #body)
+    if close then
+      i = close + 1
+    else
+      local line = body[i]
+      local key = line:match("^%s*#%+(%S-):")
+      local objects = not (line:match("^%s*[#:]%s") or line:match("^%s*[#:]$"))
+        and not (key and not key:upper():match("^CAPTION"))
+      if objects and (line:find(":", 1, true)) then
+        body[i] = rebase_text(line, fdir, top_dir, false)
+      end
+      i = i + 1
+    end
+  end
+end
+
 --- Expand #+INCLUDE keywords (org-export-expand-include-keyword).
 ---@param lines string[]
 ---@param dir string directory of the includer
@@ -243,6 +340,9 @@ function M.expand_includes(lines, dir, opts)
   local footnotes = opts.footnotes or { order = {}, map = {} }
   local file_prefix = opts.file_prefix or { n = 0, map = {} }
   local top = opts.included == nil
+  -- the directory every included link is made relative to: the top-level
+  -- includer's, also in nested includes
+  local top_dir = opts.top_dir or dir
   local out = {}
   local level = 0
   local in_block
@@ -315,21 +415,11 @@ function M.expand_includes(lines, dir, opts)
             body = M.include_location(content, p.location, p.only_contents)
           end
           body = restrict_lines(body, p.lines)
-          -- links relative to the included file become relative to the includer
+          -- links relative to the included file become relative to the
+          -- top-level includer (org-export--prepare-file-contents)
           local fdir = vim.fn.fnamemodify(file, ":h")
-          if opts.includer and not is_url and vim.fs.normalize(fdir) ~= vim.fs.normalize(dir) then
-            for i, l in ipairs(body) do
-              body[i] = l:gsub("%[%[file:([^%]:][^%]]-)%]", function(path)
-                if utils.is_absolute(path) or path:match("^~") then
-                  return nil
-                end
-                local abs = vim.fs.normalize(fdir .. "/" .. path)
-                return "[[file:" .. M.relative_path(abs, dir) .. "]"
-              end):gsub("%[%[(%.%.?/[^%]]-)%]", function(path)
-                local abs = vim.fs.normalize(fdir .. "/" .. path)
-                return "[[" .. M.relative_path(abs, dir) .. "]"
-              end)
-            end
+          if opts.includer and not is_url then
+            M.rebase_included_links(body, fdir, top_dir)
           end
           -- trim blank lines around contents
           while #body > 0 and body[1]:match("^[ \t]*$") do
@@ -425,6 +515,7 @@ function M.expand_includes(lines, dir, opts)
             footnotes = footnotes,
             file_prefix = file_prefix,
             includer = opts.includer,
+            top_dir = top_dir,
             expand_env = opts.expand_env,
             todo = todo,
           })

@@ -566,6 +566,14 @@ describe("lint objects", function()
     eq({ "bold *a [[https://e.com][*l* ", "link https://e.com" }, objects("x *a [[https://e.com][*l* k]] b* y"))
   end)
 
+  it("parses non-ASCII headline tags as tags", function()
+    local lines = { "* Hi :café:x:" }
+    local hl = lint.document(org_buffer(lines), lines).elements[1]
+    eq("headline", hl.type)
+    eq("Hi", hl.raw_value)
+    eq({ "café", "x" }, hl.tags)
+  end)
+
   it("lints a long paragraph of unclosed markers without a colon quickly", function()
     local buf = org_buffer({ "* H", string.rep("*a /b =c ~d +e _f word ", 4000) })
     local t = vim.uv.hrtime()

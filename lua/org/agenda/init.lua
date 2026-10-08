@@ -157,19 +157,50 @@ local function todo_matches(hl, spec)
   return hl.todo ~= nil and vim.tbl_contains(spec, hl.todo)
 end
 
+-- org-scheduled-time-regexp / org-deadline-time-regexp / org-ts-regexp
+-- only match active timestamps
+local function has_scheduled(hl)
+  local s = hl.planning.scheduled
+  return s ~= nil and s.active == true
+end
+
+local function has_deadline(hl)
+  local d = hl.planning.deadline
+  return d ~= nil and d.active == true
+end
+
 local function has_timestamp(hl)
-  return hl.planning.scheduled ~= nil or hl.planning.deadline ~= nil or #hl.timestamps > 0
+  return has_scheduled(hl) or has_deadline(hl) or #hl.timestamps > 0
+end
+
+--- The headline, and with `subtree` every headline below it: like
+--- org-agenda-skip-if, a subtree condition searches the whole subtree.
+local function scope(hl, subtree)
+  if not subtree then
+    return { hl }
+  end
+  local out = { hl }
+  local hls = hl.file.headlines
+  local i = (hl.index or 0) + 1
+  while hls[i] and hls[i].line <= hl.end_line do
+    out[#out + 1] = hls[i]
+    i = i + 1
+  end
+  return out
+end
+
+local function any_in(hls, pred, arg)
+  for _, h in ipairs(hls) do
+    if pred(h, arg) then
+      return true
+    end
+  end
+  return false
 end
 
 local function condition_holds(hl, cond, subtree)
   local c, arg = cond[1], cond[2]
-  if c == "scheduled" or c == "notscheduled" then
-    return (hl.planning.scheduled ~= nil) == (c == "scheduled")
-  elseif c == "deadline" or c == "notdeadline" then
-    return (hl.planning.deadline ~= nil) == (c == "deadline")
-  elseif c == "timestamp" or c == "nottimestamp" then
-    return has_timestamp(hl) == (c == "timestamp")
-  elseif c == "regexp" or c == "notregexp" then
+  if c == "regexp" or c == "notregexp" then
     local ok, re = pcall(vim.regex, arg or "")
     if not ok then
       return false
@@ -183,10 +214,18 @@ local function condition_holds(hl, cond, subtree)
       end
     end
     return found == (c == "regexp")
+  end
+  local hls = scope(hl, subtree)
+  if c == "scheduled" or c == "notscheduled" then
+    return any_in(hls, has_scheduled) == (c == "scheduled")
+  elseif c == "deadline" or c == "notdeadline" then
+    return any_in(hls, has_deadline) == (c == "deadline")
+  elseif c == "timestamp" or c == "nottimestamp" then
+    return any_in(hls, has_timestamp) == (c == "timestamp")
   elseif c == "todo" then
-    return todo_matches(hl, arg)
+    return any_in(hls, todo_matches, arg)
   elseif c == "nottodo" then
-    return not todo_matches(hl, arg)
+    return not any_in(hls, todo_matches, arg)
   end
   error("unknown skip condition: " .. tostring(c))
 end
@@ -214,8 +253,12 @@ function M.skip_entry_if(...)
   end
 end
 
---- Like `skip_entry_if`, but skips the whole subtree of an entry for which
---- a condition holds ("regexp" searches the whole subtree).
+--- Like `skip_entry_if`, but every condition looks at the whole subtree,
+--- and when one holds the entry is skipped with its subtree
+--- (org-agenda-skip-subtree-if). As in Emacs, it is asked about the
+--- entries the view matches (TODO entries in a TODO list, matching ones in
+--- a tags view, ...), so a heading the view would not list never hides
+--- what is below it.
 ---
 --- ```lua
 --- skip = require("org.agenda").skip_subtree_if("regexp", ":someday:")
@@ -224,18 +267,16 @@ end
 ---@return fun(hl: org.Headline): boolean skip predicate for a block's `skip` option
 function M.skip_subtree_if(...)
   local conds = parse_conditions(...)
-  return function(hl)
-    local h = hl
-    while h do
-      for _, c in ipairs(conds) do
-        if condition_holds(h, c, true) then
-          return true
-        end
+  local function skip(hl)
+    for _, c in ipairs(conds) do
+      if condition_holds(hl, c, true) then
+        return true
       end
-      h = h.parent
     end
     return false
   end
+  require("org.agenda.items").subtree_skips[skip] = true
+  return skip
 end
 
 ---------------------------------------------------------------------------

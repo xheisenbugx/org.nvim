@@ -2363,7 +2363,12 @@ Block options:
                 Conditions: scheduled, notscheduled, deadline,
                 notdeadline, timestamp, nottimestamp, regexp RE,
                 notregexp RE, todo KWS, nottodo KWS (KWS: a list of
-                keywords, or "todo", "done", "any")
+                keywords, or "todo", "done", "any"). Only active
+                SCHEDULED/DEADLINE stamps count. `skip_subtree_if`
+                checks each condition over the whole subtree and skips
+                it all; like Emacs it is asked about the entries the
+                block lists (TODO entries of a `todo` block, ...), so a
+                heading the block would not list hides nothing.
   filter        function(item) that returns true to keep an item.
                 Where `skip` drops a whole entry, `filter` sees each
                 line of the block: an entry scheduled on one day with
@@ -2778,6 +2783,11 @@ ends the match, as in Emacs: "work -boss" is the same as "work" (write
   c      cycle date types
   C      clear
 
+The deadline tree (d, org-check-deadlines) shows the entries not done
+whose active DEADLINE is past due or within `deadline_warning_days` days
+(its absolute value; a stamp's own `-Nd` lead time is not used). A count
+before <prefix>/ tests that many days instead.
+
 The date trees (b, a, D) highlight each timestamp before the date, on or
 after it, or from the first date up to (not including) the second, like
 Emacs. Which timestamps count is the date type shown in the menu's title,
@@ -3018,8 +3028,10 @@ edit a file at a time.
 
 :Org capture_goto_target  choose a template and jump to its target
                           (C-u C-c c in Emacs)
-:Org capture_goto_last    jump to the last captured (or refiled) entry
-                          (C-u C-u C-c c)
+:Org capture_goto_last    jump to the last captured entry, or to where
+                          it went when refiled from the capture buffer
+                          (C-u C-u C-c c). A later plain refile does not
+                          change it.
 :Org capture_string       ask for a string and capture it as the initial
                           text `%i` (org-capture-string)
 :Org bookmark_jump        jump to a bookmark: capture and refile save
@@ -3267,8 +3279,8 @@ when there is one). Retrieval is synchronous, like Emacs.
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
-:Org refile_goto_last  Jump to where the last refile or capture went
-                       (C-u C-u C-c C-w).
+:Org refile_goto_last  Jump to where the last refile went
+                       (C-u C-u C-c C-w); a capture does not change it.
 :Org refile_cache_clear  Clear the refile target cache
                        (C-u C-u C-u C-c C-w).
 
@@ -4049,11 +4061,14 @@ the formula editor) rewrites only the first line (or the edited one), with
 the formulas sorted like Emacs.
 References:
   $2 $> $< $>> $+1 $-1       columns
-  @3 @> @< @<< @-1 @I @II    rows / hlines
+  @3 @> @< @<< @-1 @I @II    rows / hlines (a rule above the first row
+                             is @I)
   @2$3                       a single field
   @2$1..@4$3 $1..$3          ranges
   @# $#                      the current row / column number
-  remote(name, @2$1)         a field of a named table (#+NAME:)
+  remote(name, @2$1)         a field of a named table (#+NAME:); `@#`
+                             and `$#` work inside, and `remote($1, @2$1)`
+                             reads the table name from field $1
   $name                      a named column, field, parameter or constant
 Names, looked up in this order:
   `!` row           `| ! | | qty | price |` names the columns below it
@@ -4066,11 +4081,12 @@ Names, looked up in this order:
   $PROP_Name        the Name property of the entry (inherited)
   header row        (extension) `$Total=$Qty*$Price` uses the header above
                     the first hline when there is no `!` row
-Column formulas run on the rows below the first hline (all rows without
-one); when the first column holds marks (`! $ ^ _ # *`), only on rows
+Column formulas run on the rows below the first hline that has a row
+above it and one below it (all rows without one); when the first column holds marks (`! $ ^ _ # *`), only on rows
 marked `#` or `*`. Rows marked `! ^ _ $ /` are never changed. Formulas run
 row by row in the order of their sorted left sides, column formulas first,
-then field formulas. A relative row reference (`@-1`, `@+2`) may cross an
+then field formulas. A row formula (`@2=`, `@>=`) sets every field of
+that row. A relative row reference (`@-1`, `@+2`) may cross an
 hline (`table_relative_ref_may_cross_hline`: false stops at the row next to
 the hline, "error" stops the recalculation). `table_formula_field_format`
 ("%s") formats every result, e.g. "~%s~".
@@ -4239,6 +4255,10 @@ keeps special rows). The latex, html and texinfo translators transcode
 cells with the matching exporter (links, entities, LaTeX fragments,
 sub/superscripts), and align columns like the export: the last
 alignment cookie, else by the share of numbers among all transcoded cells.
+Every hline is a rule (`\hline`, or with :booktabs `\toprule` /
+`\midrule` / `\bottomrule`; the :hline string), also one above the first
+row, below the last or next to another. Column groups of a `/` row put `|`
+in the LaTeX column spec and give one HTML `<colgroup>` per group.
 From Lua, the format parameters may be functions:
 `require("org.table.orgtbl").translate("orgtbl-to-generic", rows, {...})`;
 a global Lua function can be used as a translator by name.
@@ -8118,6 +8138,9 @@ Differences from Emacs:
   system collation, which is the same on macOS but not on glibc
   systems). BibTeX crossref inheritance copies every missing field
   except the biblatex exclusions (parsebib has per-type rules).
+- A columnview dynamic block writes a `|` in a property value as `\vert`,
+  like a `|` in ITEM (Emacs quotes only ITEM; a `|` in another value
+  splits its cell).
 - Agenda column view (|org-agenda-columns|) writes a parent's summary
   back to its property only in agenda files loaded in a buffer (Emacs
   visits every agenda file, so it updates them all, without saving).
@@ -9186,7 +9209,10 @@ What the line may contain ~
                `in 3 days` and `noon`. Dates go to SCHEDULED (see
                `date_kind`); after `due` (or `by`) to DEADLINE. A month
                name only counts next to a day number, so "May call Bob"
-               stays a title. A weekday, `now`, `noon`, `midnight` or
+               stays a title, and takes one day number, so "Read chapter
+               3 may 4" is May 4 (a year may follow: `jan 5 2028`).
+               Words that don't read as a date, such as the version in
+               "Release 1.2.0", stay in the title. A weekday, `now`, `noon`, `midnight` or
                `tonight` on its own is a date only at the end of the
                title (tags and the like may follow) or after `at`, `on`
                or `due`: "Watch Friday Night Lights" stays a title,
@@ -9200,7 +9226,8 @@ What the line may contain ~
                Without a date the repeater starts today. It goes on the
                SCHEDULED date, or on the deadline when there is only one.
                `every weekday`, `every weekend` and several days
-               (`every mon and thu`, `every mon,wed,fri`) have no Org
+               (`every mon and thu`, `every mon,wed,fri`,
+               `every mon, thu`, `every mon fri`) have no Org
                repeater and are written as a diary sexp,
                `<%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>`.
   `#tag`       a tag; `#42` (digits only) stays in the title
@@ -9925,7 +9952,8 @@ with a newline or a double quote becomes a multi-line string) or YAML.
 The body ~
 Hugo (Goldmark) Markdown, like ox-hugo's: headings one level below the
 title (`HUGO_LEVEL_OFFSET`) with `{#anchor}` ids (the CUSTOM_ID or a slug
-of the title), fenced code blocks with `{ linenos=true, hl_lines=[...] }`
+of the title, like org-hugo-slug: letters and digits of any script kept,
+other characters, punctuation such as ’ — « » too, made hyphens), fenced code blocks with `{ linenos=true, hl_lines=[...] }`
 for `-n` and `:hl_lines` (the `highlight` shortcode with an empty
 `HUGO_CODE_FENCE`), `[^fn:1]` footnotes, pipe tables, `_italic_`,
 `~~strike~~`, `#+begin_details` / `#+begin_summary` as <details>, other
@@ -10051,6 +10079,9 @@ Actions ~
                 property). An event already imported (same ICS_UID and
                 ICS_RECURRENCE_ID) is not added again; when its time
                 changed, the timestamp line of that heading is updated.
+                An occurrence the organiser moved keeps the
+                ICS_RECURRENCE_ID of the time it replaces, so it updates
+                the heading imported before the move.
 
 Neither has a default key; map them in `mappings` or run them with `:Org`.
 
@@ -10062,12 +10093,17 @@ What is read ~
     SECONDLY and INTERVAL, COUNT, UNTIL, BYDAY (`MO`, `2TU`, `-1FR`),
     BYMONTHDAY, BYMONTH, BYYEARDAY, BYHOUR, BYMINUTE, BYSECOND, BYSETPOS
     and WKST; RDATE; EXDATE. A yearly Feb 29 skips non-leap years.
+    BYSETPOS picks from each period's days and times together (RFC 5545),
+    each member once. A YEARLY rule with BYMONTHDAY and no BYMONTH covers
+    every month.
+  - CATEGORIES: split on commas, an escaped `\,` staying in the value.
   - RECURRENCE-ID: a changed or cancelled instance replaces the one it
     overrides.
   - `STATUS:CANCELLED` events are left out.
   Not read: BYWEEKNO (ignored), RDATE periods, VTODO, VJOURNAL, VALARM
   (no reminders), attendees and free/busy. A HOURLY or finer rule is
-  expanded up to 100,000 steps per range.
+  expanded up to 100,000 steps per range; steps on days and hours its
+  BYxxx parts exclude are skipped without counting.
 
 Time zones ~
 Times are shown in the system's local zone, or in `timezone` (an IANA name
@@ -10210,7 +10246,9 @@ Reading:
     `todo [KEYWORD]`, `tags MATCH`, `tags-todo MATCH` or the key of one
     of your `agenda.custom_commands`; without it, the date agenda with
     your `agenda.span`. `--date` takes anything the date prompt reads
-    (`2026-10-01`, `+1`, `fri`). `--csv` is `org-batch-agenda-csv`.
+    (`2026-10-01`, `+1`, `fri`). `--span` takes a number of days or
+    `day`, `week`, `fortnight`, `month`, `year`; anything else is a
+    `bad_value` error (exit code 2). `--csv` is `org-batch-agenda-csv`.
 `org search [QUERY...] [--match MATCH] [--limit N]`
     Headings of the agenda files matching QUERY, as `file:line: heading`:
     the agenda search syntax (|org-agenda-search|), or org-ql queries
@@ -10244,7 +10282,9 @@ Reading:
 `org export FILE BACKEND [-o OUTPUT|--stdout]`
     Export FILE with a back-end of `:Org export` (`html`, `md`, `latex`,
     `pdf`, `ascii`, ...) and print the output path, or write the text to
-    stdout. Code blocks are evaluated as in `:Org export`, but one that
+    stdout. Other formats go through pandoc (to a file only); a
+    BACKEND that is neither is a `bad_value` error (exit code 2).
+    Code blocks are evaluated as in `:Org export`, but one that
     would ask first (`babel.confirm_evaluate`, `:eval query`) stops the
     export with exit code 3 and nothing written, as in Emacs's batch
     export; `babel.confirm_evaluate = false` in the CLI's configuration
@@ -11525,7 +11565,9 @@ week, a row per weekday, each day shaded by what was done that day.
 `:Org heatmap [clock|closed|habit] [tag|file]`, or the action
 `heatmap_open` (`<prefix>Vh`). The kinds:
   `clock`   minutes clocked (CLOCK lines; a clock over midnight is split
-          between the two days, a running clock counts up to now)
+          between the two days, a running clock counts up to now;
+          the time that elapsed counts, like the clock table, so a
+          clock over a DST change counts an hour less or more)
   `closed`  tasks marked done: CLOSED dates, `- State "DONE"` and
           `- CLOSING NOTE` log entries and the LAST_REPEAT property, once
           per task and day

@@ -389,6 +389,7 @@ function M.occurrences(from, to, agenda_only)
             start = occ.start,
             stop = occ.stop,
             all_day = occ.all_day,
+            recurrence = occ.recurrence,
             calendar = c,
           }
         end
@@ -417,7 +418,14 @@ function M.agenda_items(from, to, aopts)
     local n = ed - sd + 1
     titles[ev] = titles[ev] or title_of(ev, c)
     local title = titles[ev]
-    local ics = { calendar = c.name, event = ev, start = occ.start, stop = occ.stop, all_day = occ.all_day }
+    local ics = {
+      calendar = c.name,
+      event = ev,
+      start = occ.start,
+      stop = occ.stop,
+      all_day = occ.all_day,
+      recurrence = occ.recurrence,
+    }
     for d = math.max(sd, from), math.min(ed, to) do
       local i = d - sd + 1
       local item = {
@@ -575,14 +583,15 @@ function M.entry_lines(occ, level)
 end
 
 --- For an occurrence of a recurring event, the `ICS_RECURRENCE_ID` that
---- tells it from the event's other occurrences (its local start,
---- `20261005T100000`); nil for a single event.
+--- tells it from the event's other occurrences (its local start in the
+--- rule, `20261005T100000`, which a moved occurrence keeps as its
+--- RECURRENCE-ID); nil for a single event.
 function M.recurrence_key(occ)
   local ev = occ.event
   if not (ev.rrule or #(ev.rdates or {}) > 0 or ev.recurrence_id) then
     return nil
   end
-  local c = parser.civil(occ.start)
+  local c = parser.civil(occ.recurrence or occ.start)
   return string.format("%04d%02d%02dT%02d%02d%02d", c.year, c.month, c.day, c.hour, c.min, c.sec)
 end
 
@@ -667,6 +676,7 @@ function M.import()
         start = item.ics.start,
         stop = item.ics.stop,
         all_day = item.ics.all_day,
+        recurrence = item.ics.recurrence,
         calendar = { name = item.ics.calendar },
       })
       return

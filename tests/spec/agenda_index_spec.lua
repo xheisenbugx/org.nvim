@@ -563,10 +563,11 @@ describe("agenda index", function()
           return nil
         end
         local j = sbuf.decode(job)
-        -- the first two headlines the other way round
+        -- the first two headlines (line, body_end, section end) the
+        -- other way round
         local o = j.outline
-        if #o >= 4 then
-          o[1], o[2], o[3], o[4] = o[3], o[4], o[1], o[2]
+        if #o >= 6 then
+          o[1], o[2], o[3], o[4], o[5], o[6] = o[4], o[5], o[6], o[1], o[2], o[3]
         end
         return sbuf.encode(j)
       end

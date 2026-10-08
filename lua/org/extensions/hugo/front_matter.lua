@@ -247,7 +247,8 @@ end
 --- `str` as a slug (org-hugo-slug): lower case, HTML tags and Markdown
 --- link targets removed, `&` `.` `+` spelled out, parentheses turned into
 --- double hyphens, everything else that is not a letter or a digit into
---- single hyphens. Non-ASCII letters are kept.
+--- single hyphens. Non-ASCII letters and digits are kept, non-ASCII
+--- punctuation and symbols become hyphens too.
 ---@param str string
 ---@param allow_double_hyphens? boolean
 ---@return string
@@ -258,6 +259,16 @@ function M.slug(str, allow_double_hyphens)
   -- ](http://..) of a Markdown link
   s = s:gsub("%]%(%a[%w+.-]*://[^)]+%)", "]")
   s = s:gsub("%+", " plus "):gsub("%.", " dot "):gsub("&", " and ")
+  -- [^[:alnum:]()] per character: a non-ASCII one is kept when it is a
+  -- letter or digit (é, ü, CJK), punctuation and symbols (’ — « ») and
+  -- blanks become separators
+  s = s:gsub("[\192-\255][\128-\191]*", function(ch)
+    local class = vim.fn.charclass(ch)
+    if class == 0 or class == 1 or class == 3 then
+      return " "
+    end
+    return ch
+  end)
   s = s:gsub("[^%w()\128-\255]", " ")
   s = vim.trim(s)
   s = s:gsub("%s%s+", " ")

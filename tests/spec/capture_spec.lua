@@ -433,6 +433,11 @@ describe("capture placement (Emacs parity)", function()
       "* 2026\n\n** 2026-08 August\nx\n\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n",
     },
     {
+      "* 2026\n** 2026-09 September\n*** 2026-09-24 Thursday\nx\n\n\n** 2026-10 October\n",
+      { datetree = true, template = "* new" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-24 Thursday\nx\n*** 2026-09-25 Friday\n**** new\n** 2026-10 October\n",
+    },
+    {
       "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n* Other\n",
       { datetree = true, template = "* new" },
       "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n** 2026\n*** 2026-09 September\n**** 2026-09-25 Friday\n***** new\n* Other\n",
@@ -852,6 +857,50 @@ describe("capture buffer", function()
     run(capture.refile, buf2)
     ok(capture.sessions[buf2])
     capture.kill(buf2)
+  end)
+
+  it("takes the whole last character of a charwise selection as %i", function()
+    org_buffer({ "un café noir" }, { 1, 3 })
+    local opts = { count = 0 }
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function() end
+    vim.keymap.set("x", "<F5>", function()
+      capture.prompt(opts)
+    end, { buffer = true })
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("v3l<F5>", true, false, true), "x", false)
+    ui.menu = orig
+    eq("café", opts.initial)
+  end)
+
+  it("keeps the last capture and the last refile apart, like Emacs", function()
+    -- org-capture-last-stored-marker and the :last-refile bookmark
+    local refile = require("org.refile")
+    local real = function(b)
+      return utils.realpath(vim.api.nvim_buf_get_name(b))
+    end
+    local inbox, other = tmpfile({ "* Inbox" }), tmpfile({ "* Projects", "* Task" })
+    run(capture.capture, { target = inbox, headline = "Inbox", template = "* Captured", immediate_finish = true })
+    vim.cmd("edit! " .. other)
+    local b = vim.api.nvim_get_current_buf()
+    run(refile.refile, { bufnr = b, lnum = 2 }, { dest = { filename = other, bufnr = b, lnum = 1 } })
+    vim.cmd("enew!")
+    run(capture.goto_last_stored)
+    eq({ utils.realpath(inbox), "** Captured" }, { real(0), vim.api.nvim_get_current_line() })
+    vim.cmd("enew!")
+    run(refile.goto_last_stored)
+    eq({ utils.realpath(other), "** Task" }, { real(0), vim.api.nvim_get_current_line() })
+    -- refiling from the capture buffer moves both (org-capture-is-refiling)
+    local dest = tmpfile({ "* Elsewhere" })
+    local buf = run(capture.capture, { template = "* Moved", target = inbox, refile_targets = { { files = dest } } })
+    local restore = answer({ 1 })
+    run(capture.refile, buf)
+    restore()
+    for _, go in ipairs({ capture.goto_last_stored, refile.goto_last_stored }) do
+      vim.cmd("enew!")
+      run(go)
+      eq({ utils.realpath(dest), "** Moved" }, { real(0), vim.api.nvim_get_current_line() })
+    end
   end)
 
   it("runs hooks", function()

@@ -61,14 +61,14 @@ local function image_link_p(x, info)
   if x.type == "latex-fragment" then
     return converted(x, "image")
   end
-  return x.type == "link" and ox.inline_image_p(x, info.odt_inline_image_rules)
+  return x.type == "link" and ox.inline_image_p(x, info.odt_inline_image_rules, true)
 end
 
 local function formula_link_p(x, info)
   if x.type == "latex-fragment" then
     return converted(x, "mathml")
   end
-  return x.type == "link" and ox.inline_image_p(x, info.odt_inline_formula_rules)
+  return x.type == "link" and ox.inline_image_p(x, info.odt_inline_formula_rules, true)
 end
 
 --- org-odt--standalone-link-p: a paragraph whose sole content is one link

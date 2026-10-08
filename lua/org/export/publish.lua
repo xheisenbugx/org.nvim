@@ -1259,13 +1259,13 @@ end
 --- something else: a target, a named element, a coderef, or text in a
 --- file that isn't an Org file (no headline there, so no CUSTOM_ID). A
 --- `/regexp/` leaves point at the start, on the first line's headline if
---- any. No match is a broken link, with Emacs's message.
+--- any. No match is a broken link, with Emacs's message, also when FILE
+--- doesn't exist.
 local function search_headline(file, search)
   local links = require("org.links")
-  local src = links.search_source(nil, file)
-  if not src then
-    error(string.format("No such file: %q", file), 0)
-  end
+  -- a missing file is an empty buffer for find-file-noselect: the search
+  -- finds nothing there and the link is broken
+  local src = links.search_source(nil, file) or { lines = {} }
   local lnum, _, err, kind = links.search_location(search, src, { must_match = true })
   if kind == "regexp" then
     -- org-occur (or occur) leaves point at the start of the file

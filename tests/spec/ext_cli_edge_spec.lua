@@ -35,6 +35,42 @@ local function run(dir, args)
   return res.code, res.stdout or "", res.stderr or ""
 end
 
+describe("cli: bad flag and argument values", function()
+  it("refuses a --span that is not a positive whole number or a span name", function()
+    local dir = workspace()
+    for _, span in ipairs({ "foo", "-2", "0", "1.5" }) do
+      local code, out, err = run(dir, { "--no-server", "agenda", "--span", span, "--date", "2026-10-07" })
+      eq(2, code, span .. ": " .. out .. err)
+      ok(err:find("--span needs", 1, true), err)
+    end
+    local code, out = run(dir, { "--no-server", "agenda", "--span", "-2", "--json", "--date", "2026-10-07" })
+    eq(2, code)
+    local res = vim.json.decode(out)
+    eq(false, res.ok)
+    eq("bad_value", res.errors[1].code)
+    for _, span in ipairs({ "3", "fortnight" }) do
+      code, out = run(dir, { "--no-server", "agenda", "--span", span, "--date", "2026-10-07" })
+      eq(0, code, span .. ": " .. out)
+    end
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("refuses an unknown export back-end as a usage error", function()
+    local dir = workspace()
+    local code, out, err = run(dir, { "--no-server", "export", dir .. "/work.org", "nope", "--stdout" })
+    eq(2, code, out .. err)
+    ok(err:find("unknown export back-end nope", 1, true), err)
+    ok(not err:find("%.lua:%d+:"), err)
+    code, out, err = run(dir, { "--no-server", "export", dir .. "/work.org", "nope", "--json", "--stdout" })
+    eq(2, code)
+    eq("bad_value", vim.json.decode(out).errors[1].code)
+    code, out = run(dir, { "--no-server", "export", dir .. "/work.org", "md", "--stdout" })
+    eq(0, code)
+    ok(out:find("Write report", 1, true), out)
+    vim.fn.delete(dir, "rf")
+  end)
+end)
+
 describe("cli: choosing the heading to clock in", function()
   it("numbers the candidates and takes the one given with --pick", function()
     local dir = workspace()

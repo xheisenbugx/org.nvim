@@ -113,6 +113,63 @@ describe("table translators (orgtbl-to-*)", function()
     eq("\\begin{tabular}{r}\n\\toprule\na\\\\\n\\midrule\n1\\\\\n\\midrule\n3\\\\\n\\bottomrule\n\\end{tabular}", out)
   end)
 
+  it("keeps leading, trailing and doubled hlines (Emacs 9.8.10 output)", function()
+    local H = "hline"
+    local rows = { H, { "Name", "Val" }, H, { "a", "1" }, H, H, { "b", "2" }, H }
+    eq(
+      "\\begin{tabular}{lr}\n\\hline\nName & Val\\\\\n\\hline\na & 1\\\\\n\\hline\n\\hline\nb & 2\\\\\n\\hline\n\\end{tabular}",
+      orgtbl.translate("orgtbl-to-latex", rows, "")
+    )
+    eq("--\nName,Val\n--\na,1\n--\n--\nb,2\n--", orgtbl.translate("orgtbl-to-generic", rows, ':hline "--" :sep ","'))
+    -- without :hline the rules are dropped
+    eq("Name,Val\na,1\nb,2", orgtbl.translate("orgtbl-to-generic", rows, ':sep ","'))
+    -- :skip 1 keeps the rule that becomes the first row
+    eq(
+      "\\hline\na & 1\\\\",
+      orgtbl.translate("orgtbl-to-latex", { { "Name", "Val" }, H, { "a", "1" } }, ":splice t :skip 1")
+    )
+    -- booktabs: the first rule is the top one, the last the bottom one
+    eq(
+      "\\begin{tabular}{lr}\n\\toprule\n\\midrule\na & 1\\\\\n\\midrule\n\\midrule\nb & 2\\\\\n\\midrule\n\\bottomrule\n\\end{tabular}",
+      orgtbl.translate("orgtbl-to-latex", { H, H, { "a", "1" }, H, H, { "b", "2" }, H, H }, ":booktabs t")
+    )
+    eq(
+      "\\toprule\na & 1\\\\\n\\midrule\nb & 2\\\\\n\\bottomrule",
+      orgtbl.translate("orgtbl-to-latex", { { "a", "1" }, H, { "b", "2" } }, ":booktabs t :splice t")
+    )
+    -- :sep replaces the column separator
+    eq(
+      "\\begin{tabular}{ll}\nN,V\\\\\n\\end{tabular}",
+      orgtbl.translate("orgtbl-to-latex", { { "N", "V" } }, ':sep ","')
+    )
+  end)
+
+  it("column groups: | in the LaTeX spec, one <colgroup> per group in HTML", function()
+    local rows = { { "Name", "Val", "X" }, "hline", { "/", "<", ">" }, { "a", "1", "2" }, { "b", "5", "3" } }
+    eq("\\begin{tabular}{l|rr|}", orgtbl.translate("orgtbl-to-latex", rows, ""):match("^[^\n]+"))
+    eq(
+      table.concat({
+        "<colgroup>",
+        '<col  class="org-left" />',
+        "</colgroup>",
+        "",
+        "<colgroup>",
+        '<col  class="org-right" />',
+        "",
+        '<col  class="org-right" />',
+        "</colgroup>",
+      }, "\n"),
+      orgtbl.translate("orgtbl-to-html", rows, ""):match("<colgroup>.*</colgroup>")
+    )
+    -- the last `/` row wins; `<>` is a group of its own
+    rows = { { "a", "1", "2" }, { "/", "", "<>" }, { "b", "1", "2" }, { "/", ">", "" } }
+    eq("\\begin{tabular}{lr|r}", orgtbl.translate("orgtbl-to-latex", rows, ""):match("^[^\n]+"))
+    eq(
+      "\\begin{tabular}{l|r|r|r}",
+      orgtbl.translate("orgtbl-to-latex", { { "/", "<>", "", "<" }, { "a", "1", "2", "3" } }, ""):match("^[^\n]+")
+    )
+  end)
+
   it("table_export writes the translator output", function()
     local path = vim.fn.tempname() .. ".tex"
     org_buffer({ "| a | b |", "|---+---|", "| 1 | 2 |" }, { 1, 2 })

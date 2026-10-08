@@ -1494,7 +1494,7 @@ M.inline_image_rules = { file = IMG, http = IMG, https = IMG }
 
 function M.inline_image_p(link, info)
   if #link.contents == 0 then
-    return ox.inline_image_p(link, info.html_inline_image_rules)
+    return ox.inline_image_p(link, info.html_inline_image_rules, true)
   end
   local count = 0
   local ok = true
@@ -1505,7 +1505,7 @@ function M.inline_image_p(link, info)
       end
     elseif obj.type == "link" then
       count = count + 1
-      if count > 1 or not ox.inline_image_p(obj, info.html_inline_image_rules) then
+      if count > 1 or not ox.inline_image_p(obj, info.html_inline_image_rules, true) then
         ok = false
       end
     else
@@ -1637,7 +1637,7 @@ T.link = function(el, desc, info)
   if custom then
     return custom
   end
-  if info.html_inline_images and ox.inline_image_p(el, info.html_inline_image_rules) then
+  if info.html_inline_images and ox.inline_image_p(el, info.html_inline_image_rules, true) then
     return M.format_image(path or raw, attrs, info)
   end
   if ltype == "radio" then
@@ -1894,7 +1894,8 @@ T["src-block"] = function(el, _, info)
   return fmt(
     '<div class="org-src-container">\n%s%s\n</div>',
     cap,
-    fmt('<pre class="src src-%s"%s><code>%s</code></pre>', lang or "", label, code)
+    -- Emacs formats a missing language as "nil"
+    fmt('<pre class="src src-%s"%s><code>%s</code></pre>', lang or "nil", label, code)
   )
 end
 
@@ -2232,7 +2233,7 @@ M.backend = ox.define_backend("html", {
     },
     ["parse-tree"] = {
       function(tree, _, info)
-        return ox.insert_image_links(tree, info, info.html_inline_image_rules)
+        return ox.insert_image_links(tree, info, info.html_inline_image_rules, true)
       end,
     },
     -- org-html-final-function: org-html-indent

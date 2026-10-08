@@ -212,7 +212,7 @@ local function title_range(line, todo_cfg)
     end
   end
   local e
-  local tags_s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
+  local tags_s = line:find("[ \t]+:[%w_@#%%:\128-\255]+:[ \t]*$")
   -- with no title, the tags follow the keyword's separating space
   if tags_s and tags_s >= s - 1 then
     e = tags_s
@@ -546,7 +546,7 @@ function M.edit_headline(heading)
     line = line:sub(1, ts - 1) .. new .. line:sub(te)
   else
     -- after the stars, TODO keyword and priority, before the tags
-    local tags_s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
+    local tags_s = line:find("[ \t]+:[%w_@#%%:\128-\255]+:[ \t]*$")
     local before = (tags_s and line:sub(1, tags_s - 1) or line):gsub("[ \t]+$", "")
     line = before .. " " .. new .. (tags_s and line:sub(tags_s) or "")
   end

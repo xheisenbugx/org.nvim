@@ -151,8 +151,7 @@ local function visual_region()
     ecol = #(vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or "")
   else
     local line = vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or ""
-    local ch = vim.fn.strcharpart(line:sub(ecol), 0, 1)
-    ecol = math.min(#line, ecol + math.max(#ch, 1) - 1)
+    ecol = utils.char_end(line, ecol)
   end
   return { srow, scol, erow, ecol }
 end

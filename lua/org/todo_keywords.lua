@@ -109,7 +109,10 @@ function M.new(sequences)
     has_log_flags = false,
   }, TodoConfig)
   local last_name
-  for si, entry in ipairs(M.normalize(sequences)) do
+  for _, entry in ipairs(M.normalize(sequences)) do
+    -- Sequences without keywords ("#+TODO:" alone) take no index, so
+    -- kw.seq always points into self.sequences.
+    local si = #self.sequences + 1
     local seq, kind = M.sequence_spec(entry)
     local tokens = vim.split(vim.trim(seq), "%s+")
     local has_bar = vim.tbl_contains(tokens, "|")
@@ -126,7 +129,13 @@ function M.new(sequences)
         -- "type": the keywords are types (people); C-c C-t jumps to DONE
         kw.seq_type = kind
         last_name = kw.name
-        if not self.by_name[kw.name] then
+        local known = self.by_name[kw.name]
+        if known then
+          -- Already defined by an earlier sequence: it keeps that one's
+          -- state, but this sequence still walks it, as Emacs walks
+          -- org-todo-keywords-1 as written (BUG -> DONE in "BUG | DONE").
+          list[#list + 1] = known
+        else
           kw.index = #self.keywords + 1
           self.keywords[#self.keywords + 1] = kw
           self.by_name[kw.name] = kw
@@ -288,18 +297,25 @@ end
 --- first and the previous set the last.
 function TodoConfig:next_sequence(current, dir, head)
   local kw = self:get(current) or self:get(head)
-  local n = #self.sequences
+  -- org-todo-heads: each sequence's first keyword, without repeats.
+  local heads, pos_of = {}, {}
+  for _, list in ipairs(self.sequences) do
+    local name = list[1].name
+    if not pos_of[name] then
+      heads[#heads + 1] = name
+      pos_of[name] = #heads
+    end
+  end
+  local n = #heads
   if n == 0 then
     return nil
   end
   dir = dir or 1
-  local seq
-  if kw then
-    seq = ((kw.seq - 1 + dir) % n) + 1
-  else
-    seq = dir > 0 and 1 or n
+  local pos = kw and pos_of[self.sequences[kw.seq][1].name]
+  if pos then
+    return heads[((pos - 1 + dir) % n) + 1]
   end
-  return self.sequences[seq][1].name
+  return heads[dir > 0 and 1 or n]
 end
 
 --- Vim regex alternation of all keywords (escaped).

@@ -2833,3 +2833,31 @@ describe("emacs parity: EL", function()
     "p",
   })
 end)
+
+-- Emacs Org 9.8.10: on a plain list's first line, org-element-at-point is
+-- the list, so the element commands move the whole list.
+describe("emacs parity: the element at a list's first line is the list", function()
+  it("M-down on a paragraph above a list swaps it with the whole list", function()
+    local buf = org_buffer({ "* H", "Para", "", "- a", "- b" }, { 2, 0 })
+    require("org.context").meta_down()
+    eq({ "* H", "- a", "- b", "", "Para" }, buf_lines(buf))
+  end)
+
+  it("C-M-t on the first item swaps the list with the paragraph before", function()
+    local buf = org_buffer({ "* H", "Para", "", "- a", "- b" }, { 4, 0 })
+    require("org.element").transpose()
+    eq({ "* H", "- a", "- b", "", "Para" }, buf_lines(buf))
+  end)
+
+  it("M-} at the start of a list jumps past the list", function()
+    org_buffer({ "* H", "- a", "- b", "", "after" }, { 2, 0 })
+    require("org.element").forward()
+    eq(5, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("M-} on a later item still moves item by item", function()
+    org_buffer({ "* H", "- a", "- b", "- c", "", "after" }, { 3, 0 })
+    require("org.element").forward()
+    eq(4, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+end)

@@ -131,8 +131,35 @@ M.DEFAULT_IMAGE_EXT = {
   "svg",
 }
 
---- rules: { [type] = { ext... } }
-function M.inline_image_p(link, rules)
+--- Whether `path` has one of the extensions `exts`, ignoring case.
+--- Anchored (the default rule, LaTeX's): the path ends in `.ext`.
+--- Unanchored (the HTML and ODT rules, a regexp-opt of ".ext" strings
+--- matched anywhere): `.ext` is anywhere in the path, so a remote image
+--- with a query string (`a.svg?style=flat`) is an image too.
+local function image_path_p(path, exts, unanchored)
+  path = (path or ""):lower()
+  if unanchored then
+    for _, e in ipairs(exts) do
+      if path:find("." .. e:lower(), 1, true) then
+        return true
+      end
+    end
+    return false
+  end
+  local ext = path:match("%.([%w]+)$")
+  if not ext then
+    return false
+  end
+  for _, e in ipairs(exts) do
+    if e:lower() == ext then
+      return true
+    end
+  end
+  return false
+end
+
+--- rules: { [type] = { ext... } }; `unanchored` as in |image_path_p|.
+function M.inline_image_p(link, rules, unanchored)
   if #link.contents > 0 then
     return false
   end
@@ -141,37 +168,24 @@ function M.inline_image_p(link, rules)
   if not exts then
     return false
   end
-  local ext = (link.path or ""):match("%.([%w]+)$")
-  if not ext then
-    return false
-  end
-  ext = ext:lower()
-  for _, e in ipairs(exts) do
-    if e == ext then
-      return true
-    end
-  end
-  return false
+  return image_path_p(link.path, exts, unanchored)
 end
 
 --- Links whose description is a plain image link become nested image
 --- links (org-export-insert-image-links).
-function M.insert_image_links(data, info, rules)
+function M.insert_image_links(data, info, rules, unanchored)
   rules = rules or { file = M.DEFAULT_IMAGE_EXT }
   local parser = info.parser
   element.map(data, "link", function(l)
     if #l.contents == 1 and l.contents[1].type == "plain-text" then
       local text = trim(l.contents[1].value)
       local t, path = text:match("^<?([%w%+%-]+):([^%s>]+)>?$")
-      if t and rules[t] then
-        local ext = path:match("%.([%w]+)$")
-        if ext and vim.tbl_contains(rules[t], ext:lower()) then
-          local node = parser:parse_objects(text, { link = true })[1]
-          if node and node.type == "link" then
-            node.parent = l
-            node.post_blank = 0
-            l.contents = { node }
-          end
+      if t and rules[t] and image_path_p(path, rules[t], unanchored) then
+        local node = parser:parse_objects(text, { link = true })[1]
+        if node and node.type == "link" then
+          node.parent = l
+          node.post_blank = 0
+          l.contents = { node }
         end
       end
     end

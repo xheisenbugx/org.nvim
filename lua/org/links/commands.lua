@@ -76,43 +76,7 @@ local function ignored_lines(lines)
 end
 
 --- Spans of inline code and verbatim (`~...~`, `=...=`) in `line`.
-local function verbatim_spans(line)
-  local spans = {}
-  local init = 1
-  while true do
-    local s = line:find("[=~]", init)
-    if not s then
-      break
-    end
-    local m = line:sub(s, s)
-    local pre = line:sub(s - 1, s - 1)
-    local nxt = line:sub(s + 1, s + 1)
-    if (pre == "" or pre:match("[%s%(%{'\"%-]")) and nxt ~= "" and not nxt:match("%s") then
-      local e = s + 1
-      local found
-      while true do
-        e = line:find(m, e + 1, true)
-        if not e then
-          break
-        end
-        local after = line:sub(e + 1, e + 1)
-        if not line:sub(e - 1, e - 1):match("%s") and (after == "" or after:match("[%s%-%.,;:!%?'\"%)%}%[%]]")) then
-          found = e
-          break
-        end
-      end
-      if found then
-        spans[#spans + 1] = { s, found }
-        init = found + 1
-      else
-        init = s + 1
-      end
-    else
-      init = s + 1
-    end
-  end
-  return spans
-end
+local verbatim_spans = require("org.parser").verbatim_spans
 
 --- Links of `line` that Emacs treats as links.
 local function real_links(line)

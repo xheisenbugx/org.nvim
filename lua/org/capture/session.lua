@@ -445,8 +445,9 @@ function M.finalize(buf, opts)
     local rbuf, rline = refile.refile({ bufnr = dbuf, lnum = dline }, { targets = tpl.refile_targets })
     if rbuf then
       dbuf, dline = rbuf, rline
-      -- the last capture is where it was refiled to
-      require("org.bookmarks").set("last_capture_marker", rbuf, rline)
+      -- the last capture is where it was refiled to (org-capture-is-refiling
+      -- moves org-capture-last-stored-marker and its bookmark)
+      refile.remember(rbuf, rline, "last_capture", "last_capture_marker")
     end
   else
     utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
@@ -460,7 +461,7 @@ function M.finalize(buf, opts)
   return dbuf, dline
 end
 
---- Jump to the location of the last capture or refile
+--- Jump to the location of the last capture
 --- (org-capture-goto-last-stored, C-u C-u C-c c).
 function M.goto_last_stored()
   return require("org.refile").goto_last_stored("last_capture")

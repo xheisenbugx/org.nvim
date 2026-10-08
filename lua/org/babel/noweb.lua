@@ -30,8 +30,20 @@ local function in_commented(file, lnum)
 end
 M.in_commented = in_commented
 
-local function noweb_for(args, purpose)
+--- How `:noweb` of `args` treats references when `purpose` is "eval",
+--- "tangle" or "export": "expand", "strip" or nil (left alone). A
+--- `nested` block, one pulled in by a reference, only expands or not, by
+--- the lists of org-babel-noweb-p: there strip-tangle expands when
+--- tangling and strip-export leaves references alone when exporting.
+local function noweb_for(args, purpose, nested)
   local v = args.noweb or "no"
+  if nested and purpose ~= "eval" then
+    local nw = noweb_for(args, purpose)
+    if purpose == "tangle" then
+      return nw and "expand" or nil
+    end
+    return nw == "expand" and "expand" or nil
+  end
   if purpose == "eval" then
     local expand = {
       yes = true,
@@ -79,11 +91,11 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   -- :comments noweb wraps each expansion in link comments (ob-tangle)
   local comment = parent_args and parent_args.comments == "noweb" and purpose == "tangle"
   local function body_of(b, args, named)
-    local nw = noweb_for(args, purpose or "eval")
+    local nw = noweb_for(args, purpose or "eval", true)
     local body = b.body
     if nw then
       -- like org-babel-expand-noweb-references, an included block is
-      -- expanded: only the block being tangled or exported strips
+      -- expanded or not: only the block being tangled or exported strips
       body = M.expand_noweb(bufnr, b.body, depth + 1, nil, args, purpose)
     end
     -- like Emacs, a link comment points at the referenced block the first
@@ -121,19 +133,16 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   if lob then
     return vim.deepcopy(lob.body)
   end
-  -- all blocks with a matching :noweb-ref, joined by their :noweb-sep
-  local text
+  -- all blocks with a matching :noweb-ref, each followed by its own
+  -- :noweb-sep when another one comes after it
+  local text, sep
   for _, b in ipairs(ctx.all) do
     if not b.call and not in_commented(ctx.file, b.start) then
       local args = ctx.header_args(b)
       if blocks_mod.unquote(args["noweb-ref"]) == ref then
         local chunk = table.concat(body_of(b, args), "\n")
-        if text then
-          local sep = args["noweb-sep"] and blocks_mod.unquote(args["noweb-sep"]):gsub("\\n", "\n") or "\n"
-          text = text .. sep .. chunk
-        else
-          text = chunk
-        end
+        text = text and (text .. sep .. chunk) or chunk
+        sep = args["noweb-sep"] and blocks_mod.unquote(args["noweb-sep"]):gsub("\\n", "\n") or "\n"
       end
     end
   end
