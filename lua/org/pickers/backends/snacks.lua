@@ -55,7 +55,13 @@ function M.pick(spec, finish, user)
       return
     end
     local chosen = {}
-    local selected = spec.multi and picker.selected and picker:selected({ fallback = true }) or { item }
+    local selected
+    if how == "qflist" then
+      -- every item matching the query
+      selected = picker.items and picker:items() or {}
+    else
+      selected = spec.multi and picker.selected and picker:selected({ fallback = true }) or { item }
+    end
     for _, s in ipairs(selected) do
       if s and s.org_item then
         chosen[#chosen + 1] = s.org_item
@@ -71,7 +77,12 @@ function M.pick(spec, finish, user)
     finish(chosen, query, how)
     picker:close()
   end
-  local actions = { confirm = confirm }
+  -- snacks passes the action as the third argument: not a `how`
+  local actions = {
+    confirm = function(picker, item)
+      confirm(picker, item)
+    end,
+  }
   local input_keys, list_keys = {}, {}
   for _, k in ipairs(pickers.split_keys(spec)) do
     local how, name = k[1], "org_" .. k[1]

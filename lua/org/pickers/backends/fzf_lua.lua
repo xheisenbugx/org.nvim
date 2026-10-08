@@ -124,9 +124,11 @@ function M.pick(spec, finish, user)
   local actions = { ["enter"] = accept }
   for _, k in ipairs(pickers.split_keys(spec)) do
     local how = k[1]
-    actions[M.fzf_key(k[2])] = function(selected, o)
+    local fn = function(selected, o)
       accept(selected, o, how)
     end
+    -- qflist: every entry matching the query (fzf 0.53 and later)
+    actions[M.fzf_key(k[2])] = how == "qflist" and { fn = fn, prefix = "select-all" } or fn
   end
   local user_close = user.winopts and user.winopts.on_close
   local opts = vim.tbl_deep_extend(

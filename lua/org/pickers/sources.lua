@@ -12,18 +12,20 @@ local utils = require("org.utils")
 
 local M = {}
 
--- on_choice of the pickers going to a place: their picker_keys open it in
--- a split, vertical split or tab page
-local function jump(items, _, how)
-  pickers.jump(items[1], how)
-end
+-- on_choice of the pickers going to a place: several can be chosen, and
+-- their picker_keys open it in a split, vertical split or tab page, or
+-- put them in the quickfix list (pick() makes it pickers.go())
+local function jump() end
 
 ---@param opts? { backend?: string, backend_opts?: table }
 ---@param spec org.PickerSpec
 local function pick(opts, spec)
   opts = type(opts) == "table" and opts or {}
   if spec.on_choice == jump then
-    spec.split = true
+    spec.split, spec.multi = true, true
+    spec.on_choice = function(items, _, how)
+      pickers.go(items, how, spec.title)
+    end
   end
   return pickers.pick(spec, opts.backend, opts.backend_opts)
 end

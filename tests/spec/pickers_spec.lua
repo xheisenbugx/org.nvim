@@ -476,6 +476,92 @@ describe("pickers", function()
     end)
   end)
 
+  --- The quickfix list: its title and `file:lnum:col text` entries.
+  local function qf()
+    local info = vim.fn.getqflist({ title = 1, items = 1 })
+    return {
+      title = info.title,
+      items = vim.tbl_map(function(e)
+        local name = e.bufnr > 0 and vim.fn.fnamemodify(vim.api.nvim_buf_get_name(e.bufnr), ":t") or ""
+        return string.format("%s:%d:%d %s", name, e.lnum, e.col, e.text)
+      end, info.items),
+    }
+  end
+
+  --- Whether a quickfix window is open in this tab page.
+  local function qf_open()
+    return vim.fn.getqflist({ winid = 1 }).winid ~= 0
+  end
+
+  describe("quickfix list", function()
+    after_each(function()
+      vim.fn.setqflist({}, "f")
+      vim.cmd("silent! cclose | silent! tabonly | silent! only")
+    end)
+
+    it("puts several chosen places in the quickfix list, titled after the picker", function()
+      local events = {}
+      stub(vim.ui, "select", function(items, _, cb)
+        events[#events + 1] = #items
+        cb(items[1])
+      end)
+      local items = require("org.pickers.sources").headline_items(require("org.files").agenda_files(), { file = true })
+      eq(6, #items)
+      require("org.pickers").go({ items[2], items[5] }, nil, "Agenda headlines")
+      eq({
+        title = "Agenda headlines",
+        items = {
+          "a.org:3:1 a.org Projects › TODO [#A] Write report  :urgent:",
+          "b.org:1:1 b.org TODO Call mom  :home:",
+        },
+      }, qf())
+      ok(qf_open(), "the quickfix window is open")
+    end)
+
+    it("takes a buffer without a file, and the item's column", function()
+      local buf = org_buffer({ "* First", "* Second" }, { 1, 0 })
+      require("org.pickers").qflist({
+        { display = { { "Second" } }, bufnr = buf, lnum = 2, col = 3 },
+        { display = { { "nowhere" } } },
+      }, "T")
+      local info = vim.fn.getqflist({ items = 1 })
+      eq(1, #info.items)
+      eq({ buf, 2, 3, "Second" }, { info.items[1].bufnr, info.items[1].lnum, info.items[1].col, info.items[1].text })
+    end)
+
+    it("jumps to one place, and opens several in windows of their own with split, vsplit, tab", function()
+      local items = require("org.pickers.sources").headline_items(require("org.files").agenda_files(), { file = true })
+      require("org.pickers").go({ items[2] })
+      eq({ a_path, 3 }, { vim.api.nvim_buf_get_name(0), vim.api.nvim_win_get_cursor(0)[1] })
+      eq(false, qf_open())
+      require("org.pickers").go({ items[2], items[5] }, "vsplit")
+      eq(3, #vim.api.nvim_tabpage_list_wins(0))
+      eq({ b_path, 1 }, { vim.api.nvim_buf_get_name(0), vim.api.nvim_win_get_cursor(0)[1] })
+      eq(false, qf_open())
+      require("org.pickers").go({ items[2] }, "qflist", "T")
+      eq(1, #qf().items)
+    end)
+
+    it("lets the place pickers choose several, the others one", function()
+      local specs = {}
+      stub(require("org.pickers"), "pick", function(spec)
+        specs[#specs + 1] = spec
+      end)
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      local sources = require("org.pickers.sources")
+      sources.headlines()
+      sources.todo()
+      sources.agenda_file()
+      sources.capture_template()
+      eq({ true, true, true }, { specs[1].multi, specs[2].multi, specs[3].multi })
+      eq(nil, specs[4].multi)
+      -- several chosen go to the quickfix list, titled after the picker
+      specs[2].on_choice({ specs[2].items[1], specs[2].items[2] })
+      eq("TODO", qf().title)
+      eq(2, #qf().items)
+    end)
+  end)
+
   describe("snacks.nvim adapter", function()
     local captured, previewed
     before_each(function()
@@ -525,8 +611,8 @@ describe("pickers", function()
       eq({ buf = vim.api.nvim_get_current_buf(), file = a_path, pos = { 3, 0 } }, previewed)
       eq({ "TODO", "OrgTodo" }, captured.format(it, {})[2])
       eq("function", type(captured.actions.confirm))
-      -- confirm jumps (once the picker has closed)
-      local p = fake_picker({})
+      -- confirm jumps (once the picker has closed); several can be selected
+      local p = fake_picker({ captured.items[4] })
       captured.actions.confirm(p, captured.items[4])
       eq(true, p.closed)
       settle()
@@ -539,7 +625,8 @@ describe("pickers", function()
       eq({ "org_split", mode = { "n", "i" } }, captured.win.input.keys["<C-s>"])
       eq("org_vsplit", captured.win.list.keys["<C-v>"])
       eq("org_tab", captured.win.list.keys["<C-t>"])
-      local p = fake_picker({})
+      eq("org_qflist", captured.win.list.keys["<C-q>"])
+      local p = fake_picker({ captured.items[4] })
       captured.actions.org_split(p, captured.items[4])
       eq(true, p.closed)
       settle()
@@ -635,6 +722,34 @@ describe("pickers", function()
       eq(2, checked)
     end)
 
+    it("sends the selection with <CR>, or every match with the qflist key, to the quickfix list", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline_all")
+      local p = fake_picker({ captured.items[2], captured.items[5] })
+      -- snacks passes its action third
+      captured.actions.confirm(p, captured.items[2], { name = "confirm" })
+      eq(true, p.closed)
+      settle()
+      eq("Agenda headlines", qf().title)
+      eq(2, #qf().items)
+      ok(qf_open(), "the quickfix window is open")
+      vim.cmd("cclose")
+      -- the qflist key: every item matching the query, not the selection
+      require("org.actions").run("pick_headline_all")
+      p = fake_picker({ captured.items[1] })
+      function p:items()
+        return { captured.items[3], captured.items[4], captured.items[6] }
+      end
+      captured.actions.org_qflist(p, captured.items[1])
+      settle()
+      eq(
+        { "a.org:5:1 a.org Projects › DONE Old thing", "a.org:6:1 a.org Notes", "b.org:2:1 b.org Ideas" },
+        qf().items
+      )
+      vim.cmd("cclose")
+      vim.fn.setqflist({}, "f")
+    end)
+
     it("answers again when resumed", function()
       local events = {}
       require("org.pickers").pick(recorder(events))
@@ -704,8 +819,7 @@ describe("pickers", function()
         ["--ansi"] = true,
         ["--delimiter"] = "\t",
         ["--with-nth"] = "2..",
-        ["--multi"] = false,
-        ["--no-multi"] = true,
+        ["--multi"] = true,
       }, opts.fzf_opts)
       -- the previewer reads the file and line from the entry
       local P = opts.previewer
@@ -724,7 +838,7 @@ describe("pickers", function()
       require("org.actions").run("pick_headline")
       local keys = vim.tbl_keys(opts.actions)
       table.sort(keys)
-      eq({ "ctrl-s", "ctrl-t", "ctrl-v", "enter" }, keys)
+      eq({ "ctrl-q", "ctrl-s", "ctrl-t", "ctrl-v", "enter" }, keys)
       opts.actions["ctrl-v"]({ entries[4] }, {})
       settle()
       eq(2, #vim.api.nvim_tabpage_list_wins(0))
@@ -871,6 +985,25 @@ describe("pickers", function()
         return returned
       end)
       eq(true, returned)
+    end)
+
+    it("sends the selection with enter, or every match with ctrl-q, to the quickfix list", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      require("org.actions").run("pick_headline")
+      opts.actions.enter({ entries[2], entries[4] }, { last_query = "" })
+      settle()
+      eq("Headlines", vim.fn.getqflist({ title = 1 }).title)
+      eq(2, #qf().items)
+      vim.cmd("cclose")
+      -- ctrl-q selects every match first, then runs the action
+      require("org.actions").run("pick_headline")
+      local q = opts.actions["ctrl-q"]
+      eq("select-all", q.prefix)
+      q.fn({ entries[1], entries[3] }, { last_query = "o" })
+      settle()
+      eq({ "a.org:2:1 Projects  :work:", "a.org:5:1 Projects › DONE Old thing" }, qf().items)
+      vim.cmd("cclose")
+      vim.fn.setqflist({}, "f")
     end)
 
     it("answers again when resumed", function()
@@ -1024,7 +1157,7 @@ describe("pickers", function()
       require("org.actions").run("pick_headline")
       eq({ "i", "n" }, mapped["<C-s>"].mode)
       eq(
-        { "<C-s>", "<C-t>", "<C-v>" },
+        { "<C-q>", "<C-s>", "<C-t>", "<C-v>" },
         (function()
           local keys = vim.tbl_keys(mapped)
           table.sort(keys)
@@ -1145,6 +1278,75 @@ describe("pickers", function()
       vim.api.nvim_buf_delete(conf.prompt_bufnr, { force = true })
       settle()
       eq(true, cancelled)
+    end)
+
+    it("sends the selection with <CR>, every match with <C-q>, the selection with <M-q>", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      replaced.send_to_qflist, replaced.send_selected_to_qflist = nil, nil
+      local manager = {}
+      fake_module(
+        "telescope.actions.state",
+        vim.tbl_extend("force", require("telescope.actions.state"), {
+          get_current_picker = function()
+            return {
+              get_multi_selection = function()
+                return multi
+              end,
+              manager = {
+                iter = function()
+                  local i = 0
+                  return function()
+                    i = i + 1
+                    return manager[i]
+                  end
+                end,
+              },
+            }
+          end,
+        })
+      )
+      local acts = require("telescope.actions")
+      for _, name in ipairs({ "send_to_qflist", "send_selected_to_qflist" }) do
+        acts[name] = {
+          replace = function(_, fn)
+            replaced[name] = fn
+          end,
+        }
+      end
+      require("org.actions").run("pick_headline")
+      local e = function(i)
+        return conf.finder.entry_maker(conf.finder.results[i])
+      end
+      multi = { e(1), e(4) }
+      select_fn()
+      settle()
+      eq({ "a.org:2:1 Projects  :work:", "a.org:6:1 Notes" }, qf().items)
+      vim.cmd("cclose")
+      -- <C-q>: every match
+      require("org.actions").run("pick_headline")
+      manager = { e(2), e(3) }
+      mapped["<C-q>"].fn()
+      settle()
+      eq(
+        { "a.org:3:1 Projects › TODO [#A] Write report  :urgent:", "a.org:5:1 Projects › DONE Old thing" },
+        qf().items
+      )
+      vim.cmd("cclose")
+      -- telescope's own send_to_qflist and send_selected_to_qflist
+      require("org.actions").run("pick_headline")
+      manager = { e(4) }
+      replaced.send_to_qflist()
+      settle()
+      eq({ "a.org:6:1 Notes" }, qf().items)
+      vim.cmd("cclose")
+      require("org.actions").run("pick_headline")
+      multi, selected = {}, e(1)
+      replaced.send_selected_to_qflist()
+      settle()
+      -- one entry still goes to the quickfix list
+      eq({ "a.org:2:1 Projects  :work:" }, qf().items)
+      vim.cmd("cclose")
+      vim.fn.setqflist({}, "f")
     end)
 
     it("answers again when resumed", function()
@@ -1354,6 +1556,34 @@ describe("pickers", function()
       require("org.pickers").pick(spec)
       settle()
       eq(true, cancelled)
+    end)
+
+    it("sends marked items, or every match with the qflist key, to the quickfix list", function()
+      vim.cmd("edit " .. vim.fn.fnameescape(a_path))
+      behaviour = function(source)
+        source.choose_marked({ source.items[1], source.items[4] })
+      end
+      require("org.actions").run("pick_headline")
+      settle()
+      eq({ "a.org:2:1 Projects  :work:", "a.org:6:1 Notes" }, qf().items)
+      vim.cmd("cclose")
+      local all
+      stub(rawget(_G, "MiniPick"), "get_picker_matches", function()
+        return { current = all[1], all = all }
+      end)
+      behaviour = function(source)
+        all = { source.items[2], source.items[3] }
+        return started.mappings.org_qflist.func()
+      end
+      require("org.actions").run("pick_headline")
+      eq("<C-q>", started.mappings.org_qflist.char)
+      settle()
+      eq(
+        { "a.org:3:1 Projects › TODO [#A] Write report  :urgent:", "a.org:5:1 Projects › DONE Old thing" },
+        qf().items
+      )
+      vim.cmd("cclose")
+      vim.fn.setqflist({}, "f")
     end)
 
     it("answers again when resumed", function()

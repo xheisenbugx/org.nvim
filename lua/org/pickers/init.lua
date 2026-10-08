@@ -46,9 +46,10 @@ local M = {}
 ---@field create_label? string
 ---@field query? string initial query (not vim.ui.select)
 ---@field preview? boolean show a preview of the item's file (default: when items have one)
----The items are places to go to: the `picker_keys` (split, vsplit, tab)
----choose too, and `on_choice` gets how to open the item as its third
----argument (`pick_*` pass it on to `jump()`).
+---The items are places to go to: the `picker_keys` (split, vsplit, tab,
+---qflist) choose too, and `on_choice` gets how to open the items as its
+---third argument (`pick_*` pass it on to `go()`). The qflist key chooses
+---every item that matches the query.
 ---@field split? boolean
 
 ---@class org.PickerSpec: org.PickerOpts
@@ -56,13 +57,14 @@ local M = {}
 ---closed, inside a coroutine, so it may prompt. The picker plugins' resume
 ---(snacks.nvim, fzf-lua, telescope, mini.pick) reopens the picker, which
 ---calls it again for what is chosen then. With `split`, `how` says which
----of the `picker_keys` chose ("split", "vsplit", "tab"; nil for <CR>).
+---of the `picker_keys` chose ("split", "vsplit", "tab", "qflist"; nil for
+---<CR>).
 ---@field on_choice fun(items: org.PickerItem[], query?: string, how?: org.PickerHow)
 ---Called when the picker is first closed without a choice (not when a
 ---resumed picker is).
 ---@field on_cancel? fun()
 
----@alias org.PickerHow "split"|"vsplit"|"tab"
+---@alias org.PickerHow "split"|"vsplit"|"tab"|"qflist"
 
 --- The backends, in the order `picker = "auto"` tries them.
 M.backends = { "snacks", "fzf-lua", "telescope", "mini", "select" }
@@ -114,7 +116,7 @@ function M.create_prompt(spec)
 end
 
 -- the order the `picker_keys` are bound in
-local HOWS = { "split", "vsplit", "tab" }
+local HOWS = { "split", "vsplit", "tab", "qflist" }
 
 --- The `picker_keys` of a spec with `split`, in Vim's key notation: a list
 --- of `{ how, lhs }` (keys set to false are left out).
@@ -307,6 +309,43 @@ function M.jump(item, how)
     local last = vim.api.nvim_buf_line_count(item.bufnr)
     vim.api.nvim_win_set_cursor(0, { math.max(1, math.min(item.lnum or 1, last)), col })
     vim.cmd("normal! zv")
+  end
+end
+
+--- Put items in the quickfix list, titled `title`, and open its window.
+---@param items org.PickerItem[]
+---@param title? string
+function M.qflist(items, title)
+  local list = {}
+  for _, it in ipairs(items) do
+    if it.filename or it.bufnr then
+      list[#list + 1] = {
+        filename = it.filename,
+        bufnr = not it.filename and it.bufnr or nil,
+        lnum = it.lnum or 1,
+        col = it.col or 1,
+        text = M.line(it),
+      }
+    end
+  end
+  vim.fn.setqflist({}, " ", { title = title or "org", items = list })
+  vim.cmd("botright copen")
+end
+
+--- Go to the places chosen in a picker with `split`: one item is jumped
+--- to (in a new window with `how`); several open each in a window of
+--- their own with split, vsplit or tab, and go to the quickfix list with
+--- <CR>; "qflist" puts them all in the quickfix list.
+---@param items org.PickerItem[]
+---@param how? org.PickerHow
+---@param title? string the quickfix list's title
+function M.go(items, how, title)
+  if how == "qflist" or (#items > 1 and not how) then
+    M.qflist(items, title)
+    return
+  end
+  for _, item in ipairs(items) do
+    M.jump(item, how)
   end
 end
 
