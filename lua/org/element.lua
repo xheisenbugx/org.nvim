@@ -349,7 +349,8 @@ function M.section(bufnr, lnum)
 end
 
 --- Deepest element containing `lnum`. On the first line of a greater
---- element (a block, drawer or item line), that element.
+--- element (a block, drawer or item line), that element; on a plain
+--- list's first line, the list (org-element-at-point), not its first item.
 ---@return org.Element|nil
 function M.at(bufnr, lnum)
   local els = M.section(bufnr, lnum)
@@ -360,7 +361,7 @@ function M.at(bufnr, lnum)
         found = el
         if lnum > el.post and el.children and lnum <= (el.cend or el.clast) then
           walk(el.children)
-        elseif el.type == "plain-list" then
+        elseif el.type == "plain-list" and lnum > el.post then
           walk(el.children)
         end
         return
