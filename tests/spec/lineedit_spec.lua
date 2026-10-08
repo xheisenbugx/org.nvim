@@ -113,6 +113,13 @@ describe("kill_line", function()
     eq(" here", vim.fn.getreg('"'))
   end)
 
+  it("special: kills the title up to non-ASCII tags", function()
+    config.opts.special_ctrl_k = true
+    local buf = org_buffer({ "* Hello world :café:" }, { 1, 8 })
+    le.kill_line()
+    eq({ "* Hello                                                                :café:" }, buf_lines(buf))
+  end)
+
   it("special: on the tags kills them", function()
     config.opts.special_ctrl_k = true
     local buf = org_buffer({ "* TODO Title here   :tag:" }, { 1, 18 })

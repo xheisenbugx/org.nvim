@@ -568,3 +568,20 @@ describe("structure: templates, drawers, narrow, emphasize", function()
     eq({ "*hello world*" }, buf_lines(buf))
   end)
 end)
+
+-- org-tag-re takes any letter: tags like :café: stay tags (Emacs 9.8.10)
+describe("headline editing with non-ASCII tags", function()
+  local TAGLINE = "* Hello                                                                :café:"
+
+  it("M-RET in the title keeps the tags on the original headline", function()
+    local buf = org_buffer({ "* Hello world :café:" }, { 1, 7 })
+    structure.insert_heading_at_point({ split = true })
+    eq({ TAGLINE, "*  world" }, buf_lines(buf))
+  end)
+
+  it("edit_headline keeps the tags", function()
+    local buf = org_buffer({ "* Hello world :café:" }, { 1, 0 })
+    structure.edit_headline("New")
+    eq({ "* New                                                                  :café:" }, buf_lines(buf))
+  end)
+end)
