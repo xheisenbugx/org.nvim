@@ -172,6 +172,54 @@ describe("ics: recurrence details", function()
     )
   end)
 
+  local function expand(rule, start, limit)
+    return vim.tbl_map(utc, parser.expand(parser.rrule(rule), start, start, limit))
+  end
+
+  it("BYSETPOS takes a member of the period's set once (1,-1 on a one-day set)", function()
+    -- Friday the 13th: first and last of the month's matches are the same day
+    eq(
+      { "2026-02-13 00:00", "2026-03-13 00:00", "2026-11-13 00:00" },
+      expand("FREQ=MONTHLY;BYDAY=FR;BYMONTHDAY=13;BYSETPOS=1,-1;COUNT=3", N(2026, 2, 13), N(2028, 12, 31))
+    )
+    -- a repeated BYHOUR is one time of day
+    eq(
+      { "2026-10-05 09:00", "2026-10-06 09:00" },
+      expand("FREQ=DAILY;BYHOUR=9,9;COUNT=2", N(2026, 10, 5, 9), N(2026, 12, 31))
+    )
+  end)
+
+  it("BYSETPOS selects among the days x times of the period (RFC 5545)", function()
+    -- the last Monday of the month, at the last of its BYHOUR times
+    eq(
+      { "2026-10-05 09:00", "2026-10-26 17:00", "2026-11-30 17:00" },
+      expand("FREQ=MONTHLY;BYDAY=MO;BYHOUR=9,17;BYSETPOS=-1;COUNT=3", N(2026, 10, 5, 9), N(2026, 12, 31))
+    )
+  end)
+
+  it("YEARLY with BYMONTHDAY and no BYMONTH covers every month", function()
+    eq(
+      { "2026-01-01 00:00", "2026-02-01 00:00", "2026-03-01 00:00" },
+      expand("FREQ=YEARLY;BYMONTHDAY=1;COUNT=3", N(2026, 1, 1), N(2026, 12, 31))
+    )
+    -- BYDAY limits it, its ordinals counted in the year: Friday the 13ths
+    eq(
+      { "2026-02-13 00:00", "2026-03-13 00:00", "2026-11-13 00:00" },
+      expand("FREQ=YEARLY;BYDAY=FR;BYMONTHDAY=13;COUNT=3", N(2026, 2, 13), N(2026, 12, 31))
+    )
+    eq({ "2027-12-31 00:00" }, expand("FREQ=YEARLY;BYDAY=-1FR;BYMONTHDAY=31", N(2027, 12, 31), N(2028, 12, 30)))
+  end)
+
+  it("expands a sparse MINUTELY rule with COUNT to the end", function()
+    -- one match on two days a week: months of minutes between matches
+    local got =
+      expand("FREQ=MINUTELY;BYDAY=SA,TU;BYHOUR=19;BYMINUTE=10;COUNT=36", N(2026, 1, 10, 19, 10), N(2027, 1, 1))
+    eq(36, #got)
+    eq("2026-05-12 19:10", got[36])
+    got = expand("FREQ=HOURLY;BYMONTH=12;BYHOUR=8;COUNT=3", N(2026, 1, 1, 8), N(2027, 1, 1))
+    eq({ "2026-01-01 08:00", "2026-12-01 08:00", "2026-12-02 08:00" }, got)
+  end)
+
   it("skips Feb 29 in non-leap years", function()
     local r = parser.rrule("FREQ=YEARLY;COUNT=2")
     eq({ "2024-02-29 00:00", "2028-02-29 00:00" }, vim.tbl_map(utc, parser.expand(r, N(2024, 2, 29), 0, N(2030, 1, 1))))
@@ -370,6 +418,50 @@ describe("ics extension: agenda, cache, fetch, import", function()
       return l == "* Standup"
     end, lines))
     ok(vim.tbl_contains(lines, ":ICS_RECURRENCE_ID: 20261010T090000"), vim.inspect(lines))
+    local b = vim.fn.bufnr(file)
+    if b > 0 then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+  end)
+
+  it("updates a moved occurrence (RECURRENCE-ID) instead of importing it again", function()
+    local file = dir .. "/in.org"
+    local base = {
+      "UID:s1",
+      "SUMMARY:Standup",
+      "DTSTART:20261009T090000",
+      "DTEND:20261009T091500",
+      "RRULE:FREQ=DAILY;COUNT=5",
+    }
+    write(dir .. "/c.ics", ics({ base }))
+    setup({ calendars = { { name = "Work", path = dir .. "/c.ics" } }, auto_refresh = false, import_file = file })
+    local occs = ics_mod.occurrences(day("2026-10-10 Sat"), day("2026-10-10 Sat"))
+    eq(1, #occs)
+    ics_mod.import_occurrence(occs[1])
+    -- the organiser moves the Oct 10 occurrence to 11:00
+    write(
+      dir .. "/c.ics",
+      ics({
+        base,
+        {
+          "UID:s1",
+          "SUMMARY:Standup",
+          "RECURRENCE-ID:20261010T090000",
+          "DTSTART:20261010T110000",
+          "DTEND:20261010T111500",
+        },
+      })
+    )
+    setup({ calendars = { { name = "Work", path = dir .. "/c.ics" } }, auto_refresh = false, import_file = file })
+    occs = ics_mod.occurrences(day("2026-10-10 Sat"), day("2026-10-10 Sat"))
+    eq(1, #occs)
+    ics_mod.import_occurrence(occs[1])
+    local lines = vim.fn.readfile(file)
+    eq(1, #vim.tbl_filter(function(l)
+      return l == "* Standup"
+    end, lines), vim.inspect(lines))
+    ok(vim.tbl_contains(lines, ":ICS_RECURRENCE_ID: 20261010T090000"), vim.inspect(lines))
+    ok(vim.tbl_contains(lines, "<2026-10-10 Sat 11:00-11:15>"), vim.inspect(lines))
     local b = vim.fn.bufnr(file)
     if b > 0 then
       vim.api.nvim_buf_delete(b, { force = true })

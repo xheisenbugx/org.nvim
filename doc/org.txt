@@ -10076,6 +10076,9 @@ Actions ~
                 property). An event already imported (same ICS_UID and
                 ICS_RECURRENCE_ID) is not added again; when its time
                 changed, the timestamp line of that heading is updated.
+                An occurrence the organiser moved keeps the
+                ICS_RECURRENCE_ID of the time it replaces, so it updates
+                the heading imported before the move.
 
 Neither has a default key; map them in `mappings` or run them with `:Org`.
 
@@ -10087,12 +10090,17 @@ What is read ~
     SECONDLY and INTERVAL, COUNT, UNTIL, BYDAY (`MO`, `2TU`, `-1FR`),
     BYMONTHDAY, BYMONTH, BYYEARDAY, BYHOUR, BYMINUTE, BYSECOND, BYSETPOS
     and WKST; RDATE; EXDATE. A yearly Feb 29 skips non-leap years.
+    BYSETPOS picks from each period's days and times together (RFC 5545),
+    each member once. A YEARLY rule with BYMONTHDAY and no BYMONTH covers
+    every month.
+  - CATEGORIES: split on commas, an escaped `\,` staying in the value.
   - RECURRENCE-ID: a changed or cancelled instance replaces the one it
     overrides.
   - `STATUS:CANCELLED` events are left out.
   Not read: BYWEEKNO (ignored), RDATE periods, VTODO, VJOURNAL, VALARM
   (no reminders), attendees and free/busy. A HOURLY or finer rule is
-  expanded up to 100,000 steps per range.
+  expanded up to 100,000 steps per range; steps on days and hours its
+  BYxxx parts exclude are skipped without counting.
 
 Time zones ~
 Times are shown in the system's local zone, or in `timezone` (an IANA name

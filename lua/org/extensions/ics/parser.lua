@@ -339,6 +339,33 @@ local function month_days(rule, y, m, start_day, byday_in_month)
   return out
 end
 
+local ALL_MONTHS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
+
+-- Set of the days of year `y` that BYDAY names, its ordinals counted in the
+-- year (20MO = the 20th Monday).
+local function year_weekdays(rule, y)
+  local jan1 = dt.days_from_civil(y, 1, 1)
+  local len = dt.is_leap(y) and 366 or 365
+  local set = {}
+  for _, bd in ipairs(rule.byday) do
+    local all = {}
+    for d = jan1 + (bd.wd - weekday(jan1)) % 7, jan1 + len - 1, 7 do
+      all[#all + 1] = d
+    end
+    if not bd.n or bd.n == 0 then
+      for _, d in ipairs(all) do
+        set[d] = true
+      end
+    else
+      local d = bd.n > 0 and all[bd.n] or all[#all + 1 + bd.n]
+      if d then
+        set[d] = true
+      end
+    end
+  end
+  return set
+end
+
 -- Candidate days of period k of a rule.
 local function period_days(rule, k, d0)
   local y0, m0, day0 = dt.civil_from_days(d0)
@@ -369,24 +396,25 @@ local function period_days(rule, k, d0)
           cands[#cands + 1] = jan1 + n - 1
         end
       end
-    elseif rule.bymonth or rule.bymonthday or not rule.byday then
-      for _, m in ipairs(rule.bymonth or { m0 }) do
+    elseif rule.bymonth or not rule.byday then
+      for _, m in ipairs(rule.bymonth or (rule.bymonthday and ALL_MONTHS) or { m0 }) do
         vim.list_extend(cands, month_days(rule, y, m, day0, true))
+      end
+    elseif rule.bymonthday then
+      -- BYMONTHDAY without BYMONTH covers every month, BYDAY limiting it
+      -- with its ordinals counted in the year (-1FR = the year's last Friday)
+      local in_year = year_weekdays(rule, y)
+      for m = 1, 12 do
+        for _, d in ipairs(month_days(rule, y, m, day0, false)) do
+          if in_year[d] then
+            cands[#cands + 1] = d
+          end
+        end
       end
     else
       -- BYDAY alone: weekdays of the whole year (20MO = the 20th Monday)
-      local jan1 = dt.days_from_civil(y, 1, 1)
-      local len = dt.is_leap(y) and 366 or 365
-      for _, bd in ipairs(rule.byday) do
-        local all = {}
-        for d = jan1 + (bd.wd - weekday(jan1)) % 7, jan1 + len - 1, 7 do
-          all[#all + 1] = d
-        end
-        if not bd.n or bd.n == 0 then
-          vim.list_extend(cands, all)
-        else
-          cands[#cands + 1] = bd.n > 0 and all[bd.n] or all[#all + 1 + bd.n]
-        end
+      for d in pairs(year_weekdays(rule, y)) do
+        cands[#cands + 1] = d
       end
     end
   else
@@ -429,18 +457,35 @@ local function period_days(rule, k, d0)
       uniq[#uniq + 1] = d
     end
   end
-  if rule.bysetpos then
-    local sel = {}
-    for _, p in ipairs(rule.bysetpos) do
-      local d = p > 0 and uniq[p] or uniq[#uniq + 1 + p]
-      if d then
-        sel[#sel + 1] = d
-      end
-    end
-    table.sort(sel)
-    uniq = sel
-  end
   return uniq
+end
+
+-- Sorts `list` in place and drops repeated values.
+local function sort_uniq(list)
+  table.sort(list)
+  local out = {}
+  for _, v in ipairs(list) do
+    if out[#out] ~= v then
+      out[#out + 1] = v
+    end
+  end
+  return out
+end
+
+-- The BYSETPOS members of a period's sorted, duplicate-free set, each once
+-- (BYSETPOS=1,-1 on a one-member set selects that member once).
+local function setpos(rule, set)
+  if not rule.bysetpos then
+    return set
+  end
+  local sel = {}
+  for _, p in ipairs(rule.bysetpos) do
+    local v = p > 0 and set[p] or set[#set + 1 + p]
+    if v then
+      sel[#sel + 1] = v
+    end
+  end
+  return sort_uniq(sel)
 end
 
 local PERIOD_DAYS = { DAILY = 1, WEEKLY = 7, MONTHLY = 28, YEARLY = 365 }
@@ -471,6 +516,39 @@ local function day_ok(rule, d)
     end
   end
   return true
+end
+
+-- The first second at or after `t` that BYMONTH, BYMONTHDAY, BYDAY, BYHOUR
+-- and (for rules finer than HOURLY) BYMINUTE can match, or something past
+-- `limit`.
+local function next_candidate(rule, unit, t, limit)
+  while t <= limit do
+    local d = floor(t / 86400)
+    local tod = t - d * 86400
+    local h, mi = floor(tod / 3600), floor(tod % 3600 / 60)
+    if not day_ok(rule, d) then
+      t = (d + 1) * 86400
+    elseif rule.byhour and not contains(rule.byhour, h) then
+      local nh
+      for _, x in ipairs(rule.byhour) do
+        if x > h and x < 24 and (not nh or x < nh) then
+          nh = x
+        end
+      end
+      t = nh and d * 86400 + nh * 3600 or (d + 1) * 86400
+    elseif unit < 3600 and rule.byminute and not contains(rule.byminute, mi) then
+      local nm
+      for _, x in ipairs(rule.byminute) do
+        if x > mi and x < 60 and (not nm or x < nm) then
+          nm = x
+        end
+      end
+      t = nm and d * 86400 + h * 3600 + nm * 60 or d * 86400 + (h + 1) * 3600
+    else
+      return t
+    end
+  end
+  return t
 end
 
 -- HOURLY, MINUTELY and SECONDLY rules: every INTERVAL hours (minutes,
@@ -536,7 +614,14 @@ local function sub_daily(rule, start, from, limit, past_until)
     if done then
       break
     end
+    -- jump over the periods whose times all fall where nothing can match
+    -- (a sparse BYDAY / BYHOUR / BYMINUTE rule moves days or hours at once)
     k = k + 1
+    local lo = start + k * step + (offs[1] or 0)
+    local nxt = next_candidate(rule, unit, lo, limit)
+    if nxt > lo then
+      k = math.max(k, math.ceil((nxt - (offs[#offs] or 0) - start) / step))
+    end
   end
   return out
 end
@@ -576,7 +661,7 @@ function M.expand(rule, start, from, limit, past_until)
         end
       end
     end
-    table.sort(tods)
+    tods = sort_uniq(tods)
   end
   local count = 0
   local k = 0
@@ -601,27 +686,28 @@ function M.expand(rule, start, from, limit, past_until)
     if not days then
       break
     end
-    local done = false
+    -- the period's set is days x times of day; BYSETPOS picks from it
+    local set = {}
     for _, d in ipairs(days) do
       for _, td in ipairs(tods) do
-        local t = d * 86400 + td
-        if t > start then
-          if t > limit or (past_until and past_until(t)) then
-            done = true
-            break
-          end
-          if rule.count and count >= rule.count then
-            done = true
-            break
-          end
-          count = count + 1
-          if t >= from then
-            out[#out + 1] = t
-          end
-        end
+        set[#set + 1] = d * 86400 + td
       end
-      if done then
-        break
+    end
+    local done = false
+    for _, t in ipairs(setpos(rule, set)) do
+      if t > start then
+        if t > limit or (past_until and past_until(t)) then
+          done = true
+          break
+        end
+        if rule.count and count >= rule.count then
+          done = true
+          break
+        end
+        count = count + 1
+        if t >= from then
+          out[#out + 1] = t
+        end
       end
     end
     if done then
@@ -921,8 +1007,24 @@ local function event_of(comp)
     ev.recurrence_id = M.time(rid.value, rid.params)
   end
   for _, p in ipairs(props(comp, "CATEGORIES")) do
-    for v in p.value:gmatch("[^,]+") do
-      ev.categories[#ev.categories + 1] = M.text(v)
+    -- split on the unescaped commas only: `\,` is a comma inside a value
+    local cur, i, value = {}, 1, p.value
+    while i <= #value + 1 do
+      local c = value:sub(i, i)
+      if c == "\\" then
+        cur[#cur + 1] = value:sub(i, i + 1)
+        i = i + 2
+      else
+        if c == "," or c == "" then
+          if #cur > 0 then
+            ev.categories[#ev.categories + 1] = M.text(table.concat(cur))
+          end
+          cur = {}
+        else
+          cur[#cur + 1] = c
+        end
+        i = i + 1
+      end
     end
   end
   return ev
@@ -1048,8 +1150,9 @@ local function occ_key(cal, t, aliases)
 end
 
 --- Occurrences between days `from` and `to` (local day numbers):
---- `{ event, start, stop, all_day }` with `start`/`stop` as local naive
---- seconds (stop exclusive).
+--- `{ event, start, stop, all_day, recurrence }` with `start`/`stop` as
+--- local naive seconds (stop exclusive); `recurrence` is the local start
+--- the occurrence has in the rule (its RECURRENCE-ID when it was moved).
 ---@param cal org.ics.Calendar
 ---@param from integer
 ---@param to integer
@@ -1096,7 +1199,10 @@ function M.occurrences(cal, from, to, opts)
     end
     local sd = floor(s / 86400)
     if sd <= to and floor(math.max(e - 1, s) / 86400) >= from then
-      out[#out + 1] = { event = ev, start = s, stop = e, all_day = start_t.all_day or false }
+      -- a moved occurrence (RECURRENCE-ID) keeps the start it replaces, so
+      -- it is still known as that occurrence
+      local recurrence = ev.recurrence_id and M.localize(cal, ev.recurrence_id, tz, aliases) or s
+      out[#out + 1] = { event = ev, start = s, stop = e, all_day = start_t.all_day or false, recurrence = recurrence }
     end
   end
   for _, ev in ipairs(cal.events) do
