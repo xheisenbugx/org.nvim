@@ -210,6 +210,10 @@ function M.parse_headline_line(line, todo_cfg)
   end
   todo_cfg = todo_cfg or todo_keywords.global()
   local parts = { level = #stars, stars = stars, tags = {}, commented = false }
+  -- org-element: a keyword is followed by a space or the end of the line
+  -- (a tab is not enough, even before the tags)
+  local kw_word, kw_sep = rest:match("^(%S+)(.?)")
+  local kw_ok = kw_word ~= nil and (kw_sep == "" or kw_sep == " ") and todo_cfg:is_keyword(kw_word)
 
   -- tags
   -- tags use org-tag-re characters: letters, digits, _ @ # % (and any
@@ -231,31 +235,84 @@ function M.parse_headline_line(line, todo_cfg)
 
   -- todo keyword
   local word, after = rest:match("^(%S+)(.*)$")
-  if word and todo_cfg:is_keyword(word) and (after == "" or after:match("^%s")) then
+  if kw_ok and word == kw_word then
     parts.todo = word
     rest = after:gsub("^%s+", "")
   end
-  -- priority
-  -- org-priority-value-regexp: A-Z or 0-64
-  local prio, after2 = rest:match("^%[#([A-Z])%](.*)$")
+  -- priority (org-priority-regexp, value org-priority-value-regexp: A-Z
+  -- or 0-64), then at most one space; the title may follow at once
+  local prio, after2 = rest:match("^%[#([A-Z])%] ?(.*)$")
   if not prio then
-    prio, after2 = rest:match("^%[#(%d%d?)%](.*)$")
+    prio, after2 = rest:match("^%[#(%d%d?)%] ?(.*)$")
     if prio and tonumber(prio) > 64 then
       prio = nil
     end
   end
-  if prio and (after2 == "" or after2:match("^%s")) then
+  if prio then
     parts.priority = prio
-    rest = after2:gsub("^%s+", "")
+    rest = after2
   end
-  -- COMMENT
+  -- COMMENT, followed by a space or the end of the line
   local c_after = rest:match("^COMMENT(.*)$")
-  if c_after and (c_after == "" or c_after:match("^%s")) then
+  if c_after and (c_after == "" or c_after:byte(1) == 32) then
     parts.commented = true
-    rest = c_after:gsub("^%s+", "")
+    rest = c_after
   end
-  parts.title = rest
+  parts.title = rest:gsub("^%s+", "")
   return parts
+end
+
+--- org-remove-tabs: tabs become spaces up to the next multiple of 8.
+---@param s string
+---@return string
+local function remove_tabs(s)
+  if not s:find("\t", 1, true) then
+    return s
+  end
+  local out, col = {}, 0
+  for ch in s:gmatch(".") do
+    if ch == "\t" then
+      local n = 8 - col % 8
+      out[#out + 1] = string.rep(" ", n)
+      col = col + n
+    else
+      out[#out + 1] = ch
+      col = col + 1
+    end
+  end
+  return table.concat(out)
+end
+
+--- The ITEM special property of headline line `line`: its title as
+--- org-complex-heading-regexp reads it, COMMENT kept, tabs expanded.
+---@param line string
+---@param todo_cfg? org.TodoConfig
+---@return string
+function M.item_text(line, todo_cfg)
+  todo_cfg = todo_cfg or todo_keywords.global()
+  local body = line:match("^%*+(.*)$") or ""
+  -- org-tag--group-optional-re, then [ \t]*$
+  local before = body:match("^(.-)[ \t]+:[%w_@#%%:\128-\255]+:[ \t]*$")
+  if before then
+    -- an empty title before the tags: " +(.*?)" is optional
+    body = before
+  else
+    body = body:gsub("[ \t]+$", "")
+  end
+  local kw, rest = body:match("^ +(%S+)(.*)$")
+  if kw and todo_cfg:is_keyword(kw) and (rest == "" or rest:byte(1) == 32) then
+    body = rest
+  end
+  local cookie, rest2 = body:match("^ +%[#([%w]+)%](.*)$")
+  if cookie and (rest2 == "" or rest2:byte(1) == 32) then
+    local n = tonumber(cookie)
+    if cookie:match("^[A-Z]$") or (cookie:match("^%d%d?$") and n and n <= 64) then
+      body = rest2
+    end
+  end
+  -- " +(.*?)": a title must follow spaces
+  local title = body:match("^ +(.*)$")
+  return title and remove_tabs(title) or ""
 end
 
 ---------------------------------------------------------------------------
@@ -1441,7 +1498,7 @@ end
 function Headline:get_property(name, inherit)
   local key = name:upper()
   if key == "ITEM" then
-    return self.title
+    return M.item_text(self.raw, self.file.settings.todo)
   elseif key == "TODO" then
     return self.todo
   elseif key == "PRIORITY" then

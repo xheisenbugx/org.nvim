@@ -154,3 +154,48 @@ describe("parser: the file-level CATEGORY property", function()
     eq("fromdrawer", f:category())
   end)
 end)
+
+describe("parser: headline keyword, priority and COMMENT like org-element", function()
+  with_config({ todo_keywords = { "TODO | DONE" } })
+  local function hl(line)
+    return parser.parse({ line }, "/x.org").headlines[1]
+  end
+
+  it("needs a space (not a tab) after the TODO keyword", function()
+    eq(nil, hl("* TODO\tTabbed").todo)
+    eq("TODO\tTabbed", hl("* TODO\tTabbed").title)
+    eq(nil, hl("* TODO\t:t:").todo)
+    eq("TODO", hl("* TODO :t:").todo)
+    eq("TODO", hl("* TODO").todo)
+  end)
+
+  it("reads a priority cookie glued to the title", function()
+    eq("A", hl("* TODO [#A]Fix bug").priority)
+    eq("Fix bug", hl("* TODO [#A]Fix bug").title)
+    local b = hl("* [#B]COMMENT x")
+    eq({ "B", true, "x" }, { b.priority, b.commented, b.title })
+  end)
+
+  it("needs a space (not a tab) after COMMENT", function()
+    eq(false, hl("* COMMENT\tx").commented)
+    eq(true, hl("* COMMENT x").commented)
+  end)
+
+  it("ITEM is the title as org-complex-heading-regexp reads it", function()
+    local cases = {
+      ["* TODO COMMENT foo :t:"] = "COMMENT foo",
+      ["* TODO [#A]Fix bug"] = "[#A]Fix bug",
+      ["* TODO\tTabbed"] = "TODO    Tabbed",
+      ["* TODO\t:t:"] = "",
+      ["* [#B]COMMENT x"] = "[#B]COMMENT x",
+      ["* TODO [#A]"] = "",
+      ["* TODO [#A]\tx"] = "[#A]    x",
+      ["* COMMENT\tx"] = "COMMENT x",
+      ["* TODO a\tb"] = "a       b",
+      ["* TODO   [#A]   x  y   :t:"] = "x  y",
+    }
+    for line, want in pairs(cases) do
+      eq(want, hl(line):get_property("ITEM"), line)
+    end
+  end)
+end)
