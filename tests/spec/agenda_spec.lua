@@ -274,6 +274,41 @@ describe("agenda.view", function()
     eq(2, #d)
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
+  -- Emacs 9.8.10 org-check-deadlines: "2 deadlines past-due or due
+  -- within 14 days" (Short cookie, Plain near): org-deadline-warning-days
+  -- is used instead of the -Nd cookie, inactive stamps are no deadlines,
+  -- and a count tests that many days.
+  it("sparse deadline tree uses deadline_warning_days and active stamps", function()
+    local now = date.today()
+    local function d(n, extra, inactive)
+      local s = now:add(n, "d"):to_string({ brackets = false }) .. (extra and (" " .. extra) or "")
+      return inactive and ("[" .. s .. "]") or ("<" .. s .. ">")
+    end
+    local buf = org_buffer({
+      "* TODO Short cookie",
+      "  DEADLINE: " .. d(5, "-3d"),
+      "* TODO Long cookie",
+      "  DEADLINE: " .. d(20, "-30d"),
+      "* TODO Plain near",
+      "  DEADLINE: " .. d(9),
+      "* TODO Inactive",
+      "  DEADLINE: " .. d(1, nil, true),
+      "* DONE Done",
+      "  DEADLINE: " .. d(1),
+    }, { 1, 0 })
+    local sparse = require("org.agenda.sparse")
+    local function titles(list)
+      local out = {}
+      for _, m in ipairs(list) do
+        out[#out + 1] = buf_lines(buf)[m.lnum]
+      end
+      return out
+    end
+    eq({ "* TODO Short cookie", "* TODO Plain near" }, titles(sparse.deadlines()))
+    eq({ "* TODO Short cookie" }, titles(sparse.deadlines(5)))
+    eq({ "* TODO Short cookie", "* TODO Long cookie", "* TODO Plain near" }, titles(sparse.deadlines(30)))
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
   it("notifications", function()
     local n = require("org.agenda.notifications")
     local now = today:add(1, "d"):clone({ hour = 9, min = 52 })

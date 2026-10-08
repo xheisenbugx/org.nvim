@@ -2783,6 +2783,11 @@ ends the match, as in Emacs: "work -boss" is the same as "work" (write
   c      cycle date types
   C      clear
 
+The deadline tree (d, org-check-deadlines) shows the entries not done
+whose active DEADLINE is past due or within `deadline_warning_days` days
+(its absolute value; a stamp's own `-Nd` lead time is not used). A count
+before <prefix>/ tests that many days instead.
+
 The date trees (b, a, D) highlight each timestamp before the date, on or
 after it, or from the first date up to (not including) the second, like
 Emacs. Which timestamps count is the date type shown in the menu's title,
