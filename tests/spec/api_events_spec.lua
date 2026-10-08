@@ -326,7 +326,7 @@ describe("org.api events", function()
       local during
       local events = listen("OrgRefile", function(data)
         -- Emacs sets the last-refile bookmark before it runs the hook
-        during = vim.deepcopy(refile.last_stored)
+        during = vim.deepcopy(refile.last_stored.last_refile)
         -- a handler that adds a property line above the entry
         local parent = api.headline_at({ bufnr = data.bufnr, lnum = data.lnum }):parent()
         ok(parent:set_property("LAST", "Entry"))
@@ -342,7 +342,7 @@ describe("org.api events", function()
       eq("** TODO Existing", lines[7])
       -- the handle, the bookmark and the last stored location are on the entry
       eq({ "Entry", 8 }, { h.title, h.line })
-      eq({ 8, "** TODO Entry" }, { refile.last_stored.lnum, refile.last_stored.raw })
+      eq({ 8, "** TODO Entry" }, { refile.last_stored.last_refile.lnum, refile.last_stored.last_refile.raw })
       ok(h:set_todo("DONE"))
       lines = utils.readfile(path)
       eq("** DONE Entry", lines[8])
@@ -362,7 +362,7 @@ describe("org.api events", function()
       eq(buf, dbuf)
       eq("** TODO Entry", buf_lines(buf)[dline])
       eq(8, dline)
-      eq(8, refile.last_stored.lnum)
+      eq(8, refile.last_stored.last_refile.lnum)
     end)
 
     it("saves a hidden destination with the handler's edits", function()

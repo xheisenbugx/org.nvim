@@ -19,7 +19,7 @@ describe("bookmarks", function()
   end)
   after_each(function()
     vim.cmd("silent! enew!")
-    refile.last_stored = nil
+    refile.last_stored = {}
     config.opts.bookmark_names = {
       last_capture = "org-capture-last-stored",
       last_refile = "org-refile-last-stored",
@@ -53,7 +53,7 @@ describe("bookmarks", function()
     refile.remember(buf, 3, "last_capture")
     vim.cmd("silent bwipeout!")
     vim.cmd("silent enew!")
-    refile.last_stored = nil -- a new session
+    refile.last_stored = {} -- a new session
     refile.goto_last_stored()
     eq(file, vim.fs.normalize(vim.api.nvim_buf_get_name(0)))
     eq(2, vim.api.nvim_win_get_cursor(0)[1])
@@ -67,7 +67,7 @@ describe("bookmarks", function()
     refile.remember(buf, 2, "last_refile")
     vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "#+TITLE: x" })
     vim.cmd("silent write")
-    refile.last_stored = nil
+    refile.last_stored = {}
     vim.cmd("silent enew!")
     refile.goto_last_stored()
     eq(3, vim.api.nvim_win_get_cursor(0)[1])

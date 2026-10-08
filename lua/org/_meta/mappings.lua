@@ -289,7 +289,7 @@
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_copy" # Copy subtree / region to a refile target
 ---| "refile_goto" # Jump to a refile target
----| "refile_goto_last" # Jump to last refile / capture
+---| "refile_goto_last" # Jump to last refile
 ---| "refile_reverse" # Refile with reverse_note_order inverted (first child)
 ---| "reset_checkbox_state_subtree" # Uncheck every checkbox of the subtree
 ---| "reveal" # Reveal context around cursor

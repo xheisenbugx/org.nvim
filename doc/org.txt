@@ -3028,8 +3028,10 @@ edit a file at a time.
 
 :Org capture_goto_target  choose a template and jump to its target
                           (C-u C-c c in Emacs)
-:Org capture_goto_last    jump to the last captured (or refiled) entry
-                          (C-u C-u C-c c)
+:Org capture_goto_last    jump to the last captured entry, or to where
+                          it went when refiled from the capture buffer
+                          (C-u C-u C-c c). A later plain refile does not
+                          change it.
 :Org capture_string       ask for a string and capture it as the initial
                           text `%i` (org-capture-string)
 :Org bookmark_jump        jump to a bookmark: capture and refile save
@@ -3277,8 +3279,8 @@ when there is one). Retrieval is synchronous, like Emacs.
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
-:Org refile_goto_last  Jump to where the last refile or capture went
-                       (C-u C-u C-c C-w).
+:Org refile_goto_last  Jump to where the last refile went
+                       (C-u C-u C-c C-w); a capture does not change it.
 :Org refile_cache_clear  Clear the refile target cache
                        (C-u C-u C-u C-c C-w).
 

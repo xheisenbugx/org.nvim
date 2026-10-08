@@ -532,7 +532,7 @@ group("Refile, archive & attach", {
   datetree_cleanup = { "org.datetree", "cleanup", desc = "Move date tree entries under the day of their time stamp" },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target", global = true },
   refile_cache_clear = { "org.refile", "cache_clear", desc = "Clear the refile target cache", global = true },
-  refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile / capture", global = true },
+  refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile", global = true },
   archive_subtree = {
     "org.archive",
     "archive_subtree",
