@@ -4243,6 +4243,10 @@ keeps special rows). The latex, html and texinfo translators transcode
 cells with the matching exporter (links, entities, LaTeX fragments,
 sub/superscripts), and align columns like the export: the last
 alignment cookie, else by the share of numbers among all transcoded cells.
+Every hline is a rule (`\hline`, or with :booktabs `\toprule` /
+`\midrule` / `\bottomrule`; the :hline string), also one above the first
+row, below the last or next to another. Column groups of a `/` row put `|`
+in the LaTeX column spec and give one HTML `<colgroup>` per group.
 From Lua, the format parameters may be functions:
 `require("org.table.orgtbl").translate("orgtbl-to-generic", rows, {...})`;
 a global Lua function can be used as a translator by name.
