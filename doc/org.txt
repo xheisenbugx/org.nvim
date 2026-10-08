@@ -9950,7 +9950,8 @@ with a newline or a double quote becomes a multi-line string) or YAML.
 The body ~
 Hugo (Goldmark) Markdown, like ox-hugo's: headings one level below the
 title (`HUGO_LEVEL_OFFSET`) with `{#anchor}` ids (the CUSTOM_ID or a slug
-of the title), fenced code blocks with `{ linenos=true, hl_lines=[...] }`
+of the title, like org-hugo-slug: letters and digits of any script kept,
+other characters, punctuation such as ’ — « » too, made hyphens), fenced code blocks with `{ linenos=true, hl_lines=[...] }`
 for `-n` and `:hl_lines` (the `highlight` shortcode with an empty
 `HUGO_CODE_FENCE`), `[^fn:1]` footnotes, pipe tables, `_italic_`,
 `~~strike~~`, `#+begin_details` / `#+begin_summary` as <details>, other

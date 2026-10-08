@@ -786,6 +786,14 @@ describe("hugo extension", function()
       eq("version-1-dot-0-and-more", fm.slug("Version 1.0 & more"))
     end)
 
+    it("turns non-ASCII punctuation into hyphens and keeps non-ASCII letters", function()
+      -- org-hugo-slug keeps [[:alnum:]()] only
+      eq("don-t-panic-ok", fm.slug("Don’t panic — ok"))
+      eq("le-café", fm.slug("« Le café »"))
+      eq("über-größe-東京", fm.slug("Über·Größe 東京"))
+      eq("emoji-ok", fm.slug("emoji 😀 ok"))
+    end)
+
     it("reads property arguments", function()
       eq(
         { { "foo", "bar" }, { "baz", 1 }, { "zoo", "two words" } },
