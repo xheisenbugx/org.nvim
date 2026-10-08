@@ -93,6 +93,9 @@ describe("export", function()
       has(html, "Deep heading")
       has(html, "MathJax")
     end)
+    it("gives a src block without a language the class src-nil", function()
+      has(body("html", { "#+begin_src", "x", "#+end_src" }), '<pre class="src src-nil"><code>x')
+    end)
     it("inlines a remote image whose URL has a query string", function()
       -- org-html-inline-image-rules are unanchored, case-insensitive regexps
       local l = { "[[https://img.shields.io/badge/b.SVG?style=flat]]", "", "[[https://x.org/][https://x.org/a.png?s=1]]" }

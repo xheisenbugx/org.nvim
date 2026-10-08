@@ -1894,7 +1894,8 @@ T["src-block"] = function(el, _, info)
   return fmt(
     '<div class="org-src-container">\n%s%s\n</div>',
     cap,
-    fmt('<pre class="src src-%s"%s><code>%s</code></pre>', lang or "", label, code)
+    -- Emacs formats a missing language as "nil"
+    fmt('<pre class="src src-%s"%s><code>%s</code></pre>', lang or "nil", label, code)
   )
 end
 
