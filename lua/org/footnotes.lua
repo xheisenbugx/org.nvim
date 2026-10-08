@@ -614,6 +614,58 @@ function M.collect_definitions(lines)
   return out
 end
 
+--- References of `lines` in deep-reading order
+--- (org-footnote--collect-references): each top-level reference, in
+--- buffer order, is followed by the references made inside its
+--- definition, recursively. A reference inside a definition gets `nested`
+--- set to that definition's label. With `all`, the references inside
+--- definitions that are never reached follow, in buffer order.
+local function reading_order(lines, refs, all)
+  local def_at = {}
+  for _, d in ipairs(M.collect_definitions(lines)) do
+    for l = d.start, d.stop do
+      def_at[l] = d.label
+    end
+  end
+  -- definition label -> the references inside it; label -> its last
+  -- reference (Emacs's assoc on the reversed reference list)
+  local nested, last_of = {}, {}
+  for _, r in ipairs(refs) do
+    r.nested = def_at[r.lnum]
+    if r.nested then
+      nested[r.nested] = nested[r.nested] or {}
+      table.insert(nested[r.nested], r)
+    end
+    if r.label then
+      last_of[r.label] = r
+    end
+  end
+  local ordered, seen = {}, {}
+  local function add(r, allow_nested)
+    if allow_nested or not r.nested then
+      ordered[#ordered + 1] = r
+      seen[r] = true
+      for _, n in ipairs(r.label and nested[r.label] or {}) do
+        local target = n.label and last_of[n.label] or n
+        if not seen[target] then
+          add(target, true)
+        end
+      end
+    end
+  end
+  for _, r in ipairs(refs) do
+    add(r, false)
+  end
+  if all then
+    for _, r in ipairs(refs) do
+      if not seen[r] then
+        ordered[#ordered + 1] = r
+      end
+    end
+  end
+  return ordered
+end
+
 --- Remove definition blocks (and the blank lines after them) from
 --- `lines`. Returns label -> block lines and the labels in buffer order.
 local function extract_definitions(lines)
@@ -653,9 +705,14 @@ local function insert_definitions(lines, entries)
   else
     local last
     for _, en in ipairs(entries) do
-      if en.ref_lnum then
-        tb:goto_char(tb:pos_of(en.ref_lnum, 0))
-        tb_local_insertion_point(tb)
+      if en.ref_lnum or (en.after_previous and last) then
+        if en.ref_lnum then
+          tb:goto_char(tb:pos_of(en.ref_lnum, 0))
+          tb_local_insertion_point(tb)
+        else
+          -- a nested reference's definition follows its parent's
+          tb:goto_char(last)
+        end
         -- later references move down with the inserted lines
         local row = tb:rowcol()
         local block = "\n" .. table.concat(en.block, "\n") .. "\n"
@@ -667,11 +724,12 @@ local function insert_definitions(lines, entries)
           end
         end
         last = tb.point
+        en.placed = true
       end
     end
     tb:goto_char(last or tb:point_max())
     for _, en in ipairs(entries) do
-      if not en.ref_lnum then
+      if not en.placed then
         tb:insert("\n" .. table.concat(en.block, "\n") .. "\n")
       end
     end
@@ -682,18 +740,32 @@ end
 --- Rebuild definitions in reference order. `extra` adds label -> block
 --- definitions (from normalized inline footnotes).
 local function sort_lines(lines, extra)
+  -- references in reading order, found while the definitions are there
+  local refs = M.collect_references(lines)
+  local order_refs = reading_order(lines, refs)
   local blocks, order = extract_definitions(lines)
+  -- the references outside definitions are the ones left: take their
+  -- new line numbers
+  local i = 0
+  for _, r in ipairs(M.collect_references(lines)) do
+    repeat
+      i = i + 1
+    until not refs[i] or not refs[i].nested
+    if refs[i] then
+      refs[i].lnum = r.lnum
+    end
+  end
   for k, v in pairs(extra or {}) do
     blocks[k] = v
   end
-  local refs = M.collect_references(lines)
   local entries, done = {}, {}
-  for _, r in ipairs(refs) do
+  for _, r in ipairs(order_refs) do
     if r.label and not r.text and not done[r.label] then
       done[r.label] = true
       entries[#entries + 1] = {
         block = blocks[r.label] or { "[fn:" .. r.label .. "] DEFINITION NOT FOUND." },
-        ref_lnum = r.lnum,
+        ref_lnum = not r.nested and r.lnum or nil,
+        after_previous = r.nested ~= nil,
       }
     end
   end
@@ -729,7 +801,7 @@ function M.renumber(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local lines = buffer_lines(bufnr)
   local map, n = {}, 0
-  for _, r in ipairs(M.collect_references(lines)) do
+  for _, r in ipairs(reading_order(lines, M.collect_references(lines))) do
     if r.label and r.label:match("^%d+$") and not map[r.label] then
       n = n + 1
       map[r.label] = tostring(n)
@@ -823,26 +895,30 @@ function M.normalize(bufnr)
   local refs = M.collect_references(lines)
   local map, n, extra = {}, 0, {}
   local new_label = {}
-  for i, r in ipairs(refs) do
-    if not r.label then
-      n = n + 1
-      new_label[i] = tostring(n)
-    else
-      if not map[r.label] then
+  -- numbered in deep-reading order: a definition's references right after
+  -- the reference to it
+  for _, r in ipairs(reading_order(lines, refs, true)) do
+    if not new_label[r] then
+      if not r.label then
         n = n + 1
-        map[r.label] = tostring(n)
+        new_label[r] = tostring(n)
+      else
+        if not map[r.label] then
+          n = n + 1
+          map[r.label] = tostring(n)
+        end
+        new_label[r] = map[r.label]
       end
-      new_label[i] = map[r.label]
-    end
-    if r.text then
-      extra[new_label[i]] = { "[fn:" .. new_label[i] .. "] " .. vim.trim(r.text) }
+      if r.text then
+        extra[new_label[r]] = { "[fn:" .. new_label[r] .. "] " .. vim.trim(r.text) }
+      end
     end
   end
   -- rewrite references right to left within each line
   for i = #refs, 1, -1 do
     local r = refs[i]
     local l = lines[r.lnum]
-    lines[r.lnum] = l:sub(1, r.s - 1) .. "[fn:" .. new_label[i] .. "]" .. l:sub(r.e + 1)
+    lines[r.lnum] = l:sub(1, r.s - 1) .. "[fn:" .. new_label[r] .. "]" .. l:sub(r.e + 1)
   end
   if require("org.config").opts.footnote_fill_after_inline_note_extraction then
     -- org-footnote-fill-after-inline-note-extraction: refill the
