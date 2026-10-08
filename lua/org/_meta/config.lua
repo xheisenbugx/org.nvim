@@ -483,6 +483,17 @@
 ---snacks.nvim, fzf-lua, telescope.nvim and mini.pick, else vim.ui.select.
 ---(default: `"auto"`)
 ---@field picker? "auto"|"snacks"|"fzf-lua"|"telescope"|"mini"|"select"
+---Options for the picker plugin, by picker, merged over the ones org.nvim
+---passes (`:h org-pickers`): fzf-lua's `fzf_exec` options (`winopts`,
+---`fzf_opts`, ...), `Snacks.picker` options (`layout`, `win`, ...),
+---telescope's picker options (`layout_strategy`, `layout_config`, a theme)
+---and `MiniPick.start` options (`window`, `options`). (default: `{}`)
+---@field picker_opts? { ["fzf-lua"]?: table, snacks?: table, telescope?: table, mini?: table }
+---Keys, in Vim's notation, of the pickers that go to a place (headlines,
+---agenda entries, agenda files) that open it in a split, a vertical split
+---or a tab page; `false` for none. (default: `{ split = "<C-s>", vsplit =
+---"<C-v>", tab = "<C-t>" }`)
+---@field picker_keys? { split?: string|false, vsplit?: string|false, tab?: string|false }
 ---How sorting (entries, lists, tables, the agenda) compares text:
 ---`"collate"` with the collation locale (`:language collate`; character
 ---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`

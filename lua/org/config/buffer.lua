@@ -159,6 +159,15 @@ local defaults = {
   --- snacks.nvim, fzf-lua, telescope.nvim and mini.pick, else
   --- vim.ui.select), "snacks", "fzf-lua", "telescope", "mini" or "select".
   picker = "auto",
+  --- Options for the picker plugin, by picker: { ["fzf-lua"] = { winopts =
+  --- ... }, snacks = { layout = ... }, telescope = { layout_strategy = ...
+  --- }, mini = { window = ... } }, merged over org.nvim's own (`:h
+  --- org-pickers`).
+  picker_opts = {},
+  --- Keys of the pickers that go to a place (headlines, agenda entries,
+  --- files) opening it in a split, a vertical split or a tab page; false
+  --- for none.
+  picker_keys = { split = "<C-s>", vsplit = "<C-v>", tab = "<C-t>" },
   --- How sorting compares text (org-sort-function): "collate" (the
   --- collation locale, like string-collate-lessp), "fallback" (character
   --- codes, org-sort-function-fallback) or function(a, b, ignore_case).

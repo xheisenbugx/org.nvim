@@ -4,9 +4,11 @@
 -- `pick_*` pickers, shown with telescope whatever the `picker` option says
 -- (`:h org-pickers`).
 
+-- telescope's options (`:Telescope org headlines theme=dropdown`) go over
+-- `picker_opts.telescope`
 local function run(fn)
-  return function()
-    require("org.utils").run(require("org.pickers.sources")[fn], { backend = "telescope" })
+  return function(topts)
+    require("org.utils").run(require("org.pickers.sources")[fn], { backend = "telescope", backend_opts = topts })
   end
 end
 

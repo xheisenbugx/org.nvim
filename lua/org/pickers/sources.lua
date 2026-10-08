@@ -2,7 +2,8 @@
 ---
 --- Builders turning org data into `org.PickerItem`s (no UI), and the
 --- `pick_*` actions that open them with `org.pickers.pick`. The actions
---- take an optional `{ backend = name }` overriding the `picker` option.
+--- take an optional `{ backend = name, backend_opts = table }` overriding
+--- the `picker` option and adding to `picker_opts`.
 
 local config = require("org.config")
 local files = require("org.files")
@@ -11,10 +12,20 @@ local utils = require("org.utils")
 
 local M = {}
 
----@param opts? { backend?: string }
+-- on_choice of the pickers going to a place: their picker_keys open it in
+-- a split, vertical split or tab page
+local function jump(items, _, how)
+  pickers.jump(items[1], how)
+end
+
+---@param opts? { backend?: string, backend_opts?: table }
 ---@param spec org.PickerSpec
 local function pick(opts, spec)
-  return pickers.pick(spec, type(opts) == "table" and opts.backend or nil)
+  opts = type(opts) == "table" and opts or {}
+  if spec.on_choice == jump then
+    spec.split = true
+  end
+  return pickers.pick(spec, opts.backend, opts.backend_opts)
 end
 
 ---------------------------------------------------------------------------
@@ -127,10 +138,6 @@ function M.headline_items(file_list, opts)
     end
   end
   return out
-end
-
-local function jump(items)
-  pickers.jump(items[1])
 end
 
 --- Pick a headline of the current file and jump to it.
