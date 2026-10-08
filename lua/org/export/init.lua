@@ -1109,7 +1109,7 @@ function M.convert_region(format, range)
       end
     else
       -- the end column is inclusive and points at the start of a (multibyte) character
-      ecol0 = ecol + vim.str_utf_end(last, ecol)
+      ecol0 = utils.char_end(last, ecol)
     end
     local parts = vim.api.nvim_buf_get_text(bufnr, srow - 1, scol - 1, erow0, ecol0, {})
     if eol and parts[#parts] == "" then

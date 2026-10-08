@@ -1081,6 +1081,20 @@ function M.visual_range()
   return srow, scol, erow, ecol, mode
 end
 
+--- Byte index (1-based) of the last byte of the character starting at
+--- byte `col` of `line`, at most `#line`. A charwise Visual selection's end
+--- column (`visual_range`) is the first byte of its last character: slice
+--- with this, or a multibyte last character is cut in half.
+---@param line string
+---@param col integer
+---@return integer
+function M.char_end(line, col)
+  if col < 1 or col >= #line then
+    return math.min(col, #line)
+  end
+  return col + vim.str_utf_end(line, col)
+end
+
 --- Leave Visual mode, setting the '< and '> marks, when it is active.
 --- Unlike feedkeys() with the "x" flag, this does not run the keys typed
 --- ahead (a key already typed for the prompt that follows, or the rest of

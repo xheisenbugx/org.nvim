@@ -859,6 +859,20 @@ describe("capture buffer", function()
     capture.kill(buf2)
   end)
 
+  it("takes the whole last character of a charwise selection as %i", function()
+    org_buffer({ "un café noir" }, { 1, 3 })
+    local opts = { count = 0 }
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function() end
+    vim.keymap.set("x", "<F5>", function()
+      capture.prompt(opts)
+    end, { buffer = true })
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("v3l<F5>", true, false, true), "x", false)
+    ui.menu = orig
+    eq("café", opts.initial)
+  end)
+
   it("keeps the last capture and the last refile apart, like Emacs", function()
     -- org-capture-last-stored-marker and the :last-refile bookmark
     local refile = require("org.refile")
