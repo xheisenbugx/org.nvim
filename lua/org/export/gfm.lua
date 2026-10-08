@@ -160,9 +160,23 @@ end
 T["strike-through"] = function(_, c)
   return "~~" .. (c or "") .. "~~"
 end
+--- A CommonMark code span: what ox-md writes (`` `` x ` `` `` with a space
+--- inside when a backtick is at an edge), with a fence longer than any
+--- run of backticks in the value.
 local function code(el)
-  local ticks = el.value:find("`", 1, true) and "``" or "`"
-  return ticks .. el.value .. ticks
+  local v = el.value
+  local longest = 0
+  for run in v:gmatch("`+") do
+    longest = math.max(longest, #run)
+  end
+  if longest == 0 then
+    return "`" .. v .. "`"
+  end
+  local ticks = string.rep("`", math.max(2, longest + 1))
+  if v:sub(1, 1) == "`" or v:sub(-1) == "`" then
+    return ticks .. " " .. v .. " " .. ticks
+  end
+  return ticks .. v .. ticks
 end
 T.code = code
 T.verbatim = code

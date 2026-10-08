@@ -143,6 +143,11 @@ describe("export", function()
       has(md, "[the first](#first)")
       hasnt(md, "secret")
     end)
+    it("writes code spans with backticks as valid CommonMark", function()
+      -- like ox-md (a space inside when a backtick is at an edge), with a
+      -- fence longer than any run of backticks in the code
+      eq("``` `` ``` and `` ` `` and ``a`b`` and ```x``y```\n", body("gfm", { "=``= and ~`~ and =a`b= and =x``y=" }))
+    end)
     it("links headings with GitHub's ids, from the text GitHub renders", function()
       local out = body("gfm", {
         "#+OPTIONS: toc:t tags:t",
