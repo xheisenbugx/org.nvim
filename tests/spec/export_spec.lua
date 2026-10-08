@@ -143,6 +143,19 @@ describe("export", function()
       has(md, "[the first](#first)")
       hasnt(md, "secret")
     end)
+    it("links headings with GitHub's ids, from the text GitHub renders", function()
+      local out = body("gfm", {
+        "#+OPTIONS: toc:t tags:t",
+        "* Install [[https://neovim.io][Neovim]] first",
+        "* TODO Ça \\alpha /it/ ~co_de~ — x 🎬 :tag1:t2:",
+        "* Install Neovim first",
+      })
+      has(out, "- [Install Neovim first](#install-neovim-first)\n")
+      has(out, "(#todo-ça-α-it-co_de--x-tag1-t2)")
+      -- GitHub numbers a repeated id itself
+      has(out, "- [Install Neovim first](#install-neovim-first-1)")
+      hasnt(out, '<a id="install-neovim-first"></a>')
+    end)
   end)
 
   describe("latex", function()

@@ -7,7 +7,6 @@
 --- Anchors follow GitHub's heading ids.
 
 local ox = require("org.export.ox")
-local element = require("org.export.element")
 local entities = require("org.export.entities")
 
 local M = {}
@@ -17,10 +16,97 @@ M.extension = "md"
 local fmt = string.format
 local trim = ox.trim
 
---- GitHub heading id of a title.
+--- GitHub heading id (github-slugger) of the plain text `s` of a heading:
+--- lower-cased, spaces become `-`, and everything but letters, digits,
+--- marks, `-` and `_` is dropped (punctuation, symbols, emoji, other
+--- spaces).
 function M.slug(s)
-  s = s:lower():gsub("[^%w%s%-_\128-\255]", ""):gsub("%s", "-")
+  s = vim.fn.tolower(s)
+  local out = {}
+  for ch in s:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+    if ch == " " then
+      out[#out + 1] = "-"
+    elseif ch:match("^[%w_%-]$") then
+      out[#out + 1] = ch
+    elseif #ch > 1 then
+      -- 0 blank, 1 punctuation, 3 emoji; 2 and the script classes are words
+      local class = vim.fn.charclass(ch)
+      if class == 2 or class > 3 then
+        out[#out + 1] = ch
+      end
+    end
+  end
+  return table.concat(out)
+end
+
+-- Transcoders giving the plain text GitHub sees in a rendered heading:
+-- link descriptions, entities as UTF-8, no markup or escapes.
+local plain_backend
+local function plain_text_backend()
+  if not plain_backend then
+    local function contents(_, c)
+      return c
+    end
+    local function value(el)
+      return el.value
+    end
+    plain_backend = ox.create_backend("gfm", {
+      ["plain-text"] = function(text)
+        return text
+      end,
+      bold = contents,
+      italic = contents,
+      underline = contents,
+      ["strike-through"] = contents,
+      subscript = contents,
+      superscript = contents,
+      code = value,
+      verbatim = value,
+      ["inline-src-block"] = value,
+      link = function(l, c)
+        return c or l.raw_link
+      end,
+      ["radio-target"] = contents,
+      target = function()
+        return nil
+      end,
+      timestamp = function(el)
+        return ox.timestamp_translate(el)
+      end,
+      ["footnote-reference"] = function(el, _, info)
+        return tostring(ox.get_footnote_number(el, info))
+      end,
+    })
+  end
+  return plain_backend
+end
+
+--- The text of the heading `h` as gfm writes it, with `title` and the
+--- tags joined by `tags_fmt`.
+local function heading_text(h, info, title, tags_fmt)
+  local parts = {}
+  if info.with_todo_keywords and h.todo_keyword then
+    parts[#parts + 1] = h.todo_keyword
+  end
+  if info.with_priority and h.priority then
+    parts[#parts + 1] = "[#" .. h.priority .. "]"
+  end
+  parts[#parts + 1] = title
+  local s = table.concat(parts, " ")
+  local tags = info.with_tags and ox.get_tags(h, info) or {}
+  if #tags > 0 then
+    s = s .. tags_fmt(tags)
+  end
   return s
+end
+
+--- GitHub's id for the heading `h` as gfm writes it.
+local function github_id(h, info)
+  local title = ox.data_with_backend(h.title, plain_text_backend(), info)
+  -- the tags are "&emsp;<kbd>a</kbd> <kbd>b</kbd>": an em space, then text
+  return M.slug(heading_text(h, info, title, function(tags)
+    return "\226\128\131" .. table.concat(tags, " ")
+  end))
 end
 
 local function anchor_of(h, info)
@@ -32,7 +118,7 @@ local function anchor_of(h, info)
   if ids.by[h] then
     return ids.by[h]
   end
-  local base = M.slug(element.interpret(h.title))
+  local base = github_id(h, info)
   local id = base
   local n = 0
   while ids.used[id] do
@@ -104,20 +190,9 @@ T["footnote-reference"] = function(el, _, info)
 end
 
 local function headline_text(el, info)
-  local parts = {}
-  if info.with_todo_keywords and el.todo_keyword then
-    parts[#parts + 1] = el.todo_keyword
-  end
-  if info.with_priority and el.priority then
-    parts[#parts + 1] = "[#" .. el.priority .. "]"
-  end
-  parts[#parts + 1] = ox.data(el.title, info)
-  local s = table.concat(parts, " ")
-  local tags = info.with_tags and ox.get_tags(el, info) or {}
-  if #tags > 0 then
-    s = s .. "&emsp;<kbd>" .. table.concat(tags, "</kbd> <kbd>") .. "</kbd>"
-  end
-  return s
+  return heading_text(el, info, ox.data(el.title, info), function(tags)
+    return "&emsp;<kbd>" .. table.concat(tags, "</kbd> <kbd>") .. "</kbd>"
+  end)
 end
 
 T.headline = function(el, contents, info)
@@ -135,7 +210,7 @@ T.headline = function(el, contents, info)
   local level = math.min(ox.get_relative_level(el, info) + (info.gfm_shift or 0), 6)
   local id = anchor_of(el, info)
   local anchor = ""
-  if id ~= M.slug(element.interpret(el.title)) then
+  if id ~= github_id(el, info) then
     anchor = fmt('<a id="%s"></a>\n', id)
   end
   return anchor .. string.rep("#", level) .. " " .. headline_text(el, info) .. "\n\n" .. contents
