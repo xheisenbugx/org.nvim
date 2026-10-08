@@ -11558,7 +11558,9 @@ week, a row per weekday, each day shaded by what was done that day.
 `:Org heatmap [clock|closed|habit] [tag|file]`, or the action
 `heatmap_open` (`<prefix>Vh`). The kinds:
   `clock`   minutes clocked (CLOCK lines; a clock over midnight is split
-          between the two days, a running clock counts up to now)
+          between the two days, a running clock counts up to now;
+          the time that elapsed counts, like the clock table, so a
+          clock over a DST change counts an hour less or more)
   `closed`  tasks marked done: CLOSED dates, `- State "DONE"` and
           `- CLOSING NOTE` log entries and the LAST_REPEAT property, once
           per task and day
