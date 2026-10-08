@@ -9186,7 +9186,10 @@ What the line may contain ~
                `in 3 days` and `noon`. Dates go to SCHEDULED (see
                `date_kind`); after `due` (or `by`) to DEADLINE. A month
                name only counts next to a day number, so "May call Bob"
-               stays a title. A weekday, `now`, `noon`, `midnight` or
+               stays a title, and takes one day number, so "Read chapter
+               3 may 4" is May 4 (a year may follow: `jan 5 2028`).
+               Words that don't read as a date, such as the version in
+               "Release 1.2.0", stay in the title. A weekday, `now`, `noon`, `midnight` or
                `tonight` on its own is a date only at the end of the
                title (tags and the like may follow) or after `at`, `on`
                or `due`: "Watch Friday Night Lights" stays a title,
@@ -9200,7 +9203,8 @@ What the line may contain ~
                Without a date the repeater starts today. It goes on the
                SCHEDULED date, or on the deadline when there is only one.
                `every weekday`, `every weekend` and several days
-               (`every mon and thu`, `every mon,wed,fri`) have no Org
+               (`every mon and thu`, `every mon,wed,fri`,
+               `every mon, thu`, `every mon fri`) have no Org
                repeater and are written as a diary sexp,
                `<%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>`.
   `#tag`       a tag; `#42` (digits only) stays in the title
