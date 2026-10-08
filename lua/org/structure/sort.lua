@@ -334,9 +334,13 @@ function M.sort(sorting_type)
         return
       end
       start, stop, what = hl.children[1].line, hl.end_line, "children"
-      while stop > start and is_blank(get_lines(bufnr, stop, stop)[1]) do
-        stop = stop - 1
+      -- like org-sort-entries: one of the trailing blank lines stays in
+      -- the range, so that it goes with the last record
+      local trimmed = stop
+      while trimmed > start and is_blank(get_lines(bufnr, trimmed, trimmed)[1]) do
+        trimmed = trimmed - 1
       end
+      stop = math.min(stop, trimmed + 1)
     else
       if not file.headlines[1] then
         utils.warn("Nothing to sort")

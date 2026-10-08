@@ -317,7 +317,8 @@ describe("structure: sort", function()
     local ok, err = pcall(structure.sort)
     ui.menu = orig
     assert(ok, err)
-    eq({ "* P", "** a", "** b", "** c", "", "* Q" }, buf_lines(buf))
+    -- Emacs 9.8.10: the blank line stays with "** b", its record
+    eq({ "* P", "** a", "** b", "", "** c", "* Q" }, buf_lines(buf))
   end)
 
   it("sorts list items", function()
@@ -583,5 +584,21 @@ describe("headline editing with non-ASCII tags", function()
     local buf = org_buffer({ "* Hello world :café:" }, { 1, 0 })
     structure.edit_headline("New")
     eq({ "* New                                                                  :café:" }, buf_lines(buf))
+  end)
+end)
+
+-- org-sort-entries keeps one trailing blank line in the children's range
+-- (Emacs 9.8.10, sorting type ?a)
+describe("sorting children with blank lines", function()
+  local function sorted(lines)
+    local buf = org_buffer(lines, { 1, 0 })
+    structure.sort("a")
+    return buf_lines(buf)
+  end
+
+  it("keeps blank-separated children blank-separated", function()
+    eq({ "* H", "** a", "", "** b", "", "* N" }, sorted({ "* H", "** b", "", "** a", "", "* N" }))
+    eq({ "* H", "** a", "", "** b", "", "* N" }, sorted({ "* H", "** b", "** a", "", "", "* N" }))
+    eq({ "* H", "** a", "** b", "body", "", "* N" }, sorted({ "* H", "** b", "body", "", "** a", "* N" }))
   end)
 end)
