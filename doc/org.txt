@@ -2363,7 +2363,12 @@ Block options:
                 Conditions: scheduled, notscheduled, deadline,
                 notdeadline, timestamp, nottimestamp, regexp RE,
                 notregexp RE, todo KWS, nottodo KWS (KWS: a list of
-                keywords, or "todo", "done", "any")
+                keywords, or "todo", "done", "any"). Only active
+                SCHEDULED/DEADLINE stamps count. `skip_subtree_if`
+                checks each condition over the whole subtree and skips
+                it all; like Emacs it is asked about the entries the
+                block lists (TODO entries of a `todo` block, ...), so a
+                heading the block would not list hides nothing.
   filter        function(item) that returns true to keep an item.
                 Where `skip` drops a whole entry, `filter` sees each
                 line of the block: an entry scheduled on one day with
