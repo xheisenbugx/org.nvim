@@ -186,6 +186,11 @@ describe("export", function()
       has(out, " pdfauthor={x \\(\\beta\\)},")
       has(out, " pdftitle={\\(\\alpha\\)},")
     end)
+    it("sets enumi for a counter in an unordered list", function()
+      -- ox-latex: (nth (1- 0) '("i" ...)) is "i"
+      has(body("latex", { "- [@5] five" }), "\\begin{itemize}\n\\setcounter{enumi}{4}\n\\item five")
+      has(body("latex", { "1. a", "   - [@3] b" }), "\\setcounter{enumi}{2}\n\\item b")
+    end)
   end)
 
   describe("files", function()

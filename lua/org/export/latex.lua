@@ -1300,8 +1300,10 @@ T.item = function(el, contents, info)
     p = p.parent
   end
   local count = el.counter
+  -- (nth (1- level) ...): nth of -1 is the first element, so an item of an
+  -- unordered list sets enumi
   local counter = (count and level < 5)
-      and fmt("\\setcounter{enum%s}{%s}\n", ({ "i", "ii", "iii", "iv" })[level] or "", count - 1)
+      and fmt("\\setcounter{enum%s}{%s}\n", ({ "i", "ii", "iii", "iv" })[math.max(level, 1)], count - 1)
     or ""
   local checkbox = ({ on = "$\\boxtimes$", off = "$\\square$", trans = "$\\boxminus$" })[el.checkbox or ""]
   local tag = el.tag and ox.data(el.tag, info) or nil
