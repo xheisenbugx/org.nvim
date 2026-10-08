@@ -135,10 +135,18 @@ function M.pick(spec, finish, topts)
       -- runs for each prompt: builtin.resume() makes a new picker of this one
       attach_mappings = function(prompt_bufnr, map)
         local answered = false
-        local function choose(how)
+        -- `selection`: the selected entries, also for "qflist"
+        local function choose(how, selection)
           local picker = action_state.get_current_picker(prompt_bufnr)
           local chosen = {}
-          if spec.multi and picker and picker.get_multi_selection then
+          if how == "qflist" and not selection then
+            -- every entry matching the query
+            if picker and picker.manager then
+              for e in picker.manager:iter() do
+                chosen[#chosen + 1] = e.value
+              end
+            end
+          elseif spec.multi and picker and picker.get_multi_selection then
             for _, e in ipairs(picker:get_multi_selection()) do
               chosen[#chosen + 1] = e.value
             end
@@ -162,11 +170,20 @@ function M.pick(spec, finish, topts)
           choose(nil)
         end)
         if spec.split then
-          -- telescope's own keys (<C-x>, <C-v>, <C-t>) and the picker_keys
-          for action, how in pairs({ select_horizontal = "split", select_vertical = "vsplit", select_tab = "tab" }) do
-            actions[action]:replace(function()
-              choose(how)
-            end)
+          -- telescope's own keys (<C-x>, <C-v>, <C-t>, <C-q>, <M-q>) and the
+          -- picker_keys
+          for action, how in pairs({
+            select_horizontal = "split",
+            select_vertical = "vsplit",
+            select_tab = "tab",
+            send_to_qflist = "qflist",
+            send_selected_to_qflist = "qflist",
+          }) do
+            if actions[action] then
+              actions[action]:replace(function()
+                choose(how, action == "send_selected_to_qflist")
+              end)
+            end
           end
           for _, k in ipairs(pickers.split_keys(spec)) do
             local how = k[1]
