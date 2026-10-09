@@ -5146,17 +5146,22 @@ exports it again and the page reloads, keeping its scroll position; with
 `export.preview.on_change = "text"` it also follows typing, `debounce` ms
 after the last change. Moving the cursor to another heading scrolls the
 page to that heading (`sync_cursor`). When an export fails the page keeps
-the last good version and shows the error at the bottom.
+the last good version and shows the error at the bottom (a page opened
+while the export fails shows it too), and Neovim warns once until an
+export works again.
 `:Org preview_toggle` starts or stops the preview of the buffer,
 `:Org preview_stop` stops it (every preview when the buffer has none).
 A preview also stops when its buffer is wiped out and when Neovim quits.
 
 The page is exported like `:Org export html` (#+HTML_HEAD, #+OPTIONS and
-the `export.html` options apply), except that source blocks are not
-evaluated: the results already in the buffer are shown, unless
-`export.preview.evaluate_babel` is true. Images and other links relative
-to the Org file are served from its directory, so they show as they would
-next to an exported file; absolute paths and links to other Org files
+the `export.html` options apply), except that no code from the document
+runs: source blocks are not evaluated (the results already in the buffer
+are shown), `#+MACRO: name (eval FORM)` macros show as "[macro NAME not
+evaluated in the preview]", and Lisp header values are not sent to
+Emacs, unless `export.preview.evaluate_babel` is true. Images and other
+links relative to the Org file are served from its directory, so they
+show as they would next to an exported file (videos can seek: the server
+answers byte ranges); absolute paths and links to other Org files
 (exported as .html) don't resolve. The export runs in Neovim itself
 (about a second for 16,000 lines), so on large files "write" suits better
 than "text".
@@ -5168,7 +5173,7 @@ preview. Options (`export.preview`): >lua
     host = "127.0.0.1",   -- keep it on loopback (see below)
     port = 0,             -- 0 = a free port
     open_browser = true,  -- false: only show the URL; a command
-                          -- ("firefox", { "open", "-a", "Safari" }) or
+                          -- ({ "open", "-a", "Safari" }, "firefox") or
                           -- function(url)
     on_change = "write",  -- or "text"
     debounce = 300,       -- ms, for "text"
@@ -5177,19 +5182,43 @@ preview. Options (`export.preview`): >lua
     stylesheet = nil,     -- a URL, or a CSS file added to the page
   } }
 <
+`open_browser` as a list (`{ "open", "-a", "Safari" }`) passes each item
+as one argument; a string is taken whole when it is the path of a
+program, and split on spaces otherwise. `host` takes an address
+("127.0.0.1", "::1"), "localhost" (127.0.0.1) or a host name, looked up
+when the server starts.
+
+Browsers open at most about six connections to one host and port at a
+time, and each open preview page keeps one for its event stream: with
+more than five previews open in one browser, further pages and their
+images wait. Close the pages you don't need (or open some through
+`localhost` instead of `127.0.0.1`, which the browser counts apart).
+
 Security: the server answers only GET and HEAD, listens on 127.0.0.1 by
 default, and serves only the page and the regular files below the
-directory of the Org file: paths with `..`, `.` or hidden (dot) segments,
-absolute or drive paths, backslashes and NUL bytes are refused, and a
-symlink that leads out of the directory is refused too. Each preview's
-path holds 128 random bits, and requests whose Host isn't the server's
-own address (`127.0.0.1:PORT`, `localhost:PORT`) are refused, so a web
-page can't reach it by pointing its own domain name at this machine
-(DNS rebinding). Other users and programs on the same machine can still
-connect to the port; anything that knows the path can read the files
-next to the Org file while the preview runs. Setting `host` to another
-address (or "0.0.0.0") shows them to the network and warns when the
-server starts.
+directory of the Org file that the page refers to (its images, links,
+`<link>`ed stylesheets and the fonts and images those use); any other
+file is "404 Not Found", so a document in a large directory (`~/todo.org`)
+doesn't show the rest of it. Paths with `..`, `.` or hidden (dot)
+segments, absolute or drive paths, backslashes and NUL bytes are
+refused, and a symlink that leads out of the directory is refused too.
+Each preview's path holds 128 random bits, and requests whose Host isn't
+the server's own address (`127.0.0.1:PORT`, `localhost:PORT`) are
+refused, so a web page can't reach it by pointing its own domain name at
+this machine (DNS rebinding). A connection that doesn't send its request
+within 15 seconds is closed. Other users and programs on the same
+machine can still connect to the port; anything that knows the path can
+read the files the page refers to while the preview runs. Setting `host`
+to another address (or "0.0.0.0") shows them to the network and warns
+when the server starts.
+
+Preview only documents you trust: raw HTML in the document (`#+HTML:`,
+`@@html:...@@`, export blocks, #+HTML_HEAD) goes into the page as it is,
+and its scripts run in the browser on the preview's address, where they
+can read the files the page refers to. The page is sent with a
+Content-Security-Policy that keeps it from connecting to or posting
+forms to other sites (`connect-src 'self'; form-action 'self'`), but it
+can still load images and scripts from anywhere.
 
 Export settings ~                                        *org-export-settings*
 `#+TITLE`, `#+SUBTITLE`, `#+AUTHOR`, `#+EMAIL`, `#+DATE`, `#+CREATOR`,

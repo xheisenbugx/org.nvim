@@ -516,8 +516,9 @@ local defaults = {
       --- Port of the preview server; 0 = a free port picked by the system.
       port = 0,
       --- Open the page when a preview starts: true = vim.ui.open(), false =
-      --- don't (the URL is shown), a command (string or list, the URL is
-      --- appended) or function(url).
+      --- don't (the URL is shown), a command (a list such as { "open", "-a",
+      --- "Safari" }, or a string: a program path, else split on spaces; the
+      --- URL is appended) or function(url).
       open_browser = true,
       --- When the page is exported again: "write" (every write of the
       --- buffer) or "text" (also while typing, `debounce` ms after the
@@ -526,10 +527,10 @@ local defaults = {
       debounce = 300,
       --- Scroll the page to the heading the cursor is in.
       sync_cursor = true,
-      --- Evaluate source blocks while exporting the preview (like an
-      --- ordinary export with babel.evaluate_on_export). Off by default:
-      --- the preview exports on every write, results already in the
-      --- buffer are shown.
+      --- Evaluate source blocks and (eval ...) macros while exporting the
+      --- preview (like an ordinary export with babel.evaluate_on_export).
+      --- Off by default: the preview exports on every write, results
+      --- already in the buffer are shown and eval macros stay unexpanded.
       evaluate_babel = false,
       --- Extra stylesheet for the page: a URL, or the path of a CSS file
       --- (inlined). #+HTML_HEAD and the export.html options apply too.

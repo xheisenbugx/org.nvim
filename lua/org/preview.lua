@@ -9,9 +9,9 @@
 ---
 --- One server serves every previewed buffer, each under its own random
 --- path: /p/<token>/ is the page, /p/<token>/<file> a file below the
---- directory of the Org file (images, attachments, stylesheets), and
---- /p/<token>/.org-preview/events the event stream. The server stops with
---- the last preview.
+--- directory of the Org file that the page refers to (images,
+--- attachments, stylesheets), and /p/<token>/.org-preview/events the
+--- event stream. The server stops with the last preview.
 
 local server_mod = require("org.preview.server")
 local utils = require("org.utils")
@@ -22,6 +22,15 @@ local M = {}
 
 local EVENTS = ".org-preview/events"
 
+-- The page may hold raw HTML from the document: it can't send what it
+-- reads anywhere but back to this server, nor submit forms elsewhere.
+-- Scripts and styles stay allowed (the client below, MathJax, #+HTML_HEAD).
+local CSP = "connect-src 'self'; form-action 'self'"
+
+-- Stylesheets the page links are read for the files they refer to
+-- (fonts, images) up to this size.
+local MAX_CSS = 2 * 1024 * 1024
+
 ---@class org.preview.Preview
 ---@field bufnr integer
 ---@field token string
@@ -29,6 +38,9 @@ local EVENTS = ".org-preview/events"
 ---@field version integer
 ---@field streams org.preview.Stream[]
 ---@field heading string|nil the last heading sent ("key\tn\tindex")
+---@field files table<string, true> files below the Org file's directory the page refers to (decoded paths)
+---@field problem string|nil why the last export failed (nil after a good one)
+---@field export table|nil options of the last export that decide which headings the page shows
 ---@field timer uv.uv_timer_t|nil
 ---@field cursor_timer uv.uv_timer_t|nil
 ---@field augroup integer
@@ -128,6 +140,86 @@ function M.resolve_file(root, rel)
   return real
 end
 
+local function decode_entities(s)
+  local named = { amp = "&", quot = '"', apos = "'", lt = "<", gt = ">" }
+  return (
+    s:gsub("&(#?[xX]?%w+);", function(e)
+      local n = e:match("^#[xX](%x+)$")
+      n = n and tonumber(n, 16) or tonumber(e:match("^#(%d+)$") or "")
+      if n then
+        return n < 128 and string.char(n) or nil
+      end
+      return named[e]
+    end)
+  )
+end
+
+--- The path below the page that the URL `ref` names, decoded, `base`
+--- being the directory it is relative to ("" or "dir/"); nil for URLs
+--- with a scheme, absolute paths and paths above the page.
+---@param ref string
+---@param base string
+---@return string|nil
+local function local_ref(ref, base)
+  ref = vim.trim(ref):gsub("[#?].*$", "")
+  if ref == "" or ref:match("^%a[%w+.-]*:") or ref:sub(1, 1) == "/" or ref:find("\\", 1, true) then
+    return nil
+  end
+  local dec = server_mod.url_decode(ref)
+  if not dec then
+    return nil
+  end
+  local parts = {}
+  for seg in (base .. dec):gmatch("[^/]+") do
+    if seg == ".." then
+      if #parts == 0 then
+        return nil
+      end
+      parts[#parts] = nil
+    elseif seg ~= "." then
+      parts[#parts + 1] = seg
+    end
+  end
+  return #parts > 0 and table.concat(parts, "/") or nil
+end
+
+local REF_ATTRS = { src = true, href = true, data = true, poster = true, ["xlink:href"] = true }
+
+--- The files below the page that the HTML or CSS `text` refers to
+--- (src, href, data, poster, srcset attributes, CSS url() and @import),
+--- added to `out`. `base`: the directory of `text` below the page.
+---@param text string
+---@param base? string
+---@param out? table<string, true>
+---@return table<string, true>
+function M.references(text, base, out)
+  out = out or {}
+  base = base or ""
+  local function add(v)
+    local r = local_ref(decode_entities(v), base)
+    if r then
+      out[r] = true
+    end
+  end
+  for name, _, v in text:gmatch("([%w:_-]+)%s*=%s*([\"'])(.-)%2") do
+    name = name:lower()
+    if REF_ATTRS[name] then
+      add(v)
+    elseif name == "srcset" then
+      for cand in v:gmatch("[^,]+") do
+        add(vim.trim(cand):match("^(%S*)"))
+      end
+    end
+  end
+  for v in text:gmatch("[Uu][Rr][Ll]%(%s*([^)]-)%s*%)") do
+    add((v:gsub("^([\"'])(.*)%1$", "%2")))
+  end
+  for _, v in text:gmatch("@import%s+([\"'])(.-)%1") do
+    add(v)
+  end
+  return out
+end
+
 local function read_file(path)
   local fd = uv.fs_open(path, "r", 438)
   if not fd then
@@ -148,6 +240,36 @@ local function root_of(bufnr)
     return nil
   end
   return vim.fn.fnamemodify(name, ":p:h")
+end
+
+--- The files the page `html` of the buffer `bufnr` refers to, with the
+--- ones the stylesheets among them refer to.
+---@param bufnr integer
+---@param html string
+---@return table<string, true>
+local function page_files(bufnr, html)
+  local files = M.references(html)
+  local root = root_of(bufnr)
+  local queue, seen = vim.tbl_keys(files), {}
+  while #queue > 0 do
+    local rel = table.remove(queue)
+    if not seen[rel] and rel:lower():match("%.css$") then
+      seen[rel] = true
+      local path = M.resolve_file(root, rel)
+      local st = path and uv.fs_stat(path)
+      local css = st and st.size <= MAX_CSS and read_file(path)
+      if css then
+        local found = M.references(css, rel:match("^(.*/)") or "")
+        for f in pairs(found) do
+          if not files[f] then
+            files[f] = true
+            queue[#queue + 1] = f
+          end
+        end
+      end
+    end
+  end
+  return files
 end
 
 ---------------------------------------------------------------------------
@@ -287,23 +409,51 @@ function M.refresh(p)
     return false
   end
   local name = vim.api.nvim_buf_get_name(p.bufnr)
-  local ok, html = pcall(function()
+  -- without evaluate_babel no code from the document runs: neither
+  -- source blocks nor (eval ...) macros, nor Lisp header values in Emacs
+  local evaluate = cfg().evaluate_babel == true
+  local elisp = require("org.babel.elisp")
+  if not evaluate then
+    elisp.no_external = elisp.no_external + 1
+  end
+  local ok, html, info = pcall(function()
     return require("org.export.ox").export_as("html", vim.api.nvim_buf_get_lines(p.bufnr, 0, -1, false), {
       filename = name ~= "" and name or nil,
       bufnr = p.bufnr,
-      no_babel_eval = not cfg().evaluate_babel,
+      no_babel_eval = not evaluate,
+      no_eval_macros = not evaluate,
     })
   end)
+  if not evaluate then
+    elisp.no_external = elisp.no_external - 1
+  end
   if not ok or type(html) ~= "string" then
-    local msg = tostring(html):gsub("\n", " ")
-    broadcast(p, "problem", "export failed: " .. msg)
+    local msg = "export failed: " .. tostring(html):gsub("\n", " ")
+    if not p.problem then
+      utils.warn("org preview: " .. msg)
+    end
+    p.problem = msg
+    broadcast(p, "problem", msg)
     if not p.html then
       p.html = M.inject("<!DOCTYPE html><html><head><title>Org preview</title></head><body></body></html>", p.version)
+      p.files = {}
     end
     return false
   end
+  p.problem = nil
+  if type(info) == "table" then
+    p.export = {
+      exclude_tags = info.exclude_tags,
+      select_tags = info.select_tags,
+      filetags = info.filetags,
+      with_archived_trees = info.with_archived_trees,
+      with_tasks = info.with_tasks,
+      headline_levels = info.headline_levels,
+    }
+  end
   p.version = p.version + 1
   p.html = M.inject(html, p.version)
+  p.files = page_files(p.bufnr, p.html)
   broadcast(p, "reload", tostring(p.version))
   return true
 end
@@ -321,9 +471,141 @@ function M.heading_key(title)
   return (title:lower():gsub("[^%w]", ""))
 end
 
+local function set_of(list)
+  local out = {}
+  for _, x in ipairs(list or {}) do
+    out[x] = true
+  end
+  return out
+end
+
+--- Export options deciding which headings the page shows: those of the
+--- last export of the preview of `bufnr`, else the configured ones.
+local function heading_options(bufnr)
+  local p = M.previews[bufnr]
+  if p and p.export then
+    return p.export
+  end
+  local c = require("org.config").opts.export or {}
+  local arch = c.with_archived_trees
+  return {
+    exclude_tags = c.exclude_tags or { "noexport" },
+    select_tags = c.select_tags or { "export" },
+    filetags = {},
+    with_archived_trees = arch == nil and "headline" or arch,
+    with_tasks = c.with_tasks == nil and true or c.with_tasks,
+    headline_levels = c.headline_levels or 3,
+  }
+end
+
+--- The headings of `file` that the export keeps, the way it prunes the
+--- tree (org-export--prune-tree): COMMENT ones, those with an exclude
+--- tag, outside the selected trees, archived (with `arch:nil`) or
+--- tasks left out by `tasks:` go with their subtrees; an archived one
+--- with `arch:headline` keeps its heading only. Returns the headings the
+--- page shows as headings (not deeper than `H:`, not inline tasks), in
+--- order, and the set of every kept headline.
+---@param file org.File
+---@param o table
+---@return org.Headline[] page, table<org.Headline, boolean> kept
+local function exported_headings(file, o)
+  local hls = file.headlines
+  local exclude, select = set_of(o.exclude_tags), set_of(o.select_tags)
+  for _, t in ipairs(o.filetags or {}) do
+    if exclude[t] then
+      return {}, {}
+    end
+  end
+  local all_selected = false
+  for _, t in ipairs(o.filetags or {}) do
+    if select[t] then
+      all_selected = true
+    end
+  end
+  local selected
+  if not all_selected and next(select) then
+    for _, h in ipairs(hls) do
+      if not h.inlinetask and (not selected or not selected[h]) then
+        for _, t in ipairs(h.tags or {}) do
+          if select[t] then
+            selected = selected or {}
+            local a = h
+            while a do
+              selected[a] = true
+              a = a.parent
+            end
+            local i = h.index + 1
+            while hls[i] and hls[i].line <= h.end_line do
+              selected[hls[i]] = true
+              i = i + 1
+            end
+            break
+          end
+        end
+      end
+    end
+  end
+  local footnotes = (require("org.config").opts.export or {}).footnote_section
+    or require("org.config").opts.footnote_section
+  local todo = file.settings and file.settings.todo
+  local tasks = o.with_tasks
+  -- kept[h]: true = with its contents, false = its heading only
+  local kept = {}
+  for _, h in ipairs(hls) do
+    if not h.inlinetask then
+      local drop = h.parent ~= nil and kept[h.parent] ~= true
+      drop = drop or h.commented or (selected ~= nil and not selected[h])
+      drop = drop or (footnotes ~= nil and h.title == footnotes)
+      local archived = false
+      for _, t in ipairs(h.tags or {}) do
+        if exclude[t] then
+          drop = true
+        end
+        archived = archived or t == "ARCHIVE"
+      end
+      drop = drop or (archived and not o.with_archived_trees)
+      if not drop and h.todo then
+        local done = todo and todo.is_done and todo:is_done(h.todo)
+        if not tasks then
+          drop = true
+        elseif tasks == "todo" or tasks == "done" then
+          drop = (tasks == "done") ~= (done and true or false)
+        elseif type(tasks) == "table" then
+          drop = not vim.tbl_contains(tasks, h.todo)
+        end
+      end
+      if not drop then
+        kept[h] = not (archived and o.with_archived_trees == "headline")
+      end
+    end
+  end
+  -- levels are relative to the topmost exported headings
+  -- (org-export-get-relative-level)
+  local min
+  for _, h in ipairs(hls) do
+    if kept[h] ~= nil and h.parent == nil then
+      min = math.min(min or h.level, h.level)
+    end
+  end
+  local limit = o.headline_levels
+  local page = {}
+  for _, h in ipairs(hls) do
+    if kept[h] ~= nil then
+      local rel = h.level - (min or 1) + 1
+      if type(limit) ~= "number" or limit < 0 or rel <= limit then
+        page[#page + 1] = h
+      end
+    end
+  end
+  return page, kept
+end
+
 --- What the page needs to find the heading at `lnum`: { key, n, index }
---- (the n-th exported heading with that key; `index` among all headings
---- for titles without letters or digits). nil before the first heading.
+--- (the n-th heading of the page with that key; `index` among all its
+--- headings, for titles without letters or digits). Headings the export
+--- leaves out don't count; for one deeper than `H:` (a list item on the
+--- page) it is its heading on the page. nil before the first heading
+--- and in a subtree the export leaves out.
 ---@param bufnr integer
 ---@param lnum integer
 ---@return { key: string, n: integer, index: integer }|nil
@@ -333,15 +615,26 @@ function M.heading_at(bufnr, lnum)
   if not hl then
     return nil
   end
+  local page, kept = exported_headings(file, heading_options(bufnr))
+  local index_of = {}
+  for i, h in ipairs(page) do
+    index_of[h] = i
+  end
+  while hl and not index_of[hl] and (hl.inlinetask or kept[hl] ~= nil) do
+    hl = hl.parent
+  end
+  local index = hl and index_of[hl]
+  if not index then
+    return nil
+  end
   local key = M.heading_key(hl.title or "")
   local n = 0
-  for i = 1, hl.index do
-    local h = file.headlines[i]
-    if not h.inlinetask and M.heading_key(h.title or "") == key then
+  for i = 1, index do
+    if M.heading_key(page[i].title or "") == key then
       n = n + 1
     end
   end
-  return { key = key, n = n, index = hl.index }
+  return { key = key, n = n, index = index }
 end
 
 local function sync_cursor(p)
@@ -382,6 +675,43 @@ end
 
 ---@param req table
 ---@param res org.preview.Response
+local function send_file(req, res, p, rest)
+  local path, status = M.resolve_file(root_of(p.bufnr), rest)
+  if not path then
+    return res:fail(status or 404)
+  end
+  -- only what the page refers to: a document opened from a big directory
+  -- (the home directory) doesn't show the rest of it
+  if not (p.files and p.files[rest]) then
+    return res:fail(404)
+  end
+  local st = uv.fs_stat(path)
+  if not st then
+    return res:fail(404)
+  end
+  local headers = {
+    ["Content-Type"] = server_mod.mime(path),
+    ["Accept-Ranges"] = "bytes",
+    ["Content-Security-Policy"] = CSP,
+  }
+  local first, length = server_mod.parse_range(req.headers.range, st.size)
+  if first == false then
+    headers["Content-Range"] = "bytes */" .. st.size
+    headers["Content-Type"] = nil
+    return res:send(416, headers, "")
+  end
+  local code = 200
+  if first then
+    code = 206
+    headers["Content-Range"] = ("bytes %d-%d/%d"):format(first, first + length - 1, st.size)
+  else
+    first, length = 0, st.size
+  end
+  if not res:send_file(code, headers, path, first, length) then
+    res:fail(404)
+  end
+end
+
 local function handle(req, res)
   if req.method ~= "GET" and req.method ~= "HEAD" then
     return res:send(405, { Allow = "GET, HEAD" }, "Method Not Allowed\n")
@@ -401,7 +731,11 @@ local function handle(req, res)
   end
   rest = rest:sub(2)
   if rest == "" then
-    return res:send(200, { ["Content-Type"] = "text/html; charset=utf-8" }, p.html or "")
+    return res:send(
+      200,
+      { ["Content-Type"] = "text/html; charset=utf-8", ["Content-Security-Policy"] = CSP },
+      p.html or ""
+    )
   end
   if rest == EVENTS then
     if res.head_only then
@@ -410,6 +744,9 @@ local function handle(req, res)
     local s = res:stream()
     s:write("retry: 1000\n\n")
     s:event("hello", tostring(p.version))
+    if p.problem then
+      s:event("problem", p.problem)
+    end
     p.streams[#p.streams + 1] = s
     p.heading = nil
     s.on_close = function()
@@ -419,15 +756,25 @@ local function handle(req, res)
     end
     return
   end
-  local path, status = M.resolve_file(root_of(p.bufnr), rest)
-  if not path then
-    return res:fail(status or 404)
+  send_file(req, res, p, rest)
+end
+
+--- The address to listen on for the `host` option: "localhost" is
+--- 127.0.0.1, other names are looked up. nil when that fails.
+---@param host string
+---@return string|nil
+function M.listen_address(host)
+  if host == "localhost" then
+    return "127.0.0.1"
   end
-  local data = read_file(path)
-  if not data then
-    return res:fail(404)
+  if host:match("^[%d.]+$") or host:find(":", 1, true) then
+    return host
   end
-  res:send(200, { ["Content-Type"] = server_mod.mime(path) }, data)
+  local ok, addrs = pcall(uv.getaddrinfo, host)
+  if ok and type(addrs) == "table" and addrs[1] and addrs[1].addr then
+    return addrs[1].addr
+  end
+  return nil
 end
 
 local function ensure_server()
@@ -435,7 +782,11 @@ local function ensure_server()
     return M.server
   end
   local c = cfg()
-  local host = c.host or "127.0.0.1"
+  local host = M.listen_address(c.host or "127.0.0.1")
+  if not host then
+    utils.error(("org preview: cannot find the address of the host %q (export.preview.host)"):format(c.host))
+    return nil
+  end
   if not is_loopback(host) then
     utils.warn(("org preview: serving on %s, reachable from other machines"):format(host))
   end
@@ -471,7 +822,15 @@ local function open_browser(url)
     return how(url)
   end
   if type(how) == "string" or type(how) == "table" then
-    local cmd = type(how) == "string" and vim.split(how, "%s+", { trimempty = true }) or vim.list_extend({}, how)
+    local cmd
+    if type(how) == "table" then
+      cmd = vim.list_extend({}, how)
+    elseif vim.fn.executable(how) == 1 then
+      -- a path to a program, maybe with spaces in it
+      cmd = { how }
+    else
+      cmd = vim.split(how, "%s+", { trimempty = true })
+    end
     cmd[#cmd + 1] = url
     local ok, err = pcall(vim.system, cmd, { detach = true })
     if not ok then

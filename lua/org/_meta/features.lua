@@ -1535,7 +1535,6 @@
 ---(`org-cite-csl-bibtex-titles-to-sentence-case`) (default: `true`)
 ---@field csl_bibtex_titles_to_sentence_case? boolean
 
----Pandoc options (ODT/DOCX/RST/EPUB export).
 ---Live HTML preview served on a local port (`:Org preview`).
 ---@class org.Config.Export.Preview
 ---Address the server listens on; keep it on loopback. (default: `"127.0.0.1"`)
@@ -1543,7 +1542,8 @@
 ---Port; 0 = a free port. (default: `0`)
 ---@field port? integer
 ---Open the page on start: true = `vim.ui.open()`, false = no, a command
----(the URL is appended) or `function(url)`. (default: `true`)
+---(a list, or a program path or command line; the URL is appended) or
+---`function(url)`. (default: `true`)
 ---@field open_browser? boolean|string|string[]|fun(url: string)
 ---Export again on every write ("write") or also while typing ("text").
 ---(default: `"write"`)
@@ -1552,11 +1552,13 @@
 ---@field debounce? integer
 ---Scroll the page to the heading under the cursor. (default: `true`)
 ---@field sync_cursor? boolean
----Evaluate source blocks while exporting the preview. (default: `false`)
+---Evaluate source blocks and `(eval ...)` macros while exporting the
+---preview. (default: `false`)
 ---@field evaluate_babel? boolean
 ---A stylesheet URL or the path of a CSS file to add to the page. (default: `nil`)
 ---@field stylesheet? string
 
+---Pandoc options (ODT/DOCX/RST/EPUB export).
 ---@class org.Config.Export.Pandoc
 ---Pandoc executable: a string (split on whitespace) or an argv list.
 ---(default: `"pandoc"`)

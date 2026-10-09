@@ -115,7 +115,7 @@ local export_as
 --- Export Org lines to a string with `backend`.
 ---@param backend string|table
 ---@param lines string[]
----@param opts? table { filename, bufnr, subtree_line, body_only, visible_only, ext, hooks, no_babel, no_babel_eval }
+---@param opts? table { filename, bufnr, subtree_line, body_only, visible_only, ext, hooks, no_babel, no_babel_eval, no_eval_macros }
 ---@return string output, table info
 function M.export_as(backend, lines, opts)
   opts = opts or {}
@@ -239,6 +239,8 @@ function export_as(backend, lines, opts)
     keywords = keywords,
     filename = filename,
     babel = babel_cfg.evaluate_on_export and not opts.no_babel and true or false,
+    -- opts.no_eval_macros: leave (eval ...) macros unrun (the live preview)
+    no_eval = opts.no_eval_macros and true or false,
   }
   local expander = M.macro_expander(ctx)
   local popts = {
