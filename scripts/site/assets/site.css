@@ -770,3 +770,424 @@ a[data-missing] {
     display: block;
   }
 }
+
+/* Playground (playground.html, assets/playground.js): the tutor recordings
+   and the "Try the syntax" box. The terminal keeps the colors it was
+   recorded with (--pg-fg, --pg-bg from the recording) in both themes. */
+.pg-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 1.5rem 0 0;
+  border-bottom: 1px solid var(--border);
+}
+.pg-tabs [role="tab"] {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.45rem 1rem;
+  background: none;
+  color: var(--fg-muted);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.pg-tabs [role="tab"][aria-selected="true"] {
+  color: var(--fg);
+  background: var(--bg);
+  border-color: var(--border);
+}
+.pg-lesson > h2 {
+  margin-top: 1rem;
+  border: none;
+}
+.pg-player {
+  margin: 1rem 0 1.25rem;
+  border-radius: 10px;
+  outline-offset: 3px;
+}
+.pg-player.pg-loading {
+  min-height: 12rem;
+  background: var(--bg-soft);
+}
+.pg-screen {
+  position: relative;
+  overflow: hidden;
+  padding: 10px;
+  border-radius: 10px 10px 0 0;
+  background: var(--pg-bg);
+  color: var(--pg-fg);
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.25;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.pg-probe {
+  position: absolute;
+  visibility: hidden;
+  font-size: 100px;
+  white-space: pre;
+}
+.pg-rows {
+  position: relative;
+  max-width: 100%;
+}
+.pg-row {
+  height: 1.25em;
+  line-height: 1.25em;
+  white-space: pre;
+  overflow: hidden;
+}
+.pg-cursor {
+  position: absolute;
+  margin: 10px 0 0 10px;
+  top: 0;
+  left: 0;
+  width: 1ch;
+  height: 1.25em;
+  line-height: 1.25em;
+  white-space: pre;
+  pointer-events: none;
+  background: var(--pg-fg);
+  color: var(--pg-bg);
+}
+.pg-cursor.pg-shape-5,
+.pg-cursor.pg-shape-6 {
+  width: 2px;
+}
+.pg-cursor.pg-shape-3,
+.pg-cursor.pg-shape-4 {
+  height: 2px;
+  margin-top: calc(10px + 1.25em - 2px);
+}
+.pg-keys {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  display: flex;
+  gap: 0.35em;
+  font-size: max(12px, 1.1em);
+  pointer-events: none;
+}
+.pg-keys kbd,
+.pg-keys .pg-typed {
+  padding: 0.15em 0.5em;
+  border-radius: 6px;
+  background: rgba(20, 22, 27, 0.92);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  font-size: 1em;
+}
+.pg-keys .pg-typed {
+  font-style: italic;
+}
+.pg-big-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.pg-big-play svg {
+  width: 30px;
+  height: 30px;
+}
+.pg-big-play[hidden] {
+  display: none;
+}
+.pg-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  background: var(--bg-soft);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+.pg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+.pg-btn:hover {
+  background: var(--accent-soft);
+}
+.pg-time,
+.pg-dur {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6em;
+  text-align: center;
+}
+.pg-track {
+  position: relative;
+  flex: 1;
+  min-width: 4rem;
+  display: flex;
+  align-items: center;
+}
+.pg-seek {
+  width: 100%;
+  accent-color: var(--accent);
+  margin: 0;
+}
+.pg-ticks span {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 6px;
+  margin-left: -1px;
+  background: var(--fg-muted);
+  pointer-events: none;
+}
+.pg-speed {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem;
+}
+.pg-chapter {
+  min-height: 1.5em;
+  margin-top: 0.35rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.pg-error {
+  padding: 1rem;
+  color: var(--hl-b);
+}
+.pg-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.pg-steps > li {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 6px;
+}
+.pg-steps > li.pg-current {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.pg-steps > li p {
+  margin: 0.4rem 0;
+}
+.pg-step-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pg-jump {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.pg-jump:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+.pg-keys-used {
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+.pg-keys-used kbd,
+.pg-keys-used .pg-typed {
+  display: inline-block;
+  margin: 0.1rem 0;
+}
+.pg-typed {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+.pg-keys-used .pg-typed::before,
+.pg-keys-used .pg-typed::after {
+  content: "\201C";
+  color: var(--fg-muted);
+}
+.pg-keys-used .pg-typed::after {
+  content: "\201D";
+}
+.pg-source {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+.pg-try {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-code);
+}
+.pg-try-hl,
+.pg-try-input {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 0;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 8;
+  letter-spacing: 0;
+  word-spacing: 0;
+}
+.pg-try-hl {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: none;
+  color: var(--fg);
+  scrollbar-width: none;
+}
+.pg-try-hl::-webkit-scrollbar {
+  display: none;
+}
+.pg-try-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 18rem;
+  resize: vertical;
+  background: transparent;
+  color: var(--fg);
+  caret-color: var(--accent);
+  outline: none;
+}
+.pg-try.pg-try-ready .pg-try-input {
+  color: transparent;
+}
+.pg-try:focus-within {
+  border-color: var(--accent);
+}
+.pg-try .o-stars {
+  color: var(--fg-muted);
+}
+.pg-try .o-h {
+  font-weight: 700;
+}
+.pg-try .o-h1 {
+  color: var(--hl-f);
+}
+.pg-try .o-h2 {
+  color: var(--hl-n);
+}
+.pg-try .o-h3 {
+  color: var(--hl-m);
+}
+.pg-try .o-h4 {
+  color: var(--hl-k);
+}
+.pg-try .o-todo {
+  color: var(--hl-b);
+  font-weight: 700;
+}
+.pg-try .o-done,
+.pg-try .o-box-on {
+  color: var(--hl-s);
+  font-weight: 700;
+}
+.pg-try .o-pri {
+  color: var(--hl-n);
+  font-weight: 700;
+}
+.pg-try .o-tag {
+  color: var(--tag);
+}
+.pg-try .o-date {
+  color: var(--hl-k);
+  text-decoration: underline;
+}
+.pg-try .o-plan,
+.pg-try .o-kw,
+.pg-try .o-block,
+.pg-try .o-drawer {
+  color: var(--hl-o);
+}
+.pg-try .o-kwv {
+  color: var(--hl-h);
+}
+.pg-try .o-comment {
+  color: var(--hl-c);
+  font-style: italic;
+}
+.pg-try .o-table {
+  color: var(--hl-t);
+}
+.pg-try .o-bullet,
+.pg-try .o-box,
+.pg-try .o-cookie {
+  color: var(--hl-m);
+  font-weight: 700;
+}
+.pg-try .o-link {
+  color: var(--link);
+  text-decoration: underline;
+}
+.pg-try .o-b {
+  font-weight: 700;
+}
+.pg-try .o-i {
+  font-style: italic;
+}
+.pg-try .o-u {
+  text-decoration: underline;
+}
+.pg-try .o-s {
+  text-decoration: line-through;
+}
+.pg-try .o-v,
+.pg-try .o-c {
+  color: var(--hl-s);
+}
+@media (max-width: 560px) {
+  .pg-controls {
+    flex-wrap: wrap;
+  }
+  .pg-track {
+    order: 10;
+    flex-basis: 100%;
+  }
+  .pg-copy {
+    margin-left: auto;
+  }
+  .pg-big-play {
+    width: 48px;
+    height: 48px;
+  }
+  .pg-keys {
+    font-size: 11px;
+  }
+}

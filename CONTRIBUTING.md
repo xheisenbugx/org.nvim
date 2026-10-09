@@ -365,6 +365,32 @@ fails on a broken one or on a `|tag|` that is neither an org.nvim nor a
 Neovim help tag. `tests/spec/site_spec.lua` runs it too. The look and the
 search live in `scripts/site/assets/`.
 
+### Playground
+
+The site's [playground page](https://org-nvim.com/playground.html) plays
+a terminal recording of each `:Org tutor` lesson
+(`docs/playground/<lesson>.cast`, asciicast v2 text, committed) next to
+the lesson's exercises and their keys. The recordings are generated, never
+edited: [`scripts/playground/record.lua`](scripts/playground/record.lua)
+opens each lesson in a child Neovim with an 80x24 UI (the one
+`tests/screen.lua` drives), plays it with the steps in
+`scripts/playground/lessons/<lesson>.lua` (where to put the cursor, the
+keys as tutor placeholders such as `{{org.cycle}}`, text to type) and
+writes the screen after every key. The clock is fixed and event times come
+from the steps, so the output is the same on every run, and the recorder
+fails when the steps don't pass an exercise's tutor check.
+
+```sh
+make playground          # rewrite docs/playground/*.cast (about 40 s)
+```
+
+Run it after changing a lesson or adding one (a new lesson needs a steps
+file too); `tests/spec/playground_spec.lua` fails when a lesson has no
+recording, when an exercise with a check has no steps, or when a
+recording's exercises no longer match its lesson. The page itself is
+`scripts/site/playground.lua`, and its player (no dependencies) is
+`scripts/site/assets/playground.js`.
+
 Pull requests that change the sources run the `Pages` workflow, which only
 builds the site. Publishing a release deploys it to GitHub Pages (a
 maintainer can also run the workflow by hand from the Actions tab).

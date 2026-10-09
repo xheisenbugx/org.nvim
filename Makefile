@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz playground
 
 # A throwaway data and cache dir: tests never touch the real ID database, clock
 # state, agenda index or other stdpath("data") and stdpath("cache") files,
@@ -38,7 +38,7 @@ fuzz:
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:
-	stylua --check lua plugin ftplugin syntax tests scripts/site
+	stylua --check lua plugin ftplugin syntax tests scripts/site scripts/playground
 	nvim --headless --clean -l scripts/lint_sources.lua lua
 
 # lua-language-server --check with .luarc.json: the diagnostics it gates on
@@ -51,7 +51,7 @@ typecheck:
 
 # stylua sometimes needs a second pass to settle
 format:
-	stylua lua plugin ftplugin syntax tests scripts/site && stylua lua plugin ftplugin syntax tests scripts/site
+	stylua lua plugin ftplugin syntax tests scripts/site scripts/playground && stylua lua plugin ftplugin syntax tests scripts/site scripts/playground
 
 # The documentation website (doc/org.txt, README.md, examples/*.org and the
 # parity docs as HTML) in site/; see scripts/site/build.lua. Open
@@ -59,6 +59,15 @@ format:
 # directory no build made (scripts/site/outdir.lua).
 site:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless --clean -l scripts/site/build.lua site; \
+	s=$$?; rm -rf $$d; exit $$s
+
+# Re-record the playground's terminal recordings of the tutor lessons
+# (docs/playground/<lesson>.cast, played on the website's playground page;
+# scripts/playground/record.lua). Run it after changing a lesson in
+# tutor/org/ or its steps in scripts/playground/lessons/.
+playground:
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_STATE_HOME=$$d/state XDG_CACHE_HOME=$$d/cache \
+	nvim --headless --clean -l scripts/playground/record.lua docs/playground; \
 	s=$$?; rm -rf $$d; exit $$s
 
 # Re-record the README GIFs and screenshots (needs vhs and the

@@ -9,6 +9,8 @@
 --   examples/*.org       → examples/<name>.html, exported by org.nvim's own
 --                          HTML exporter (body only, no Babel evaluation)
 --   docs/parity-review.md, docs/parity/inventory.tsv → parity/
+--   tutor/org/*.org, docs/playground/*.cast → playground.html, the tutor
+--                          lessons' recordings (scripts/site/playground.lua)
 -- plus a search index (search-index.js) and scripts/site/assets/. Every
 -- internal link and #anchor of the result is checked; a broken one fails
 -- the build.
@@ -237,6 +239,12 @@ end
 
 --- Rewrite a link found in the repository file `src` for the site page `page`.
 local function rewrite_link(href, src, page)
+  -- a link to the website itself (README.md) stays on the site
+  local site_path = href:match("^https://org%-nvim%.com/(.*)$")
+  if site_path then
+    local p, frag = site_path:match("^([^#]*)(#?.*)$")
+    return rel(page, p == "" and "index.html" or p) .. frag
+  end
   if href:match("^%a[%w+.-]*:") or href:match("^#") or href:match("^//") or href == "" then
     return href
   end
@@ -552,6 +560,24 @@ for _, abs in ipairs(example_files) do
   add_page({ path = path, title = title, body = body, group = "examples", source = blob(src) })
 end
 
+-- Playground (the tutor lessons' recordings) ---------------------------------------
+
+local playground_files
+do
+  local pg = require("site.playground").build(root, { err = err, blob = blob })
+  playground_files = pg.files
+  add_page({
+    path = "playground.html",
+    title = "Playground",
+    body = pg.body,
+    group = "playground",
+    source = blob("scripts/playground/record.lua"),
+    scripts = { "assets/playground.js" },
+  })
+  add_search("Playground", "playground.html", "Try org.nvim in your browser", "page")
+  add_search("Try the syntax", "playground.html#try-the-syntax", "Playground", "heading")
+end
+
 -- Navigation ------------------------------------------------------------------------
 
 local function nav_html(page)
@@ -567,7 +593,7 @@ local function nav_html(page)
       .. html.escape(label or p.title)
       .. "</a></li>"
   end
-  local out = { "<ul>", item(by_path["index.html"], "Home") }
+  local out = { "<ul>", item(by_path["index.html"], "Home"), item(by_path["playground.html"], "Playground") }
   local function group(title, key, filter)
     local open = page.group == key and " open" or ""
     out[#out + 1] = '<li><details class="group"' .. open .. "><summary>" .. title .. "</summary><ul>"
@@ -636,6 +662,12 @@ local function render_page(page)
     '<link rel="stylesheet" href="' .. r .. 'assets/site.css">',
     "<script>try{var t=localStorage.getItem('org-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>",
     '<script src="' .. r .. 'assets/site.js" defer></script>',
+    table.concat(
+      vim.tbl_map(function(src)
+        return '<script src="' .. r .. src .. '" defer></script>'
+      end, page.scripts or {}),
+      "\n"
+    ),
     "</head>",
     '<body data-root="' .. r .. '">',
     '<a class="skip" href="#content">Skip to content</a>',
@@ -696,6 +728,9 @@ for _, f in ipairs(vim.fn.glob(root .. "/scripts/site/assets/*", false, true)) d
   local fh = assert(io.open(f, "rb"))
   write("assets/" .. name, fh:read("*a"))
   fh:close()
+end
+for path, text in pairs(playground_files) do
+  write(path, text)
 end
 write("search-index.js", "window.ORG_SEARCH=" .. vim.json.encode(search) .. ";\n")
 write(".nojekyll", "")

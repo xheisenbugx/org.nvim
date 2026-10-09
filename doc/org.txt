@@ -125,6 +125,10 @@ Tutor                                                *org-tutor* *:Org-tutor*
     buffer, when it is loaded, keeps its undo history: `u` brings back
     what you had). Completion lists the lessons.
 
+    The playground of the website, https://org-nvim.com/playground.html,
+    plays a recording of each lesson done exercise by exercise, with the
+    default keys.
+
     `ui.tutor_marks` sets the marks (default `{ done = "✓", todo = "✗" }`),
     and the highlight groups `OrgTutorDone`, `OrgTutorTodo` and
     `OrgTutorProgress` (the count on the first line) their colors.

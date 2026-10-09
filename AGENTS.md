@@ -13,6 +13,7 @@ make snapshots                             # rewrite the screen snapshot golden 
 make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
 make format                                # stylua over the same paths
 make site                                  # docs website into site/ (scripts/site/build.lua)
+make playground                            # re-record the tutor lessons for the site's playground (docs/playground/)
 make typecheck                             # lua-language-server --check with .luarc.json
 make coverage                              # specs with line coverage; report in coverage/report.md
 make fuzz                                  # fuzz specs with 40x the seeds, random start

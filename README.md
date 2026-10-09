@@ -20,6 +20,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Tour](#-a-quick-tour)** ·
 **[Features](#-features)** ·
 **[Docs](https://org-nvim.com/)** ·
+**[Try it in your browser](https://org-nvim.com/playground.html)** ·
 **[Changelog](CHANGELOG.md)** ·
 **[Contributing](CONTRIBUTING.md)**
 
@@ -113,6 +114,8 @@ Restart Neovim and run `:checkhealth org`. New to Org? Run `:Org tutor`:
 a guided lesson, like `vimtutor`, in a copy of its own where every org key
 works and each exercise gets a ✓ once you have done it (`:Org tutor
 workflow` continues with capture, the agenda and clocking; `:h org-tutor`).
+Not installed yet? [Try it in your browser](https://org-nvim.com/playground.html):
+the playground plays both lessons in a real Neovim, exercise by exercise.
 
 For a longer tour, open
 [`examples/tutorial.org`](examples/tutorial.org), a hands-on tour with a
