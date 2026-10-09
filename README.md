@@ -435,7 +435,8 @@ letter, man page, Markdown, ASCII, Org, iCalendar, ODT and Texinfo
 back-ends are ports of Emacs's, there's a GitHub-flavoured Markdown
 back-end, Hugo blog posts with the `hugo` extension (a port of ox-hugo),
 and pandoc handles DOCX, EPUB and more. You can export to a buffer to check
-the result:
+the result. `:Org preview` shows a live HTML preview in the browser that
+reloads on every save, served from Neovim itself:
 
 ![Exporting an Org file to a Markdown buffer](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/export-md.gif)
 

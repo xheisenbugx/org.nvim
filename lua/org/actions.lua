@@ -631,6 +631,14 @@ group("Search & export", {
     desc = "Remove every entry from the export stack",
     global = true,
   },
+  preview = { "org.preview", "preview", desc = "Live HTML preview of the buffer in the browser" },
+  preview_toggle = {
+    "org.preview",
+    "toggle",
+    desc = "Start or stop the live HTML preview of the buffer",
+    toggle = true,
+  },
+  preview_stop = { "org.preview", "stop_command", desc = "Stop the live HTML preview", global = true },
   export_stack_cancel = {
     "org.export",
     "stack_cancel",

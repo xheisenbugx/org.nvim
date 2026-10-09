@@ -115,7 +115,7 @@ local export_as
 --- Export Org lines to a string with `backend`.
 ---@param backend string|table
 ---@param lines string[]
----@param opts? table { filename, bufnr, subtree_line, body_only, visible_only, ext, hooks }
+---@param opts? table { filename, bufnr, subtree_line, body_only, visible_only, ext, hooks, no_babel, no_babel_eval }
 ---@return string output, table info
 function M.export_as(backend, lines, opts)
   opts = opts or {}
@@ -198,9 +198,14 @@ function export_as(backend, lines, opts)
   -- Babel
   local babel_cfg = require("org.config").opts.babel or {}
   if babel_cfg.evaluate_on_export and not opts.no_babel then
-    local ok, res = pcall(function()
-      return require("org.babel").export_evaluate(opts.bufnr, work)
-    end)
+    -- opts.no_babel_eval: keep the results already in the buffer (the
+    -- live preview), but still apply :exports
+    local ok, res = false, nil
+    if not opts.no_babel_eval then
+      ok, res = pcall(function()
+        return require("org.babel").export_evaluate(opts.bufnr, work)
+      end)
+    end
     if ok and type(res) == "table" then
       work = res
     end

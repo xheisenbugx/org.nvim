@@ -1536,6 +1536,27 @@
 ---@field csl_bibtex_titles_to_sentence_case? boolean
 
 ---Pandoc options (ODT/DOCX/RST/EPUB export).
+---Live HTML preview served on a local port (`:Org preview`).
+---@class org.Config.Export.Preview
+---Address the server listens on; keep it on loopback. (default: `"127.0.0.1"`)
+---@field host? string
+---Port; 0 = a free port. (default: `0`)
+---@field port? integer
+---Open the page on start: true = `vim.ui.open()`, false = no, a command
+---(the URL is appended) or `function(url)`. (default: `true`)
+---@field open_browser? boolean|string|string[]|fun(url: string)
+---Export again on every write ("write") or also while typing ("text").
+---(default: `"write"`)
+---@field on_change? "write"|"text"
+---Milliseconds after the last change before a "text" refresh. (default: `300`)
+---@field debounce? integer
+---Scroll the page to the heading under the cursor. (default: `true`)
+---@field sync_cursor? boolean
+---Evaluate source blocks while exporting the preview. (default: `false`)
+---@field evaluate_babel? boolean
+---A stylesheet URL or the path of a CSS file to add to the page. (default: `nil`)
+---@field stylesheet? string
+
 ---@class org.Config.Export.Pandoc
 ---Pandoc executable: a string (split on whitespace) or an argv list.
 ---(default: `"pandoc"`)
@@ -1708,3 +1729,5 @@
 ---Legacy alias of `ascii.text_width`. (default: `72`)
 ---@field text_width? integer
 ---@field pandoc? org.Config.Export.Pandoc
+---Live HTML preview (`:Org preview`, |org-preview|).
+---@field preview? org.Config.Export.Preview

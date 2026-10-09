@@ -177,6 +177,9 @@
 ---| "export_stack" # Export stack: results of background exports
 ---| "export_stack_cancel" # Cancel a background export (the stack entry at the cursor, else the newest)
 ---| "export_stack_clear" # Remove every entry from the export stack
+---| "preview" # Live HTML preview of the buffer in the browser
+---| "preview_toggle" # Start or stop the live HTML preview of the buffer
+---| "preview_stop" # Stop the live HTML preview
 ---| "feed_goto_inbox" # Go to the inbox of a feed
 ---| "feed_update_all" # Update all RSS/Atom feeds
 ---| "find_file_at_mouse" # Open the link clicked in Neovim
