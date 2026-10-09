@@ -84,7 +84,37 @@ describe("playground", function()
         ok(played[id], name .. ": exercise " .. id .. " has a check but no steps in scripts/playground/lessons")
       end
       eq(expected, markers(events), name .. ".cast is out of date with its lesson: run `make playground`")
+      -- made from this lesson and these steps, by a known Neovim
+      ok(header.generator and header.generator.nvim:match("^v%d"), name .. ".cast: no Neovim version")
+      eq(
+        record.source_hash(name),
+        header.generator.source,
+        name .. ".cast is older than its lesson or steps: run `make playground`"
+      )
     end
+  end)
+
+  it("has recordings without a path of the machine they were made on", function()
+    local temp = vim.fn.tempname():match("^(.*)[/\\]")
+    for _, name in ipairs(record.lessons()) do
+      local cast = read(root .. "/docs/playground/" .. name .. ".cast") or ""
+      for _, path in ipairs({ "/private", "/var/folders", "/tmp/", "/Users/", "/home/", temp }) do
+        ok(not cast:find(path, 1, true), name .. ".cast has the path " .. path)
+      end
+    end
+  end)
+
+  it("writes event times in whole milliseconds", function()
+    for _, name in ipairs(record.lessons()) do
+      local cast = read(root .. "/docs/playground/" .. name .. ".cast") or ""
+      for line in cast:gmatch("\n(%[[^,]*),") do
+        ok(line:match("^%[%d+$") or line:match("^%[%d+%.%d?%d?[1-9]$"), name .. ".cast: event time " .. line)
+      end
+    end
+    eq("8.3", record.seconds(8300))
+    eq("0", record.seconds(0))
+    eq("12.05", record.seconds(12050))
+    eq("1.001", record.seconds(1001))
   end)
 
   if vim.fn.has("win32") == 0 then

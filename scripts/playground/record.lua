@@ -16,8 +16,12 @@
 --
 -- Recordings are reproducible: the clock is fixed (2026-10-12 09:00, moved
 -- on only by a step's `wait`), the event times come from the steps rather
--- than the wall clock, and the screen is taken once it has settled. A
--- lesson file is a list of exercises:
+-- than the wall clock (whole milliseconds), the screen is taken once it
+-- has settled, and messages show the data directory as
+-- ~/.local/share/nvim wherever it is. The header's "generator" names the
+-- Neovim version (its default colorscheme gives the colors) and a hash of
+-- the lesson and its steps (M.source_hash). A lesson file is a list of
+-- exercises:
 --
 --   { id = "1.2", steps = { { at = "Apples", col = "Apples" }, { key = "{{org.meta_return}}" },
 --                           { type = "Pears" }, { key = "<Esc>" } } }
@@ -51,8 +55,9 @@ M.width, M.height = 80, 24
 --- The fixed "now" of the recordings (local time).
 M.now = { year = 2026, month = 10, day = 12, hour = 9, min = 0 }
 
--- Seconds between events of the recording.
-local PACE = { key = 0.9, char = 0.09, after_type = 0.5, at = 0.7, exercise = 1.6, settle = 0.05 }
+-- Milliseconds between events of the recording (event times are kept in
+-- whole milliseconds, so they add up exactly).
+local PACE = { key = 900, char = 90, after_type = 500, at = 700, exercise = 1600, settle = 50 }
 
 -- Child setup on top of tests/screen.lua's: a status line with the file
 -- name, the mode shown, quick tutor marks, and a clock moved by `wait`.
@@ -66,12 +71,31 @@ vim.o.wrap = false
 vim.o.timeout = false
 require("org.tutor").debounce_ms = 1
 -- messages show the data directory as on a default install, not where
--- the recording ran
-local data = vim.fn.stdpath("data")
+-- the recording ran: every way a message can spell it (the resolved path,
+-- as given, with ~ for the home directory), longest first so a shorter one
+-- doesn't match inside a longer one (/private/var/... on macOS)
+local utils = require("org.utils")
+local data = vim.fs.normalize(vim.fn.stdpath("data"))
+local real = vim.fs.normalize(vim.uv.fs_realpath(data) or data)
+local forms, seen = {}, {}
+for _, p in ipairs({ real, data, vim.fn.fnamemodify(real, ":~"), vim.fn.fnamemodify(data, ":~"), utils.abbreviate(real), utils.abbreviate(data) }) do
+  if not seen[p] then
+    seen[p] = true
+    forms[#forms + 1] = p
+  end
+end
+table.sort(forms, function(a, b)
+  return #a > #b
+end)
 local notify = vim.notify
 vim.notify = function(msg, ...)
   if type(msg) == "string" then
-    msg = msg:gsub(vim.pesc(data), "~/.local/share/nvim")
+    -- a mark first, so a shorter spelling can't match in what replaced a
+    -- longer one
+    for _, p in ipairs(forms) do
+      msg = msg:gsub(vim.pesc(p), "\1")
+    end
+    msg = msg:gsub("\1", "~/.local/share/nvim")
   end
   return notify(msg, ...)
 end
@@ -154,26 +178,30 @@ local Rec = {}
 Rec.__index = Rec
 
 function M.new()
-  local screen = Screen.new({ width = M.width, height = M.height, now = M.now })
+  -- installed before the UI attaches: the mode info (cursor shapes) and
+  -- default colors are sent once, on attach
+  local handlers = {
+    _grid_cursor_goto = function(s, _, row, col)
+      s.cursor = { row, col }
+    end,
+    _default_colors_set = function(s, fg, bg)
+      if fg >= 0 then
+        s.default_fg = fg
+      end
+      if bg >= 0 then
+        s.default_bg = bg
+      end
+    end,
+    _mode_info_set = function(s, _, info)
+      s.mode_info = info
+    end,
+    _mode_change = function(s, _, idx)
+      s.mode_idx = idx
+    end,
+  }
+  local screen = Screen.new({ width = M.width, height = M.height, now = M.now, handlers = handlers })
   local self = setmetatable({ screen = screen, t = 0, events = {}, drawn = {}, cursor = { 0, 0 } }, Rec)
-  screen.default_fg, screen.default_bg = 0xe0e2ea, 0x14161b
-  screen._grid_cursor_goto = function(s, _, row, col)
-    s.cursor = { row, col }
-  end
-  screen._default_colors_set = function(s, fg, bg)
-    if fg >= 0 then
-      s.default_fg = fg
-    end
-    if bg >= 0 then
-      s.default_bg = bg
-    end
-  end
-  screen._mode_info_set = function(s, _, info)
-    s.mode_info = info
-  end
-  screen._mode_change = function(s, _, idx)
-    s.mode_idx = idx
-  end
+  screen.default_fg, screen.default_bg = screen.default_fg or 0xe0e2ea, screen.default_bg or 0x14161b
   screen:lua(SETUP)
   return self
 end
@@ -307,7 +335,7 @@ function Rec:frame()
 end
 
 function Rec:event(kind, data)
-  self.events[#self.events + 1] = { math.floor(self.t * 1000 + 0.5) / 1000, kind, data }
+  self.events[#self.events + 1] = { self.t, kind, data }
 end
 
 -- A key as the lesson shows it: placeholders resolved.
@@ -381,7 +409,7 @@ function Rec:exercise(lesson, ex, title)
     error(("playground: %s: no exercise %s in the lesson"):format(lesson, ex.id), 0)
   end
   self:frame()
-  self.t = self.t + (ex.hold or PACE.exercise)
+  self.t = self.t + (ex.hold and math.floor(ex.hold * 1000 + 0.5) or PACE.exercise)
   for _, step in ipairs(ex.steps or {}) do
     if step.at then
       if not self.screen:lua(AT, step.at, step.col or vim.NIL, step.whole or false) then
@@ -408,6 +436,15 @@ function Rec:exercise(lesson, ex, title)
   end
 end
 
+--- Milliseconds as the seconds of an event time: 8300 → "8.3", written
+--- out rather than by vim.json.encode, which gives 8.300000000000001.
+---@param ms integer
+---@return string
+function M.seconds(ms)
+  local s = ("%d.%03d"):format(math.floor(ms / 1000), ms % 1000):gsub("0+$", ""):gsub("%.$", "")
+  return s
+end
+
 --- The exercise titles of a lesson file, by number.
 function M.titles(path)
   local out = {}
@@ -420,14 +457,35 @@ function M.titles(path)
   return out
 end
 
---- The steps of a lesson (scripts/playground/lessons/<name>.lua).
+--- The steps file of a lesson (scripts/playground/lessons/<name>.lua).
 --- ORG_PLAYGROUND_STEPS: another directory of step files (the spec's).
-function M.steps(name)
+function M.steps_path(name)
   local dir = vim.env.ORG_PLAYGROUND_STEPS
   if not dir or dir == "" then
     dir = root .. "/scripts/playground/lessons"
   end
-  return dofile(dir .. "/" .. name .. ".lua")
+  return dir .. "/" .. name .. ".lua"
+end
+
+--- The steps of a lesson.
+function M.steps(name)
+  return dofile(M.steps_path(name))
+end
+
+--- What a recording is made from: the SHA-256 of the lesson
+--- (tutor/org/<name>.org) and its steps file, line endings normalized
+--- (a Windows checkout may have CRLF). In the cast header, so a spec
+--- notices a recording older than its lesson.
+---@param name string
+---@return string
+function M.source_hash(name)
+  local parts = {}
+  for _, path in ipairs({ root .. "/tutor/org/" .. name .. ".org", M.steps_path(name) }) do
+    local f = assert(io.open(path, "rb"))
+    parts[#parts + 1] = (f:read("*a"):gsub("\r\n", "\n"))
+    f:close()
+  end
+  return vim.fn.sha256(table.concat(parts, "\f"))
 end
 
 --- Record lesson `name`; returns the asciicast text. `only`: the ids of
@@ -448,6 +506,7 @@ function M.record(name, only)
         end
       end
     end
+    self.nvim = self.screen:lua('return (vim.fn.execute("version"):match("NVIM (v%S+)"))')
     self.screen:cmd("Org tutor " .. name .. " reset")
     self.buf = self.screen:lua("return vim.api.nvim_get_current_buf()")
     -- the copy's full path isn't part of the recording
@@ -484,21 +543,25 @@ function M.record(name, only)
     "#8cf8f7",
     "#eef1f8",
   }, ":")
+  -- "generator": the Neovim that drew it (its default colorscheme gives
+  -- the colors) and what it was made from (M.source_hash)
   local header = string.format(
     '{"version":2,"width":%d,"height":%d,"title":%s,"env":{"TERM":"xterm-256color","SHELL":"nvim"},'
-      .. '"theme":{"fg":"%s","bg":"%s","palette":"%s"}}',
+      .. '"theme":{"fg":"%s","bg":"%s","palette":"%s"},"generator":{"nvim":%s,"source":"%s"}}',
     M.width,
     M.height,
     vim.json.encode("org.nvim tutor: " .. name),
     hex(self.screen.default_fg),
     hex(self.screen.default_bg),
-    palette
+    palette,
+    vim.json.encode(self.nvim or ""),
+    M.source_hash(name)
   )
   local out = { header }
   -- start with a clear screen and the cursor hidden until the first frame
   table.insert(self.events, 1, { 0, "o", "\27[2J\27[H" })
   for _, e in ipairs(self.events) do
-    out[#out + 1] = vim.json.encode(e)
+    out[#out + 1] = "[" .. M.seconds(e[1]) .. "," .. vim.json.encode(e[2]) .. "," .. vim.json.encode(e[3]) .. "]"
   end
   return table.concat(out, "\n") .. "\n"
 end

@@ -445,8 +445,12 @@ make playground          # rewrite docs/playground/*.cast (about 40 s)
 
 Run it after changing a lesson or adding one (a new lesson needs a steps
 file too); `tests/spec/playground_spec.lua` fails when a lesson has no
-recording, when an exercise with a check has no steps, or when a
-recording's exercises no longer match its lesson. The page itself is
+recording, when an exercise with a check has no steps, when a recording
+is older than its lesson or steps file (the cast header's
+`generator.source` is a hash of both), or when a recording has a path of
+the machine it was made on. The header's `generator.nvim` is the Neovim
+that recorded it: the colors are its default colorscheme's, so re-record
+with the same Neovim version (or expect color changes in the diff). The page itself is
 `scripts/site/playground.lua`, and its player (no dependencies) is
 `scripts/site/assets/playground.js`.
 
