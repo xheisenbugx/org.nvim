@@ -697,7 +697,9 @@ describe("journal extension", function()
       target = dir .. "/target"
       link = dir .. "/link"
       vim.fn.mkdir(target, "p")
-      ok(vim.uv.fs_symlink(target, link))
+      -- a directory link on Windows is a junction (a plain symlink is a file
+      -- link there, and a directory symlink needs admin rights)
+      ok(vim.uv.fs_symlink(target, link, { junction = vim.fn.has("win32") == 1 }))
       setup({ directory = link })
     end)
 
