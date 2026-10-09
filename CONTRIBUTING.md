@@ -425,6 +425,60 @@ fail fast (a literal character), keep `.*` out of look-behinds (`.\{-}`
 stops where the look-behind ends), or use `lc=N` for a fixed leading
 context.
 
+## Promoting an extension
+
+Every extension is ✅ stable or 🧪 experimental (`:h
+org-extensions-stability`). The source of truth is the `stability` field
+of its module (`M.stability = "stable"` in
+`lua/org/extensions/<name>/init.lua`; a module without one is
+experimental). The README table, the `✅`/`🧪` mark of its README entry,
+the lists and the `Stability:` line of its section in `doc/org.txt` and
+`:checkhealth org` follow it, and `tests/spec/ext_stability_spec.lua`
+fails when one of them disagrees.
+
+Promotion is checked **at every release**: before cutting a release
+branch, run
+
+```sh
+make coverage            # optional, but the coverage criterion needs it
+make extensions-report   # ARGS="--markdown", "--json", "--no-gh", or names
+```
+
+`scripts/extension_report.lua` measures each criterion below for every
+extension and lists the candidates (experimental extensions that pass all
+of them), the near misses and stable extensions that have fallen below
+the bar. The release pull request into `main` shows the same report in
+its job summary (with coverage from the latest Coverage run), and so does
+the weekly Coverage workflow. An experimental extension becomes stable
+when it meets **every** criterion:
+
+| Criterion | Measured as | Bar |
+| --- | --- | --- |
+| specs | `it(...)` tests in its own spec files: `ext_<name>_spec.lua`, `ext_<name>_<part>_spec.lua`, `fuzz_<name>_spec.lua` | ≥ 25 |
+| edge spec | a fuzz spec, a spec file `ext_<name>_{edge,safety,stress,fuzz,robust}…_spec.lua`, or a `describe` in its specs about edge / stress / malformed / fuzz / robust / corner / pathological / safety cases | one |
+| coverage | line coverage of `lua/org/extensions/<name>/` by `make coverage` | ≥ 80% |
+| docs | every option (each key of its `defaults`, and the keys of a nested table of options) named in its `doc/org.txt` section; every top-level option a `---@field` of its class in `lua/org/_meta/` | all |
+| health | a `health` function (`:checkhealth org`) | yes |
+| releases | `vX.Y.Z` tags that contain its first commit | ≥ 3 |
+| no break | releases since its last breaking change: a commit marked breaking (`!` before the colon, or a `BREAKING CHANGE:` footer) whose scope or footer names it, or one that removed a `---@field` from its `_meta` class | ≥ 3 (or never) |
+| open bugs | open issues labelled `bug` with a label named after it, or with the `extension` label and its name in the title (needs `gh`; skipped offline) | 0 |
+| demo | enabled in the live demo config (`--demo FILE`, `$ORG_DEMO_CONFIG` or `~/demo/config.lua`; skipped when there is none) | yes |
+
+A skipped criterion (no `gh`, no demo config) doesn't block a candidate,
+but check it by hand before promoting. The bar is the `BAR` table at the
+top of the script; change it there and here together.
+
+To promote, in a pull request into `dev` titled for the changelog
+(`feat(extensions): promote heatmap to stable`): set `M.stability =
+"stable"`, move the name to the stable column of the README table and to
+`Stable:` in `:h org-extensions-stability`, change its README mark to ✅
+and its `Stability:` line, and run `make test
+SPEC=tests/spec/ext_stability_spec.lua`. From then on, a change to its
+options, actions or keys is called out in the release notes, and a
+breaking one (`feat(<name>)!:` or a `BREAKING CHANGE:` footer) bumps the
+major version. Nothing is demoted automatically: a stable extension below
+the bar is a prompt to add the missing specs or docs.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.
@@ -456,7 +510,9 @@ context.
   to them takes effect with the next release; both can also be run from
   the Actions tab, on any branch.
 
-To release, branch from `dev`, update the changelog and open a pull
+To release, check the extensions first (`make extensions-report`; promote
+the candidates in a pull request into `dev`, see "Promoting an
+extension"), then branch from `dev`, update the changelog and open a pull
 request into `main`:
 
 ```sh

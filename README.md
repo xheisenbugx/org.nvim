@@ -1158,6 +1158,10 @@ its options may still change):
 | --- | --- |
 | `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap`, `hugo` |
 
+An experimental extension is promoted once it meets measurable criteria
+(specs, coverage, docs, releases without a breaking change, no open bugs),
+checked at every release; the release notes say when.
+
 > [!NOTE]
 > 🧪 Experimental extensions are prone to change. Their options, commands,
 > keys and output (such as the `org` command line's JSON) can change in any

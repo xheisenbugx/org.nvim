@@ -20,6 +20,9 @@ local MOD = "org.extensions.sidebar"
 local ns = vim.api.nvim_create_namespace("org_sidebar")
 local augroup = vim.api.nvim_create_augroup("OrgSidebar", { clear = true })
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- Side of the tab: "left" or "right".
   position = "right",

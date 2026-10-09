@@ -11,6 +11,9 @@ local parser = require("org.extensions.ics.parser")
 
 local M = {}
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- The calendars: `{ name = "Work", url = "https://..." }` or
   --- `{ name = "Home", path = "~/cal/home.ics" }`, with optional `category`

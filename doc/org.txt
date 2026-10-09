@@ -8657,6 +8657,13 @@ Experimental: `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`,
 
 Bug reports about experimental extensions are just as welcome.
 
+An experimental extension becomes stable once it meets measurable criteria
+(specs and line coverage, an edge-case spec, every option documented, a
+health check, some releases without a breaking change to its options, no
+open bug reports), checked at every release; the release notes say when
+one is promoted. `:checkhealth org` shows the stability of each enabled
+extension. The criteria are in CONTRIBUTING.md ("Promoting an extension").
+
 Writing an extension ~
 An extension is a module `lua/org/extensions/<name>.lua` (or
 `<name>/init.lua`) returning a table with any of these fields:
@@ -8671,6 +8678,7 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
   `teardown`   `function()`, undoes `setup` when a later `setup()` turns
                the extension off or sets it up again
+  `stability`  `"stable"` or `"experimental"` (the default), as above
 
 ------------------------------------------------------------------------------
 org-ql                                                    *org-extensions-ql*

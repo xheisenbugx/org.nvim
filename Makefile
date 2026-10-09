@@ -89,3 +89,11 @@ parity-fixtures:
 # elsewhere pass VERSION=vX.Y.Z for that, or get an Unreleased section.
 changelog:
 	nvim --headless --clean -l scripts/changelog.lua $(if $(VERSION),--version $(VERSION))
+
+# The promotion report of the extensions (CONTRIBUTING.md, "Promoting an
+# extension"): each criterion per extension, pass or fail, and the
+# candidates for stable. Uses coverage/coverage.json of `make coverage`
+# when there is one. ARGS: --markdown, --json, --no-gh, --demo FILE, names.
+.PHONY: extensions-report
+extensions-report:
+	@nvim --headless --clean -l scripts/extension_report.lua $(ARGS)

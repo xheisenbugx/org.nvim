@@ -16,6 +16,7 @@ make site                                  # docs website into site/ (scripts/si
 make typecheck                             # lua-language-server --check with .luarc.json
 make coverage                              # specs with line coverage; report in coverage/report.md
 make fuzz                                  # fuzz specs with 40x the seeds, random start
+make extensions-report                     # each extension against the promotion criteria (CONTRIBUTING.md)
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
