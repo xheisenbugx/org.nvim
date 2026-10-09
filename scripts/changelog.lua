@@ -212,7 +212,8 @@ end
 
 local function capitalize(s)
   local w = s:match("^%l+%f[^%w]") -- a plain lower-case first word
-  if w and not s:match("^%l+[%(%._]") then
+  -- another one-letter word is a key ("r turns ...", "e on ..."): R and E are other keys
+  if w and (#w > 1 or w == "a") and not s:match("^%l+[%(%._]") then
     return s:sub(1, 1):upper() .. s:sub(2)
   end
   return s
