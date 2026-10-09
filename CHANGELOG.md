@@ -8,9 +8,202 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
-## [Unreleased]
+## [v2.7.0] - 2026-10-09
 
-No changes yet.
+### Features
+
+- Journal extension, :Org preview, docs playground, nightly Emacs difftest, extension promotion ([#227](https://github.com/xheisenbugx/org.nvim/pull/227))
+
+### Fixes
+
+- **pickers:** Send the selection to the quickfix list with \<C-q> ([#232](https://github.com/xheisenbugx/org.nvim/pull/232))
+
+## [v2.6.1] - 2026-10-09
+
+### Fixes
+
+- **mappings:** Label the Emacs C-c C-x / C-c C-v groups for which-key ([#229](https://github.com/xheisenbugx/org.nvim/pull/229))
+
+## [v2.6.0] - 2026-10-08
+
+### Features
+
+- **pickers:** Send chosen places to the quickfix list ([#225](https://github.com/xheisenbugx/org.nvim/pull/225))
+
+## [v2.5.0] - 2026-10-08
+
+### Features
+
+- **pickers:** Add picker_opts and split / vsplit / tab keys ([#222](https://github.com/xheisenbugx/org.nvim/pull/222))
+
+### Fixes
+
+- **links:** Move the cursor through concealed link text like Emacs ([#223](https://github.com/xheisenbugx/org.nvim/pull/223))
+
+## [v2.4.1] - 2026-10-07
+
+### Fixes
+
+- 56 bugs from a bug hunt across core, agenda, export, tables and extensions ([#219](https://github.com/xheisenbugx/org.nvim/pull/219))
+
+## [v2.4.0] - 2026-10-07
+
+### Features
+
+- **timeline:** Add an hour zoom that shows about a week ([#216](https://github.com/xheisenbugx/org.nvim/pull/216))
+- **agenda:** Add a per-item `filter` to agenda blocks ([#217](https://github.com/xheisenbugx/org.nvim/pull/217))
+
+### Documentation
+
+- Explain installing without lazy.nvim ([#215](https://github.com/xheisenbugx/org.nvim/pull/215))
+
+## [v2.3.3] - 2026-10-07
+
+### Documentation
+
+- Add a star history section to the README ([#210](https://github.com/xheisenbugx/org.nvim/pull/210))
+
+## [v2.3.2] - 2026-10-07
+
+### Fixes
+
+- **fold:** End the TAB cycle when the cursor moves ([#208](https://github.com/xheisenbugx/org.nvim/pull/208))
+
+## [v2.3.1] - 2026-10-06
+
+### Fixes
+
+- **fold:** Update folds whose levels an edit changed away from it ([#205](https://github.com/xheisenbugx/org.nvim/pull/205))
+- **actions:** Show Vim's error for a failed key, not a Lua traceback ([#206](https://github.com/xheisenbugx/org.nvim/pull/206))
+
+## [v2.3.0] - 2026-10-05
+
+### Features
+
+- Hugo export (ox-hugo port) and interactive :Org tutor ([#202](https://github.com/xheisenbugx/org.nvim/pull/202))
+
+## [v2.2.0] - 2026-10-05
+
+### Features
+
+- Background agenda index, async babel and export, outline symbols, strict core types, module splits ([#194](https://github.com/xheisenbugx/org.nvim/pull/194))
+- **textobjects:** Element, list item, table, link and timestamp objects; counts repeat edits ([#195](https://github.com/xheisenbugx/org.nvim/pull/195))
+- **babel:** Show a running block's output live below it ([#196](https://github.com/xheisenbugx/org.nvim/pull/196))
+- **commands:** Live 'inccommand' previews for :Org subcommands ([#197](https://github.com/xheisenbugx/org.nvim/pull/197))
+- **syntax:** Highlight src blocks with tree-sitter when a parser exists ([#198](https://github.com/xheisenbugx/org.nvim/pull/198))
+- **remote:** Run CLI and org-protocol requests in the running Neovim ([#199](https://github.com/xheisenbugx/org.nvim/pull/199))
+
+### Performance
+
+- **agenda:** Parse agenda files on worker threads in the background ([#200](https://github.com/xheisenbugx/org.nvim/pull/200))
+
+## [v2.1.0] - 2026-10-04
+
+### Features
+
+- **keys:** Repeat org edits with . (dot-repeat) ([#184](https://github.com/xheisenbugx/org.nvim/pull/184))
+
+### Fixes
+
+- **keys:** Dot-repeat keeps the cursor when a fold is closed ([#185](https://github.com/xheisenbugx/org.nvim/pull/185))
+
+## [v2.0.6] - 2026-10-04
+
+### Fixes
+
+- **site:** Render the manual's key and option lists as tables ([#182](https://github.com/xheisenbugx/org.nvim/pull/182))
+
+## [v2.0.5] - 2026-10-04
+
+### Fixes
+
+- **agenda:** Every column view cell can be reached with the cursor ([#171](https://github.com/xheisenbugx/org.nvim/pull/171))
+
+### Refactors
+
+- **links:** Split links.lua into parse, search, open, shell, store, insert and commands ([#172](https://github.com/xheisenbugx/org.nvim/pull/172))
+- **clock:** Split clock.lua into lua/org/clock/ by concern ([#176](https://github.com/xheisenbugx/org.nvim/pull/176))
+- **capture:** Split capture.lua into templates, expand, target, place, session and buffer ([#175](https://github.com/xheisenbugx/org.nvim/pull/175))
+- **fold:** Split fold.lua into lua/org/fold/ by concern ([#178](https://github.com/xheisenbugx/org.nvim/pull/178))
+- **table:** Split table.lua into command parts ([#174](https://github.com/xheisenbugx/org.nvim/pull/174))
+- **structure:** Split structure.lua into lua/org/structure/ parts ([#173](https://github.com/xheisenbugx/org.nvim/pull/173))
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore(typecheck):** Strict nil and type checks for api/ and parser.lua ([#177](https://github.com/xheisenbugx/org.nvim/pull/177))
+
+</details>
+
+## [v2.0.4] - 2026-10-04
+
+### Fixes
+
+- **agenda:** r turns column view back on when view_columns_initially is set ([#165](https://github.com/xheisenbugx/org.nvim/pull/165))
+- **agenda:** e on a DEADLINE or SCHEDULED column cell opens the date prompt ([#166](https://github.com/xheisenbugx/org.nvim/pull/166))
+- **agenda:** Column view shows a parent's summary of its children ([#167](https://github.com/xheisenbugx/org.nvim/pull/167))
+- **menu:** Don't show default keys when mappings.disable_all is set ([#168](https://github.com/xheisenbugx/org.nvim/pull/168))
+- **agenda:** The tag filter prompt says Esc quits ([#169](https://github.com/xheisenbugx/org.nvim/pull/169))
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore(changelog):** Don't capitalize a one-letter key at the start of a title ([bc37564](https://github.com/xheisenbugx/org.nvim/commit/bc37564eee0133c8fe060e65a446614c73ca9e2e))
+
+</details>
+
+## [v2.0.3] - 2026-10-03
+
+### Fixes
+
+- **fold:** The archived subtree message names the force-cycle key ([#156](https://github.com/xheisenbugx/org.nvim/pull/156))
+- **fold:** VISIBILITY all leaves drawers open under nohidedrawers ([#157](https://github.com/xheisenbugx/org.nvim/pull/157))
+- **export:** HTML export keeps going on a search link to a non-org file ([#158](https://github.com/xheisenbugx/org.nvim/pull/158))
+- **agenda:** Column view shows values the way the column view does ([#160](https://github.com/xheisenbugx/org.nvim/pull/160))
+- **agenda:** A custom command's settings set its column view format ([#162](https://github.com/xheisenbugx/org.nvim/pull/162))
+- **tags:** The fast tag selection footer says Esc quits ([#161](https://github.com/xheisenbugx/org.nvim/pull/161))
+
+### Documentation
+
+- **examples:** The tutorial's ddg link encodes its search words ([#155](https://github.com/xheisenbugx/org.nvim/pull/155))
+
+<details><summary>Tests, CI and chores (2)</summary>
+
+- **ci:** Time the perf specs alone and split the Windows run over three runners ([#153](https://github.com/xheisenbugx/org.nvim/pull/153))
+- **test(agenda):** The custom command column spec expects DEADLINE shown inactive ([#164](https://github.com/xheisenbugx/org.nvim/pull/164))
+
+</details>
+
+## [v2.0.2] - 2026-10-03
+
+### Fixes
+
+- **agenda:** . keeps the span and moves to today ([#140](https://github.com/xheisenbugx/org.nvim/pull/140))
+- **timestamps:** A repeated insert right after a timestamp makes a range ([#144](https://github.com/xheisenbugx/org.nvim/pull/144))
+- **links:** Store a link to a target at the start or end of a line ([#150](https://github.com/xheisenbugx/org.nvim/pull/150))
+- **links:** A target inside a link's description isn't the link's target ([#145](https://github.com/xheisenbugx/org.nvim/pull/145))
+- **columns:** A stores allowed values where Emacs does ([#148](https://github.com/xheisenbugx/org.nvim/pull/148))
+- **ui:** Pickers are wide enough for their title and footer ([#142](https://github.com/xheisenbugx/org.nvim/pull/142))
+- **capture:** Capture from Visual mode with the selection as %i ([#147](https://github.com/xheisenbugx/org.nvim/pull/147))
+- **babel:** One-line message for a cached result ([#146](https://github.com/xheisenbugx/org.nvim/pull/146))
+- **completion:** Custom IDs complete after [[# with omnifunc ([#149](https://github.com/xheisenbugx/org.nvim/pull/149))
+- **core:** Keep typed-ahead keys when leaving Visual mode ([#143](https://github.com/xheisenbugx/org.nvim/pull/143))
+- **export:** Multi-step PDF compiles no longer crash ([#141](https://github.com/xheisenbugx/org.nvim/pull/141))
+- **fold:** C-c C-c on a #+ line keeps the folds, :edit applies #+STARTUP again ([#139](https://github.com/xheisenbugx/org.nvim/pull/139))
+
+### Documentation
+
+- **tutorial:** Make every exercise work as written ([#151](https://github.com/xheisenbugx/org.nvim/pull/151))
+
+## [v2.0.1] - 2026-10-03
+
+### Fixes
+
+- **calendar:** Hint q/Esc to cancel, like the other menus ([#137](https://github.com/xheisenbugx/org.nvim/pull/137))
+
+## [v2.0.0] - 2026-10-03
+
+### ⚠ Breaking changes
+
+- Public API, pickers, CLI JSON envelope, docs site, CI checks, perf budgets and module splits ([#135](https://github.com/xheisenbugx/org.nvim/pull/135))
 
 ## [v1.2.5] - 2026-10-02
 
@@ -209,7 +402,25 @@ No changes yet.
 
 </details>
 
-[Unreleased]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.5...dev
+[v2.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.1...v2.7.0
+[v2.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.0...v2.6.1
+[v2.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.5.0...v2.6.0
+[v2.5.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.4.1...v2.5.0
+[v2.4.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.4.0...v2.4.1
+[v2.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.3...v2.4.0
+[v2.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.2...v2.3.3
+[v2.3.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.1...v2.3.2
+[v2.3.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.3.0...v2.3.1
+[v2.3.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.2.0...v2.3.0
+[v2.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.1.0...v2.2.0
+[v2.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.6...v2.1.0
+[v2.0.6]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.5...v2.0.6
+[v2.0.5]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.4...v2.0.5
+[v2.0.4]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.3...v2.0.4
+[v2.0.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.2...v2.0.3
+[v2.0.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.1...v2.0.2
+[v2.0.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.0.0...v2.0.1
+[v2.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.5...v2.0.0
 [v1.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.4...v1.2.5
 [v1.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.3...v1.2.4
 [v1.2.3]: https://github.com/xheisenbugx/org.nvim/compare/v1.2.2...v1.2.3
