@@ -95,4 +95,46 @@ describe("emacs keys", function()
     ok(has_map("n", "<C-c><C-c>"), "<C-c><C-c> is not an emacs-only key")
     require("org").setup(opts)
   end)
+  -- #228: which-key showed C-c C-x as a bare "+N keymaps" past the end of its popup
+  it('labels the C-c C-x, C-c C-v and C-c " groups for which-key', function()
+    local function groups(overrides)
+      local added = {}
+      package.loaded["which-key"] = {
+        add = function(spec)
+          vim.list_extend(added, spec)
+        end,
+      }
+      local opts = vim.deepcopy(config.opts)
+      require("org").setup(vim.tbl_deep_extend("force", opts, overrides))
+      package.loaded["which-key"] = nil
+      require("org").setup(opts)
+      local labels = {}
+      for _, g in ipairs(added) do
+        labels[g[1]] = g.group
+      end
+      return labels
+    end
+    local labels = groups({})
+    ok(labels["<C-C><C-X>"]:match("^org C%-x"), "C-c C-x")
+    eq("org babel (C-v)", labels["<C-C><C-V>"])
+    eq("org plot", labels['<C-C>"'])
+    labels = groups({ mappings = { emacs = false } })
+    eq(nil, labels["<C-C><C-X>"])
+    eq("narrow", labels[config.lhs_list("<prefix>n")[1]])
+  end)
+  it("<C-c><C-x><C-f> names a special key it doesn't take", function()
+    local buf = org_buffer({ "word" }, { 1, 0 })
+    local utils = require("org.utils")
+    local getchar, warn, msg = utils.getchar, utils.warn, nil
+    utils.getchar = function()
+      return vim.keycode("<F2>")
+    end
+    utils.warn = function(m)
+      msg = m
+    end
+    keys("<C-c><C-x><C-f>")
+    utils.getchar, utils.warn = getchar, warn
+    eq('No such emphasis marker: "<F2>"', msg)
+    eq({ "word" }, buf_lines(buf))
+  end)
 end)

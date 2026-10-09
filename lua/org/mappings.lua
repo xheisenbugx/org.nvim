@@ -255,6 +255,38 @@ local groups = {
   { "T", "table" },
 }
 
+-- Labels for the Emacs key groups below C-c (`emacs` and `emacs_global`).
+-- Without one which-key shows a bare "+N keymaps", sorted after C-c's
+-- own keys and out of sight in its popup.
+local emacs_groups = {
+  ["<C-C><C-X>"] = "org C-x (drawers, clock, timers, emphasis...)",
+  ["<C-C><C-V>"] = "org babel (C-v)",
+  ['<C-C>"'] = "org plot",
+}
+
+--- The labelled Emacs groups that some configured Emacs key is under.
+local function emacs_prefixes()
+  local maps = config.opts.mappings
+  local seen, out = {}, {}
+  for _, section in ipairs({ maps.emacs or {}, maps.emacs_global or {} }) do
+    for name, value in pairs(section) do
+      if actions.list[name] then
+        for _, lhs in ipairs(config.lhs_list(value)) do
+          local keys = vim.fn.keytrans(vim.keycode(lhs))
+          for p in pairs(emacs_groups) do
+            if not seen[p] and #keys > #p and keys:sub(1, #p) == p then
+              seen[p] = true
+              out[#out + 1] = p
+            end
+          end
+        end
+      end
+    end
+  end
+  table.sort(out)
+  return out
+end
+
 function M.register_which_key()
   local ok, wk = pcall(require, "which-key")
   if not ok or not wk.add then
@@ -272,6 +304,9 @@ function M.register_which_key()
   end
   for _, g in ipairs(all) do
     spec[#spec + 1] = { prefix .. g[1], group = g[2], mode = { "n", "x" } }
+  end
+  for _, lhs in ipairs(emacs_prefixes()) do
+    spec[#spec + 1] = { lhs, group = emacs_groups[lhs], mode = { "n", "x" } }
   end
   pcall(wk.add, spec)
 end
