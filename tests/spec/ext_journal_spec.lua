@@ -226,6 +226,13 @@ describe("journal extension", function()
       eq({ 3, 7 }, vim.api.nvim_win_get_cursor(0))
     end)
 
+    it("runs a string entry template through format-time-string, keeping %?", function()
+      setup({ entry_template = "Logged %F, 100%% sure\n%?" })
+      cmds().new_entry()
+      eq({ "* Thursday, 2026-10-08", "** 14:05 ", "Logged 2026-10-08, 100% sure", "" }, buf_lines(0))
+      eq({ 4, 0 }, vim.api.nvim_win_get_cursor(0))
+    end)
+
     it("writes an untimed entry on another day", function()
       cmds().new_entry("2026-10-01")
       eq("20261001.org", cur_name())
@@ -252,6 +259,21 @@ describe("journal extension", function()
       cmds().new_entry()
       eq({ "#+title: Thursday, 2026-10-08", "* 14:05 ", "* 14:05 " }, buf_lines(0))
       eq(1, #core().days())
+    end)
+
+    it("adds the day line after the file header with a prefix that isn't a heading", function()
+      setup({ date_prefix = "#+title: ", time_prefix = "* ", file_header = "#+author: me" })
+      cmds().new_entry()
+      eq({ "#+author: me", "#+title: Thursday, 2026-10-08", "* 14:05 " }, buf_lines(0))
+      cmds().new_entry()
+      eq({ "#+author: me", "#+title: Thursday, 2026-10-08", "* 14:05 ", "* 14:05 " }, buf_lines(0))
+      eq(1, #core().days())
+      eq(2, core().days()[1].line)
+      -- a file with other text but no day line gets one
+      write("20261001.org", { "#+author: me", "* old entry" })
+      eq(1, #core().days())
+      cmds().new_entry("2026-10-01")
+      eq({ "#+author: me", "* old entry", "#+title: Thursday, 2026-10-01", "* " }, buf_lines(0))
     end)
 
     it("keeps the days of weekly files in date order with a CREATED property", function()
@@ -557,6 +579,13 @@ describe("journal extension", function()
       eq({ "* Thursday, 2026-10-15", "** TODO 10:30 ", "<2026-10-15 Thu 10:30>" }, buf_lines(0))
     end)
 
+    it("puts the timestamp under the heading with %? in the entry template", function()
+      setup({ entry_template = "- Note: %?\n- By: %Y" })
+      cmds().new_scheduled_entry("2026-10-15")
+      eq({ "* Thursday, 2026-10-15", "** TODO ", "<2026-10-15 Thu>", "- Note: ", "- By: 2026" }, buf_lines(0))
+      eq({ 4, 7 }, vim.api.nvim_win_get_cursor(0))
+    end)
+
     it("refuses a past date", function()
       local warned
       stub(utils, "warn", function(m)
@@ -661,6 +690,105 @@ describe("journal extension", function()
     end)
   end)
 
+  describe("symlinked directory", function()
+    local link, target
+
+    before_each(function()
+      target = dir .. "/target"
+      link = dir .. "/link"
+      vim.fn.mkdir(target, "p")
+      ok(vim.uv.fs_symlink(target, link))
+      setup({ directory = link })
+    end)
+
+    it("makes entries, finds the day again and moves between days", function()
+      local warned
+      stub(utils, "warn", function(m)
+        warned = m
+      end)
+      utils.writefile(link .. "/20261007.org", { "* Wednesday, 2026-10-07", "** seven" })
+      cmds().new_entry()
+      eq(nil, warned)
+      eq({ "* Thursday, 2026-10-08", "** 14:05 " }, buf_lines(0))
+      cmds().new_entry()
+      eq(nil, warned)
+      eq({ "* Thursday, 2026-10-08", "** 14:05 ", "** 14:05 " }, buf_lines(0))
+      -- the file isn't written yet: still a day
+      eq(0, vim.fn.filereadable(target .. "/20261008.org"))
+      eq(2, #core().days())
+      -- the buffer is in the journal, by either name
+      ok(core().is_journal(vim.api.nvim_buf_get_name(0)))
+      ok(core().is_journal(link .. "/20261008.org"))
+      ok(core().is_journal(target .. "/20261008.org"))
+      -- previous starts from this day, not from today outside the journal
+      vim.cmd("silent write")
+      write("target/20261009.org", { "* Friday, 2026-10-09" })
+      vim.cmd("edit " .. link .. "/20261009.org")
+      cmds().previous()
+      eq("20261008.org", cur_name())
+      cmds().previous()
+      eq("20261007.org", cur_name())
+    end)
+
+    it("fails without a duplicate day when the file is outside the journal", function()
+      local warned = {}
+      stub(utils, "warn", function(m)
+        warned[#warned + 1] = m
+      end)
+      -- the journal file name opens somewhere else
+      stub(utils, "open_file", function()
+        vim.cmd("edit " .. dir .. "/elsewhere.org")
+      end)
+      cmds().new_entry()
+      cmds().new_entry()
+      eq(2, #warned)
+      ok(warned[1]:find("not in the journal directory", 1, true), warned[1])
+      ok(not warned[1]:find("table: 0x", 1, true))
+      eq({ "" }, buf_lines(0))
+    end)
+  end)
+
+  describe("many files", function()
+    local parses
+
+    before_each(function()
+      for i = 0, 199 do
+        local day = date.from_days(T - 200 + i)
+        write(day:strftime("%Y%m%d.org"), { "* " .. day:strftime("%A, %Y-%m-%d"), "** TODO task " .. i })
+      end
+      parses = 0
+      local files = require("org.files")
+      local get, get_buffer = files.get, files.get_buffer
+      stub(files, "get", function(...)
+        parses = parses + 1
+        return get(...)
+      end)
+      stub(files, "get_buffer", function(...)
+        parses = parses + 1
+        return get_buffer(...)
+      end)
+    end)
+
+    it("reads only the files it needs", function()
+      local marks = cmds().marks()
+      eq(0, parses)
+      eq("OrgCalendarMarked", marks[T - 1])
+      -- carry-over reads yesterday's file, not the 199 before it
+      cmds().open_today()
+      eq({ "* Thursday, 2026-10-08", "** TODO task 199" }, buf_lines(0))
+      -- (the buffers' own reads count too: far below one per file)
+      ok(parses < 50, parses)
+      parses = 0
+      cmds().previous()
+      eq("20261007.org", cur_name())
+      ok(parses < 10, parses)
+      parses = 0
+      local from, to = cmds().range("2026-10-01..2026-10-03")
+      eq(3, #cmds().search_items("task", from, to))
+      ok(parses < 10, parses)
+    end)
+  end)
+
   describe("journal edge cases", function()
     it("skips file names that aren't real dates", function()
       write("20261399.org", { "* bogus" })
@@ -710,9 +838,36 @@ describe("journal extension", function()
         msgs[#msgs + 1] = m
       end)
       cmds().search("nothing-like-this")
-      cmds().search("2026-13-45..x gym")
       ok(msgs[1]:find("no matches", 1, true))
-      ok(msgs[2]:find("cannot read date", 1, true))
+      local _, _, err = cmds().range("2026-13-45..x")
+      ok(err and err:find("cannot read date", 1, true), err)
+    end)
+
+    it("searches for text with .. in it that isn't a date range", function()
+      write("20261001.org", { "* Thursday, 2026-10-01", "** Gym", "wait... more reps", "2026-13-45..x gym" })
+      write("20261005.org", { "* Monday, 2026-10-05", "** Gym again" })
+      local spec
+      stub(require("org.pickers"), "pick", function(s)
+        spec = s
+      end)
+      local warned
+      stub(utils, "warn", function(m)
+        warned = m
+      end)
+      cmds().search("wait... more")
+      eq(nil, warned)
+      eq("Journal: wait... more", spec.title)
+      eq(1, #spec.items)
+      -- a bad date on one side makes it text too
+      cmds().search("2026-13-45..x gym")
+      eq(nil, warned)
+      eq("Journal: 2026-13-45..x gym", spec.title)
+      -- a real range still is one
+      cmds().search("2026-09-01..2026-10-02 gym")
+      eq("Journal: gym", spec.title)
+      eq(2, #spec.items)
+      cmds().search("..2026-10-02 gym")
+      eq("Journal: gym", spec.title)
     end)
 
     it("keeps a literal %% in file names", function()

@@ -11911,7 +11911,8 @@ Actions ~
                          range: `week`, `month`, `year` (the current
                          ones), `future`, `past`, `all` or `FROM..TO`
                          (`2026-09-01..2026-09-30`, `-7..`, either side
-                         may be empty).
+                         may be empty; when a side isn't a date the
+                         words are all search text, as in "wait.. what").
   `journal_calendar`       `<prefix>Lc`  The calendar (|org-calendar|) with
                          the days that have entries marked (future ones in
                          another colour); `n` / `p` go to the next /
@@ -11925,8 +11926,8 @@ so the journal keys start with `<prefix>L` (set any of them in
 `mappings.global`, or to false).
 
 Carry-over ~
-The first time today's journal is opened (by any of the actions above),
-the items of the last day before today that match `carryover` (a tags or
+Each time today's journal is opened (by any of the actions above), the
+items of the last day before today that match `carryover` (a tags or
 property match as in the agenda's tags view, |org-match-syntax|) move
 to the end of today, as in org-journal: each item with its subtree and the
 headings above it up to the day, which stay behind as long as something
@@ -11935,7 +11936,10 @@ else is left under them. Timestamps of the old day in the moved text
 DEADLINE lines. Both files are saved. With `carryover_delete_empty`, the
 previous day is deleted when nothing but its heading, planning and drawers
 is left, with its file when it was the file's only day ("ask" asks
-first).
+first). As in org-journal this runs on every opening of today, so items
+that match again (or were added to the earlier day since) move too. Only
+the files from the newest back to the first one with a day before today
+are read.
 >lua
     journal = { carryover = 'TODO="TODO"|TODO="NEXT"', carryover_delete_empty = true }
 <
@@ -11947,7 +11951,8 @@ adds every journal file.
 
 Options (defaults) ~
   `directory`              "~/org/journal", relative to `org_directory`
-                         unless absolute (org-journal-dir)
+                         unless absolute (org-journal-dir); it may be or
+                         lie under a symlink
   `file_type`              "daily", "weekly", "monthly" or "yearly"
   `file_format`            "%Y%m%d.org", a format-time-string of the
                          period's first day; it may hold directories
@@ -11961,15 +11966,17 @@ Options (defaults) ~
                          format-time-string of the day ("#+title: %F") or
                          `function(date) return text end`
   `date_prefix`            "* "; for daily files a prefix that isn't a
-                         heading ("#+title: ") makes the whole file the day
+                         heading ("#+title: ") makes the whole file the
+                         day, from that line (added after `file_header`)
   `date_format`            "%A, %Y-%m-%d" (Emacs: "%A, %x"), or a
                          function returning the whole heading line
   `time_prefix`            "** "
   `time_format`            "%R ", "" for untimed entries
   `entry_template`         nil, lines added under a new entry's heading
-                         (format-time-string of the day, or a function);
-                         `%?` is where the cursor goes:
-                         "- Mood: %?\n- Grateful for: "
+                         (format-time-string of the day, or a function
+                         whose text is taken as is); `%?` is where the
+                         cursor goes: "- Mood: %?\n- Grateful for: ",
+                         "Logged %F\n%?"
   `carryover`              'TODO="TODO"', false for none
   `carryover_delete_empty` false, true or "ask"
   `scheduled_string`       "", text before the timestamp of a scheduled

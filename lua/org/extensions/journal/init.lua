@@ -42,11 +42,12 @@ M.defaults = {
   --- (org-journal-time-format).
   time_format = "%R ",
   --- Lines added under a new entry's heading (a format-time-string of the
-  --- day or `fun(date): string`); `%?` is where the cursor goes. nil: none.
+  --- day, or `fun(date): string` taken as is); `%?` is where the cursor
+  --- goes. nil: none.
   entry_template = nil,
   --- A tags/property match (as in the agenda's tags view): the items of the
-  --- last day before today that match move to today when today's journal
-  --- is opened (org-journal-carryover-items). false: none.
+  --- last day before today that match move to today each time today's
+  --- journal is opened (org-journal-carryover-items). false: none.
   carryover = 'TODO="TODO"',
   --- After a carry-over, delete the previous day (and its file when it was
   --- the only day in it) if nothing is left in it: false, true or "ask"

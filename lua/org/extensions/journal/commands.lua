@@ -78,12 +78,20 @@ function M.new_scheduled_entry(arg)
   if d.hour then
     text = text .. d:strftime(o.time_format or "")
   end
-  local buf, row = core.open(d, { entry = true, no_time = true, insert = false, text = text, carryover = false })
+  local buf, _, head = core.open(d, { entry = true, no_time = true, insert = false, text = text, carryover = false })
+  if not buf or not head then
+    return
+  end
   local stamp = date.from_days(d:days(), { hour = d.hour, min = d.min, active = true }):to_string()
   local prefix = o.scheduled_string or ""
-  vim.api.nvim_buf_set_lines(buf, row, row, false, { prefix .. (prefix ~= "" and " " or "") .. stamp })
-  local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
-  vim.api.nvim_win_set_cursor(0, { row, #line })
+  -- right under the heading; the cursor stays where the entry put it (on
+  -- the heading, or at `%?` in the template)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  vim.api.nvim_buf_set_lines(buf, head, head, false, { prefix .. (prefix ~= "" and " " or "") .. stamp })
+  if cursor[1] > head then
+    cursor[1] = cursor[1] + 1
+  end
+  vim.api.nvim_win_set_cursor(0, cursor)
   if not utils.is_noninteractive() and #vim.api.nvim_list_uis() > 0 then
     utils.start_insert()
   end
@@ -113,7 +121,8 @@ local function current_days()
       -- above the first day of the file: just before it
       return days[1].days - 0.5
     end
-    local d = core.date_of_name(path:sub(#core.directory() + 2))
+    local rel = core.relative(path)
+    local d = rel and core.date_of_name(rel)
     if d then
       return d:days()
     end
@@ -137,7 +146,7 @@ function M.step(n)
   local forward = n > 0
   local seen, dates = {}, {}
   local by_days = {}
-  for _, day in ipairs(core.days()) do
+  for _, day in ipairs(core.dates()) do
     if not seen[day.days] then
       seen[day.days] = true
       dates[#dates + 1] = day.days
@@ -172,9 +181,20 @@ function M.step(n)
     return false
   end
   local day = by_days[target]
-  utils.open_file(day.path, day.line)
+  local line = day.line
+  if not line then
+    -- a daily file, known by its name: its day's line
+    line = 1
+    for _, fd in ipairs(core.path_days(day.path)) do
+      if fd.days == target then
+        line = fd.line
+        break
+      end
+    end
+  end
+  utils.open_file(day.path, line)
   core.show_day(vim.api.nvim_get_current_buf(), day.date)
-  vim.api.nvim_win_set_cursor(0, { day.line, 0 })
+  vim.api.nvim_win_set_cursor(0, { line, 0 })
   return true
 end
 
@@ -201,7 +221,7 @@ end
 function M.marks()
   local out = {}
   local today = date.today_days()
-  for _, day in ipairs(core.days()) do
+  for _, day in ipairs(core.dates()) do
     out[day.days] = day.days > today and "OrgCalendarMarkedFuture" or "OrgCalendarMarked"
   end
   return out
@@ -297,25 +317,23 @@ function M.search_items(query, from, to)
     needle = needle:lower()
   end
   local items = {}
-  for _, day in ipairs(core.days()) do
-    if (not from or day.days >= from) and (not to or day.days <= to) then
-      local file = require("org.files").get(day.path)
-      local lines = file and file.lines or {}
-      local label = M.format_result_date(day.date)
-      for l = day.line, math.min(day.end_line, #lines) do
-        local text = lines[l]
-        local hay = fold and text:lower() or text
-        local col = plain and (hay:sub(1, #needle) == needle and 1 or nil) or hay:find(needle, 1, true)
-        if col then
-          items[#items + 1] = {
-            display = { { label, "Function" }, { "  " .. vim.trim(text), nil } },
-            text = label .. " " .. text,
-            filename = day.path,
-            lnum = l,
-            col = col,
-            value = day,
-          }
-        end
+  for _, day in ipairs(core.days(from, to)) do
+    local file = require("org.files").get(day.path)
+    local lines = file and file.lines or {}
+    local label = M.format_result_date(day.date)
+    for l = day.line, math.min(day.end_line, #lines) do
+      local text = lines[l]
+      local hay = fold and text:lower() or text
+      local col = plain and (hay:sub(1, #needle) == needle and 1 or nil) or hay:find(needle, 1, true)
+      if col then
+        items[#items + 1] = {
+          display = { { label, "Function" }, { "  " .. vim.trim(text), nil } },
+          text = label .. " " .. text,
+          filename = day.path,
+          lnum = l,
+          col = col,
+          value = day,
+        }
       end
     end
   end
@@ -345,7 +363,15 @@ function M.search(arg)
   arg = type(arg) == "string" and vim.trim(arg) or ""
   local range = ""
   local first, rest = arg:match("^(%S+)%s*(.*)$")
-  if first and (vim.tbl_contains(M.RANGES, first) or first == "forever" or first:find("..", 1, true)) then
+  if
+    first
+    and (
+      vim.tbl_contains(M.RANGES, first)
+      or first == "forever"
+      -- FROM..TO only when both sides read as dates: else it's the text
+      or (first:find("..", 1, true) and select(3, M.range(first)) == nil)
+    )
+  then
     range, arg = first, rest
   end
   local query = arg

@@ -25,10 +25,36 @@ function M.opts()
   return require("org.extensions").opts("journal") or require("org.extensions.journal").defaults
 end
 
---- The journal directory, absolute and without a trailing slash.
+--- `path` with its deepest existing ancestor's symlinks resolved, so it
+--- compares with buffer names (Neovim resolves them).
+---@param path string
+---@return string
+local function resolve(path)
+  local rest = {}
+  local p = path
+  while p and p ~= "" do
+    local real = utils.realpath(p)
+    if real then
+      if #rest > 0 then
+        real = real:gsub("/+$", "") .. "/" .. table.concat(rest, "/")
+      end
+      return real
+    end
+    local parent = vim.fs.dirname(p)
+    if not parent or parent == p then
+      break
+    end
+    table.insert(rest, 1, vim.fs.basename(p))
+    p = parent
+  end
+  return path
+end
+
+--- The journal directory, absolute, symlinks resolved and without a
+--- trailing slash.
 ---@return string
 function M.directory()
-  return (utils.expand(M.opts().directory):gsub("/+$", ""))
+  return (resolve(utils.expand(M.opts().directory)):gsub("/+$", ""))
 end
 
 local function daily()
@@ -95,6 +121,24 @@ function M.format(fmt, d)
     return tostring(fmt(d) or "")
   end
   return d:strftime(fmt or "")
+end
+
+--- The day line of `d`: `date_prefix` .. `date_format`, or what a
+--- `date_format` function gives (its first line).
+---@param d org.Date
+---@return string
+function M.day_text(d)
+  local o = M.opts()
+  if type(o.date_format) == "function" then
+    return M.format(o.date_format, d)
+  end
+  return (o.date_prefix or "* ") .. M.format(o.date_format, d)
+end
+
+---@param d org.Date
+---@return string
+function M.day_line(d)
+  return (M.day_text(d):match("^[^\n]*"):gsub("%s+$", ""))
 end
 
 --- The journal file of the day `d`.
@@ -192,22 +236,46 @@ function M.date_of_name(rel)
   return date.from_days(date.days_from_civil(year, month, day)), true
 end
 
---- The path relative to the journal directory, nil outside of it.
----@param path string
----@return string|nil
-local function relative(path)
-  local dir = M.directory() .. "/"
-  path = vim.fs.normalize(path)
-  if path:sub(1, #dir) == dir then
-    return path:sub(#dir + 1)
+local WIN = vim.fn.has("win32") == 1
+
+--- `path` relative to `dir` (both normalized), nil outside of it; without
+--- regard to case on Windows.
+local function under(path, dir)
+  local p, d = path, dir .. "/"
+  if WIN then
+    p, d = p:lower(), d:lower()
+  end
+  if p:sub(1, #d) == d then
+    return path:sub(#d + 1)
   end
 end
 
+--- The path relative to the journal directory (`dir`, default
+--- M.directory()), nil outside of it. Symlinks are resolved on both sides.
+---@param path string
+---@param dir? string
+---@return string|nil
+function M.relative(path, dir)
+  dir = dir or M.directory()
+  path = vim.fs.normalize(path)
+  local rel = under(path, dir)
+  if rel then
+    return rel
+  end
+  local real = resolve(path)
+  if real ~= path then
+    return under(real, dir)
+  end
+end
+
+local relative = M.relative
+
 --- Whether `path` is a journal file (its name matches `file_format`).
 ---@param path string
+---@param dir? string the journal directory, when known
 ---@return boolean
-function M.is_journal(path)
-  local rel = path and path ~= "" and relative(path)
+function M.is_journal(path, dir)
+  local rel = path and path ~= "" and relative(path, dir)
   if not rel then
     return false
   end
@@ -225,7 +293,7 @@ function M.files()
   local depth = select(2, (M.opts().file_format or ""):gsub("/", "")) + 1
   local out = {}
   for name, type in vim.fs.dir(dir, { depth = depth }) do
-    if type == "file" and M.is_journal(dir .. "/" .. name) then
+    if type == "file" and M.is_journal(dir .. "/" .. name, dir) then
       out[#out + 1] = vim.fs.normalize(dir .. "/" .. name)
     end
   end
@@ -268,9 +336,16 @@ function M.file_days(file, path)
     local rel = relative(path)
     local d = rel and M.date_of_name(rel)
     if level == 0 then
-      local last = #file.lines
-      if d and (last > 1 or (file.lines[1] or "") ~= "") then
-        add(d, 1, last, 0)
+      -- the file holds the day once it has the day line
+      -- (org-journal--insert-entry-header searches for it)
+      local head = d and M.day_line(d)
+      if head and head ~= "" then
+        for i, l in ipairs(file.lines) do
+          if l:sub(1, #head) == head then
+            add(d, i, #file.lines, 0)
+            break
+          end
+        end
       end
       return out
     end
@@ -296,33 +371,146 @@ function M.file_days(file, path)
   return out
 end
 
---- Every journal day, oldest first.
+--- The days of the journal file `path` (written or not).
+---@param path string
 ---@return org.journal.Day[]
-function M.days()
-  local out = {}
-  for _, path in ipairs(M.files()) do
-    local file = require("org.files").get(path)
-    if file then
-      vim.list_extend(out, M.file_days(file, path))
+function M.path_days(path)
+  local files = require("org.files")
+  local b = utils.find_buffer(path)
+  local file = b and vim.api.nvim_buf_is_loaded(b) and files.get_buffer(b) or files.get(path)
+  return file and M.file_days(file, path) or {}
+end
+
+---@class org.journal.Source
+---@field path string
+---@field start org.Date|nil the first day of its period, from its name
+---@field days integer|nil its day number
+
+--- The journal files, with the first day of each from its name, oldest
+--- first: the files on disk and new journal buffers that aren't written
+--- yet. Nothing is parsed.
+---@return org.journal.Source[]
+function M.sources()
+  local dir = M.directory()
+  local out, seen = {}, {}
+  local function add(path)
+    if seen[path] then
+      return
     end
+    seen[path] = true
+    local rel = relative(path, dir)
+    local start = rel and M.date_of_name(rel)
+    out[#out + 1] = { path = path, start = start, days = start and start:days() }
   end
-  -- a new journal buffer that isn't written yet
+  for _, path in ipairs(M.files()) do
+    add(path)
+  end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     local name = vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) or ""
-    if name ~= "" and vim.fn.filereadable(name) == 0 and M.is_journal(name) then
-      vim.list_extend(out, M.file_days(require("org.files").get_buffer(b), name))
+    if name ~= "" and vim.fn.filereadable(name) == 0 and M.is_journal(name, dir) then
+      add(vim.fs.normalize(name))
     end
   end
   table.sort(out, function(a, b)
-    if a.days ~= b.days then
-      return a.days < b.days
+    if (a.days or -math.huge) ~= (b.days or -math.huge) then
+      return (a.days or -math.huge) < (b.days or -math.huge)
     end
-    if a.path ~= b.path then
-      return a.path < b.path
-    end
-    return a.line < b.line
+    return a.path < b.path
   end)
   return out
+end
+
+--- Whether the file of `src` may hold days from `from` to `to` (day
+--- numbers, nil for no bound), going by its name.
+---@param src org.journal.Source
+---@param from? integer
+---@param to? integer
+---@return boolean
+local function may_hold(src, from, to)
+  if not src.start then
+    -- a weekly file named by week (%G-%V) or a name without a date: its
+    -- days come from CREATED
+    return true
+  end
+  if to and src.days > to then
+    return false
+  end
+  if from and M.period_end(src.start):days() < from then
+    return false
+  end
+  return true
+end
+
+local function by_date(a, b)
+  if a.days ~= b.days then
+    return a.days < b.days
+  end
+  if a.path ~= b.path then
+    return a.path < b.path
+  end
+  return a.line < b.line
+end
+
+--- Every journal day, oldest first; with `from` / `to` (day numbers) only
+--- the days between them, parsing only the files whose names may hold
+--- them.
+---@param from? integer
+---@param to? integer
+---@return org.journal.Day[]
+function M.days(from, to)
+  local out = {}
+  for _, src in ipairs(M.sources()) do
+    if may_hold(src, from, to) then
+      for _, day in ipairs(M.path_days(src.path)) do
+        if (not from or day.days >= from) and (not to or day.days <= to) then
+          out[#out + 1] = day
+        end
+      end
+    end
+  end
+  table.sort(out, by_date)
+  return out
+end
+
+--- The day numbers of the days with entries, oldest first, without their
+--- lines: from the file names for daily files (as org-journal--list-dates
+--- does, without reading them), else from the days in the files.
+---@return { days: integer, date: org.Date, path: string, line?: integer }[]
+function M.dates()
+  if not daily() then
+    return M.days()
+  end
+  local out = {}
+  for _, src in ipairs(M.sources()) do
+    if src.start then
+      out[#out + 1] = { days = src.days, date = src.start, path = src.path }
+    end
+  end
+  return out
+end
+
+--- The last day before `today` (a day number), reading the files from the
+--- newest back and stopping at the first one that has one.
+---@param today integer
+---@return org.journal.Day|nil
+function M.day_before(today)
+  local srcs = M.sources()
+  local best
+  -- files without a date in their name sort first, so come last here
+  for i = #srcs, 1, -1 do
+    local src = srcs[i]
+    if not src.days or src.days < today then
+      for _, day in ipairs(M.path_days(src.path)) do
+        if day.days < today and (not best or by_date(best, day)) then
+          best = day
+        end
+      end
+      if best and src.days then
+        return best
+      end
+    end
+  end
+  return best
 end
 
 --- The day `d` in the buffer `buf`, if it has one.
@@ -374,12 +562,9 @@ end
 --- among its days (org-journal--insert-entry-header).
 ---@param buf integer
 ---@param d org.Date
----@return org.journal.Day
+---@return org.journal.Day|nil day nil (with a warning) when it can't be read back
 local function insert_day(buf, d)
-  local o = M.opts()
-  local head = type(o.date_format) == "function" and M.format(o.date_format, d)
-    or ((o.date_prefix or "* ") .. M.format(o.date_format, d))
-  local lines = split(head)
+  local lines = split(M.day_text(d))
   if not daily() and M.day_level() > 0 then
     lines[#lines + 1] = ":PROPERTIES:"
     lines[#lines + 1] = ":CREATED:  " .. d:strftime("%Y%m%d")
@@ -396,6 +581,7 @@ local function insert_day(buf, d)
   if at then
     vim.api.nvim_buf_set_lines(buf, at - 1, at - 1, false, lines)
   elseif empty(buf) then
+    at = 1
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   else
     -- after the last line that isn't blank
@@ -404,9 +590,19 @@ local function insert_day(buf, d)
     while last > 0 and not all[last]:match("%S") do
       last = last - 1
     end
+    at = last + 1
     vim.api.nvim_buf_set_lines(buf, last, last, false, lines)
   end
-  return assert(M.find_day(buf, d))
+  local day = M.find_day(buf, d)
+  if not day then
+    -- the day isn't where it would be read back from: take it out again
+    -- rather than add it once more on every try
+    vim.api.nvim_buf_set_lines(buf, at - 1, at - 1 + #lines, false, {})
+    utils.warn(
+      string.format("journal: cannot find the day just added to %s (%s)", vim.api.nvim_buf_get_name(buf), M.directory())
+    )
+  end
+  return day
 end
 
 ---------------------------------------------------------------------------
@@ -440,12 +636,11 @@ end
 
 --- Whether the day's text has nothing but its heading, planning lines,
 --- drawers and blank lines (org-journal--empty-journal-p).
----@param lines string[] the day's lines, heading first
----@param has_heading boolean
-local function day_empty(lines, has_heading)
+---@param lines string[] the day's lines, its heading (or day line) first
+local function day_empty(lines)
   local in_drawer = false
   for i, l in ipairs(lines) do
-    if not (has_heading and i == 1) then
+    if i > 1 then
       local s = vim.trim(l)
       if in_drawer then
         if s:upper() == ":END:" then
@@ -481,12 +676,7 @@ function M.carryover(buf, today)
     utils.warn("journal: bad carryover match: " .. tostring(err))
     return 0
   end
-  local prev
-  for _, day in ipairs(M.days()) do
-    if day.days < today:days() then
-      prev = day
-    end
-  end
+  local prev = M.day_before(today:days())
   if not prev then
     return 0
   end
@@ -586,7 +776,7 @@ function M.carryover(buf, today)
   if
     delete
     and delete ~= "never"
-    and day_empty(prev_lines, pday.level > 0)
+    and day_empty(prev_lines)
     and (delete ~= "ask" or utils.confirm("Delete empty journal entry/file?"))
   then
     local others = M.file_days(require("org.files").get_buffer(pbuf), prev.path)
@@ -604,8 +794,8 @@ function M.carryover(buf, today)
   end
 
   -- and add them at the end of today
-  local day = assert(M.find_day(buf, today))
-  local at = M.content_end(buf, day)
+  local day = M.find_day(buf, today)
+  local at = day and M.content_end(buf, day) or vim.api.nvim_buf_line_count(buf)
   vim.api.nvim_buf_set_lines(buf, at, at, false, text)
   return #items
 end
@@ -632,15 +822,23 @@ end
 --- set) and leave the cursor on it; otherwise the cursor goes to the day.
 ---@param d org.Date
 ---@param opts? { entry?: boolean, no_time?: boolean, carryover?: boolean, insert?: boolean, text?: string }
----@return integer buf, integer row the buffer and the row of the day or entry
+---@return integer|nil buf, integer|nil row, integer|nil head the buffer (nil when the day can't be made), the
+--- row of the day or the cursor in the entry, and the row of the entry's heading
 function M.open(d, opts)
   opts = opts or {}
   local o = M.opts()
   d = date.from_days(d:days())
+  vim.fn.mkdir(vim.fs.dirname(M.path(d)), "p")
+  -- the directory exists now: its path has the symlinks resolved
   local path = M.path(d)
-  vim.fn.mkdir(vim.fs.dirname(path), "p")
   utils.open_file(path)
   local buf = vim.api.nvim_get_current_buf()
+  if not M.is_journal(vim.api.nvim_buf_get_name(buf)) then
+    utils.warn(
+      string.format("journal: %s is not in the journal directory %s", vim.api.nvim_buf_get_name(buf), M.directory())
+    )
+    return nil
+  end
   if vim.bo[buf].filetype ~= "org" then
     vim.bo[buf].filetype = "org"
   end
@@ -650,9 +848,9 @@ function M.open(d, opts)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, split(M.format(header, d)))
     end
   end
-  local day = M.find_day(buf, d)
+  local day = M.find_day(buf, d) or insert_day(buf, d)
   if not day then
-    day = insert_day(buf, d)
+    return nil
   end
   local today = d:days() == today_days()
   if today and opts.carryover ~= false then
@@ -662,9 +860,9 @@ function M.open(d, opts)
       utils.save_buffer_or_warn(buf)
       utils.notify(string.format("journal: carried over %d item%s", moved, moved == 1 and "" or "s"))
     end
-    day = assert(M.find_day(buf, d))
+    day = M.find_day(buf, d) or day
   end
-  local row = day.line
+  local row, head_row = day.line, nil
   if opts.entry then
     local stamp = ""
     if today and not opts.no_time then
@@ -677,6 +875,16 @@ function M.open(d, opts)
     local tmpl = o.entry_template
     if type(tmpl) == "function" then
       tmpl = tmpl(d)
+    elseif type(tmpl) == "string" then
+      -- a format-time-string of the day, `%?` kept for the cursor
+      local mark = "\1org-journal-cursor\1"
+      tmpl = M.format(
+        tmpl:gsub("%%([%%?])", function(c)
+          return c == "?" and mark or "%%"
+        end),
+        d
+      )
+      tmpl = tmpl:gsub("\1org%-journal%-cursor\1", "%%?")
     end
     if tmpl and tmpl ~= "" then
       for _, l in ipairs(vim.split(tmpl, "\n", { plain = true })) do
@@ -687,7 +895,8 @@ function M.open(d, opts)
       end
     end
     -- the cursor goes to `%?` in the template, else after the heading
-    row, col = at + 1, #head
+    head_row = at + 1
+    row, col = head_row, #head
     for i, l in ipairs(new) do
       local s = l:find("%?", 1, true)
       if s then
@@ -706,7 +915,7 @@ function M.open(d, opts)
     M.show_day(buf, d)
     vim.api.nvim_win_set_cursor(0, { row, 0 })
   end
-  return buf, row
+  return buf, row, head_row
 end
 
 return M

@@ -28,7 +28,8 @@
 ---@field time_prefix? string
 ---The time in today's entries, `""` for none. (Emacs `org-journal-time-format`, default: `"%R "`)
 ---@field time_format? string
----Lines under a new entry's heading; `%?` places the cursor. (default: `nil`)
+---Lines under a new entry's heading, a format-time-string of the day (a function's text is taken
+---as is); `%?` places the cursor. (default: `nil`)
 ---@field entry_template? string|fun(d: org.Date): string
 ---Tags/property match of the items moved from the previous day to today,
 ---`false` for none. (Emacs `org-journal-carryover-items`, default: `'TODO="TODO"'`)
