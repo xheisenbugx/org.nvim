@@ -7,11 +7,15 @@
 --   SEED      first seed (default: random)
 --   COUNT     documents (default 100)
 --   ORACLES   space-separated oracles (default: all of them)
---   DIFFTEST_OUT       output directory (default difftest-out)
+--   DIFFTEST_OUT       output directory (default difftest-out; emptied
+--                      first, so it must be empty or from an earlier run)
 --   DIFFTEST_JOBS      Emacs workers (default: CPUs, at most 8)
---   DIFFTEST_MINIMISE  failures to shrink (default 20)
+--   DIFFTEST_MINIMISE  kinds of failure to shrink (default 20); the others
+--                      are reported with their whole input
 --   ORG_EMACS, ORG_LISP_DIR  Emacs and the Org 9.8.10 lisp directory
--- Exits with 1 when a difference isn't a known one.
+-- Exits with 1 when a difference isn't a known one, with 2 on an
+-- infrastructure failure: no Emacs with Org 9.8.10, too many Emacs errors
+-- or timeouts (tests/difftest/init.lua, M.infrastructure), a crash.
 
 local oracles = require("tests.difftest.oracles")
 local emacs = require("tests.difftest.emacs")
@@ -54,5 +58,8 @@ local okr, res = xpcall(require("tests.difftest").run, debug.traceback, {
 if not okr then
   io.stderr:write("difftest: " .. tostring(res) .. "\n")
   os.exit(2)
+end
+if res.infra then
+  os.exit(2) -- run() said why
 end
 os.exit(#res.failures > 0 and 1 or 0)

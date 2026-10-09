@@ -97,6 +97,8 @@ parity-fixtures:
 # (default random), for the ORACLES given (default all); differences that
 # aren't known are shrunk and reported in difftest-out/. Needs Emacs:
 # ORG_EMACS and ORG_LISP_DIR (see "Differential testing" in CONTRIBUTING.md).
+# The script exits with 1 on a difference, 2 on an infrastructure failure
+# (make reports either as 2; the Difftest workflow runs the script itself).
 difftest:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_CACHE_HOME=$$d/cache \
 	SEED="$(SEED)" COUNT="$(COUNT)" ORACLES="$(ORACLES)" \

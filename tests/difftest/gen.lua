@@ -208,8 +208,11 @@ local function text(rng)
   return s
 end
 
+--- A headline, and whether its subtree isn't exported (COMMENT or the
+--- noexport tag).
 ---@param rng fuzz.Rng
 ---@param keywords string[]
+---@return string, boolean
 local function headline(rng, level, keywords)
   local p = { string.rep("*", level) }
   if rng:chance(0.45) then
@@ -218,8 +221,10 @@ local function headline(rng, level, keywords)
   if rng:chance(0.2) then
     p[#p + 1] = "[#" .. rng:pick({ "A", "B", "C" }) .. "]"
   end
+  local excluded = false
   if rng:chance(0.05) then
     p[#p + 1] = "COMMENT"
+    excluded = true
   end
   p[#p + 1] = rng:chance(0.15) and rng:pick({ "Alpha", "Beta" }) or words(rng, rng:int(1, 4))
   if rng:chance(0.08) then
@@ -233,11 +238,12 @@ local function headline(rng, level, keywords)
       if not seen[tag] then
         seen[tag] = true
         t[#t + 1] = tag
+        excluded = excluded or tag == "noexport"
       end
     end
     s = s .. " :" .. table.concat(t, ":") .. ":"
   end
-  return s
+  return s, excluded
 end
 
 ---@param rng fuzz.Rng
@@ -423,9 +429,11 @@ local function block(rng, out)
   out[#out + 1] = "#+end_" .. kind
 end
 
---- Body elements of a section.
+--- Body elements of a section; `excluded`: in a subtree that isn't
+--- exported (COMMENT, noexport).
 ---@param rng fuzz.Rng
-local function body(rng, out)
+---@param excluded? boolean
+local function body(rng, out, excluded)
   for _ = 1, rng:int(0, 3) do
     local r = rng:float()
     if r < 0.25 then
@@ -445,8 +453,11 @@ local function body(rng, out)
       out[#out + 1] = ":END:"
     elseif r < 0.72 then
       local label = rng:pick({ "1", "2", "named" })
-      if not M.defs[label] then -- one definition per label
-        M.defs[label] = true
+      if M.defs[label] == nil then -- one definition per label
+        -- one in a subtree that isn't exported doesn't count: Emacs
+        -- refuses to export a reference without a definition, so the
+        -- footnote section gets one too
+        M.defs[label] = not excluded
         out[#out + 1] = "[fn:" .. label .. "] " .. text(rng)
       end
     elseif r < 0.76 then
@@ -498,12 +509,14 @@ local function habit(rng, out, level)
 end
 
 ---@param rng fuzz.Rng
-local function entry(rng, out, level, depth, keywords, done, n)
+---@param excluded? boolean in a subtree that isn't exported
+local function entry(rng, out, level, depth, keywords, done, n, excluded)
   if rng:chance(0.05) then
     habit(rng, out, level)
     return
   end
-  local h = headline(rng, level, keywords)
+  local h, ex = headline(rng, level, keywords)
+  excluded = excluded or ex
   out[#out + 1] = h
   local kw = h:match("^%*+ (%u+)")
   if rng:chance(0.4) then
@@ -516,10 +529,10 @@ local function entry(rng, out, level, depth, keywords, done, n)
   if rng:chance(0.12) then
     logbook(rng, out)
   end
-  body(rng, out)
+  body(rng, out, excluded)
   if depth < 2 then
     for _ = 1, rng:int(0, 2) do
-      entry(rng, out, level + 1, depth + 1, keywords, done, n)
+      entry(rng, out, level + 1, depth + 1, keywords, done, n, excluded)
     end
   end
 end

@@ -16,6 +16,11 @@
 --           function(lines) -> boolean
 --   same    function(text) -> string: the hunk matches when both sides
 --           (their lines joined by \n) are equal once rewritten by it
+--   broad   the `same` rewrite erases a lot (digits, whitespace, line
+--           order): when several rewrites apply to one hunk, it goes last
+--   moves   the `same` rewrite sorts lines: the hunks left unknown (lines
+--           moved between them) match together when it makes all their
+--           lines equal
 --   reason  what's wrong
 -- Every field given must match. A hunk that no entry matches alone but
 -- that all applicable `same` rewrites together make equal (two known
@@ -27,6 +32,8 @@
 ---@field either? string
 ---@field input? string|fun(lines: string[]): boolean
 ---@field same? fun(text: string): string
+---@field broad? boolean
+---@field moves? boolean
 ---@field reason string
 
 local INLINETASK = "^%*%*%*%*%*%*%*%*%*%*%*%*%*%*%*+ "
@@ -67,11 +74,12 @@ local function inlinetask_after_list(lines)
 end
 
 --- Whether a link has more than one possible target: two headlines with
---- the same title and a "*title" link, or <<target>> twice.
+--- the same title and a "*title" link, or <<target>> twice. Inline tasks
+--- aren't headlines a "*title" link reaches.
 local function ambiguous_links(lines)
   local seen, dup, link = {}, false, false
   for _, l in ipairs(lines) do
-    local title = l:match("^%*+ (.-)%s*$")
+    local title = not l:match(INLINETASK) and l:match("^%*+ (.-)%s*$")
     if title then
       title = title
         :gsub("^%u%u+ ", "")
@@ -111,11 +119,39 @@ local function inlinetask_before_headline(lines)
   return false
 end
 
---- Whether a footnote label is defined twice.
+--- Per line of `lines`, whether it's in a subtree that isn't exported
+--- (a COMMENT headline or a :noexport: tag).
+local function excluded_lines(lines)
+  local out, level = {}, nil -- level: of the excluded subtree we're in
+  for i, l in ipairs(lines) do
+    local stars, rest = l:match("^(%*+) (.*)$")
+    if stars and not l:match(INLINETASK) then
+      if level and #stars <= level then
+        level = nil
+      end
+      if not level then
+        local r = rest
+          :gsub("^%u+ ", function(kw)
+            return kw == "COMMENT " and kw or ""
+          end)
+          :gsub("^%[#%a%] ", "")
+        local tags = rest:match("%s(:[%w_@:]+:)$")
+        if r:match("^COMMENT%f[%s%z]") or (tags and tags:find(":noexport:", 1, true)) then
+          level = #stars
+        end
+      end
+    end
+    out[i] = level ~= nil
+  end
+  return out
+end
+
+--- Whether a footnote label is defined twice (in exported parts).
 local function duplicate_footnotes(lines)
   local seen = {}
-  for _, l in ipairs(lines) do
-    local label = l:match("^%[fn:([^%]]+)%]")
+  local excluded = excluded_lines(lines)
+  for i, l in ipairs(lines) do
+    local label = not excluded[i] and l:match("^%[fn:([^%]]+)%]")
     if label then
       if seen[label] then
         return true
@@ -125,6 +161,10 @@ local function duplicate_footnotes(lines)
   end
   return false
 end
+
+local INLINETASK_IN_LIST = [[An inline task right after a plain list:
+      Emacs ends the list before it, org.nvim exports it inside the last
+      item.]]
 
 ---@type difftest.Known[]
 return {
@@ -143,13 +183,10 @@ return {
     reason = [[Org export of plain lists: Emacs writes ordered bullets with
       "." whatever the source used (org-plain-list-ordered-item-terminator
       is t); org.nvim keeps "1)".]],
-    either = "%d[%.%)]",
+    ours = "%d%) ",
     same = function(s)
       return each_line(s, function(l)
-        if is_item(l) or l:match("^%s+%S") then
-          l = vim.trim(l):gsub("^(%d+)%)", "%1."):gsub("%[[ X%-]%]", "[?]")
-        end
-        return l
+        return (l:gsub("^(%s*%d+)%)", "%1."))
       end)
     end,
   },
@@ -207,12 +244,62 @@ return {
     input = "^:%u+:$",
     emacs = "h :END:",
   },
+  -- an inline task after a list, by back-end: the differences that
+  -- putting the task inside the last item makes, and only those
   {
-    oracle = "export%-.*",
-    reason = [[An inline task right after a plain list: Emacs ends the list
-      before it, org.nvim exports it inside the last item (and boxes it
-      2 columns further right in ASCII).]],
+    oracle = "export%-ascii",
+    reason = INLINETASK_IN_LIST .. [[ ASCII: the task's box (and what
+      follows it in the item) is indented further and wrapped narrower.]],
     input = inlinetask_after_list,
+    emacs = "^%s%s%s%s+%S",
+    ours = "^%s%s%s%s+%S",
+    broad = true,
+    same = function(s)
+      return (s:gsub("%s+", ""))
+    end,
+  },
+  {
+    oracle = "export%-html",
+    reason = INLINETASK_IN_LIST .. [[ HTML: the item's text in a <p>, the
+      list closed after the task's </div>.]],
+    input = inlinetask_after_list,
+    either = "</[oud]l>",
+    broad = true,
+    same = function(s)
+      return (s:gsub("</?p>", ""):gsub("</li>", ""):gsub("</dd>", ""):gsub("</[oud]l>", ""):gsub("%s+", ""))
+    end,
+  },
+  {
+    oracle = "export%-latex",
+    reason = INLINETASK_IN_LIST .. [[ LaTeX: the list's \end{...} after
+      the task.]],
+    input = inlinetask_after_list,
+    either = "^\\end{%a+}",
+    same = function(s)
+      return (each_line(s, function(l)
+        return (l:gsub("^\\end{%a+}$", ""))
+      end):gsub("\n", ""))
+    end,
+  },
+  {
+    oracle = "export%-md",
+    reason = INLINETASK_IN_LIST .. [[ Markdown: the task's HTML indented
+      as the item's body.]],
+    input = inlinetask_after_list,
+    either = 'class="inlinetask"',
+    same = function(s)
+      return each_line(s, vim.trim)
+    end,
+  },
+  {
+    oracle = "export%-org",
+    reason = INLINETASK_IN_LIST .. [[ Org: the task (and the item's body
+      lines) indented as the item's body.]],
+    input = inlinetask_after_list,
+    either = "^%s+%S",
+    same = function(s)
+      return each_line(s, vim.trim)
+    end,
   },
   {
     oracle = "export%-.*",
@@ -220,8 +307,16 @@ return {
       "Alpha" and a "*Alpha" link, or <<target>> twice): Emacs and org.nvim
       pick different ones (so section numbers and reference ids differ).]],
     input = ambiguous_links,
+    broad = true,
+    moves = true,
     same = function(s)
-      local lines = vim.split(s:gsub("%d[%d%.]*", "#"), "\n", { plain = true })
+      -- the reference ids (custom or not) and the "See section <number
+      -- or title>" of ASCII only, in any line order
+      s = s:gsub("ID%d+", "ID#"):gsub("#custom%d*", "#ID#"):gsub("(See section )%d[%d%.]*", "%1#")
+      s = s:gsub("(See section )(%a+)", function(see, title)
+        return see .. title:lower()
+      end)
+      local lines = vim.split(s, "\n", { plain = true })
       table.sort(lines)
       return table.concat(lines, "\n")
     end,
@@ -237,8 +332,15 @@ return {
     reason = [[A macro that expands to nothing at the start of a line: Emacs
       expands macros before parsing, so the line can become empty (and
       split a paragraph) or stop continuing a list item; org.nvim parses
-      first.]],
+      first, and keeps the space after the macro at the start of the
+      line. Only where the lines, list items and paragraphs break (and
+      that space) differs.]],
     input = "^%s*{{{title}}}",
+    broad = true,
+    moves = true,
+    same = function(s)
+      return (s:gsub("</?p>", ""):gsub("</li>", ""):gsub("</[ou]l>", ""):gsub("%s+", ""))
+    end,
   },
   {
     oracle = "export%-.*",
@@ -277,6 +379,26 @@ return {
       ("- {{{title}}} :: text"): Emacs expands macros before parsing, so
       it's a plain item; org.nvim exports a description item.]],
     input = "^%s*[%-%+] .*{{{title}}} ::",
+    either = "::",
+  },
+  {
+    oracle = "export%-latex",
+    reason = [[The same (a description item whose tag is a macro that expands
+      to nothing), where the LaTeX list ends: \end{description} in
+      org.nvim.]],
+    input = "^%s*[%-%+] .*{{{title}}} ::",
+    emacs = "^\\end{itemize}$",
+    ours = "^\\end{description}$",
+  },
+  {
+    oracle = "export%-latex",
+    reason = [[An entity in a caption ("#+CAPTION: A \alpha"): Emacs exports
+      it as in the text, "\(\alpha\)"; org.nvim's \captionof keeps
+      "\alpha".]],
+    emacs = "\\caption",
+    same = function(s)
+      return (s:gsub("\\%((\\%a+)\\%)", "%1"))
+    end,
   },
   {
     oracle = "export%-ascii",
@@ -368,14 +490,23 @@ return {
   },
   {
     oracle = "visibility",
-    reason = [[Indented lines (sub-items, item bodies) of a plain list before
-      the first headline: org.nvim folds them on S-TAB, Emacs leaves them
-      visible.]],
+    reason = [[Indented lines (sub-items, item bodies, blank lines between
+      them) of a plain list before the first headline: org.nvim folds them
+      on S-TAB, Emacs leaves them visible.]],
     emacs = "v  ",
     same = function(s)
-      return each_line(s, function(l)
-        return (l:gsub("^[hv](  +)", "?%%1"))
-      end)
+      -- an indented line, or a blank one before an indented line (a
+      -- blank line inside the list)
+      local lines = vim.split(s, "\n", { plain = true })
+      for i = #lines, 1, -1 do
+        local l = lines[i]
+        if l:match("^[hv]  +") then
+          lines[i] = "?" .. l:sub(2)
+        elseif l:match("^[hv] $") and (lines[i + 1] or ""):match("^%?  +") then
+          lines[i] = "? "
+        end
+      end
+      return table.concat(lines, "\n")
     end,
   },
   {
@@ -420,7 +551,10 @@ return {
       of a paragraph or headline), org.nvim keeps it.]],
     input = "{{{title}}}",
     same = function(s)
-      return (squash(s):gsub("([>%[#{]) ", "%1"):gsub(" ([}<\\%]&])", "%1"):gsub("^ ", ""):gsub(" $", ""))
+      -- line by line: the lines break at the same places
+      return each_line(s, function(l)
+        return (vim.trim(l:gsub("  +", " ")):gsub("([>%[#{]) ", "%1"):gsub(" ([}<\\%]&])", "%1"))
+      end)
     end,
   },
 }

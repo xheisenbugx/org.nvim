@@ -323,19 +323,30 @@ Outputs are compared after the `NORMALISE` rules of
 side of the hunk or on the input, or a rewrite that makes both sides
 equal) is counted but doesn't fail the run; any other one does. Failures are grouped by what
 differs, and the first of each group is shrunk (whole subtrees, then lines,
-then words) to a small input that still differs. `difftest-out/report.md`
+then words) to a small input that still differs (the first 20 kinds,
+`DIFFTEST_MINIMISE`; the others keep their whole input). `difftest-out/report.md`
 lists them with the seed, the replay command, the minimal input and the
 diff (`-` Emacs, `+` org.nvim); `difftest-out/repros/` has each input and
-diff as files. Emacs and org.nvim work in parallel (`DIFFTEST_JOBS` Emacs
-workers, default one per CPU up to 8); a request Emacs doesn't answer in
-20 seconds counts as an Emacs error, like any input Emacs raises an error
-on, and isn't compared.
+diff as files. The output directory (`DIFFTEST_OUT`) is emptied first, so
+it must be empty or hold the `.difftest-out` file of an earlier run.
+Emacs and org.nvim work in parallel (`DIFFTEST_JOBS` Emacs workers,
+default one per CPU up to 8); a request Emacs doesn't answer in 20
+seconds counts as an Emacs error, like any input Emacs raises an error on.
+An error in one agenda view, S-TAB step or table leaves only that part
+out of the comparison; an error in an export leaves out the whole output.
+When Emacs errors or times out on more than a tenth of the comparisons
+(and more than two), or on every comparison of an oracle, the Emacs side
+is taken as broken: the run is an infrastructure failure and the script
+exits with 2, where an unknown difference exits with 1 (`make` reports
+both as its own status 2).
 
 400 documents take about a minute and a half on four Emacs workers. The
 Difftest workflow runs 400 documents every night on `dev` and from the
-Actions tab (seed, count and oracles as inputs). When it fails it uploads
-the report and repros as an artifact and opens an issue labelled
-`difftest`, or comments on the open one. To handle a failure:
+Actions tab (seed, count and oracles as inputs). When it finds unknown
+differences it uploads the report and repros as an artifact and opens an
+issue labelled `difftest`, or comments on the open one when the kinds of
+failure changed since its last report; an infrastructure failure only
+fails the job. To handle a failure:
 
 1. Replay it, and check what Emacs does with the minimal input (the Org
    source).

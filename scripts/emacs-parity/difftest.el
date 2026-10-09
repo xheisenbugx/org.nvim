@@ -16,9 +16,12 @@
 ;;                     broken links marked
 ;;   agenda            "=== <view>" + the text of a few views over the file
 ;;   table             the buffer after recalculating every table with a
-;;                     #+TBLFM line (org-table-recalculate 'all), top down
+;;                     #+TBLFM line (org-table-recalculate 'all), top down;
+;;                     a table whose formulas signal an error is left as
+;;                     it was, followed by an "!error <message>" line
 ;;   visibility        "=== <step>" + "v"/"h" per line at startup and
-;;                     after each of three S-TABs (as visibility.el)
+;;                     after each of three S-TABs (org-cycle-global), or
+;;                     "!error <message>" for a step that signals one
 
 ;; the documents are UTF-8, whatever the locale (LC_ALL=C); and the
 ;; terminal too: org-string-width measures text as displayed, and a C
@@ -95,18 +98,36 @@
       (setq buffer-file-name nil))))
 
 (defun difftest-oracle-table (file)
+  ;; a table whose recalculation signals an error is put back as it was
+  ;; and followed by an "!error <message>" line: the other tables are
+  ;; still compared (tests/difftest/compare.lua)
   (with-temp-buffer
     (insert-file-contents file)
     (org-mode)
     (goto-char (point-min))
     (while (re-search-forward "^[ \t]*|" nil t)
-      (let ((end (org-table-end)))
+      (let ((beg (line-beginning-position))
+            (end (org-table-end)))
         (goto-char end)
-        (when (looking-at-p "[ \t]*#\\+TBLFM:")
-          (goto-char (1- end))
-          (org-table-recalculate 'all))
-        (goto-char (org-table-end))
-        (forward-line 1)))
+        (if (not (looking-at-p "[ \t]*#\\+TBLFM:"))
+            (forward-line 1)
+          (let ((saved (buffer-substring beg (line-beginning-position 2))))
+            (condition-case err
+                (progn
+                  (goto-char (1- end))
+                  (org-table-recalculate 'all)
+                  (goto-char (org-table-end))
+                  (forward-line 1))
+              (error
+               (goto-char beg)
+               (re-search-forward "^[ \t]*#\\+TBLFM:.*\n?" nil t)
+               (delete-region beg (point))
+               (goto-char beg)
+               (insert saved)
+               (unless (bolp) (insert "\n"))
+               (insert (format "!error %s\n"
+                               (replace-regexp-in-string
+                                "\n" " " (error-message-string err))))))))))
     (buffer-string)))
 
 (defun difftest-visibility-lines ()
@@ -122,6 +143,9 @@
     (apply #'concat (nreverse out))))
 
 (defun difftest-oracle-visibility (file)
+  ;; S-TAB as `org-cycle-global': `org-shifttab' at point-min moves to
+  ;; the previous table field when the file starts with a table (and
+  ;; signals an error there)
   (let ((buf (find-file-noselect file))
         (out '())
         (last 'none))
@@ -131,11 +155,16 @@
           (push (difftest-visibility-lines) out)
           (dotimes (i 3)
             (goto-char (point-min))
-            (let ((last-command last) (this-command 'org-shifttab))
-              (org-shifttab))
-            (setq last 'org-shifttab)
             (push (format "=== S%d\n" (1+ i)) out)
-            (push (difftest-visibility-lines) out)))
+            (condition-case err
+                (progn
+                  (let ((last-command last) (this-command 'org-cycle-global))
+                    (call-interactively #'org-cycle-global))
+                  (setq last 'org-cycle-global)
+                  (push (difftest-visibility-lines) out))
+              (error
+               (setq last 'none)
+               (push (format "!error %s\n" (error-message-string err)) out)))))
       (kill-buffer buf))
     (apply #'concat (nreverse out))))
 

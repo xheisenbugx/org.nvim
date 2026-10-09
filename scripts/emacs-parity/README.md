@@ -84,7 +84,14 @@ Then regenerate the fixtures and run
 answers requests from `tests/difftest/emacs.lua` on stdin, one per line
 (`<oracle> TAB <input.org> TAB <output file>`), with `common.el`'s fixed
 "now", zone and locale. The org.nvim side of each oracle is in
-`tests/difftest/oracles.lua`; keep the two in step.
+`tests/difftest/oracles.lua`; keep the two in step. An oracle that
+signals an error writes an `!error <message>` line: in place of the whole
+output for an export, of one view for the agenda or one S-TAB step for
+visibility (S-TAB is `org-cycle-global`, as `org-shifttab` would move
+between table fields in a table at the top of the file), and after the
+table, put back unchanged, for a table whose formulas fail.
+`common.el` deletes its temporary `org-id-locations-file` when Emacs
+exits.
 
 ```sh
 ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.10 make difftest SEED=1 COUNT=300
