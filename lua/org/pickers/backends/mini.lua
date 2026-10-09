@@ -112,7 +112,8 @@ function M.pick(spec, finish, user)
     finish(out, query, how)
   end
   -- the picker_keys replace mini.pick's choose_in_split / vsplit / tabpage,
-  -- which split before choosing; qflist chooses every match
+  -- which split before choosing; qflist chooses the marked items, or every
+  -- match when none is marked
   local mappings = {}
   local keys = pickers.split_keys(spec)
   if #keys > 0 then
@@ -125,9 +126,9 @@ function M.pick(spec, finish, user)
           local ok, matches = pcall(MiniPick.get_picker_matches)
           matches = ok and type(matches) == "table" and matches or {}
           if how == "qflist" then
-            -- every item matching the query
-            if matches.all and #matches.all > 0 then
-              take(matches.all, how)
+            local list = matches.marked and #matches.marked > 0 and matches.marked or matches.all
+            if list and #list > 0 then
+              take(list, how)
             end
           elseif matches.current then
             take({ matches.current }, how)

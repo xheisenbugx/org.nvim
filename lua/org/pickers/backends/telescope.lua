@@ -135,19 +135,19 @@ function M.pick(spec, finish, topts)
       -- runs for each prompt: builtin.resume() makes a new picker of this one
       attach_mappings = function(prompt_bufnr, map)
         local answered = false
-        -- `selection`: the selected entries, also for "qflist"
+        -- `selection`: the selected entries (or the current one) for
+        -- "qflist", never every match
         local function choose(how, selection)
           local picker = action_state.get_current_picker(prompt_bufnr)
           local chosen = {}
-          if how == "qflist" and not selection then
-            -- every entry matching the query
-            if picker and picker.manager then
-              for e in picker.manager:iter() do
-                chosen[#chosen + 1] = e.value
-              end
-            end
-          elseif spec.multi and picker and picker.get_multi_selection then
+          if spec.multi and picker and picker.get_multi_selection then
             for _, e in ipairs(picker:get_multi_selection()) do
+              chosen[#chosen + 1] = e.value
+            end
+          end
+          if how == "qflist" and not selection and #chosen == 0 and picker and picker.manager then
+            -- nothing selected: every entry matching the query
+            for e in picker.manager:iter() do
               chosen[#chosen + 1] = e.value
             end
           end
