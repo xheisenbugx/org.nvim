@@ -3,10 +3,12 @@ name: Difftest
 # org.nvim against Emacs Org 9.8.10 on generated documents, nightly and on
 # demand: `make difftest` (tests/difftest/, scripts/emacs-parity/difftest.el)
 # from a random first seed. A difference that isn't a known one
-# (tests/difftest/known.lua) fails the run, uploads the shrunk inputs and
-# opens an issue labelled "difftest" (or comments on the open one) with the
-# seeds, oracles, minimal inputs and diffs. See "Differential testing" in
-# CONTRIBUTING.md.
+# (tests/difftest/known.lua) fails the run (exit 1), uploads the shrunk
+# inputs and opens an issue labelled "difftest" (or comments on the open
+# one, when the kinds of failure changed since its last report) with the
+# seeds, oracles, minimal inputs and diffs. An infrastructure failure (exit
+# 2: no Emacs, Emacs errors on too many documents, a crash) only fails the
+# job. See "Differential testing" in CONTRIBUTING.md.
 on:
   schedule:
     - cron: "41 3 * * *"
@@ -25,6 +27,11 @@ on:
 permissions:
   contents: read
 
+# one run at a time: two runs would both report the same failures
+concurrency:
+  group: difftest
+  cancel-in-progress: false
+
 env:
   ORG_VERSION: "9.8.10"
 
@@ -41,11 +48,13 @@ jobs:
           # a scheduled run starts from the default branch (main, the last
           # release): test dev, where new code lands
           ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+          # nothing pushes; gh reads GH_TOKEN
+          persist-credentials: false
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
           version: stable
-      - uses: purcell/setup-emacs@master
+      - uses: purcell/setup-emacs@bdc64dc730ae1fcba200bfd52cb1b4cf6159cbe5 # v8.0
         with:
           version: "30.1"
       # Org 9.8.10 from GNU ELPA, byte-compiled once and cached
@@ -71,11 +80,21 @@ jobs:
           COUNT: ${{ inputs.count || '400' }}
           ORACLES: ${{ inputs.oracles }}
           DIFFTEST_JOBS: "4"
+        # `make difftest` without make, which turns every failure into its
+        # own exit status 2: 1 is a difference, 2 an infrastructure failure
         run: |
           export ORG_LISP_DIR=~/org-lisp/org-$ORG_VERSION
-          make difftest 2>&1 | tee difftest.log
+          d=$(mktemp -d)
+          set +e
+          XDG_DATA_HOME=$d XDG_CACHE_HOME=$d/cache \
+            nvim --headless -u tests/minimal_init.lua -l scripts/difftest.lua 2>&1 | tee difftest.log
+          status=${PIPESTATUS[0]}
+          set -e
+          rm -rf "$d"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
       - name: Report the failure in an issue
-        if: failure() && steps.difftest.outcome == 'failure'
+        if: failure() && steps.difftest.outputs.status == '1'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -83,6 +102,11 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           sha=$(git rev-parse --short=12 HEAD)
+          # the kinds of failure ("Failing, by kind" without counts and
+          # seeds): report only when they changed since the last report
+          # shellcheck disable=SC2016 # the backquotes are literal
+          sig=$(sed -n '/^Failing, by kind/,/^## /p' difftest-out/report.md 2>/dev/null \
+            | grep '^- [0-9]' | grep -o '`[^`]*`' | sort -u | sha256sum | cut -c1-16)
           {
             echo "The [nightly difftest run]($RUN_URL) on \`$sha\` found differences from Emacs Org $ORG_VERSION."
             echo
@@ -99,11 +123,19 @@ jobs:
               tail -n 80 difftest.log
               echo '```'
             fi
+            echo
+            echo "<!-- difftest-signature: $sig -->"
           } > issue.md
           gh label create difftest --color 5319E7 --description "Found by the nightly Emacs differential test" 2>/dev/null || true
           num=$(gh issue list --label difftest --state open --limit 1 --json number --jq '.[0].number // empty')
           if [ -n "$num" ]; then
-            gh issue comment "$num" --body-file issue.md
+            last=$(gh issue view "$num" --json body,comments --jq '.body, .comments[].body' \
+              | grep -o 'difftest-signature: [0-9a-f]*' | tail -n 1 | cut -d' ' -f2)
+            if [ "$last" = "$sig" ]; then
+              echo "Issue #$num already reports these kinds of failure ($sig): not commenting"
+            else
+              gh issue comment "$num" --body-file issue.md
+            fi
           else
             gh issue create --title "Difftest: org.nvim differs from Emacs Org" --label difftest --body-file issue.md
           fi
