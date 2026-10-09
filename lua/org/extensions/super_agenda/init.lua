@@ -24,6 +24,9 @@ local date = require("org.date")
 
 local M = {}
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- The groups (org-super-agenda-groups); empty = the agenda is unchanged.
   groups = {},

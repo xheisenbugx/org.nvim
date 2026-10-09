@@ -15,6 +15,9 @@ local M = {}
 
 M.query = query
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- Files a search looks in when none are given: "agenda" (the agenda
   --- files), "buffer" (the current buffer), "all" (every loaded org

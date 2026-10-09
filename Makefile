@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz playground difftest
 
 # A throwaway data and cache dir: tests never touch the real ID database, clock
 # state, agenda index or other stdpath("data") and stdpath("cache") files,
@@ -38,7 +38,7 @@ fuzz:
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:
-	stylua --check lua plugin ftplugin syntax tests scripts/site
+	stylua --check lua plugin ftplugin syntax tests scripts/site scripts/playground
 	nvim --headless --clean -l scripts/lint_sources.lua lua
 
 # lua-language-server --check with .luarc.json: the diagnostics it gates on
@@ -51,7 +51,7 @@ typecheck:
 
 # stylua sometimes needs a second pass to settle
 format:
-	stylua lua plugin ftplugin syntax tests scripts/site && stylua lua plugin ftplugin syntax tests scripts/site
+	stylua lua plugin ftplugin syntax tests scripts/site scripts/playground && stylua lua plugin ftplugin syntax tests scripts/site scripts/playground
 
 # The documentation website (doc/org.txt, README.md, examples/*.org and the
 # parity docs as HTML) in site/; see scripts/site/build.lua. Open
@@ -59,6 +59,15 @@ format:
 # directory no build made (scripts/site/outdir.lua).
 site:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless --clean -l scripts/site/build.lua site; \
+	s=$$?; rm -rf $$d; exit $$s
+
+# Re-record the playground's terminal recordings of the tutor lessons
+# (docs/playground/<lesson>.cast, played on the website's playground page;
+# scripts/playground/record.lua). Run it after changing a lesson in
+# tutor/org/ or its steps in scripts/playground/lessons/.
+playground:
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_STATE_HOME=$$d/state XDG_CACHE_HOME=$$d/cache \
+	nvim --headless --clean -l scripts/playground/record.lua docs/playground; \
 	s=$$?; rm -rf $$d; exit $$s
 
 # Re-record the README GIFs and screenshots (needs vhs and the
@@ -84,8 +93,28 @@ publish-media:
 parity-fixtures:
 	scripts/emacs-parity/generate.sh $(AREAS)
 
+# org.nvim against Emacs Org 9.8.10 on COUNT generated documents from SEED
+# (default random), for the ORACLES given (default all); differences that
+# aren't known are shrunk and reported in difftest-out/. Needs Emacs:
+# ORG_EMACS and ORG_LISP_DIR (see "Differential testing" in CONTRIBUTING.md).
+# The script exits with 1 on a difference, 2 on an infrastructure failure
+# (make reports either as 2; the Difftest workflow runs the script itself).
+difftest:
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_CACHE_HOME=$$d/cache \
+	SEED="$(SEED)" COUNT="$(COUNT)" ORACLES="$(ORACLES)" \
+	nvim --headless -u tests/minimal_init.lua -l scripts/difftest.lua; \
+	s=$$?; rm -rf $$d; exit $$s
+
 # Regenerate CHANGELOG.md from the tags and merged pull requests. On a
 # release/vX.Y.Z branch the commits after the latest tag go under vX.Y.Z;
 # elsewhere pass VERSION=vX.Y.Z for that, or get an Unreleased section.
 changelog:
 	nvim --headless --clean -l scripts/changelog.lua $(if $(VERSION),--version $(VERSION))
+
+# The promotion report of the extensions (CONTRIBUTING.md, "Promoting an
+# extension"): each criterion per extension, pass or fail, and the
+# candidates for stable. Uses coverage/coverage.json of `make coverage`
+# when there is one. ARGS: --markdown, --json, --no-gh, --demo FILE, names.
+.PHONY: extensions-report
+extensions-report:
+	@nvim --headless --clean -l scripts/extension_report.lua $(ARGS)

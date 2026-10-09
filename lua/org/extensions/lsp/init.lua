@@ -18,6 +18,9 @@ local M = {}
 
 local MOD = "org.extensions.lsp"
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- Attach to every org buffer (FileType org). With false, `:Org lsp_start`
   --- attaches the current buffer.

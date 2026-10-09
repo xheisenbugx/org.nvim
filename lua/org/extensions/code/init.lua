@@ -9,6 +9,9 @@ local M = {}
 
 local C = "org.extensions.code"
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- Template of `code_capture` (a capture template table). Its `target`
   --- "project" (or nil) captures into the repository's project file under

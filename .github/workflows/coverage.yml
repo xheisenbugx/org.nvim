@@ -4,7 +4,8 @@ name: Coverage
 # demand. Informational: it never runs on pull requests and gates nothing.
 # The report (every module, lowest coverage first, and the lines no spec
 # runs) is uploaded as the "coverage" artifact; the totals and the 20
-# lowest modules go to the run's summary.
+# lowest modules go to the run's summary, followed by the extension
+# promotion report (make extensions-report).
 on:
   schedule:
     - cron: "0 5 * * 1"
@@ -12,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
   coverage:
@@ -23,6 +25,8 @@ jobs:
           # a scheduled run starts from the default branch (main, the last
           # release): test dev, where new code lands
           ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+          # the history and tags, for the extension promotion report
+          fetch-depth: 0
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
@@ -44,6 +48,13 @@ jobs:
           else
             echo "No coverage report was written." >> "$GITHUB_STEP_SUMMARY"
           fi
+      # each criterion of "Promoting an extension" (CONTRIBUTING.md) with
+      # this coverage, and the candidates for stable
+      - name: Extension promotion report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make extensions-report ARGS=--markdown >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

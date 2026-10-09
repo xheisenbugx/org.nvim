@@ -291,6 +291,76 @@ explains how to add cases, how the runs are kept deterministic (a fixed
 fix the bug, document an intended difference, or mark the case as a known
 failure.
 
+### Differential testing
+
+`make difftest` goes further than the fixed fixtures: it generates random
+Org documents (`tests/difftest/gen.lua`: headlines with TODO keywords,
+priorities, tags and COMMENT, planning with repeaters and warnings,
+drawers and clocks, lists with checkboxes and counters, tables with
+`#+TBLFM`, footnotes, blocks, links, emphasis edge cases, inline tasks),
+runs each through Emacs Org 9.8.10 and org.nvim, and compares what a set of
+"oracles" print:
+
+| Oracle | Compares |
+| --- | --- |
+| `export-html`, `export-ascii`, `export-md`, `export-latex`, `export-org` | the body-only export, Babel off |
+| `agenda` | week and day agendas, the TODO list, a tags and a tags-todo match over the file |
+| `table` | the file after recalculating every table that has a `#+TBLFM` line |
+| `visibility` | the visible lines at startup and after each of three S-TABs |
+
+It needs Emacs and Org 9.8.10 (see `scripts/emacs-parity/README.md`):
+
+```sh
+export ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.10
+make difftest                                    # 100 documents, random seed
+make difftest SEED=1 COUNT=300                   # a reproducible run
+make difftest SEED=42 COUNT=1 ORACLES=export-md  # replay one failure
+```
+
+Outputs are compared after the `NORMALISE` rules of
+`tests/emacs_parity.lua`, as a line diff. A hunk that matches an entry of
+`tests/difftest/known.lua` (a known bug, not fixed yet: patterns on either
+side of the hunk or on the input, or a rewrite that makes both sides
+equal) is counted but doesn't fail the run; any other one does. Failures are grouped by what
+differs, and the first of each group is shrunk (whole subtrees, then lines,
+then words) to a small input that still differs (the first 20 kinds,
+`DIFFTEST_MINIMISE`; the others keep their whole input). `difftest-out/report.md`
+lists them with the seed, the replay command, the minimal input and the
+diff (`-` Emacs, `+` org.nvim); `difftest-out/repros/` has each input and
+diff as files. The output directory (`DIFFTEST_OUT`) is emptied first, so
+it must be empty or hold the `.difftest-out` file of an earlier run.
+Emacs and org.nvim work in parallel (`DIFFTEST_JOBS` Emacs workers,
+default one per CPU up to 8); a request Emacs doesn't answer in 20
+seconds counts as an Emacs error, like any input Emacs raises an error on.
+An error in one agenda view, S-TAB step or table leaves only that part
+out of the comparison; an error in an export leaves out the whole output.
+When Emacs errors or times out on more than a tenth of the comparisons
+(and more than two), or on every comparison of an oracle, the Emacs side
+is taken as broken: the run is an infrastructure failure and the script
+exits with 2, where an unknown difference exits with 1 (`make` reports
+both as its own status 2).
+
+400 documents take about a minute and a half on four Emacs workers. The
+Difftest workflow runs 400 documents every night on `dev` and from the
+Actions tab (seed, count and oracles as inputs). When it finds unknown
+differences it uploads the report and repros as an artifact and opens an
+issue labelled `difftest`, or comments on the open one when the kinds of
+failure changed since its last report; an infrastructure failure only
+fails the job. To handle a failure:
+
+1. Replay it, and check what Emacs does with the minimal input (the Org
+   source).
+2. Fix org.nvim, and turn the minimal input into a case of the area's
+   `*_emacs_spec.lua`.
+3. Or, if it's intentional, document it under `:h org-differences` and add
+   a rule to `NORMALISE`; if it's a bug to fix later, add a narrow entry
+   to `tests/difftest/known.lua` with the reason, so the nightly run stays
+   green until the fix removes it.
+
+`tests/spec/difftest_spec.lua` runs the org.nvim side, the comparison and
+the shrinking against a fake Emacs, so pull request CI covers that code
+without Emacs.
+
 ## Screen snapshots
 
 Some bugs only show on screen: headline stars drawn as bold markup, a
@@ -365,6 +435,36 @@ fails on a broken one or on a `|tag|` that is neither an org.nvim nor a
 Neovim help tag. `tests/spec/site_spec.lua` runs it too. The look and the
 search live in `scripts/site/assets/`.
 
+### Playground
+
+The site's [playground page](https://org-nvim.com/playground.html) plays
+a terminal recording of each `:Org tutor` lesson
+(`docs/playground/<lesson>.cast`, asciicast v2 text, committed) next to
+the lesson's exercises and their keys. The recordings are generated, never
+edited: [`scripts/playground/record.lua`](scripts/playground/record.lua)
+opens each lesson in a child Neovim with an 80x24 UI (the one
+`tests/screen.lua` drives), plays it with the steps in
+`scripts/playground/lessons/<lesson>.lua` (where to put the cursor, the
+keys as tutor placeholders such as `{{org.cycle}}`, text to type) and
+writes the screen after every key. The clock is fixed and event times come
+from the steps, so the output is the same on every run, and the recorder
+fails when the steps don't pass an exercise's tutor check.
+
+```sh
+make playground          # rewrite docs/playground/*.cast (about 40 s)
+```
+
+Run it after changing a lesson or adding one (a new lesson needs a steps
+file too); `tests/spec/playground_spec.lua` fails when a lesson has no
+recording, when an exercise with a check has no steps, when a recording
+is older than its lesson or steps file (the cast header's
+`generator.source` is a hash of both), or when a recording has a path of
+the machine it was made on. The header's `generator.nvim` is the Neovim
+that recorded it: the colors are its default colorscheme's, so re-record
+with the same Neovim version (or expect color changes in the diff). The page itself is
+`scripts/site/playground.lua`, and its player (no dependencies) is
+`scripts/site/assets/playground.js`.
+
 Pull requests that change the sources run the `Pages` workflow, which only
 builds the site. Publishing a release deploys it to GitHub Pages (a
 maintainer can also run the workflow by hand from the Actions tab).
@@ -425,6 +525,65 @@ fail fast (a literal character), keep `.*` out of look-behinds (`.\{-}`
 stops where the look-behind ends), or use `lc=N` for a fixed leading
 context.
 
+## Promoting an extension
+
+Every extension is ✅ stable or 🧪 experimental (`:h
+org-extensions-stability`). The source of truth is the `stability` field
+of its module (`M.stability = "stable"` in
+`lua/org/extensions/<name>/init.lua`; a module without one is
+experimental). The README table, the `✅`/`🧪` mark of its README entry,
+the lists and the `Stability:` line of its section in `doc/org.txt` and
+`:checkhealth org` follow it, and `tests/spec/ext_stability_spec.lua`
+fails when one of them disagrees.
+
+Promotion is checked **at every release**: before cutting a release
+branch, run
+
+```sh
+make coverage            # optional, but the coverage criterion needs it
+make extensions-report   # ARGS="--markdown", "--json", "--no-gh", or names
+```
+
+`scripts/extension_report.lua` measures each criterion below for every
+extension and lists the candidates (experimental extensions that pass all
+of them), the near misses and stable extensions that have fallen below
+the bar. The release pull request into `main` shows the same report in
+its job summary (with coverage from the latest Coverage run), and so does
+the weekly Coverage workflow. An experimental extension becomes stable
+when it meets **every** criterion:
+
+| Criterion | Measured as | Bar |
+| --- | --- | --- |
+| specs | `it(...)` tests in its own spec files: `ext_<name>_spec.lua`, `ext_<name>_<part>_spec.lua`, `fuzz_<name>_spec.lua` | ≥ 25 |
+| edge spec | a fuzz spec, a spec file `ext_<name>_{edge,safety,stress,fuzz,robust}…_spec.lua`, or a `describe` in its specs about edge / stress / malformed / fuzz / robust / corner / pathological / safety cases | one |
+| coverage | line coverage of `lua/org/extensions/<name>/` by `make coverage` | ≥ 80% |
+| docs | every option (each key of its `defaults`, and the keys of a nested table of options, not of a `keys` / `*_keys` table) named in its `doc/org.txt` section (a nested key also counts as `<name>_<key>`); every top-level option a `---@field` of its class in `lua/org/_meta/` | all |
+| health | a `health` function (`:checkhealth org`) | yes |
+| releases, age | minor or major releases (`vX.Y.0` tags) that contain its first commit, and days since that commit | ≥ 3, ≥ 30 days |
+| no break | minor or major releases after the one that shipped its last breaking change: a commit marked breaking (`!` before the colon, or a `BREAKING CHANGE:` footer) whose scope is its name; or whose scope is `extensions` / `ext` and whose subject or footer has its name as a word; or whose footer names it unambiguously (`` `name` ``, "name extension", `extensions.name`); or one that removed a `---@field` from its `_meta` class | ≥ 3 (or never) |
+| open bugs | open issues labelled `bug` about it: a label named after it (or `ext:<name>`), its name in the bug form's Extension field, or a title naming it (`name: ...`, `[name] ...`, `fix(name): ...`, `` `name` ``, "name extension"; the bare word only for a name that isn't an everyday word), or a body saying "name extension" or `extensions.name` (needs `gh`; skipped offline) | 0 |
+| demo | enabled in the live demo config (`--demo FILE`, `$ORG_DEMO_CONFIG` or `~/demo/config.lua`; skipped when there is none) | yes |
+
+A skipped criterion (no `gh`, no demo config) doesn't block a candidate,
+but check it by hand before promoting. The history criteria need every
+commit and the release tags: in a shallow clone or one without tags they
+are not measured (`?`), and that blocks a promotion. So name the
+extension in a breaking commit unambiguously, and when you add an
+extension, add it to the Extension dropdown of
+`.github/ISSUE_TEMPLATE/bug_report.yml` too. The bar is the `BAR` table at the
+top of the script; change it there and here together.
+
+To promote, in a pull request into `dev` titled for the changelog
+(`feat(extensions): promote heatmap to stable`): set `M.stability =
+"stable"`, move the name to the stable column of the README table and to
+`Stable:` in `:h org-extensions-stability`, change its README mark to ✅
+and its `Stability:` line, and run `make test
+SPEC=tests/spec/ext_stability_spec.lua`. From then on, a change to its
+options, actions or keys is called out in the release notes, and a
+breaking one (`feat(<name>)!:` or a `BREAKING CHANGE:` footer) bumps the
+major version. Nothing is demoted automatically: a stable extension below
+the bar is a prompt to add the missing specs or docs.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.
@@ -451,12 +610,14 @@ context.
   and a helptags check; after editing `doc/org.txt`, run
   `nvim --headless -u NONE -c "helptags doc" -c q`. A pull request that
   changes the docs also builds the website. Pushes don't run CI.
-- The Fuzz (nightly) and Coverage (weekly) workflows test `dev`. GitHub
+- The Fuzz and Difftest (nightly) and Coverage (weekly) workflows test `dev`. GitHub
   starts scheduled workflows from the default branch, `main`, so a change
   to them takes effect with the next release; both can also be run from
   the Actions tab, on any branch.
 
-To release, branch from `dev`, update the changelog and open a pull
+To release, check the extensions first (`make extensions-report`; promote
+the candidates in a pull request into `dev`, see "Promoting an
+extension"), then branch from `dev`, update the changelog and open a pull
 request into `main`:
 
 ```sh

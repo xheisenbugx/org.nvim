@@ -809,6 +809,8 @@
 ---@field sidebar? org.Config.Extensions.Sidebar|boolean
 ---Hugo-compatible Markdown export, like Emacs ox-hugo (`:h org-extensions-hugo`).
 ---@field hugo? org.Config.Extensions.Hugo|boolean
+---A dated journal, like Emacs org-journal (`:h org-extensions-journal`).
+---@field journal? org.Config.Extensions.Journal|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

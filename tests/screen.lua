@@ -142,7 +142,10 @@ return links
 --- Start a child Neovim with a `width` x `height` screen.
 --- `setup` is passed to require("org").setup(); `now` ({ year, month,
 --- day, hour, min }, local time) fixes what os.time() and os.date() say.
----@param opts? { width?: integer, height?: integer, setup?: table, now?: table }
+--- `handlers` adds or replaces redraw event handlers (`_mode_info_set`,
+--- ...), installed before the UI attaches so they see the events sent on
+--- attach.
+---@param opts? { width?: integer, height?: integer, setup?: table, now?: table, handlers?: table<string, function> }
 function M.new(opts)
   opts = opts or {}
   local self = setmetatable({
@@ -156,6 +159,9 @@ function M.new(opts)
     stderr = {},
     errors = {},
   }, Screen)
+  for name, fn in pairs(opts.handlers or {}) do
+    self[name] = fn
+  end
   self.stdin, self.stdout, self.stderr_pipe = uv.new_pipe(false), uv.new_pipe(false), uv.new_pipe(false)
   local handle, err = uv.spawn(vim.v.progpath, { ---@diagnostic disable-line: missing-fields
     args = { "--embed", "--headless", "-u", "NONE", "-i", "NONE", "-n" },

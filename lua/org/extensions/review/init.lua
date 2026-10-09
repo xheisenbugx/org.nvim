@@ -16,6 +16,9 @@ local M = {}
 
 M.steps = steps_mod
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- Steps in order: builtin names ("inbox", "stuck", "waiting",
   --- "overdue", "upcoming", "someday", "clock", "reflect"), `{ "name",

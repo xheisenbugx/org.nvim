@@ -23,6 +23,9 @@ on:
       - doc/**
       - examples/**
       - scripts/site/**
+      - scripts/playground/**
+      - docs/playground/**
+      - tutor/**
       - README.md
       - docs/parity-review.md
       - docs/parity/**

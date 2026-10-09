@@ -27,6 +27,9 @@ M.ZOOMS = {
   { name = "month", days = 7, width = 1 },
 }
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- Tasks come from: "agenda", "buffer", "subtree", or files / globs.
   source = "agenda",

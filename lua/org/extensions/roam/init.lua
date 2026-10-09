@@ -9,6 +9,9 @@ local M = {}
 
 local R = "org.extensions.roam"
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- The notes directory (org-roam-directory); every `.org` file below it
   --- is indexed.

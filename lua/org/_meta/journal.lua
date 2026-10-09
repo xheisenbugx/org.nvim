@@ -1,0 +1,48 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { journal = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Journal
+---`false` keeps the extension off.
+---@field enabled? boolean
+---The journal directory, relative to `org_directory` unless absolute.
+---(Emacs `org-journal-dir`, default: `"~/org/journal"`)
+---@field directory? string
+---One file per day, week, month or year. (Emacs `org-journal-file-type`, default: `"daily"`)
+---@field file_type? "daily"|"weekly"|"monthly"|"yearly"
+---File names: a format-time-string of the first day of the file's period,
+---relative to `directory`. (Emacs `org-journal-file-format`, default: `"%Y%m%d.org"`)
+---@field file_format? string
+---First day of weekly files, 1 (Monday) to 7 (Sunday).
+---(Emacs `org-journal-start-on-weekday`, default: `1`)
+---@field start_on_weekday? integer
+---Text at the top of a new file: a format-time-string of the day or a
+---function of the date. (Emacs `org-journal-file-header`, default: `""`)
+---@field file_header? string|fun(d: org.Date): string
+---What comes before `date_format` in a day's heading. (Emacs `org-journal-date-prefix`, default: `"* "`)
+---@field date_prefix? string
+---The day heading's text, or a function giving the whole line.
+---(Emacs `org-journal-date-format`, default: `"%A, %Y-%m-%d"`)
+---@field date_format? string|fun(d: org.Date): string
+---What starts an entry. (Emacs `org-journal-time-prefix`, default: `"** "`)
+---@field time_prefix? string
+---The time in today's entries, `""` for none. (Emacs `org-journal-time-format`, default: `"%R "`)
+---@field time_format? string
+---Lines under a new entry's heading, a format-time-string of the day (a function's text is taken
+---as is); `%?` places the cursor. (default: `nil`)
+---@field entry_template? string|fun(d: org.Date): string
+---Tags/property match of the items moved from the previous day to today,
+---`false` for none. (Emacs `org-journal-carryover-items`, default: `'TODO="TODO"'`)
+---@field carryover? string|false
+---Delete the previous day (or file) left empty by a carry-over.
+---(Emacs `org-journal-carryover-delete-empty-journal`, default: `false`)
+---@field carryover_delete_empty? boolean|"ask"
+---Text before a scheduled entry's timestamp. (Emacs `org-journal-scheduled-string`, default: `""`)
+---@field scheduled_string? string
+---Add the current and future journal files (`true`) or all of them
+---(`"all"`) to the agenda files. (Emacs `org-journal-enable-agenda-integration`, default: `false`)
+---@field agenda? boolean|"all"
+---Date before search results. (Emacs `org-journal-search-result-date-format`, default: `"%a %Y-%m-%d"`)
+---@field search_date_format? string|fun(d: org.Date): string
+---Order of search results. (Emacs `org-journal-search-results-order-by`, default: `"asc"`)
+---@field search_order? "asc"|"desc"

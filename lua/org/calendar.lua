@@ -11,7 +11,8 @@
 --- syntax, e.g. "+3d", "fri 14:00", "2026-10-01"; shown live in the
 --- calendar with `read_date_display_live`), `T` set/clear the time, `!`
 --- the agenda of the date, <CR> or a mouse click on a day select,
---- `x`/<Del> remove, q/<Esc> cancel (<Esc> only when `q` is a calendar key). With `read_date_popup_calendar`
+--- `x`/<Del> remove, q/<Esc> cancel (<Esc> only when `q` is a calendar key),
+--- and with `opts.marks`, `n`/`p` the next / previous marked day. With `read_date_popup_calendar`
 --- off, only a "Date+time [default]: " prompt is shown.
 ---
 --- The float shows the month with ISO week numbers and the neighbouring
@@ -38,6 +39,9 @@ local HL = {
   OrgCalendarOutside = { link = "NonText" },
   OrgCalendarWeekNumber = { link = "LineNr" },
   OrgCalendarToday = { bold = true, underline = true },
+  -- days `pick({ marks = ... })` marks, such as the journal's entries
+  OrgCalendarMarked = { link = "DiagnosticOk" },
+  OrgCalendarMarkedFuture = { link = "DiagnosticInfo" },
   OrgCalendarSelected = { link = "PmenuSel" },
   OrgCalendarDate = { link = "Function" },
   OrgCalendarTimestamp = { link = "String" },
@@ -90,7 +94,9 @@ end
 --- Lines and highlights of the calendar for the selected date `sel`.
 --- Marks are { row, start_col, end_col, hl_group, priority } (0-based, bytes).
 ---@param sel table date
----@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean, live?: boolean, futurep?: boolean }
+--- `opts.marks` maps day numbers (`date.days_from_civil`) to the highlight
+--- group their day number is drawn with.
+---@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean, live?: boolean, futurep?: boolean, marks?: table<integer, string> }
 ---@return string[] lines, table[] marks
 function M.render(sel, opts)
   opts = opts or {}
@@ -151,6 +157,10 @@ function M.render(sel, opts)
       local group = d.month ~= sel.month and "OrgCalendarOutside"
         or (i >= 5 and "OrgCalendarWeekend" or "OrgCalendarDay")
       mark(row, s + 1, s + 3, group)
+      local marked = opts.marks and opts.marks[days]
+      if marked then
+        mark(row, s + 1, s + 3, marked, 120)
+      end
       if days == today_days then
         mark(row, s + 1, s + 3, "OrgCalendarToday", 150)
       end
@@ -201,6 +211,9 @@ function M.render(sel, opts)
     { { ".", "today" }, { cal.diary == "i" and "t" or "i", "type" }, { "T", "time" } },
     { { "⏎", "select" }, opts.allow_remove and { "x", "remove" } or nil, { q_quits and "q/Esc" or "Esc", "cancel" } },
   }
+  if opts.marks then
+    table.insert(hints, 2, { { "n/p", "next/previous marked day" } })
+  end
   if cal.agenda or cal.diary then
     -- the Emacs calendar's Org keys (org--setup-calendar-bindings)
     hints[#hints + 1] = {
@@ -368,6 +381,22 @@ function M.goto_agenda(days)
   require("org.agenda").open_agenda({ anchor = anchor })
 end
 
+--- The nearest marked day after (`dir` 1) or before (-1) the day number
+--- `from`, as a date; nil when there is none.
+---@param marks table<integer, string>
+---@param from integer
+---@param dir integer
+---@return table|nil
+function M.next_mark(marks, from, dir)
+  local best
+  for days in pairs(marks) do
+    if (dir > 0 and days > from or dir < 0 and days < from) and (not best or (days - best) * dir < 0) then
+      best = days
+    end
+  end
+  return best and date.from_days(best) or nil
+end
+
 --- read_date_popup_calendar (or its alias popup_calendar_for_date_prompt)
 local function popup_calendar()
   local o = require("org.config").opts
@@ -375,8 +404,9 @@ local function popup_calendar()
 end
 
 --- `opts.calendar`: the calendar of `goto_calendar`, with its Org keys
---- (`calendar_keys`).
----@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean, calendar?: boolean }
+--- (`calendar_keys`). `opts.marks`: days to highlight (see `render`),
+--- which `n` and `p` move between.
+---@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean, calendar?: boolean, marks?: table<integer, string> }
 ---@return table|nil
 function M.pick(opts)
   opts = opts or {}
@@ -529,6 +559,11 @@ function M.pick(opts)
     elseif ch == "." then
       local t = date.today()
       sel = sel:clone({ year = t.year, month = t.month, day = t.day })
+    elseif (ch == "n" or ch == "p") and opts.marks then
+      local target = M.next_mark(opts.marks, sel:days(), ch == "n" and 1 or -1)
+      if target then
+        sel = sel:clone({ year = target.year, month = target.month, day = target.day })
+      end
     elseif ch == "!" then
       viewed = true
       view_entries(sel)

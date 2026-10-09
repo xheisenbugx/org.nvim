@@ -399,6 +399,13 @@ describe("site", function()
       -- Lua blocks are highlighted with Neovim's tree-sitter parser
       local install = table.concat(vim.fn.readfile(out .. "/manual/org-installation.html"), "\n")
       has(install, '<code class="language-lua"><span class="h-')
+      -- the playground: a player per tutor lesson, linked from the README
+      local pg = table.concat(vim.fn.readfile(out .. "/playground.html"), "\n")
+      has(pg, 'data-src="playground/basics.js"')
+      has(pg, '<div class="pg-player" role="region" tabindex="0" aria-label="Recording of the basics lesson">')
+      has(pg, '<script src="assets/playground.js" defer></script>')
+      has(index, 'href="playground.html"')
+      ok(vim.uv.fs_stat(out .. "/playground/workflow.cast"))
       vim.fn.delete(out, "rf")
     end)
   end

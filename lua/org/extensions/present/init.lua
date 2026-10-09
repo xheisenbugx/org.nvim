@@ -17,6 +17,9 @@ local MOD = "org.extensions.present"
 local ns = vim.api.nvim_create_namespace("org_present")
 local augroup = vim.api.nvim_create_augroup("OrgPresent", { clear = true })
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- Headlines of this level or less start a slide.
   slide_level = 1,

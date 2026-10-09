@@ -53,6 +53,12 @@
       inhibit-message t
       system-time-locale "C")
 
+;; ... that leave no temporary file behind (late: after org-id's own
+;; kill-emacs-hook, which saves the locations there)
+(add-hook 'kill-emacs-hook
+          (lambda () (ignore-errors (delete-file org-id-locations-file)))
+          90)
+
 (defun parity-read-file (file)
   "Contents of FILE as a string."
   (with-temp-buffer

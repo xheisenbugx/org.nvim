@@ -271,6 +271,11 @@ function M.eval_external(src, opts)
   }, opts)
 end
 
+--- While above 0, `eval` doesn't start an Emacs: forms the small
+--- interpreter can't run fail (the live preview's exports, which run on
+--- every write and must not run code from the document).
+M.no_external = 0
+
 --- Evaluate the Lisp form `src` like Emacs's `(eval (read src) t)`: on the
 --- small interpreter of table formulas, and when that fails (a function
 --- it does not implement, ...) in a separate Emacs when there is one
@@ -286,7 +291,7 @@ function M.eval(src, opts)
   if ok then
     return v
   end
-  if opts.emacs == false or not M.command() then
+  if opts.emacs == false or M.no_external > 0 or not M.command() then
     local msg = tostring(v):gsub("^[^\n]-:%d+: ", "")
     return nil, opts.condition and ("(" .. msg .. ")") or msg
   end

@@ -49,6 +49,50 @@ jobs:
             exit 1
           fi
 
+  # The extension promotion report (scripts/extension_report.lua) in the
+  # job summary of every release pull request, so each release looks at
+  # promoting experimental extensions (CONTRIBUTING.md, "Promoting an
+  # extension"). Informational: it never fails. Line coverage comes from
+  # the latest Coverage workflow run, when its artifact is still there.
+  extensions-report:
+    name: extensions report
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          # the history and tags: releases since an extension was added and
+          # since its last breaking change
+          fetch-depth: 0
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Coverage from the latest Coverage run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # the latest run that tested dev: one started on dev, or a
+          # scheduled one (it runs on main, the default branch, but checks
+          # out dev); not one dispatched on another branch
+          id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow coverage.yml --status completed \
+            --limit 50 --json databaseId,headBranch,event \
+            --jq '[.[] | select(.headBranch == "dev" or .event == "schedule")][0].databaseId // empty' || true)
+          if [[ -n "$id" ]]; then
+            gh run download "$id" --repo "$GITHUB_REPOSITORY" --name coverage --dir coverage || true
+          fi
+      - name: Report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make extensions-report ARGS=--markdown | tee -a "$GITHUB_STEP_SUMMARY"
+
   publish:
     if: github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')
     runs-on: ubuntu-latest

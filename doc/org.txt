@@ -125,6 +125,10 @@ Tutor                                                *org-tutor* *:Org-tutor*
     buffer, when it is loaded, keeps its undo history: `u` brings back
     what you had). Completion lists the lessons.
 
+    The playground of the website, https://org-nvim.com/playground.html,
+    plays a recording of each lesson done exercise by exercise, with the
+    default keys.
+
     `ui.tutor_marks` sets the marks (default `{ done = "✓", todo = "✗" }`),
     and the highlight groups `OrgTutorDone`, `OrgTutorTodo` and
     `OrgTutorProgress` (the count on the first line) their colors.
@@ -1431,6 +1435,9 @@ The keys:
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
   <LeftMouse>    select the day clicked (<MiddleMouse> too)
+  n  p           only in a calendar with marked days (such as
+                 `journal_calendar`, |org-extensions-journal|): the next /
+                 previous marked day
   q  <Esc>       cancel
 With `read_date_popup_calendar = false` (org-read-date-popup-calendar, or
 its alias `popup_calendar_for_date_prompt`) date prompts are a plain
@@ -1464,6 +1471,8 @@ the colorscheme; override any of them with |nvim_set_hl()|:
   OrgCalendarSeparator rules                 (FloatBorder)
   OrgCalendarKey       keys of the hints     (Special)
   OrgCalendarHint      their descriptions    (Comment)
+  OrgCalendarMarked    marked days           (DiagnosticOk)
+  OrgCalendarMarkedFuture  marked future days  (DiagnosticInfo)
 
 Date input (like org-read-date)                                 *org-read-date*
 The typed text is read like Emacs org-read-date-analyze:
@@ -5129,6 +5138,88 @@ output going to the "*Org PDF LaTeX Output*" buffer. ODT is written natively
 (|org-export-odt|). DOCX and other pandoc formats run pandoc on the output
 of the Org back-end.
 
+Live HTML preview ~                                           *org-preview*
+`:Org preview` exports the buffer with the HTML back-end and opens the page
+in the browser, served by a small HTTP server inside Neovim (|vim.uv|, no
+other program). Each write of the buffer (`:w`, and org's own saves)
+exports it again and the page reloads, keeping its scroll position; with
+`export.preview.on_change = "text"` it also follows typing, `debounce` ms
+after the last change. Moving the cursor to another heading scrolls the
+page to that heading (`sync_cursor`). When an export fails the page keeps
+the last good version and shows the error at the bottom (a page opened
+while the export fails shows it too), and Neovim warns once until an
+export works again.
+`:Org preview_toggle` starts or stops the preview of the buffer,
+`:Org preview_stop` stops it (every preview when the buffer has none).
+A preview also stops when its buffer is wiped out and when Neovim quits.
+
+The page is exported like `:Org export html` (#+HTML_HEAD, #+OPTIONS and
+the `export.html` options apply), except that no code from the document
+runs: source blocks are not evaluated (the results already in the buffer
+are shown), `#+MACRO: name (eval FORM)` macros show as "[macro NAME not
+evaluated in the preview]", and Lisp header values are not sent to
+Emacs, unless `export.preview.evaluate_babel` is true. Images and other
+links relative to the Org file are served from its directory, so they
+show as they would next to an exported file (videos can seek: the server
+answers byte ranges); absolute paths and links to other Org files
+(exported as .html) don't resolve. The export runs in Neovim itself
+(about a second for 16,000 lines), so on large files "write" suits better
+than "text".
+
+One server, on a free port, serves every previewed buffer, each under its
+own random path (`http://127.0.0.1:PORT/p/TOKEN/`); it stops with the last
+preview. Options (`export.preview`): >lua
+  export = { preview = {
+    host = "127.0.0.1",   -- keep it on loopback (see below)
+    port = 0,             -- 0 = a free port
+    open_browser = true,  -- false: only show the URL; a command
+                          -- ({ "open", "-a", "Safari" }, "firefox") or
+                          -- function(url)
+    on_change = "write",  -- or "text"
+    debounce = 300,       -- ms, for "text"
+    sync_cursor = true,
+    evaluate_babel = false,
+    stylesheet = nil,     -- a URL, or a CSS file added to the page
+  } }
+<
+`open_browser` as a list (`{ "open", "-a", "Safari" }`) passes each item
+as one argument; a string is taken whole when it is the path of a
+program, and split on spaces otherwise. `host` takes an address
+("127.0.0.1", "::1"), "localhost" (127.0.0.1) or a host name, looked up
+when the server starts.
+
+Browsers open at most about six connections to one host and port at a
+time, and each open preview page keeps one for its event stream: with
+more than five previews open in one browser, further pages and their
+images wait. Close the pages you don't need (or open some through
+`localhost` instead of `127.0.0.1`, which the browser counts apart).
+
+Security: the server answers only GET and HEAD, listens on 127.0.0.1 by
+default, and serves only the page and the regular files below the
+directory of the Org file that the page refers to (its images, links,
+`<link>`ed stylesheets and the fonts and images those use); any other
+file is "404 Not Found", so a document in a large directory (`~/todo.org`)
+doesn't show the rest of it. Paths with `..`, `.` or hidden (dot)
+segments, absolute or drive paths, backslashes and NUL bytes are
+refused, and a symlink that leads out of the directory is refused too.
+Each preview's path holds 128 random bits, and requests whose Host isn't
+the server's own address (`127.0.0.1:PORT`, `localhost:PORT`) are
+refused, so a web page can't reach it by pointing its own domain name at
+this machine (DNS rebinding). A connection that doesn't send its request
+within 15 seconds is closed. Other users and programs on the same
+machine can still connect to the port; anything that knows the path can
+read the files the page refers to while the preview runs. Setting `host`
+to another address (or "0.0.0.0") shows them to the network and warns
+when the server starts.
+
+Preview only documents you trust: raw HTML in the document (`#+HTML:`,
+`@@html:...@@`, export blocks, #+HTML_HEAD) goes into the page as it is,
+and its scripts run in the browser on the preview's address, where they
+can read the files the page refers to. The page is sent with a
+Content-Security-Policy that keeps it from connecting to or posting
+forms to other sites (`connect-src 'self'; form-action 'self'`), but it
+can still load images and scripts from anywhere.
+
 Export settings ~                                        *org-export-settings*
 `#+TITLE`, `#+SUBTITLE`, `#+AUTHOR`, `#+EMAIL`, `#+DATE`, `#+CREATOR`,
 `#+LANGUAGE`, `#+SELECT_TAGS`, `#+EXCLUDE_TAGS`, `#+EXPORT_FILE_NAME`,
@@ -6986,7 +7077,9 @@ export ~                                                   *org-config-export*
   coding_system nil, process_citations, replace_macros true,
   smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, koma_letter, man, publish, cite;
-  pandoc { cmd, args }. See the comments in lua/org/config/export.lua for
+  pandoc { cmd, args }; preview { host, port, open_browser, on_change,
+  debounce, sync_cursor, evaluate_babel, stylesheet } (|org-preview|).
+  See the comments in lua/org/config/export.lua for
   every key and its Emacs variable.
   Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
   value): html allow_name_attribute_in_anchors, coding_system "utf-8",
@@ -8610,12 +8703,19 @@ Each extension is marked as one of:
                 a config or a script relies on one.
 
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
-              `kanban`, `sidebar`
-Experimental: `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`,
-              `code`, `literate`, `lsp`, `transclusion`, `timeline`,
-              `heatmap`, `hugo`
+              `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`
+Experimental: `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
+              `literate`, `lsp`, `timeline`, `hugo`, `journal`
 
 Bug reports about experimental extensions are just as welcome.
+
+An experimental extension becomes stable once it meets measurable criteria
+(specs and line coverage, an edge-case spec, every option documented, a
+health check, a few minor releases and a month since it was added, a few
+minor releases without a breaking change to its options, no open bug
+reports), checked at every release; the release notes say when
+one is promoted. `:checkhealth org` shows the stability of each enabled
+extension. The criteria are in CONTRIBUTING.md ("Promoting an extension").
 
 Writing an extension ~
 An extension is a module `lua/org/extensions/<name>.lua` (or
@@ -8631,6 +8731,9 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
   `teardown`   `function()`, undoes `setup` when a later `setup()` turns
                the extension off or sets it up again
+  `stability`  `"stable"` or `"experimental"`, as above. A built-in
+               extension without it is experimental; `:checkhealth org`
+               shows it for a third-party extension that sets it
 
 ------------------------------------------------------------------------------
 org-ql                                                    *org-extensions-ql*
@@ -9786,7 +9889,7 @@ Differences from Emacs org-drill ~
 ------------------------------------------------------------------------------
 Structural git merges                                  *org-extensions-merge*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `merge` is a git merge driver that merges Org files entry by entry instead
 of line by line, so two clones of the same notes (a laptop and a phone,
@@ -11228,7 +11331,7 @@ Notes ~
 ------------------------------------------------------------------------------
 Transclusion (org-transclusion)                  *org-extensions-transclusion*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `transclusion` shows text from other files, or other parts of the same
 file, where a `#+transclude:` keyword points to, like Emacs
@@ -11639,7 +11742,7 @@ as the kanban board is.
 ------------------------------------------------------------------------------
 Heatmap                                               *org-extensions-heatmap*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 A calendar heatmap in the style of GitHub's contribution graph: a column per
 week, a row per weekday, each day shaded by what was done that day.
@@ -11766,5 +11869,144 @@ Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 `OrgSidebarDue`, `OrgSidebarScheduled`, `OrgSidebarProgress`,
 `OrgSidebarProgressEmpty`, `OrgSidebarOverrun`, `OrgSidebarPomodoro`,
 `OrgSidebarEvent`.
+
+------------------------------------------------------------------------------
+Journal (org-journal)                                  *org-extensions-journal*
+
+Stability: experimental (|org-extensions-stability|)
+
+`journal` keeps a dated journal in a directory of Org files, like Emacs
+org-journal, whose file format it shares:
+>lua
+    require("org").setup({ extensions = { journal = { directory = "~/journal" } } })
+<
+Each day is a top-level heading, "* Thursday, 2026-10-08", and each entry a
+heading under it with the time it was written:
+>
+    * Thursday, 2026-10-08
+    ** 09:12 Standup
+    Talked about the release.
+    ** 14:05 
+<
+With `file_type = "daily"` (the default) there is one file per day, named
+after it with `file_format` (`20261008.org`). With "weekly", "monthly" or
+"yearly" a file holds the days of its week (starting on
+`start_on_weekday`), month or year, named after the first of them, and
+each day heading has a `:CREATED: 20261008` property that gives its date,
+as in Emacs.
+
+Actions ~
+  `journal_new_entry`      `<prefix>Lj`  Open today's journal and add an
+                         entry at the end of the day, the cursor after the
+                         time, in Insert mode (org-journal-new-entry). The
+                         file, its `file_header` and the day heading are
+                         made when missing. `:Org journal_new_entry {date}`
+                         adds an entry on another day (any date the date
+                         prompt reads: `-1`, `fri`, `2026-10-01`), without
+                         a time unless it is today.
+  `journal_open`           `<prefix>Lo`  Today's day without a new entry
+                         (org-journal-new-entry with C-u).
+  `journal_new_date_entry` `<prefix>Ld`  An entry on a day picked in the
+                         calendar: a past day or today gets a new entry, a
+                         future day a scheduled one
+                         (org-journal-new-date-entry).
+  `journal_new_scheduled_entry` `<prefix>LS`  A `TODO` entry on a future
+                         day with an active timestamp of that day (and the
+                         time, when one was given) below it, so it shows in
+                         the agenda (org-journal-new-scheduled-entry).
+  `journal_next`           `<prefix>Ln`  The next day with entries, in this
+  `journal_previous`       `<prefix>Lp`  file or another one; a count skips
+                         days (org-journal-next-entry, -previous-entry).
+                         Outside the journal they start from today.
+  `journal_search`         `<prefix>Ls`  Search the journal: the matching
+                         lines in the picker (|org-pickers|), each with its
+                         day, `<CR>` jumps to one and the picker's quickfix
+                         key sends them all to the quickfix list
+                         (org-journal-search). The text is searched as
+                         typed, ignoring case unless it has a capital
+                         letter; an empty text lists every entry.
+                         `:Org journal_search [range] [text]` searches a
+                         range: `week`, `month`, `year` (the current
+                         ones), `future`, `past`, `all` or `FROM..TO`
+                         (`2026-09-01..2026-09-30`, `-7..`, either side
+                         may be empty; when a side isn't a date the
+                         words are all search text, as in "wait.. what").
+  `journal_calendar`       `<prefix>Lc`  The calendar (|org-calendar|) with
+                         the days that have entries marked (future ones in
+                         another colour); `n` / `p` go to the next /
+                         previous of them and `<CR>` opens the day. A day
+                         without entries is made after a question
+                         (org-journal-mark-entries and the calendar's
+                         `j r`).
+
+`<prefix>j` belongs to |org-extensions-code| and `<prefix>J` moves subtrees,
+so the journal keys start with `<prefix>L` (set any of them in
+`mappings.global`, or to false).
+
+Carry-over ~
+Each time today's journal is opened (by any of the actions above), the
+items of the last day before today that match `carryover` (a tags or
+property match as in the agenda's tags view, |org-match-syntax|) move
+to the end of today, as in org-journal: each item with its subtree and the
+headings above it up to the day, which stay behind as long as something
+else is left under them. Timestamps of the old day in the moved text
+("Seen on <2026-10-07 Wed>") become today's, except on SCHEDULED and
+DEADLINE lines. Both files are saved. With `carryover_delete_empty`, the
+previous day is deleted when nothing but its heading, planning and drawers
+is left, with its file when it was the file's only day ("ask" asks
+first). As in org-journal this runs on every opening of today, so items
+that match again (or were added to the earlier day since) move too. Only
+the files from the newest back to the first one with a day before today
+are read.
+>lua
+    journal = { carryover = 'TODO="TODO"|TODO="NEXT"', carryover_delete_empty = true }
+<
+Agenda ~
+With `agenda = true` the journal files of the current period and later
+(the ones scheduled entries are written to) are agenda files too, besides
+`agenda_files` (org-journal-enable-agenda-integration); `agenda = "all"`
+adds every journal file.
+
+Options (defaults) ~
+  `directory`              "~/org/journal", relative to `org_directory`
+                         unless absolute (org-journal-dir); it may be or
+                         lie under a symlink
+  `file_type`              "daily", "weekly", "monthly" or "yearly"
+  `file_format`            "%Y%m%d.org", a format-time-string of the
+                         period's first day; it may hold directories
+                         ("%Y/%m%d.org"). It needs %Y, %m and %d for daily
+                         and weekly files (or %G and %V for weekly ones),
+                         %Y and %m for monthly ones and %Y for yearly ones;
+                         `:checkhealth org` checks it. Unlike Emacs it
+                         ends in ".org", so the files open as Org files.
+  `start_on_weekday`       1 (Monday) to 7 (Sunday), for weekly files
+  `file_header`            "", text at the top of a new file, a
+                         format-time-string of the day ("#+title: %F") or
+                         `function(date) return text end`
+  `date_prefix`            "* "; for daily files a prefix that isn't a
+                         heading ("#+title: ") makes the whole file the
+                         day, from that line (added after `file_header`)
+  `date_format`            "%A, %Y-%m-%d" (Emacs: "%A, %x"), or a
+                         function returning the whole heading line
+  `time_prefix`            "** "
+  `time_format`            "%R ", "" for untimed entries
+  `entry_template`         nil, lines added under a new entry's heading
+                         (format-time-string of the day, or a function
+                         whose text is taken as is); `%?` is where the
+                         cursor goes: "- Mood: %?\n- Grateful for: ",
+                         "Logged %F\n%?"
+  `carryover`              'TODO="TODO"', false for none
+  `carryover_delete_empty` false, true or "ask"
+  `scheduled_string`       "", text before the timestamp of a scheduled
+                         entry ("SCHEDULED:" makes it a planning line)
+  `agenda`                 false, true or "all"
+  `search_date_format`     "%a %Y-%m-%d"
+  `search_order`           "asc" or "desc"
+
+Differences from org-journal: files open in the current window
+(org-journal uses another window), other entries aren't folded away when
+one is added, the search results are a picker instead of a buffer, and
+encryption is left to |org-crypt| (tag entries `:crypt:`). `:CREATED:`
+values are always `%Y%m%d` (any `YYYY-MM-DD` value is read too).
 
  vim:tw=78:ts=8:ft=help:norl:
