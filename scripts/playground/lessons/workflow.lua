@@ -49,6 +49,16 @@ return {
   },
   {
     id = "3.2",
-    steps = { { at = "Time spent" }, { key = "{{org.clock_report}}" }, { key = "{{org.cycle}}" } },
+    steps = {
+      { at = "Time spent" },
+      { key = "{{org.clock_report}}" },
+      -- zv: the child Neovim can show the new block folded (stale folds)
+      { at = "#+BEGIN: clocktable", col = "subtree" },
+      { key = "zv" },
+      { key = "ciw" },
+      { type = "file" },
+      { key = "<Esc>" },
+      { key = "{{org.context_action}}" },
+    },
   },
 }

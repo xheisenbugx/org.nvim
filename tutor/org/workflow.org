@@ -67,9 +67,11 @@ drawer with a =CLOCK:= line appears under the headline.
 
 ** 3.2 Report the time
 Put the cursor on the =Time spent= headline and press
-={{org.clock_report}}=: a clock table that sums the clocked time of this
-file appears below it. ={{org.context_action}}= on its =#+BEGIN:= line
-updates it.
+={{org.clock_report}}=: a clock table appears below it. It sums the time
+clocked under this headline (=:scope subtree=), so it shows nothing yet.
+On its =#+BEGIN:= line change =subtree= to =file= and press
+={{org.context_action}}= there: the table now sums every clock of this
+file, 3.1's task included.
 
 *** Time spent
 
