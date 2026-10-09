@@ -3414,6 +3414,14 @@ Syntax: `[[target][description]]`, `[[target]]`, plain links
 of the link, trailing punctuation is not) and <angle> links. Bracket links
 may span lines. With `ui.conceal_links` (org-link-descriptive), only the
 description is shown.
+                                                    *org-links-wrap*
+With 'wrap' on, Neovim breaks a line by its full text, the hidden part
+of a link included (neovim issue 14409, the same in Vim): when a link's
+hidden target reaches the right edge of the window, its description
+starts on the next row and the row above ends in a gap as wide as the
+hidden text. Emacs wraps the text as shown. This is Neovim's drawing,
+not something a plugin can change; to avoid the gap, set 'nowrap' in
+org buffers, or show links in full with <prefix>lt.
                                                     *org-conceal-cursor*
 As in Emacs, where point never stays inside invisible text, Normal-mode
 motions skip what is hidden: `l` from the text before a link goes to the
@@ -8224,7 +8232,9 @@ Differences from Emacs:
   with the default "nc"), as Neovim reveals concealed text there. An image
   shown in place of its link whose line wraps after it, or on the first
   line of a closed fold, is drawn below the line or shown as its link text
-  (Emacs makes that screen line as tall as the image). Vim draws syntax
+  (Emacs makes that screen line as tall as the image). A wrapped line
+  breaks by its full text, hidden link targets included, so a long link
+  near the window edge leaves a gap (|org-links-wrap|). Vim draws syntax
   up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
   ends before that column, so a long line can't leave the lines below it
   bold. Emphasis over two lines is highlighted only when its part on the
