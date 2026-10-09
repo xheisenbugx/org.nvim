@@ -79,8 +79,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # the latest run that tested dev: one started on dev, or a
+          # scheduled one (it runs on main, the default branch, but checks
+          # out dev); not one dispatched on another branch
           id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow coverage.yml --status completed \
-            --limit 1 --json databaseId --jq '.[0].databaseId' || true)
+            --limit 50 --json databaseId,headBranch,event \
+            --jq '[.[] | select(.headBranch == "dev" or .event == "schedule")][0].databaseId // empty' || true)
           if [[ -n "$id" ]]; then
             gh run download "$id" --repo "$GITHUB_REPOSITORY" --name coverage --dir coverage || true
           fi
