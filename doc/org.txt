@@ -8696,8 +8696,9 @@ Bug reports about experimental extensions are just as welcome.
 
 An experimental extension becomes stable once it meets measurable criteria
 (specs and line coverage, an edge-case spec, every option documented, a
-health check, some releases without a breaking change to its options, no
-open bug reports), checked at every release; the release notes say when
+health check, a few minor releases and a month since it was added, a few
+minor releases without a breaking change to its options, no open bug
+reports), checked at every release; the release notes say when
 one is promoted. `:checkhealth org` shows the stability of each enabled
 extension. The criteria are in CONTRIBUTING.md ("Promoting an extension").
 

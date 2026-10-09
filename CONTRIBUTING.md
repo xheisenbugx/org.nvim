@@ -546,15 +546,20 @@ when it meets **every** criterion:
 | specs | `it(...)` tests in its own spec files: `ext_<name>_spec.lua`, `ext_<name>_<part>_spec.lua`, `fuzz_<name>_spec.lua` | ≥ 25 |
 | edge spec | a fuzz spec, a spec file `ext_<name>_{edge,safety,stress,fuzz,robust}…_spec.lua`, or a `describe` in its specs about edge / stress / malformed / fuzz / robust / corner / pathological / safety cases | one |
 | coverage | line coverage of `lua/org/extensions/<name>/` by `make coverage` | ≥ 80% |
-| docs | every option (each key of its `defaults`, and the keys of a nested table of options) named in its `doc/org.txt` section; every top-level option a `---@field` of its class in `lua/org/_meta/` | all |
+| docs | every option (each key of its `defaults`, and the keys of a nested table of options, not of a `keys` / `*_keys` table) named in its `doc/org.txt` section (a nested key also counts as `<name>_<key>`); every top-level option a `---@field` of its class in `lua/org/_meta/` | all |
 | health | a `health` function (`:checkhealth org`) | yes |
-| releases | `vX.Y.Z` tags that contain its first commit | ≥ 3 |
-| no break | releases since its last breaking change: a commit marked breaking (`!` before the colon, or a `BREAKING CHANGE:` footer) whose scope or footer names it, or one that removed a `---@field` from its `_meta` class | ≥ 3 (or never) |
-| open bugs | open issues labelled `bug` with a label named after it, or with the `extension` label and its name in the title (needs `gh`; skipped offline) | 0 |
+| releases, age | minor or major releases (`vX.Y.0` tags) that contain its first commit, and days since that commit | ≥ 3, ≥ 30 days |
+| no break | minor or major releases after the one that shipped its last breaking change: a commit marked breaking (`!` before the colon, or a `BREAKING CHANGE:` footer) whose scope is its name; or whose scope is `extensions` / `ext` and whose subject or footer has its name as a word; or whose footer names it unambiguously (`` `name` ``, "name extension", `extensions.name`); or one that removed a `---@field` from its `_meta` class | ≥ 3 (or never) |
+| open bugs | open issues labelled `bug` about it: a label named after it (or `ext:<name>`), its name in the bug form's Extension field, or a title naming it (`name: ...`, `[name] ...`, `fix(name): ...`, `` `name` ``, "name extension"; the bare word only for a name that isn't an everyday word), or a body saying "name extension" or `extensions.name` (needs `gh`; skipped offline) | 0 |
 | demo | enabled in the live demo config (`--demo FILE`, `$ORG_DEMO_CONFIG` or `~/demo/config.lua`; skipped when there is none) | yes |
 
 A skipped criterion (no `gh`, no demo config) doesn't block a candidate,
-but check it by hand before promoting. The bar is the `BAR` table at the
+but check it by hand before promoting. The history criteria need every
+commit and the release tags: in a shallow clone or one without tags they
+are not measured (`?`), and that blocks a promotion. So name the
+extension in a breaking commit unambiguously, and when you add an
+extension, add it to the Extension dropdown of
+`.github/ISSUE_TEMPLATE/bug_report.yml` too. The bar is the `BAR` table at the
 top of the script; change it there and here together.
 
 To promote, in a pull request into `dev` titled for the changelog

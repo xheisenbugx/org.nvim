@@ -197,6 +197,18 @@ describe("extension promotion report", function()
     eq(false, rows.heatmap.candidate)
   end)
 
+  it("the bug report form lists every built-in extension", function()
+    local form = read(".github/ISSUE_TEMPLATE/bug_report.yml")
+    local block = form:match("\n    id: extension\n(.-)\n    validations:")
+    ok(block, "bug_report.yml has the Extension dropdown")
+    local options = {}
+    for o in block:gmatch("\n        %- ([^\n]+)") do
+      options[#options + 1] = o
+    end
+    eq("None (org.nvim itself)", table.remove(options, 1))
+    eq(exts.builtin(), options)
+  end)
+
   it("rejects an extension that doesn't exist", function()
     local res = vim
       .system(
@@ -206,5 +218,173 @@ describe("extension promotion report", function()
       :wait()
     eq(2, res.code)
     ok(res.stderr:find("no built-in extension nope", 1, true), res.stderr)
+  end)
+
+  --- Runs the report with `args` and returns its rows by name.
+  local function report(args)
+    local cmd = { vim.v.progpath, "--headless", "--clean", "-l", root .. "/scripts/extension_report.lua", "--json" }
+    local res = vim.system(vim.list_extend(cmd, args), { text = true }):wait()
+    eq(0, res.code, res.stderr)
+    local rows = {}
+    for _, r in ipairs(vim.json.decode(res.stdout).extensions) do
+      rows[r.name] = r
+    end
+    return rows
+  end
+
+  --- A throwaway git repository built by `steps`: { files = { path... },
+  --- msg = ..., days_ago = N, tags = { ... } }, oldest first.
+  local function repo(steps)
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local env = { GIT_CONFIG_NOSYSTEM = "1", GIT_CONFIG_GLOBAL = "/dev/null" }
+    local function git(args, date)
+      local e = vim.deepcopy(env)
+      if date then
+        e.GIT_AUTHOR_DATE, e.GIT_COMMITTER_DATE = date, date
+      end
+      local cmd = { "git", "-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false" }
+      local res = vim.system(vim.list_extend(cmd, args), { text = true, env = e }):wait()
+      eq(0, res.code, res.stderr)
+    end
+    git({ "init", "-q" })
+    for i, step in ipairs(steps) do
+      for _, f in ipairs(step.files or { "README" }) do
+        vim.fn.mkdir(vim.fs.dirname(dir .. "/" .. f), "p")
+        vim.fn.writefile({ tostring(i) }, dir .. "/" .. f, "a")
+      end
+      git({ "add", "-A" })
+      git({ "commit", "-q", "-m", step.msg }, ("@%d +0000"):format(os.time() - (step.days_ago or 0) * 86400))
+      for _, t in ipairs(step.tags or {}) do
+        git({ "tag", t })
+      end
+    end
+    return dir
+  end
+
+  local function ext_file(name)
+    return "lua/org/extensions/" .. name .. "/init.lua"
+  end
+
+  it("charges a breaking change only to the extensions it names", function()
+    local dir = repo({
+      {
+        msg = "feat: the extensions",
+        files = { ext_file("heatmap"), ext_file("code"), ext_file("present"), ext_file("review") },
+        days_ago = 400,
+        tags = { "v1.0.0" },
+      },
+      { msg = "feat(journal): add journal", files = { ext_file("journal") }, days_ago = 5 },
+      {
+        -- every name in its footer is an extension's, but as plain words
+        msg = "refactor(babel)!: hash the whole src block\n\n"
+          .. "BREAKING CHANGE: the code of a src block is hashed with its header, "
+          .. "so present caches are invalidated; review them.",
+        days_ago = 300,
+        tags = { "v1.1.0" },
+      },
+      { msg = "fix: x", days_ago = 290, tags = { "v1.1.1", "v1.2.0" } },
+      { msg = "feat(extensions)!: rename the heatmap :Org heatmap kinds", days_ago = 200, tags = { "v1.3.0" } },
+      { msg = "fix: y", days_ago = 100, tags = { "v1.3.1" } },
+      { msg = "fix: z", days_ago = 50, tags = { "v1.4.0" } },
+    })
+    local rows = report({ "--no-gh", "--repo", dir, "heatmap", "code", "present", "review", "journal" })
+    vim.fn.delete(dir, "rf")
+    for _, name in ipairs({ "code", "present", "review" }) do
+      eq("never", rows[name].criteria.breaking.value, name)
+      eq(true, rows[name].criteria.breaking.pass, name)
+    end
+    -- `feat(extensions)!:` naming it: v1.3.0 shipped it, v1.4.0 is the only
+    -- minor release after it (v1.3.1 is a patch)
+    eq("1", rows.heatmap.criteria.breaking.value)
+    eq(false, rows.heatmap.criteria.breaking.pass)
+    -- minor releases with its first commit: v1.0.0 to v1.4.0, not v1.1.1
+    -- or v1.3.1
+    eq("5, 400d", rows.heatmap.criteria.added.value)
+    eq(true, rows.heatmap.criteria.added.pass)
+    -- in four minor releases, but only five days old
+    eq(false, rows.journal.criteria.added.pass)
+  end)
+
+  it("charges a footer that names the extension unambiguously", function()
+    local dir = repo({
+      { msg = "feat: review", files = { ext_file("review"), ext_file("code") }, days_ago = 90, tags = { "v1.0.0" } },
+      { msg = "fix(agenda): x\n\nBREAKING CHANGE: the `review` keys are now under keys.", tags = { "v1.1.0" } },
+    })
+    local rows = report({ "--no-gh", "--repo", dir, "review", "code" })
+    vim.fn.delete(dir, "rf")
+    eq("0", rows.review.criteria.breaking.value)
+    eq("never", rows.code.criteria.breaking.value)
+  end)
+
+  it("doesn't measure the history without tags or in a shallow clone", function()
+    local dir = repo({ { msg = "feat: heatmap", files = { ext_file("heatmap") }, days_ago = 90 } })
+    local rows = report({ "--no-gh", "--repo", dir, "heatmap" })
+    for _, k in ipairs({ "added", "breaking" }) do
+      eq("?", rows.heatmap.criteria[k].value, k)
+      eq(nil, rows.heatmap.criteria[k].pass, k)
+      eq("needs full history and tags", rows.heatmap.criteria[k].detail, k)
+    end
+    eq(false, rows.heatmap.candidate)
+
+    local full = repo({
+      { msg = "feat: heatmap", files = { ext_file("heatmap") }, days_ago = 90, tags = { "v1.0.0" } },
+      { msg = "fix: x", tags = { "v1.1.0" } },
+    })
+    local shallow = vim.fn.tempname()
+    local res = vim.system({ "git", "clone", "-q", "--depth", "1", "file://" .. full, shallow }, { text = true }):wait()
+    eq(0, res.code, res.stderr)
+    rows = report({ "--no-gh", "--repo", shallow, "heatmap" })
+    eq(nil, rows.heatmap.criteria.added.pass)
+    eq(nil, rows.heatmap.criteria.breaking.pass)
+    -- the full clone is measured
+    rows = report({ "--no-gh", "--repo", full, "heatmap" })
+    eq("2, 90d", rows.heatmap.criteria.added.value)
+    eq("never", rows.heatmap.criteria.breaking.value)
+    for _, d in ipairs({ dir, full, shallow }) do
+      vim.fn.delete(d, "rf")
+    end
+  end)
+
+  it("counts the open bugs about each extension", function()
+    local file = vim.fn.tempname()
+    local function issue(number, title, body)
+      return { number = number, title = title, body = body or "", labels = { { name = "bug" } } }
+    end
+    vim.fn.writefile({
+      vim.json.encode({
+        issue(1, "heatmap: crash on an empty file"),
+        issue(2, "Wrong code block in the agenda", "### What happened\n\nx\n\n### Extension\n\nreview\n\n### Steps"),
+        issue(3, "Folding breaks", "### Extension\n\nNone (org.nvim itself)\n\nThe present code is wrong; review it."),
+        issue(4, "The kanban board doesn't refresh"),
+        issue(5, "[present] slides overlap"),
+        issue(6, "fix(timeline): dates", "### Extension\n\n_No response_"),
+        issue(7, "Timeline of the merge", "With the drill extension enabled"),
+      }),
+    }, file)
+    local rows =
+      report({ "--issues", file, "heatmap", "review", "code", "kanban", "present", "timeline", "merge", "drill" })
+    vim.fn.delete(file)
+    local function bugs(name)
+      return rows[name].criteria.bugs.detail
+    end
+    eq("#1", bugs("heatmap"))
+    eq("#2", bugs("review"))
+    eq(nil, bugs("code"))
+    eq("0", rows.code.criteria.bugs.value)
+    eq(true, rows.code.criteria.bugs.pass)
+    eq("#4", bugs("kanban"))
+    eq("#5", bugs("present"))
+    eq("#6", bugs("timeline"))
+    eq(nil, bugs("merge"))
+    eq("#7", bugs("drill"))
+    eq(false, rows.heatmap.criteria.bugs.pass)
+  end)
+
+  it("counts the documented keys of present and review", function()
+    local rows = report({ "--no-gh", "present", "review" })
+    for _, name in ipairs({ "present", "review" }) do
+      eq(true, rows[name].criteria.docs.pass, rows[name].criteria.docs.detail)
+    end
   end)
 end)

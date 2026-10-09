@@ -12,6 +12,10 @@
 --                       coverage/coverage.json when it exists)
 --   --no-gh             don't ask GitHub for open bug issues (also when
 --                       `gh` is missing or fails: the column is skipped)
+--   --issues FILE       open bug issues as the JSON of `gh issue list --json
+--                       number,title,body,labels` instead of asking GitHub
+--   --repo DIR          read the history (commits and tags) from the git
+--                       repository DIR instead of this checkout
 --   --demo FILE         the live demo config (default: $ORG_DEMO_CONFIG,
 --                       else ~/demo/config.lua when it exists; skipped
 --                       when there is none)
@@ -28,9 +32,12 @@ local BAR = {
   specs = 25,
   -- line coverage of its files, percent
   coverage = 80,
-  -- releases (vX.Y.Z tags) that contain its first commit
+  -- minor or major releases (vX.Y.0 tags) that contain its first commit
   releases_since_added = 3,
-  -- releases since the last breaking change to its options
+  -- days since its first commit
+  days_since_added = 30,
+  -- minor or major releases after the one that shipped the last breaking
+  -- change to its options
   releases_since_breaking = 3,
 }
 
@@ -45,7 +52,7 @@ do
       opts.format = "json"
     elseif a == "--no-gh" then
       opts.gh = false
-    elseif a == "--coverage" or a == "--demo" then
+    elseif a == "--coverage" or a == "--demo" or a == "--issues" or a == "--repo" then
       i = i + 1
       opts[a:sub(3)] = arg[i]
     elseif a:match("^[%w_]+$") then
@@ -84,7 +91,7 @@ local function run(cmd)
 end
 
 local function git(...)
-  return run(vim.list_extend({ "git", "-C", root }, { ... }))
+  return run(vim.list_extend({ "git", "-C", opts.repo or root }, { ... }))
 end
 
 local function lines(s)
@@ -285,13 +292,16 @@ local function is_record_map(t)
 end
 
 --- Option names of an extension: the keys of its `defaults` and, one level
---- down, the keys of a table of options (not of a list or of a map of records).
+--- down, the keys of a table of options (not of a list, of a map of records
+--- or of a table of keys, `keys` or `<...>_keys`, whose entries are actions
+--- documented with the keys bound to them).
 local function option_names(defaults)
   local top, nested = {}, {}
   for k, v in pairs(defaults or {}) do
     if type(k) == "string" and k ~= "enabled" then
       top[#top + 1] = k
-      if type(v) == "table" and not vim.islist(v) and next(v) ~= nil and not is_record_map(v) then
+      local keys = k == "keys" or k:match("_keys$")
+      if type(v) == "table" and not keys and not vim.islist(v) and next(v) ~= nil and not is_record_map(v) then
         for k2 in pairs(v) do
           if type(k2) == "string" then
             nested[#nested + 1] = k2
@@ -327,8 +337,9 @@ local function measure_docs(name, ext)
   end
   for _, k in ipairs(nested) do
     -- nested shapes are typed inline or by shared classes in _meta: only
-    -- the manual is checked for them
-    if section and not has_word(section, k) then
+    -- the manual is checked for them, where `<name>_<key>` (an action
+    -- named after it) counts too
+    if section and not has_word(section, k) and not has_word(section, name .. "_" .. k) then
       missing.doc[#missing.doc + 1] = k
     end
   end
@@ -338,26 +349,63 @@ end
 -- ---------------------------------------------------------------------------
 -- History: releases since it was added and since its last breaking change
 
+-- the history is only measured with every commit and the release tags
+local history_ok = vim.trim(git("rev-parse", "--is-shallow-repository") or "") == "false"
+
+--- vX.Y.Z -> { X, Y, Z }
+local function version(tag)
+  local x, y, z = tag:match("^v(%d+)%.(%d+)%.(%d+)$")
+  return x and { tonumber(x), tonumber(y), tonumber(z) } or nil
+end
+
+local function older(a, b)
+  local va, vb = version(a), version(b)
+  for i = 1, 3 do
+    if va[i] ~= vb[i] then
+      return va[i] < vb[i]
+    end
+  end
+  return false
+end
+
 local release_tags = {}
 for _, t in ipairs(lines(git("tag", "--list", "v*"))) do
-  if t:match("^v%d+%.%d+%.%d+$") then
+  if version(t) then
     release_tags[t] = true
   end
 end
+if next(release_tags) == nil then
+  history_ok = false
+end
 
---- Release tags that contain `commit`.
-local function releases_since(commit)
-  local n = 0
+--- The release tags that contain `commit`, oldest first.
+local function releases_with(commit)
+  local out = {}
   for _, t in ipairs(lines(git("tag", "--contains", commit))) do
     if release_tags[t] then
+      out[#out + 1] = t
+    end
+  end
+  table.sort(out, older)
+  return out
+end
+
+--- Minor and major releases (vX.Y.0) that contain `commit`; with `after`,
+--- not counting the release that shipped it.
+local function releases_since(commit, after)
+  local n = 0
+  for i, t in ipairs(releases_with(commit)) do
+    if version(t)[3] == 0 and not (after and i == 1) then
       n = n + 1
     end
   end
   return n
 end
 
+local SCOPE_ALL = { extensions = true, ext = true }
+
 -- commits marked breaking (`type(scope)!:` or a BREAKING CHANGE: footer):
--- { hash, time, scopes = { name = true }, footer = text }
+-- { hash, time, subject, scopes = { name = true }, footer = text }
 local breaking_commits = {}
 do
   local out =
@@ -376,10 +424,47 @@ do
           scopes[(s:gsub("-", "_"))] = true
         end
         breaking_commits[#breaking_commits + 1] =
-          { hash = hash, time = tonumber(time), scopes = scopes, footer = footer }
+          { hash = hash, time = tonumber(time), subject = subject, scopes = scopes, footer = footer }
       end
     end
   end
+end
+
+--- Whether `text` names extension `name` unambiguously: `` `name` ``,
+--- "name extension" or `extensions.name` (many names are English words, so
+--- the bare word doesn't count).
+local function names_extension(text, name)
+  text = text:lower()
+  for _, n in ipairs({ name, (name:gsub("_", "-")) }) do
+    local p = vim.pesc(n)
+    if
+      text:find("`" .. p .. "`")
+      or text:find("%f[%w_]" .. p .. " extension")
+      or text:find("extensions%." .. p .. "%f[^%w_]")
+    then
+      return true
+    end
+  end
+  return false
+end
+
+--- Whether breaking commit `c` is a breaking change of extension `name`:
+--- its scope is the extension; or its scope is `extensions`/`ext` and its
+--- subject or footer names it as a word; or its footer names it
+--- unambiguously (names_extension).
+local function breaks(c, name)
+  if c.scopes[name] then
+    return true
+  end
+  for s in pairs(c.scopes) do
+    if SCOPE_ALL[s] then
+      local subject = c.subject:gsub("^[^:]*:", "")
+      if has_word(subject, name) or (c.footer and has_word(c.footer, name)) then
+        return true
+      end
+    end
+  end
+  return c.footer ~= nil and names_extension(c.footer, name)
 end
 
 -- file contents at a revision, shared by the extensions whose options are
@@ -415,12 +500,21 @@ local function last_option_removal(file, class)
   end
 end
 
+--- nil when the history can't be measured (a shallow clone, no tags).
 local function measure_history(name)
-  local first = lines(git("log", "--reverse", "--format=%H", "--", "lua/org/extensions/" .. name))[1]
-  local res = { added = first and releases_since(first) or 0 }
+  if not history_ok then
+    return nil
+  end
+  local dir = "lua/org/extensions/" .. name
+  local log = lines(git("log", "--reverse", "--format=%H %ct", "--", dir, dir .. ".lua"))[1]
+  local first, first_time = (log or ""):match("^(%x+) (%d+)$")
+  local res = {
+    added = first and releases_since(first) or 0,
+    age = first and math.floor((os.time() - tonumber(first_time)) / 86400) or 0,
+  }
   local last
   for _, c in ipairs(breaking_commits) do
-    if c.scopes[name] or (c.footer and has_word(c.footer, name)) then
+    if breaks(c, name) then
       last = c
       break -- git log lists the newest first
     end
@@ -431,7 +525,7 @@ local function measure_history(name)
     last = removal
   end
   if last then
-    res.breaking = releases_since(last.hash)
+    res.breaking = releases_since(last.hash, true)
     res.breaking_commit = last.hash:sub(1, 7) .. (last.field and (" (removed " .. last.field .. ")") or "")
   end
   return res
@@ -441,7 +535,14 @@ end
 -- Open bug issues (GitHub, optional)
 
 local issues
-if opts.gh and vim.fn.executable("gh") == 1 then
+if opts.issues then
+  local ok, data = pcall(vim.json.decode, read(opts.issues) or "")
+  if not ok or type(data) ~= "table" then
+    io.stderr:write("extension_report.lua: can't read issues from " .. opts.issues .. "\n")
+    os.exit(2)
+  end
+  issues = data
+elseif opts.gh and vim.fn.executable("gh") == 1 then
   local out = run({
     "gh",
     "issue",
@@ -453,7 +554,7 @@ if opts.gh and vim.fn.executable("gh") == 1 then
     "--limit",
     "1000",
     "--json",
-    "number,title,labels",
+    "number,title,body,labels",
   })
   local ok, data = pcall(vim.json.decode, out or "")
   if out and ok and type(data) == "table" then
@@ -461,26 +562,78 @@ if opts.gh and vim.fn.executable("gh") == 1 then
   end
 end
 
---- Open issues labelled `bug` with a label named after the extension, or
---- with the `extension` label and its name in the title.
+-- names that are also everyday words (or core terms): a bug title only
+-- counts for them when it names the extension unambiguously
+local WORDS = {
+  cli = true,
+  code = true,
+  diagrams = true,
+  drill = true,
+  journal = true,
+  literate = true,
+  lsp = true,
+  merge = true,
+  present = true,
+  review = true,
+  sidebar = true,
+  timeline = true,
+  transclusion = true,
+}
+
+--- The "Extension" field of the bug report form (.github/ISSUE_TEMPLATE/
+--- bug_report.yml), as GitHub renders it in the body.
+local function form_extension(body)
+  local v = ((body or "") .. "\n"):match("\n?###%s*Extension%s*\n%s*([^\n]-)%s*\n")
+  return v and v:lower()
+end
+
+--- Whether a bug issue is about extension `name`: a label named after it
+--- (or `ext:<name>`), the form's Extension field, or its title naming it:
+--- `name: ...`, `[name] ...`, `fix(name): ...`, `` `name` ``, "name
+--- extension", `extensions.name`, or (for a name that isn't an everyday
+--- word) the name as a word; or its body saying "name extension" or
+--- `extensions.name`.
+local function about(issue, name)
+  local alt = name:gsub("_", "-")
+  local labels = {}
+  for _, l in ipairs(issue.labels or {}) do
+    labels[(type(l) == "table" and l.name or tostring(l)):lower()] = true
+  end
+  if labels[name] or labels[alt] or labels["ext:" .. name] then
+    return true
+  end
+  local field = form_extension(issue.body)
+  if field == name or field == alt then
+    return true
+  end
+  local title = (issue.title or ""):lower()
+  for _, n in ipairs({ name, alt }) do
+    local p = vim.pesc(n)
+    if
+      title:find("^%s*" .. p .. "%s*:")
+      or title:find("^%s*%[" .. p .. "%]")
+      or title:find("^%s*%a+%(" .. p .. "%)!?:")
+      or (not WORDS[name] and has_word(title, n))
+    then
+      return true
+    end
+    local body = (issue.body or ""):lower()
+    if body:find("%f[%w_]" .. p .. " extension") or body:find("extensions%." .. p .. "%f[^%w_]") then
+      return true
+    end
+  end
+  return names_extension(title, name)
+end
+
+--- Open issues labelled `bug` about the extension (about()).
 local function measure_bugs(name)
   if not issues then
     return nil
   end
   local out = {}
   for _, i in ipairs(issues) do
-    local labels = {}
-    for _, l in ipairs(i.labels or {}) do
-      labels[(l.name or ""):lower()] = true
-    end
-    local alt = name:gsub("_", "-")
-    if
-      labels[name]
-      or labels[alt]
-      or labels["ext:" .. name]
-      or (labels.extension and (has_word(i.title:lower(), name) or has_word(i.title:lower(), alt)))
-    then
-      out[#out + 1] = "#" .. i.number
+    if about(i, name) then
+      out[#out + 1] = "#" .. tostring(i.number)
     end
   end
   return out
@@ -511,7 +664,7 @@ local CRITERIA = {
   { "coverage", "coverage", true },
   { "docs", "docs", true },
   { "health", "health", true },
-  { "added", "releases", true },
+  { "added", "releases, age", true },
   { "breaking", "no break", true },
   { "bugs", "open bugs", false },
   { "demo", "demo", false },
@@ -549,8 +702,20 @@ for _, name in ipairs(names) do
     detail = #missing > 0 and table.concat(missing, "; ") or nil,
   }
   c.health = { value = type(ext.health) == "function" and "yes" or "no", pass = type(ext.health) == "function" }
-  c.added = { value = tostring(hist.added), pass = hist.added >= BAR.releases_since_added }
-  if hist.breaking then
+  if not hist then
+    c.added = { value = "?", pass = nil, detail = "needs full history and tags" }
+    c.breaking = { value = "?", pass = nil, detail = "needs full history and tags" }
+  else
+    c.added = {
+      value = ("%d, %dd"):format(hist.added, hist.age),
+      pass = hist.added >= BAR.releases_since_added and hist.age >= BAR.days_since_added,
+      releases = hist.added,
+      days = hist.age,
+    }
+  end
+  if not hist then
+    -- not measured
+  elseif hist.breaking then
     c.breaking = {
       value = tostring(hist.breaking),
       pass = hist.breaking >= BAR.releases_since_breaking,
@@ -622,7 +787,12 @@ local SHORT = {
     return "a health check"
   end,
   added = function(c)
-    return ("releases %s of %d"):format(c.value, BAR.releases_since_added)
+    return ("releases %d of %d, days since its first commit %d of %d"):format(
+      c.releases,
+      BAR.releases_since_added,
+      c.days,
+      BAR.days_since_added
+    )
   end,
   breaking = function(c)
     return ("releases since a breaking change %s of %d (%s)"):format(c.value, BAR.releases_since_breaking, c.detail)
@@ -698,10 +868,11 @@ end
 local bar = ("Bar: ≥ %d specs, an edge-case spec, ≥ %d%% line coverage, every option documented, a health check, "):format(
   BAR.specs,
   BAR.coverage
-) .. ("in ≥ %d releases, ≥ %d releases since a breaking option change, no open bug issues, in the live demo."):format(
+) .. ("in ≥ %d minor releases and ≥ %d days old, ≥ %d minor releases after the one with its last breaking option change, "):format(
   BAR.releases_since_added,
+  BAR.days_since_added,
   BAR.releases_since_breaking
-)
+) .. "no open bug issues, in the live demo."
 
 if md then
   say("## Extension promotion report")

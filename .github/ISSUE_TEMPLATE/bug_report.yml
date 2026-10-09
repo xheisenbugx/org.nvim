@@ -15,6 +15,37 @@ body:
       description: What you did, what you expected and what happened instead.
     validations:
       required: true
+  - type: dropdown
+    id: extension
+    attributes:
+      label: Extension
+      description: Optional. The extension (`extensions` in `setup()`) the problem is in, if it is in one.
+      options:
+        - None (org.nvim itself)
+        - cli
+        - code
+        - diagrams
+        - drill
+        - heatmap
+        - hugo
+        - ics
+        - journal
+        - kanban
+        - literate
+        - lsp
+        - merge
+        - pomodoro
+        - present
+        - ql
+        - quickadd
+        - review
+        - roam
+        - sidebar
+        - super_agenda
+        - timeline
+        - transclusion
+    validations:
+      required: false
   - type: textarea
     id: steps
     attributes:
