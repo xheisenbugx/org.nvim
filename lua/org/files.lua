@@ -236,6 +236,12 @@ local function read_list_file(path)
   end, vim.fn.readfile(path))
 end
 
+--- Files an extension adds to the agenda files, by name: each function
+--- returns paths or glob patterns (the journal extension's files with its
+--- `agenda` option, for example). An error in one is ignored.
+---@type table<string, fun(): string[]>
+M.agenda_sources = {}
+
 --- Absolute paths of all agenda files.
 ---@param extra? string[] additional patterns
 ---@return string[]
@@ -253,6 +259,14 @@ function M.agenda_file_paths(extra)
   end
   for _, p in ipairs(extra or {}) do
     patterns[#patterns + 1] = p
+  end
+  local names = vim.tbl_keys(M.agenda_sources)
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local ok, list = pcall(M.agenda_sources[name])
+    if ok and type(list) == "table" then
+      vim.list_extend(patterns, list)
+    end
   end
   return utils.glob_org_files(patterns)
 end
