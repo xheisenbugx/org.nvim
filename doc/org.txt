@@ -1435,6 +1435,9 @@ The keys:
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
   <LeftMouse>    select the day clicked (<MiddleMouse> too)
+  n  p           only in a calendar with marked days (such as
+                 `journal_calendar`, |org-extensions-journal|): the next /
+                 previous marked day
   q  <Esc>       cancel
 With `read_date_popup_calendar = false` (org-read-date-popup-calendar, or
 its alias `popup_calendar_for_date_prompt`) date prompts are a plain
@@ -1468,6 +1471,8 @@ the colorscheme; override any of them with |nvim_set_hl()|:
   OrgCalendarSeparator rules                 (FloatBorder)
   OrgCalendarKey       keys of the hints     (Special)
   OrgCalendarHint      their descriptions    (Comment)
+  OrgCalendarMarked    marked days           (DiagnosticOk)
+  OrgCalendarMarkedFuture  marked future days  (DiagnosticInfo)
 
 Date input (like org-read-date)                                 *org-read-date*
 The typed text is read like Emacs org-read-date-analyze:
@@ -8656,7 +8661,7 @@ Each extension is marked as one of:
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`
 Experimental: `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
-              `literate`, `lsp`, `timeline`, `hugo`
+              `literate`, `lsp`, `timeline`, `hugo`, `journal`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -11817,5 +11822,137 @@ Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 `OrgSidebarDue`, `OrgSidebarScheduled`, `OrgSidebarProgress`,
 `OrgSidebarProgressEmpty`, `OrgSidebarOverrun`, `OrgSidebarPomodoro`,
 `OrgSidebarEvent`.
+
+------------------------------------------------------------------------------
+Journal (org-journal)                                  *org-extensions-journal*
+
+Stability: experimental (|org-extensions-stability|)
+
+`journal` keeps a dated journal in a directory of Org files, like Emacs
+org-journal, whose file format it shares:
+>lua
+    require("org").setup({ extensions = { journal = { directory = "~/journal" } } })
+<
+Each day is a top-level heading, "* Thursday, 2026-10-08", and each entry a
+heading under it with the time it was written:
+>
+    * Thursday, 2026-10-08
+    ** 09:12 Standup
+    Talked about the release.
+    ** 14:05 
+<
+With `file_type = "daily"` (the default) there is one file per day, named
+after it with `file_format` (`20261008.org`). With "weekly", "monthly" or
+"yearly" a file holds the days of its week (starting on
+`start_on_weekday`), month or year, named after the first of them, and
+each day heading has a `:CREATED: 20261008` property that gives its date,
+as in Emacs.
+
+Actions ~
+  `journal_new_entry`      `<prefix>Lj`  Open today's journal and add an
+                         entry at the end of the day, the cursor after the
+                         time, in Insert mode (org-journal-new-entry). The
+                         file, its `file_header` and the day heading are
+                         made when missing. `:Org journal_new_entry {date}`
+                         adds an entry on another day (any date the date
+                         prompt reads: `-1`, `fri`, `2026-10-01`), without
+                         a time unless it is today.
+  `journal_open`           `<prefix>Lo`  Today's day without a new entry
+                         (org-journal-new-entry with C-u).
+  `journal_new_date_entry` `<prefix>Ld`  An entry on a day picked in the
+                         calendar: a past day or today gets a new entry, a
+                         future day a scheduled one
+                         (org-journal-new-date-entry).
+  `journal_new_scheduled_entry` `<prefix>LS`  A `TODO` entry on a future
+                         day with an active timestamp of that day (and the
+                         time, when one was given) below it, so it shows in
+                         the agenda (org-journal-new-scheduled-entry).
+  `journal_next`           `<prefix>Ln`  The next day with entries, in this
+  `journal_previous`       `<prefix>Lp`  file or another one; a count skips
+                         days (org-journal-next-entry, -previous-entry).
+                         Outside the journal they start from today.
+  `journal_search`         `<prefix>Ls`  Search the journal: the matching
+                         lines in the picker (|org-pickers|), each with its
+                         day, `<CR>` jumps to one and the picker's quickfix
+                         key sends them all to the quickfix list
+                         (org-journal-search). The text is searched as
+                         typed, ignoring case unless it has a capital
+                         letter; an empty text lists every entry.
+                         `:Org journal_search [range] [text]` searches a
+                         range: `week`, `month`, `year` (the current
+                         ones), `future`, `past`, `all` or `FROM..TO`
+                         (`2026-09-01..2026-09-30`, `-7..`, either side
+                         may be empty).
+  `journal_calendar`       `<prefix>Lc`  The calendar (|org-calendar|) with
+                         the days that have entries marked (future ones in
+                         another colour); `n` / `p` go to the next /
+                         previous of them and `<CR>` opens the day. A day
+                         without entries is made after a question
+                         (org-journal-mark-entries and the calendar's
+                         `j r`).
+
+`<prefix>j` belongs to |org-extensions-code| and `<prefix>J` moves subtrees,
+so the journal keys start with `<prefix>L` (set any of them in
+`mappings.global`, or to false).
+
+Carry-over ~
+The first time today's journal is opened (by any of the actions above),
+the items of the last day before today that match `carryover` (a tags or
+property match as in the agenda's tags view, |org-match-syntax|) move
+to the end of today, as in org-journal: each item with its subtree and the
+headings above it up to the day, which stay behind as long as something
+else is left under them. Timestamps of the old day in the moved text
+("Seen on <2026-10-07 Wed>") become today's, except on SCHEDULED and
+DEADLINE lines. Both files are saved. With `carryover_delete_empty`, the
+previous day is deleted when nothing but its heading, planning and drawers
+is left, with its file when it was the file's only day ("ask" asks
+first).
+>lua
+    journal = { carryover = 'TODO="TODO"|TODO="NEXT"', carryover_delete_empty = true }
+<
+Agenda ~
+With `agenda = true` the journal files of the current period and later
+(the ones scheduled entries are written to) are agenda files too, besides
+`agenda_files` (org-journal-enable-agenda-integration); `agenda = "all"`
+adds every journal file.
+
+Options (defaults) ~
+  `directory`              "~/org/journal", relative to `org_directory`
+                         unless absolute (org-journal-dir)
+  `file_type`              "daily", "weekly", "monthly" or "yearly"
+  `file_format`            "%Y%m%d.org", a format-time-string of the
+                         period's first day; it may hold directories
+                         ("%Y/%m%d.org"). It needs %Y, %m and %d for daily
+                         and weekly files (or %G and %V for weekly ones),
+                         %Y and %m for monthly ones and %Y for yearly ones;
+                         `:checkhealth org` checks it. Unlike Emacs it
+                         ends in ".org", so the files open as Org files.
+  `start_on_weekday`       1 (Monday) to 7 (Sunday), for weekly files
+  `file_header`            "", text at the top of a new file, a
+                         format-time-string of the day ("#+title: %F") or
+                         `function(date) return text end`
+  `date_prefix`            "* "; for daily files a prefix that isn't a
+                         heading ("#+title: ") makes the whole file the day
+  `date_format`            "%A, %Y-%m-%d" (Emacs: "%A, %x"), or a
+                         function returning the whole heading line
+  `time_prefix`            "** "
+  `time_format`            "%R ", "" for untimed entries
+  `entry_template`         nil, lines added under a new entry's heading
+                         (format-time-string of the day, or a function);
+                         `%?` is where the cursor goes:
+                         "- Mood: %?\n- Grateful for: "
+  `carryover`              'TODO="TODO"', false for none
+  `carryover_delete_empty` false, true or "ask"
+  `scheduled_string`       "", text before the timestamp of a scheduled
+                         entry ("SCHEDULED:" makes it a planning line)
+  `agenda`                 false, true or "all"
+  `search_date_format`     "%a %Y-%m-%d"
+  `search_order`           "asc" or "desc"
+
+Differences from org-journal: files open in the current window
+(org-journal uses another window), other entries aren't folded away when
+one is added, the search results are a picker instead of a buffer, and
+encryption is left to |org-crypt| (tag entries `:crypt:`). `:CREATED:`
+values are always `%Y%m%d` (any `YYYY-MM-DD` value is read too).
 
  vim:tw=78:ts=8:ft=help:norl:
