@@ -8650,10 +8650,9 @@ Each extension is marked as one of:
                 a config or a script relies on one.
 
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
-              `kanban`, `sidebar`
-Experimental: `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`,
-              `code`, `literate`, `lsp`, `transclusion`, `timeline`,
-              `heatmap`, `hugo`
+              `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`
+Experimental: `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
+              `literate`, `lsp`, `timeline`, `hugo`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -9834,7 +9833,7 @@ Differences from Emacs org-drill ~
 ------------------------------------------------------------------------------
 Structural git merges                                  *org-extensions-merge*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `merge` is a git merge driver that merges Org files entry by entry instead
 of line by line, so two clones of the same notes (a laptop and a phone,
@@ -11276,7 +11275,7 @@ Notes ~
 ------------------------------------------------------------------------------
 Transclusion (org-transclusion)                  *org-extensions-transclusion*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `transclusion` shows text from other files, or other parts of the same
 file, where a `#+transclude:` keyword points to, like Emacs
@@ -11687,7 +11686,7 @@ as the kanban board is.
 ------------------------------------------------------------------------------
 Heatmap                                               *org-extensions-heatmap*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 A calendar heatmap in the style of GitHub's contribution graph: a column per
 week, a row per weekday, each day shaded by what was done that day.

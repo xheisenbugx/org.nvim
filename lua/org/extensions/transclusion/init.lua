@@ -31,7 +31,7 @@ M.keyword = keyword
 M.source = source
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- How transclusions show when an org buffer is opened: "virtual"

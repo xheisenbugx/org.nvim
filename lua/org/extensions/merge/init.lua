@@ -12,7 +12,7 @@ local MOD = "org.extensions.merge"
 local M = {}
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Name of the driver in git (`merge=<name>` and `merge.<name>.driver`).

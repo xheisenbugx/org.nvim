@@ -1156,7 +1156,7 @@ its options may still change):
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap`, `hugo` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap` | `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo` |
 
 An experimental extension is promoted once it meets measurable criteria
 (specs, coverage, docs, releases without a breaking change, no open bugs),
@@ -1245,7 +1245,7 @@ checked at every release; the release notes say when.
 
   ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/drill.gif)
 
-- 🧪 **`merge`**: a structural git merge driver for Org files. `:Org
+- ✅ **`merge`**: a structural git merge driver for Org files. `:Org
   merge_install` registers it for the repository (`*.org merge=org`), and
   git then merges org files entry by entry: entries matched by `ID` or
   outline path, refiles followed, properties merged key by key, clocks and
@@ -1329,7 +1329,7 @@ checked at every release; the release notes say when.
 
   ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lsp.gif)
 
-- 🧪 **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
+- ✅ **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
   `#+transclude: [[file:notes.org::*Heading]] :level 2` or
   `[[file:main.py]] :lines 10-24 :src python` shows that text live, as
   virtual lines under the keyword (the file isn't touched) or inserted into
@@ -1358,7 +1358,7 @@ checked at every release; the release notes say when.
 
   ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/timeline.gif)
 
-- 🧪 **`heatmap`**: a GitHub-style calendar of the time clocked each day,
+- ✅ **`heatmap`**: a GitHub-style calendar of the time clocked each day,
   the tasks closed or the habits done, shaded from your colorscheme, with
   totals and streaks; the selected day shows its tasks and `<CR>` opens its
   agenda (`:Org heatmap [clock|closed|habit] [tag]`, `<prefix>Vh`,
