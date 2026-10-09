@@ -402,7 +402,10 @@ describe("site", function()
       -- the playground: a player per tutor lesson, linked from the README
       local pg = table.concat(vim.fn.readfile(out .. "/playground.html"), "\n")
       has(pg, 'data-src="playground/basics.js"')
-      has(pg, '<div class="pg-player" role="region" tabindex="0" aria-label="Recording of the basics lesson">')
+      has(
+        pg,
+        '<div class="pg-player" role="region" tabindex="0" aria-label="Recording of the basics lesson" data-title="basics.org">'
+      )
       has(pg, '<script src="assets/playground.js" defer></script>')
       has(index, 'href="playground.html"')
       ok(vim.uv.fs_stat(out .. "/playground/workflow.cast"))

@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.8.0] - 2026-10-09
+
+### Features
+
+- **site:** Redesign the playground page ([#235](https://github.com/xheisenbugx/org.nvim/pull/235))
+
 ## [v2.7.0] - 2026-10-09
 
 ### Features
@@ -402,6 +408,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.8.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.7.0...v2.8.0
 [v2.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.1...v2.7.0
 [v2.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.0...v2.6.1
 [v2.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.5.0...v2.6.0

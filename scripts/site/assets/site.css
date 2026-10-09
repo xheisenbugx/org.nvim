@@ -774,53 +774,175 @@ a[data-missing] {
 /* Playground (playground.html, assets/playground.js): the tutor recordings
    and the "Try the syntax" box. The terminal keeps the colors it was
    recorded with (--pg-fg, --pg-bg from the recording) in both themes. */
-.pg-tabs {
+.playground article,
+.playground footer {
+  max-width: 84rem;
+}
+.pg-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* the header: what the page is, and the lessons' totals */
+.pg-hero {
+  max-width: 48rem;
+  margin: 0.5rem 0 1.75rem;
+}
+.pg-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pg-hero h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.pg-hero .lead {
+  margin: 0 0 1rem;
+}
+.pg-facts {
   display: flex;
-  gap: 0.25rem;
-  margin: 1.5rem 0 0;
-  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pg-facts li {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+.pg-facts strong {
+  color: var(--fg);
+}
+
+/* the lesson picker: one card per lesson */
+.pg-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
 }
 .pg-tabs [role="tab"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.75rem 1rem;
   font: inherit;
-  font-weight: 600;
-  padding: 0.45rem 1rem;
-  background: none;
-  color: var(--fg-muted);
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  cursor: pointer;
-  margin-bottom: -1px;
-}
-.pg-tabs [role="tab"][aria-selected="true"] {
+  text-align: left;
   color: var(--fg);
   background: var(--bg);
-  border-color: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
-.pg-lesson > h2 {
-  margin-top: 1rem;
-  border: none;
+.pg-tabs [role="tab"]:hover {
+  border-color: var(--accent);
+}
+.pg-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.pg-tab-num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pg-tab-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.pg-tab-meta {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+/* the player, beside the exercises on a wide screen */
+.pg-stage {
+  display: grid;
+  gap: 1.25rem;
 }
 .pg-player {
-  margin: 1rem 0 1.25rem;
-  border-radius: 10px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  box-shadow: var(--shadow);
   outline-offset: 3px;
 }
 .pg-player.pg-loading {
-  min-height: 12rem;
-  background: var(--bg-soft);
+  min-height: 24rem;
+}
+.pg-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 2.25rem;
+  padding: 0 0.85rem;
+  background: #1f232b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #9aa3ae;
+  font-size: 0.8rem;
+}
+.pg-dots {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.pg-dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+.pg-dots i:nth-child(2) {
+  background: #febc2e;
+}
+.pg-dots i:nth-child(3) {
+  background: #28c840;
+}
+.pg-wtitle {
+  flex: none;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.pg-chapter {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #c0aefa;
 }
 .pg-screen {
   position: relative;
   overflow: hidden;
   padding: 10px;
-  border-radius: 10px 10px 0 0;
   background: var(--pg-bg);
   color: var(--pg-fg);
   font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 13px;
   line-height: 1.25;
-  box-shadow: 0 0 0 1px var(--border);
 }
 .pg-probe {
   position: absolute;
@@ -882,26 +1004,52 @@ a[data-missing] {
 .pg-keys .pg-typed {
   font-style: italic;
 }
+/* before the first play: the whole screen is the play button */
 .pg-big-play {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0;
   border: none;
-  background: var(--accent);
+  background: radial-gradient(circle, rgba(10, 12, 16, 0.55), rgba(10, 12, 16, 0.78));
   color: #fff;
+  font: inherit;
   cursor: pointer;
+}
+.pg-big-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #7c5fd6;
+  box-shadow:
+    0 0 0 8px rgba(124, 95, 214, 0.25),
+    0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s;
 }
-.pg-big-play svg {
-  width: 30px;
-  height: 30px;
+.pg-big-icon svg {
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+}
+.pg-big-play:hover .pg-big-icon,
+.pg-big-play:focus-visible .pg-big-icon {
+  transform: scale(1.07);
+}
+.pg-big-label {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 .pg-big-play[hidden] {
   display: none;
@@ -910,10 +1058,8 @@ a[data-missing] {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 10px 10px;
+  padding: 0.45rem 0.6rem;
+  border-top: 1px solid var(--border);
   background: var(--bg-soft);
   font-size: 0.85rem;
   color: var(--fg-muted);
@@ -934,6 +1080,14 @@ a[data-missing] {
 }
 .pg-btn:hover {
   background: var(--accent-soft);
+}
+.pg-play {
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+}
+.pg-play:hover {
+  background: var(--link);
 }
 .pg-time,
 .pg-dur {
@@ -970,15 +1124,33 @@ a[data-missing] {
   border-radius: 6px;
   padding: 0.2rem;
 }
-.pg-chapter {
-  min-height: 1.5em;
-  margin-top: 0.35rem;
-  font-weight: 600;
-  color: var(--accent);
-}
 .pg-error {
   padding: 1rem;
   color: var(--hl-b);
+}
+
+/* the exercises: one row each, the playing one highlighted */
+.pg-side {
+  position: relative;
+  min-width: 0;
+}
+.pg-side-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.pg-side-head span {
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  letter-spacing: 0;
 }
 .pg-steps {
   list-style: none;
@@ -986,42 +1158,89 @@ a[data-missing] {
   margin: 0;
 }
 .pg-steps > li {
-  margin: 0 0 0.75rem;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border);
-  border-radius: 6px;
+  margin: 0 0 0.35rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  scroll-margin-top: calc(var(--topbar) + 1rem);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.pg-steps > li:hover {
+  background: var(--bg-soft);
 }
 .pg-steps > li.pg-current {
-  border-left-color: var(--accent);
+  border-color: var(--accent);
   background: var(--accent-soft);
-}
-.pg-steps > li p {
-  margin: 0.4rem 0;
 }
 .pg-step-head {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
+}
+.pg-step-head strong {
+  min-width: 0;
+  flex: 1;
 }
 .pg-jump {
   flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.6rem;
+  height: 1.75rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--accent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
-  font-size: 0.75rem;
 }
-.pg-jump:hover {
+.pg-jump:hover,
+.pg-current .pg-jump {
   background: var(--accent);
+  border-color: var(--accent);
   color: var(--bg);
+}
+.pg-nojump {
+  cursor: default;
+  color: var(--fg-muted);
+}
+.pg-seen .pg-jump {
+  color: var(--tag);
+}
+.pg-seen .pg-step-id::after {
+  content: " \2713";
+}
+.pg-step-time {
+  flex: none;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+}
+.pg-step-body {
+  padding-left: 3.2rem;
+  font-size: 0.92rem;
+}
+.pg-step-body p,
+.pg-step-body ul {
+  margin: 0.35rem 0;
 }
 .pg-keys-used {
   color: var(--fg-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+.pg-keys-label {
+  margin-right: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .pg-keys-used kbd,
 .pg-keys-used .pg-typed {
@@ -1041,8 +1260,74 @@ a[data-missing] {
   content: "\201D";
 }
 .pg-source {
-  font-size: 0.9rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
   color: var(--fg-muted);
+}
+/* wide screens: the player stays in view while the exercises scroll */
+@media (min-width: 1400px) {
+  .pg-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 23rem);
+    align-items: start;
+  }
+  .pg-player {
+    position: sticky;
+    top: calc(var(--topbar) + 1rem);
+  }
+  .pg-side {
+    position: sticky;
+    top: calc(var(--topbar) + 1rem);
+    max-height: calc(100vh - var(--topbar) - 2rem);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    scrollbar-width: thin;
+  }
+  .pg-side-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0.2rem 0 0.5rem;
+    background: var(--bg);
+  }
+}
+
+/* the end of the page: install it */
+.pg-install {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  margin: 3rem 0 0;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-soft));
+}
+.pg-install h2 {
+  margin: 0 0 0.35rem;
+  padding: 0;
+  border: none;
+  font-size: 1.35rem;
+}
+.pg-install p {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--fg-muted);
+}
+.pg-cta {
+  flex: none;
+  padding: 0.65rem 1.3rem;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+  text-decoration: none;
+}
+.pg-cta:hover {
+  background: var(--link);
+  text-decoration: none;
 }
 .pg-try {
   position: relative;
@@ -1183,9 +1468,40 @@ a[data-missing] {
   .pg-copy {
     margin-left: auto;
   }
-  .pg-big-play {
-    width: 48px;
-    height: 48px;
+  /* the recording goes edge to edge: every column counts */
+  .pg-player {
+    margin: 0 -1rem;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  .pg-dots {
+    display: none;
+  }
+  .pg-tabs {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .pg-tabs [role="tab"] {
+    padding: 0.6rem 0.75rem;
+  }
+  .pg-tab-title {
+    font-size: 0.95rem;
+    line-height: 1.3;
+  }
+  .pg-tab-meta {
+    font-size: 0.8rem;
+  }
+  .pg-big-icon {
+    width: 56px;
+    height: 56px;
+  }
+  .pg-big-icon svg {
+    width: 26px;
+    height: 26px;
+  }
+  .pg-step-body {
+    padding-left: 0;
   }
   .pg-keys {
     font-size: 11px;
