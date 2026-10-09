@@ -1,4 +1,4 @@
-.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz playground
+.PHONY: test snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz playground difftest
 
 # A throwaway data and cache dir: tests never touch the real ID database, clock
 # state, agenda index or other stdpath("data") and stdpath("cache") files,
@@ -92,6 +92,16 @@ publish-media:
 # (needs Emacs; see scripts/emacs-parity/README.md). AREAS picks a subset.
 parity-fixtures:
 	scripts/emacs-parity/generate.sh $(AREAS)
+
+# org.nvim against Emacs Org 9.8.10 on COUNT generated documents from SEED
+# (default random), for the ORACLES given (default all); differences that
+# aren't known are shrunk and reported in difftest-out/. Needs Emacs:
+# ORG_EMACS and ORG_LISP_DIR (see "Differential testing" in CONTRIBUTING.md).
+difftest:
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_CACHE_HOME=$$d/cache \
+	SEED="$(SEED)" COUNT="$(COUNT)" ORACLES="$(ORACLES)" \
+	nvim --headless -u tests/minimal_init.lua -l scripts/difftest.lua; \
+	s=$$?; rm -rf $$d; exit $$s
 
 # Regenerate CHANGELOG.md from the tags and merged pull requests. On a
 # release/vX.Y.Z branch the commits after the latest tag go under vX.Y.Z;
