@@ -76,3 +76,22 @@ then run `make parity-fixtures` again.
 
 Then regenerate the fixtures and run
 `make test SPEC=tests/spec/emacs_<area>_parity_spec.lua`.
+
+## Differential testing on generated documents
+
+`difftest.el` is the Emacs side of `make difftest` (CONTRIBUTING.md,
+"Differential testing"): instead of writing fixtures, it keeps running and
+answers requests from `tests/difftest/emacs.lua` on stdin, one per line
+(`<oracle> TAB <input.org> TAB <output file>`), with `common.el`'s fixed
+"now", zone and locale. The org.nvim side of each oracle is in
+`tests/difftest/oracles.lua`; keep the two in step.
+
+```sh
+ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.10 make difftest SEED=1 COUNT=300
+```
+
+`ORG_EMACS` and `ORG_LISP_DIR` default to `EMACS` and `ORG_DIR`. Org
+9.8.10 is on GNU ELPA as `https://elpa.gnu.org/packages/org-9.8.10.tar`
+(the Difftest workflow fetches and byte-compiles it); a `git clone` of the
+`release_9.8.10` tag works too after `make autoloads`, which writes
+`org-version.el`.

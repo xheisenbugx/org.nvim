@@ -291,6 +291,65 @@ explains how to add cases, how the runs are kept deterministic (a fixed
 fix the bug, document an intended difference, or mark the case as a known
 failure.
 
+### Differential testing
+
+`make difftest` goes further than the fixed fixtures: it generates random
+Org documents (`tests/difftest/gen.lua`: headlines with TODO keywords,
+priorities, tags and COMMENT, planning with repeaters and warnings,
+drawers and clocks, lists with checkboxes and counters, tables with
+`#+TBLFM`, footnotes, blocks, links, emphasis edge cases, inline tasks),
+runs each through Emacs Org 9.8.10 and org.nvim, and compares what a set of
+"oracles" print:
+
+| Oracle | Compares |
+| --- | --- |
+| `export-html`, `export-ascii`, `export-md`, `export-latex`, `export-org` | the body-only export, Babel off |
+| `agenda` | week and day agendas, the TODO list, a tags and a tags-todo match over the file |
+| `table` | the file after recalculating every table that has a `#+TBLFM` line |
+| `visibility` | the visible lines at startup and after each of three S-TABs |
+
+It needs Emacs and Org 9.8.10 (see `scripts/emacs-parity/README.md`):
+
+```sh
+export ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.10
+make difftest                                    # 100 documents, random seed
+make difftest SEED=1 COUNT=300                   # a reproducible run
+make difftest SEED=42 COUNT=1 ORACLES=export-md  # replay one failure
+```
+
+Outputs are compared after the `NORMALISE` rules of
+`tests/emacs_parity.lua`, as a line diff. A hunk that matches an entry of
+`tests/difftest/known.lua` (a known bug, not fixed yet: patterns on either
+side of the hunk or on the input, or a rewrite that makes both sides
+equal) is counted but doesn't fail the run; any other one does. Failures are grouped by what
+differs, and the first of each group is shrunk (whole subtrees, then lines,
+then words) to a small input that still differs. `difftest-out/report.md`
+lists them with the seed, the replay command, the minimal input and the
+diff (`-` Emacs, `+` org.nvim); `difftest-out/repros/` has each input and
+diff as files. Emacs and org.nvim work in parallel (`DIFFTEST_JOBS` Emacs
+workers, default one per CPU up to 8); a request Emacs doesn't answer in
+20 seconds counts as an Emacs error, like any input Emacs raises an error
+on, and isn't compared.
+
+400 documents take about a minute and a half on four Emacs workers. The
+Difftest workflow runs 400 documents every night on `dev` and from the
+Actions tab (seed, count and oracles as inputs). When it fails it uploads
+the report and repros as an artifact and opens an issue labelled
+`difftest`, or comments on the open one. To handle a failure:
+
+1. Replay it, and check what Emacs does with the minimal input (the Org
+   source).
+2. Fix org.nvim, and turn the minimal input into a case of the area's
+   `*_emacs_spec.lua`.
+3. Or, if it's intentional, document it under `:h org-differences` and add
+   a rule to `NORMALISE`; if it's a bug to fix later, add a narrow entry
+   to `tests/difftest/known.lua` with the reason, so the nightly run stays
+   green until the fix removes it.
+
+`tests/spec/difftest_spec.lua` runs the org.nvim side, the comparison and
+the shrinking against a fake Emacs, so pull request CI covers that code
+without Emacs.
+
 ## Screen snapshots
 
 Some bugs only show on screen: headline stars drawn as bold markup, a
@@ -531,7 +590,7 @@ the bar is a prompt to add the missing specs or docs.
   and a helptags check; after editing `doc/org.txt`, run
   `nvim --headless -u NONE -c "helptags doc" -c q`. A pull request that
   changes the docs also builds the website. Pushes don't run CI.
-- The Fuzz (nightly) and Coverage (weekly) workflows test `dev`. GitHub
+- The Fuzz and Difftest (nightly) and Coverage (weekly) workflows test `dev`. GitHub
   starts scheduled workflows from the default branch, `main`, so a change
   to them takes effect with the next release; both can also be run from
   the Actions tab, on any branch.
