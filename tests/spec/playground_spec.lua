@@ -189,5 +189,51 @@ describe("playground", function()
       end)
       eq('<kbd>&lt;Tab&gt;</kbd> <span class="pg-typed">Pears</span>', keys)
     end)
+
+    it("names a lesson by its number and title, without the tutor's prefix", function()
+      eq({ "1", "The basics" }, { playground.short_title("org.nvim tutor 1: the basics") })
+      eq(
+        { "2", "Capture, agenda and clocking" },
+        { playground.short_title("org.nvim tutor 2: capture, agenda and clocking") }
+      )
+      eq({ nil, "Something else" }, { playground.short_title("something else") })
+    end)
+
+    it("reads the exercises' times and the length of a recording", function()
+      local cast = table.concat({
+        '{"version":2,"width":80,"height":24}',
+        '[0,"m","Welcome"]',
+        '[0.5,"o","x"]',
+        '[4.25,"m","1.1 Fold"]',
+        '[61.9,"o","y"]',
+      }, "\n")
+      local tl = playground.timeline(cast)
+      eq({ { label = "Welcome", t = 0 }, { label = "1.1 Fold", t = 4.25 } }, tl.markers)
+      -- the player holds the last frame for 2 s
+      eq(63.9, tl.duration)
+      eq({ "Welcome", "1.1 Fold" }, playground.markers(cast))
+      -- rounded down, as the player shows it
+      eq("1:03", playground.clock(tl.duration))
+      eq("0:04", playground.clock(4.25))
+    end)
+
+    it("builds lesson cards and an exercise list with times", function()
+      local page = playground.build(root, {
+        err = function(fmt, ...)
+          error(string.format(fmt, ...))
+        end,
+        blob = function(path)
+          return "https://example.invalid/" .. path
+        end,
+      })
+      for _, name in ipairs(playground.lessons(root)) do
+        local tab = page.body:match('<button type="button" role="tab" id="tab%-' .. name .. '".-</button>')
+        ok(tab, "no tab for " .. name)
+        ok(tab:find('<span class="pg%-tab%-num">Lesson %d+</span>'), tab)
+        ok(tab:find('<span class="pg%-tab%-meta">%d+ exercises? · %d+:%d%d</span>'), tab)
+      end
+      ok(page.body:find('<span class="pg-step-time">0:00</span>', 1, true))
+      ok(page.body:find('class="pg-install"', 1, true))
+    end)
   end)
 end)
