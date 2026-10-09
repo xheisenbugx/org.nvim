@@ -359,6 +359,9 @@
     });
     this.bigPlay.addEventListener("click", function () {
       self.play();
+      // the button hides itself: keep the focus in the player, where
+      // Space and the arrows work, rather than dropping it to the page
+      self.el.focus({ preventScroll: true });
     });
     this.rowsEl.addEventListener("click", function () {
       // a click that selects text doesn't toggle
@@ -390,6 +393,8 @@
     });
     el.addEventListener("keydown", function (e) {
       if (e.target.tagName === "SELECT" || e.ctrlKey || e.metaKey || e.altKey) return;
+      // a button handles its own Space and Enter
+      if (e.target !== el && e.target.closest && e.target.closest("button")) return;
       if (e.target.tagName === "INPUT" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return;
       if (e.key === " " || e.key === "k") self.toggle();
       else if (e.key === "ArrowLeft") self.seek(self.t - 5);
@@ -414,7 +419,8 @@
     this.seek(0);
   }
 
-  // The font size that fits the columns in the width (from 7px up to 18px).
+  // The font size that fits the columns in the width (up to 18px; on a
+  // narrow screen as small as it takes, never cutting columns off).
   var charRatio = null;
   function measureRatio(el) {
     if (charRatio) return charRatio;
@@ -431,8 +437,21 @@
     var width = this.el.clientWidth - 2 * 10;
     if (width <= 0) return;
     var ratio = measureRatio(this.screen);
-    var size = Math.max(7, Math.min(18, width / (this.cast.cols * ratio)));
-    this.screen.style.fontSize = size.toFixed(2) + "px";
+    var size = Math.min(18, width / (this.cast.cols * ratio));
+    this.screen.style.fontSize = Math.floor(size * 100) / 100 + "px";
+    // glyph widths don't scale exactly with the font size: measure the
+    // columns at this size and shrink to what fits
+    var probe = document.createElement("span");
+    probe.className = "pg-probe";
+    probe.style.fontSize = "inherit";
+    probe.textContent = new Array(this.cast.cols + 1).join("M");
+    this.screen.appendChild(probe);
+    var need = probe.getBoundingClientRect().width;
+    this.screen.removeChild(probe);
+    if (need > width) {
+      size = Math.min(size, (size * width) / need);
+      this.screen.style.fontSize = Math.floor(size * 100) / 100 + "px";
+    }
   };
 
   Player.prototype.apply = function (upTo) {
@@ -522,9 +541,15 @@
     this.wallStart = performance.now();
     this.tStart = this.t;
     var self = this;
+    var last = this.wallStart;
     var tick = function () {
       if (!self.playing) return;
-      var t = self.tStart + ((performance.now() - self.wallStart) / 1000) * self.speed;
+      var now = performance.now();
+      // no frames while the tab is hidden (or the machine slept): carry on
+      // from where it was rather than jumping ahead
+      if (now - last > 250) self.wallStart += now - last - 16;
+      last = now;
+      var t = self.tStart + ((now - self.wallStart) / 1000) * self.speed;
       if (t >= self.cast.duration) {
         t = self.cast.duration;
         self.playing = false;
@@ -592,12 +617,14 @@
         return;
       }
       players[name] = new Player(el, cast, section);
+      toHashTarget();
     });
   }
 
   var sections = document.querySelectorAll(".pg-lesson");
   var tabs = document.querySelectorAll('.pg-tabs [role="tab"]');
-  function selectTab(tab, focus) {
+  // `user`: picked by the reader, so the address names the lesson
+  function selectTab(tab, focus, user) {
     for (var i = 0; i < tabs.length; i++) {
       var on = tabs[i] === tab;
       tabs[i].setAttribute("aria-selected", on ? "true" : "false");
@@ -613,19 +640,25 @@
       }
     }
     if (focus) tab.focus();
-    try {
-      history.replaceState(null, "", "#" + tab.id.replace(/^tab-/, ""));
-    } catch (e) {}
+    if (user) {
+      try {
+        history.replaceState(null, "", "#" + tab.id.replace(/^tab-/, ""));
+      } catch (e) {}
+    }
+  }
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function scrollBehavior() {
+    return reduceMotion ? "auto" : "smooth";
   }
   for (var i = 0; i < tabs.length; i++) {
     tabs[i].addEventListener("click", function (e) {
-      selectTab(e.currentTarget);
+      selectTab(e.currentTarget, false, true);
     });
     tabs[i].addEventListener("keydown", function (e) {
       var list = Array.prototype.slice.call(tabs);
       var k = list.indexOf(e.currentTarget);
-      if (e.key === "ArrowRight") selectTab(list[(k + 1) % list.length], true);
-      else if (e.key === "ArrowLeft") selectTab(list[(k - 1 + list.length) % list.length], true);
+      if (e.key === "ArrowRight") selectTab(list[(k + 1) % list.length], true, true);
+      else if (e.key === "ArrowLeft") selectTab(list[(k - 1 + list.length) % list.length], true, true);
       else return;
       e.preventDefault();
     });
@@ -639,16 +672,58 @@
         var p = players[section.getAttribute("data-lesson")];
         if (p && li) {
           p.jumpTo(li.getAttribute("data-marker"));
-          section.querySelector(".pg-player").scrollIntoView({ block: "nearest", behavior: "smooth" });
+          section.querySelector(".pg-player").scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
           section.querySelector(".pg-player").focus({ preventScroll: true });
         }
       });
     })(sections[s]);
   }
-  // #workflow opens that lesson
-  var hashTab = location.hash && document.getElementById("tab-" + location.hash.slice(1));
-  if (hashTab) selectTab(hashTab);
-  else if (tabs.length) selectTab(tabs[0]);
+  // #workflow opens that lesson; an anchor inside a lesson (#workflow-1-1)
+  // opens its lesson and scrolls to it; any other (#try-the-syntax) is
+  // left to the browser. The address is never rewritten here.
+  //
+  // A player that loads above the element the address names moves it down:
+  // it is scrolled to again then, until the reader scrolls.
+  var hashTarget = null;
+  function toHashTarget() {
+    if (hashTarget) hashTarget.scrollIntoView({ block: "start" });
+  }
+  ["wheel", "touchstart", "mousedown", "keydown"].forEach(function (ev) {
+    window.addEventListener(
+      ev,
+      function () {
+        hashTarget = null;
+      },
+      { passive: true }
+    );
+  });
+  function followHash(initial) {
+    var id = "";
+    try {
+      id = decodeURIComponent(location.hash.slice(1));
+    } catch (e) {}
+    var tab = id && document.getElementById("tab-" + id);
+    hashTarget = null;
+    if (tab) {
+      selectTab(tab);
+      return true;
+    }
+    var target = id && document.getElementById(id);
+    hashTarget = target || null;
+    var section = target && target.closest && target.closest(".pg-lesson");
+    if (section) {
+      tab = document.getElementById(section.getAttribute("aria-labelledby"));
+      if (tab) selectTab(tab);
+      // it was hidden when the browser tried to scroll to it
+      target.scrollIntoView({ block: "start", behavior: initial ? "auto" : scrollBehavior() });
+      return true;
+    }
+    return false;
+  }
+  if (!followHash(true) && tabs.length) selectTab(tabs[0]);
+  window.addEventListener("hashchange", function () {
+    followHash(false);
+  });
 
   // Try the syntax -----------------------------------------------------------
   // A few of org.nvim's highlight rules, enough to see what Org text looks

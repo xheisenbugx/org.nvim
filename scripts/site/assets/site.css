@@ -1190,4 +1190,9 @@ a[data-missing] {
   .pg-keys {
     font-size: 11px;
   }
+  /* 16px or more: iOS zooms the page into a smaller text field */
+  .pg-try-hl,
+  .pg-try-input {
+    font-size: 16px;
+  }
 }

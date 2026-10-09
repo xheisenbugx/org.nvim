@@ -6,7 +6,8 @@
 -- The page's script (assets/playground.js) plays the asciicast v2 files
 -- itself. A recording is loaded with a <script> tag, as
 -- playground/<lesson>.js, so the page also works from file://; the .cast
--- file is published too, for any asciicast player.
+-- file is published too, for any asciicast player (the page links it, and
+-- it is what a reader without JavaScript gets).
 local html = require("site.html")
 
 local M = {}
@@ -266,7 +267,7 @@ function M.build(root, opts)
       .. (k == 1 and "" or " hidden")
       .. ">"
     b[#b + 1] = "<h2>" .. html.escape(lesson.title) .. "</h2>"
-    b[#b + 1] = '<div class="pg-player" tabindex="0" aria-label="Recording of the '
+    b[#b + 1] = '<div class="pg-player" role="region" tabindex="0" aria-label="Recording of the '
       .. name
       .. ' lesson">'
       .. '<noscript><p>The player needs JavaScript; <a href="playground/'
