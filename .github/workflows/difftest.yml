@@ -1,0 +1,117 @@
+name: Difftest
+
+# org.nvim against Emacs Org 9.8.10 on generated documents, nightly and on
+# demand: `make difftest` (tests/difftest/, scripts/emacs-parity/difftest.el)
+# from a random first seed. A difference that isn't a known one
+# (tests/difftest/known.lua) fails the run, uploads the shrunk inputs and
+# opens an issue labelled "difftest" (or comments on the open one) with the
+# seeds, oracles, minimal inputs and diffs. See "Differential testing" in
+# CONTRIBUTING.md.
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "First seed (SEED); empty: random"
+        default: ""
+      count:
+        description: "Documents (COUNT)"
+        default: "400"
+      oracles:
+        description: "Space-separated oracles (ORACLES); empty: all"
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  ORG_VERSION: "9.8.10"
+
+jobs:
+  difftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # a scheduled run starts from the default branch (main, the last
+          # release): test dev, where new code lands
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - uses: purcell/setup-emacs@master
+        with:
+          version: "30.1"
+      # Org 9.8.10 from GNU ELPA, byte-compiled once and cached
+      - uses: actions/cache@v4
+        id: org-cache
+        with:
+          path: ~/org-lisp
+          key: org-${{ env.ORG_VERSION }}-emacs-30.1
+      - name: Fetch Org ${{ env.ORG_VERSION }}
+        if: steps.org-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p ~/org-lisp
+          curl -fsSL "https://elpa.gnu.org/packages/org-$ORG_VERSION.tar" | tar -x -C ~/org-lisp
+          dir=~/org-lisp/org-$ORG_VERSION
+          emacs -Q --batch -L "$dir" -f batch-byte-compile "$dir"/*.el 2>&1 | grep -v '^Warning\|^In \|^$' | tail -n 20 || true
+      - name: Difftest
+        id: difftest
+        shell: bash
+        env:
+          ORG_EMACS: emacs
+          SEED: ${{ inputs.seed }}
+          COUNT: ${{ inputs.count || '400' }}
+          ORACLES: ${{ inputs.oracles }}
+          DIFFTEST_JOBS: "4"
+        run: |
+          export ORG_LISP_DIR=~/org-lisp/org-$ORG_VERSION
+          make difftest 2>&1 | tee difftest.log
+      - name: Report the failure in an issue
+        if: failure() && steps.difftest.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          sha=$(git rev-parse --short=12 HEAD)
+          {
+            echo "The [nightly difftest run]($RUN_URL) on \`$sha\` found differences from Emacs Org $ORG_VERSION."
+            echo
+            echo "Each one comes with the command that replays it, the shrunk input and"
+            echo "the diff (\`-\` Emacs, \`+\` org.nvim); the inputs are also in the run's"
+            echo "\`difftest-repros\` artifact. Fix the bug, or add the difference to"
+            echo "\`tests/difftest/known.lua\` with the reason (see \"Differential testing\""
+            echo "in CONTRIBUTING.md)."
+            echo
+            if [ -f difftest-out/report.md ]; then
+              head -c 60000 difftest-out/report.md
+            else
+              echo '```'
+              tail -n 80 difftest.log
+              echo '```'
+            fi
+          } > issue.md
+          gh label create difftest --color 5319E7 --description "Found by the nightly Emacs differential test" 2>/dev/null || true
+          num=$(gh issue list --label difftest --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body-file issue.md
+          else
+            gh issue create --title "Difftest: org.nvim differs from Emacs Org" --label difftest --body-file issue.md
+          fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: difftest-repros
+          path: |
+            difftest.log
+            difftest-out/report.md
+            difftest-out/repros/
