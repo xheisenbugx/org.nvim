@@ -294,16 +294,25 @@
     this.playing = false;
     this.speed = 1;
 
+    var title = el.getAttribute("data-title") || "";
     el.innerHTML =
+      '<div class="pg-titlebar"><span class="pg-dots" aria-hidden="true"><i></i><i></i><i></i></span>' +
+      '<span class="pg-wtitle">' +
+      esc(title ? title + " \u2014 nvim" : "nvim") +
+      '</span><span class="pg-chapter" aria-live="polite"></span></div>' +
       '<div class="pg-screen" style="--pg-fg:' +
       cast.fg +
       ";--pg-bg:" +
       cast.bg +
       '"><div class="pg-rows"></div><div class="pg-cursor" aria-hidden="true"></div>' +
       '<div class="pg-keys" aria-live="off"></div>' +
+      // before the first play: the first screen, dimmed, under a play button
       '<button type="button" class="pg-big-play" aria-label="Play">' +
+      '<span class="pg-big-icon">' +
       ICON_PLAY +
-      "</button></div>" +
+      '</span><span class="pg-big-label">Play the lesson \u00b7 ' +
+      fmtTime(cast.duration) +
+      "</span></button></div>" +
       '<div class="pg-controls">' +
       '<button type="button" class="pg-btn pg-prev" aria-label="Previous exercise" title="Previous exercise ( [ )">' +
       ICON_PREV +
@@ -324,8 +333,7 @@
       '<select class="pg-speed" aria-label="Speed"><option value="0.5">0.5×</option>' +
       '<option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>' +
       '<button type="button" class="pg-btn pg-copy" title="Copy the text on the screen">Copy</button>' +
-      "</div>" +
-      '<div class="pg-chapter" aria-live="polite"></div>';
+      "</div>";
 
     this.screen = el.querySelector(".pg-screen");
     this.rowsEl = el.querySelector(".pg-rows");
@@ -498,9 +506,15 @@
     if (this.chapterEl.textContent !== label) {
       this.chapterEl.textContent = label;
       var items = this.section.querySelectorAll(".pg-steps > li");
+      var current = null;
       for (var i = 0; i < items.length; i++) {
-        items[i].classList.toggle("pg-current", items[i].getAttribute("data-marker") === label);
+        var on = items[i].getAttribute("data-marker") === label;
+        items[i].classList.toggle("pg-current", on);
+        // the exercises before the current one, as done
+        items[i].classList.toggle("pg-seen", !current && !on && !!label);
+        if (on) current = items[i];
       }
+      if (current) this.reveal(current);
     }
     var icon = this.playing ? ICON_PAUSE : ICON_PLAY;
     if (this.playBtn._playing !== this.playing) {
@@ -509,6 +523,17 @@
       this.playBtn._playing = this.playing;
     }
     this.bigPlay.hidden = this.playing || this.started;
+  };
+
+  // Scroll the exercise list beside the player (wide screens, where it
+  // scrolls on its own) to put `li` at its top, under the list's heading;
+  // the page itself doesn't move.
+  Player.prototype.reveal = function (li) {
+    var box = this.section.querySelector(".pg-side");
+    if (!box || box.scrollHeight <= box.clientHeight + 1) return;
+    var head = box.querySelector(".pg-side-head");
+    var top = li.offsetTop - (head ? head.offsetHeight : 0) - 4; // .pg-side is its offsetParent
+    box.scrollTo({ top: Math.max(0, top), behavior: scrollBehavior() });
   };
 
   Player.prototype.currentMarker = function () {

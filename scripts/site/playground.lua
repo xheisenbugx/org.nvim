@@ -179,15 +179,51 @@ end
 ---@return string[]
 function M.markers(cast)
   local out = {}
+  for _, m in ipairs(M.timeline(cast).markers) do
+    out[#out + 1] = m.label
+  end
+  return out
+end
+
+--- The cast's markers with their times, and its length in seconds.
+---@param cast string
+---@return { markers: { label: string, t: number }[], duration: number }
+function M.timeline(cast)
+  local out, last = {}, 0
   for line in cast:gmatch("[^\n]+") do
     if line:sub(1, 1) == "[" then
       local ev = vim.json.decode(line)
+      last = ev[1]
       if ev[2] == "m" then
-        out[#out + 1] = ev[3]
+        out[#out + 1] = { label = ev[3], t = ev[1] }
       end
     end
   end
-  return out
+  -- the player holds the last frame for 2 s (assets/playground.js)
+  return { markers = out, duration = last + 2 }
+end
+
+--- Seconds as m:ss, rounded down as the player shows them.
+---@param s number
+---@return string
+function M.clock(s)
+  s = math.floor(s)
+  return string.format("%d:%02d", math.floor(s / 60), s % 60)
+end
+
+--- A lesson's number and its title without the tutor's prefix:
+--- "org.nvim tutor 1: the basics" → "1", "The basics".
+---@param title string
+---@return string? number
+---@return string
+function M.short_title(title)
+  local n, rest = title:match("^[Oo]rg%.nvim tutor%s*(%d*):%s*(.+)$")
+  rest = rest or title
+  return (n and n ~= "") and n or nil, rest:sub(1, 1):upper() .. rest:sub(2)
+end
+
+local function plural(n, word)
+  return n .. " " .. word .. (n == 1 and "" or "s")
 end
 
 --- The playground page and its files.
@@ -203,28 +239,11 @@ function M.build(root, opts)
     return tutor.render({ key })[1]
   end
   local files = {}
-  local b = {
-    "<h1>Playground</h1>",
-    '<p class="lead">Try org.nvim before you install it: watch each lesson of the built-in tutor, '
-      .. "<code>:Org tutor</code>, played in a real Neovim. Pause, scrub, step through the exercises and "
-      .. "copy any text off the screen. The keys are org.nvim's defaults, with the leader key on "
-      .. "<kbd>Space</kbd>.</p>",
-  }
-  local lessons = M.lessons(root)
-  b[#b + 1] = '<div class="pg-tabs" role="tablist" aria-label="Lessons">'
-  for k, name in ipairs(lessons) do
-    b[#b + 1] = '<button type="button" role="tab" id="tab-'
-      .. name
-      .. '" aria-controls="lesson-'
-      .. name
-      .. '" aria-selected="'
-      .. tostring(k == 1)
-      .. '">'
-      .. html.escape(name)
-      .. "</button>"
-  end
-  b[#b + 1] = "</div>"
-  for k, name in ipairs(lessons) do
+
+  -- every lesson first: the header and the lesson cards show their totals
+  local lessons = {}
+  local total_ex, total_s = 0, 0
+  for _, name in ipairs(M.lessons(root)) do
     local cast_path = root .. "/docs/playground/" .. name .. ".cast"
     local f = io.open(cast_path, "rb")
     local cast = f and f:read("*a") or nil
@@ -240,14 +259,70 @@ function M.build(root, opts)
       opts.err("scripts/playground/lessons/%s.lua: %s", name, tostring(steps))
       steps = {}
     end
+    local timeline = cast and M.timeline(cast) or { markers = {}, duration = 0 }
+    local num, title = M.short_title(lesson.title)
+    lessons[#lessons + 1] = {
+      name = name,
+      cast = cast,
+      lesson = lesson,
+      steps = steps,
+      timeline = timeline,
+      num = num or tostring(#lessons + 1),
+      title = title,
+    }
+    total_ex = total_ex + #lesson.exercises
+    total_s = total_s + timeline.duration
+  end
+
+  local b = {
+    '<header class="pg-hero">',
+    '<p class="pg-eyebrow">Playground</p>',
+    "<h1>Try org.nvim in your browser</h1>",
+    '<p class="lead">Watch each lesson of the built-in tutor, <code>:Org tutor</code>, played in a real '
+      .. "Neovim. Pause, scrub, jump to any exercise and copy text off the screen. The keys are "
+      .. "org.nvim's defaults, with the leader key on <kbd>Space</kbd>.</p>",
+    '<ul class="pg-facts">'
+      .. "<li><strong>"
+      .. #lessons
+      .. "</strong> "
+      .. (#lessons == 1 and "lesson" or "lessons")
+      .. "</li><li><strong>"
+      .. total_ex
+      .. "</strong> exercises</li><li><strong>"
+      .. math.max(1, math.floor(total_s / 60 + 0.5))
+      .. "</strong> minutes</li><li>Nothing to install</li></ul>",
+    "</header>",
+  }
+
+  b[#b + 1] = '<div class="pg-tabs" role="tablist" aria-label="Lessons">'
+  for k, l in ipairs(lessons) do
+    b[#b + 1] = '<button type="button" role="tab" id="tab-'
+      .. l.name
+      .. '" aria-controls="lesson-'
+      .. l.name
+      .. '" aria-selected="'
+      .. tostring(k == 1)
+      .. '"><span class="pg-tab-num">Lesson '
+      .. html.escape(l.num)
+      .. '</span><span class="pg-tab-title">'
+      .. html.escape(l.title)
+      .. '</span><span class="pg-tab-meta">'
+      .. plural(#l.lesson.exercises, "exercise")
+      .. " · "
+      .. M.clock(l.timeline.duration)
+      .. "</span></button>"
+  end
+  b[#b + 1] = "</div>"
+
+  for k, l in ipairs(lessons) do
+    local name, cast, lesson = l.name, l.cast, l.lesson
     local by_id = {}
-    for _, ex in ipairs(steps) do
+    for _, ex in ipairs(l.steps) do
       by_id[ex.id] = ex
     end
-    local markers = cast and M.markers(cast) or {}
-    local marker_set = {}
-    for _, m in ipairs(markers) do
-      marker_set[m] = true
+    local at = {}
+    for _, m in ipairs(l.timeline.markers) do
+      at[m.label] = at[m.label] or m.t
     end
     files["playground/" .. name .. ".cast"] = cast or ""
     files["playground/" .. name .. ".js"] = "window.ORG_CAST&&window.ORG_CAST("
@@ -266,24 +341,41 @@ function M.build(root, opts)
       .. '.js"'
       .. (k == 1 and "" or " hidden")
       .. ">"
-    b[#b + 1] = "<h2>" .. html.escape(lesson.title) .. "</h2>"
+    b[#b + 1] = '<h2 class="pg-sr">' .. html.escape(lesson.title) .. "</h2>"
+    b[#b + 1] = '<div class="pg-stage">'
     b[#b + 1] = '<div class="pg-player" role="region" tabindex="0" aria-label="Recording of the '
       .. name
-      .. ' lesson">'
+      .. ' lesson" data-title="'
+      .. name
+      .. '.org">'
       .. '<noscript><p>The player needs JavaScript; <a href="playground/'
       .. name
       .. '.cast">download the recording</a> for any asciicast player.</p></noscript></div>'
+    b[#b + 1] = '<div class="pg-side"><h3 class="pg-side-head">Exercises <span>' .. #lesson.exercises .. "</span></h3>"
     b[#b + 1] = '<ol class="pg-steps">'
-    local welcome = "Welcome"
-    b[#b + 1] = '<li data-marker="'
-      .. welcome
-      .. '"><div class="pg-step-head"><button type="button" class="pg-jump" aria-label="Play: Welcome">'
-      .. "▶</button><strong>Welcome</strong></div>"
+    --- The head of a step: its play button (or its number), title and time.
+    local function head(id, title, label)
+      local t = at[label]
+      return '<div class="pg-step-head">'
+        .. (t and ('<button type="button" class="pg-jump" aria-label="Play: ' .. html.escape(label) .. '">') or '<span class="pg-jump pg-nojump">')
+        .. '<span class="pg-step-id">'
+        .. html.escape(id)
+        .. "</span>"
+        .. (t and "</button>" or "</span>")
+        .. "<strong>"
+        .. html.escape(title)
+        .. "</strong>"
+        .. (t and ('<span class="pg-step-time">' .. M.clock(t) .. "</span>") or "")
+        .. "</div>"
+    end
+    b[#b + 1] = '<li data-marker="Welcome">'
+      .. head("▶", "Welcome", "Welcome")
+      .. '<div class="pg-step-body">'
       .. prose(first_paragraph(lesson.intro))
-      .. "</li>"
+      .. "</div></li>"
     for _, ex in ipairs(lesson.exercises) do
       local label = ex.id .. " " .. ex.title
-      local played = marker_set[label]
+      local played = at[label] ~= nil
       if cast and by_id[ex.id] and not played then
         opts.err("docs/playground/%s.cast has no exercise %q: the lesson changed, run `make playground`", name, label)
       end
@@ -293,16 +385,17 @@ function M.build(root, opts)
         .. ex.id:gsub("%.", "-")
         .. '"'
         .. (played and (' data-marker="' .. html.escape(label) .. '"') or "")
-        .. '><div class="pg-step-head">'
-        .. (played and ('<button type="button" class="pg-jump" aria-label="Play: ' .. html.escape(label) .. '">▶</button>') or "")
-        .. "<strong>"
-        .. html.escape(label)
-        .. "</strong></div>"
+        .. ">"
+        .. head(ex.id, ex.title, label)
+        .. '<div class="pg-step-body">'
         .. prose(ex.lines)
-        .. (by_id[ex.id] and ('<p class="pg-keys-used">Keys: ' .. M.keys(by_id[ex.id].steps, render) .. "</p>") or "")
-        .. "</li>"
+        .. (by_id[ex.id] and ('<p class="pg-keys-used"><span class="pg-keys-label">Keys</span> ' .. M.keys(
+          by_id[ex.id].steps,
+          render
+        ) .. "</p>") or "")
+        .. "</div></li>"
     end
-    b[#b + 1] = "</ol>"
+    b[#b + 1] = "</ol></div></div>"
     b[#b + 1] = '<p class="pg-source">The lesson: <a href="'
       .. opts.blob("tutor/org/" .. name .. ".org")
       .. '"><code>tutor/org/'
@@ -339,9 +432,10 @@ function M.build(root, opts)
       "| Apple |     3 |",
     }, "\n"))
     .. "</textarea></div>"
-  b[#b + 1] = '<h2 id="install">Next: install it</h2>'
-  b[#b + 1] = '<p>Ready for the real thing? <a href="index.html#-install-in-30-seconds">Install org.nvim</a> '
-    .. "and run <code>:Org tutor</code>: every exercise is checked as you do it.</p>"
+  b[#b + 1] = '<div class="pg-install"><div><h2 id="install">Ready for the real thing?</h2>'
+    .. "<p>Install org.nvim and run <code>:Org tutor</code>: the same lessons, in your editor, with "
+    .. "every exercise checked as you do it.</p></div>"
+    .. '<a class="pg-cta" href="index.html#-install-in-30-seconds">Install org.nvim</a></div>'
   return { body = table.concat(b, "\n"), files = files }
 end
 
