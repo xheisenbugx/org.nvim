@@ -182,7 +182,7 @@ function M.emphasize()
   elseif ch:match("^[%*/_=~%+]$") then
     s = ch
   else
-    utils.warn(string.format('No such emphasis marker: "%s"', ch))
+    utils.warn(string.format('No such emphasis marker: "%s"', vim.fn.keytrans(ch)))
     return
   end
   local tb = require("org.textbuf").from_buffer(bufnr, visual and { srow, scol - 1 } or cursor())

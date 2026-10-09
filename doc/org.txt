@@ -7184,6 +7184,16 @@ C-c prefixed keys are normal-mode only (in Insert mode <C-c> still leaves
 Insert mode). Keys marked (ctx) depend on the cursor, like in Emacs.
 A count stands in for C-u (e.g. `4<C-c>.` is `C-u C-c .`).
 
+With which-key.nvim, the C-c C-x, C-c C-v and C-c " groups are labelled
+("org C-x ...", "org babel (C-v)", "org plot"). which-key lists them after
+the keys directly under C-c, below the end of its popup, and its default
+scroll keys <C-d> and <C-u> are org's own C-c C-d (deadline) and C-c C-u
+(parent heading). To scroll that popup, give which-key other keys: >lua
+    require("which-key").setup({
+      keys = { scroll_down = "<PageDown>", scroll_up = "<PageUp>" },
+    })
+<
+
 Global (emacs_global):
   <C-c>a  agenda
   <C-c>c  capture
