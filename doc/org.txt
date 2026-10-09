@@ -8715,7 +8715,9 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
   `teardown`   `function()`, undoes `setup` when a later `setup()` turns
                the extension off or sets it up again
-  `stability`  `"stable"` or `"experimental"` (the default), as above
+  `stability`  `"stable"` or `"experimental"`, as above. A built-in
+               extension without it is experimental; `:checkhealth org`
+               shows it for a third-party extension that sets it
 
 ------------------------------------------------------------------------------
 org-ql                                                    *org-extensions-ql*

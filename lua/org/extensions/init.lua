@@ -34,7 +34,9 @@ local M = {}
 ---Called when a later `setup()` turns the extension off (or before it is
 ---set up again): remove autocmds, handlers and windows it made.
 ---@field teardown? fun()
----"stable" or "experimental" (the default): see `:h org-extensions-stability`.
+---"stable" or "experimental": see `:h org-extensions-stability`. A built-in
+---extension without it is experimental; `:checkhealth org` shows it for a
+---third-party one that sets it.
 ---@field stability? "stable"|"experimental"
 
 --- Enabled extensions from the last `setup()`: name -> module.
@@ -244,15 +246,27 @@ function M.stability(name)
   return ok and type(ext) == "table" and ext.stability == "stable" and "stable" or "experimental"
 end
 
---- The stability line of a built-in extension in `:checkhealth org`; nil for
---- a third-party one.
+--- The stability line of an extension in `:checkhealth org`. A built-in one
+--- without a `stability` field is experimental; a third-party one gets the
+--- line only when it sets the field.
 ---@param name string
 ---@return string|nil
 function M.stability_label(name)
-  if not vim.tbl_contains(M.builtin(), name) then
-    return nil
+  local stability
+  if vim.tbl_contains(M.builtin(), name) then
+    stability = M.stability(name)
+  else
+    local ext = M.loaded[name]
+    if not ext then
+      local ok, mod = pcall(require, "org.extensions." .. name)
+      ext = ok and type(mod) == "table" and mod or nil
+    end
+    stability = ext and ext.stability
+    if stability ~= "stable" and stability ~= "experimental" then
+      return nil
+    end
   end
-  if M.stability(name) == "stable" then
+  if stability == "stable" then
     return "stability: stable"
   end
   return "stability: experimental, its options may change (:h org-extensions-stability)"

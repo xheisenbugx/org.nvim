@@ -111,7 +111,12 @@ describe("extension stability", function()
         out[#out + 1] = k .. ": " .. msg
       end
     end
-    exts.loaded = { [stable] = {}, third_party = {} }
+    exts.loaded = {
+      [stable] = {},
+      third_party = {},
+      third_stable = { stability = "stable" },
+      third_experimental = { stability = "experimental" },
+    }
     if experimental then
       exts.loaded[experimental] = {}
     end
@@ -120,8 +125,13 @@ describe("extension stability", function()
     ok(ran, err)
     local text = table.concat(out, "\n")
     ok(text:find("ok: enabled: " .. stable .. "\ninfo: stability: stable\n", 1, true), text)
-    -- a third-party extension gets no stability line
+    -- a third-party extension gets a stability line only when it sets one
     ok(text:find("ok: enabled: third_party$") or text:find("ok: enabled: third_party\nok:"), text)
+    ok(text:find("ok: enabled: third_stable\ninfo: stability: stable", 1, true), text)
+    ok(
+      text:find("ok: enabled: third_experimental\ninfo: stability: experimental, its options may change", 1, true),
+      text
+    )
     if experimental then
       local line = "ok: enabled: "
         .. experimental
