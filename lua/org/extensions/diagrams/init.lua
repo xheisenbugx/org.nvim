@@ -10,6 +10,9 @@ local MOD = "org.extensions.diagrams"
 
 local M = {}
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- Languages handled by the extension (any of "mermaid", "dot", "plantuml").
   languages = { "mermaid", "dot", "plantuml" },

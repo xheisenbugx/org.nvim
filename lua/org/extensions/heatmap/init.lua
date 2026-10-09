@@ -24,6 +24,9 @@ M.KINDS = { "clock", "closed", "habit" }
 
 local KIND_LABEL = { clock = "clocked time", closed = "tasks closed", habit = "habits done" }
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- What is counted: "clock" (minutes clocked), "closed" (tasks marked
   --- done) or "habit" (habit completions).

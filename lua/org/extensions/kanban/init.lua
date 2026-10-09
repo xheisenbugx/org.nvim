@@ -22,6 +22,9 @@ local ns = vim.api.nvim_create_namespace("org_kanban")
 local sel_ns = vim.api.nvim_create_namespace("org_kanban_selection")
 local augroup = vim.api.nvim_create_augroup("OrgKanban", { clear = true })
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- Columns, left to right: a keyword, or a table of keywords with an
   --- optional `name` and `wip` limit: `{ "NEXT", "WAITING", name = "Doing" }`.

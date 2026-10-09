@@ -30,6 +30,9 @@ local MOD = "org.extensions.transclusion"
 M.keyword = keyword
 M.source = source
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "stable"
+
 M.defaults = {
   --- How transclusions show when an org buffer is opened: "virtual"
   --- (virtual lines under the keyword; the buffer text is untouched),

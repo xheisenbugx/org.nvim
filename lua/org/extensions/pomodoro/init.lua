@@ -17,6 +17,9 @@ local utils = require("org.utils")
 
 local M = {}
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- Minutes of a pomodoro (org-pomodoro-length).
   work = 25,

@@ -508,6 +508,34 @@ local defaults = {
     --- Legacy alias of ascii.text_width (org-ascii-text-width).
     text_width = 72,
     pandoc = { cmd = "pandoc", args = {} },
+    --- Live HTML preview, :Org preview (plugin option, |org-preview|).
+    preview = {
+      --- Address the preview server listens on. Keep it on loopback: any
+      --- other address shows the files next to the Org file to the network.
+      host = "127.0.0.1",
+      --- Port of the preview server; 0 = a free port picked by the system.
+      port = 0,
+      --- Open the page when a preview starts: true = vim.ui.open(), false =
+      --- don't (the URL is shown), a command (a list such as { "open", "-a",
+      --- "Safari" }, or a string: a program path, else split on spaces; the
+      --- URL is appended) or function(url).
+      open_browser = true,
+      --- When the page is exported again: "write" (every write of the
+      --- buffer) or "text" (also while typing, `debounce` ms after the
+      --- last change).
+      on_change = "write",
+      debounce = 300,
+      --- Scroll the page to the heading the cursor is in.
+      sync_cursor = true,
+      --- Evaluate source blocks and (eval ...) macros while exporting the
+      --- preview (like an ordinary export with babel.evaluate_on_export).
+      --- Off by default: the preview exports on every write, results
+      --- already in the buffer are shown and eval macros stay unexpanded.
+      evaluate_babel = false,
+      --- Extra stylesheet for the page: a URL, or the path of a CSS file
+      --- (inlined). #+HTML_HEAD and the export.html options apply too.
+      stylesheet = nil,
+    },
   },
 }
 

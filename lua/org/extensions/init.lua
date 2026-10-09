@@ -34,6 +34,10 @@ local M = {}
 ---Called when a later `setup()` turns the extension off (or before it is
 ---set up again): remove autocmds, handlers and windows it made.
 ---@field teardown? fun()
+---"stable" or "experimental": see `:h org-extensions-stability`. A built-in
+---extension without it is experimental; `:checkhealth org` shows it for a
+---third-party one that sets it.
+---@field stability? "stable"|"experimental"
 
 --- Enabled extensions from the last `setup()`: name -> module.
 ---@type table<string, org.Extension>
@@ -200,6 +204,10 @@ function M.check(h)
   end
   for _, name in ipairs(names) do
     h.ok("enabled: " .. name)
+    local label = M.stability_label(name)
+    if label then
+      h.info(label)
+    end
     local ext = M.loaded[name]
     if ext.health then
       local ok, err = pcall(ext.health, h, M.opts(name))
@@ -208,6 +216,60 @@ function M.check(h)
       end
     end
   end
+end
+
+--- The extensions that ship with org.nvim: `lua/org/extensions/<name>/init.lua`
+--- or `<name>.lua` (helper modules ending in `_util` are not extensions), sorted.
+---@return string[]
+function M.builtin()
+  local dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h")
+  local names = {}
+  for name, kind in vim.fs.dir(dir) do
+    if kind == "directory" and vim.uv.fs_stat(dir .. "/" .. name .. "/init.lua") then
+      names[#names + 1] = name
+    elseif kind == "file" and name:match("%.lua$") and name ~= "init.lua" and not name:match("_util%.lua$") then
+      names[#names + 1] = name:sub(1, -5)
+    end
+  end
+  table.sort(names)
+  return names
+end
+
+--- Stability of a built-in extension, from its module's `stability` field
+--- ("experimental" when it sets none): the source of truth for the README
+--- table, `:h org-extensions-stability` and `:checkhealth org`
+--- (tests/spec/ext_stability_spec.lua checks they agree).
+---@param name string
+---@return "stable"|"experimental"
+function M.stability(name)
+  local ok, ext = pcall(require, "org.extensions." .. name)
+  return ok and type(ext) == "table" and ext.stability == "stable" and "stable" or "experimental"
+end
+
+--- The stability line of an extension in `:checkhealth org`. A built-in one
+--- without a `stability` field is experimental; a third-party one gets the
+--- line only when it sets the field.
+---@param name string
+---@return string|nil
+function M.stability_label(name)
+  local stability
+  if vim.tbl_contains(M.builtin(), name) then
+    stability = M.stability(name)
+  else
+    local ext = M.loaded[name]
+    if not ext then
+      local ok, mod = pcall(require, "org.extensions." .. name)
+      ext = ok and type(mod) == "table" and mod or nil
+    end
+    stability = ext and ext.stability
+    if stability ~= "stable" and stability ~= "experimental" then
+      return nil
+    end
+  end
+  if stability == "stable" then
+    return "stability: stable"
+  end
+  return "stability: experimental, its options may change (:h org-extensions-stability)"
 end
 
 return M

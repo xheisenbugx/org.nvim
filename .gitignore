@@ -25,3 +25,6 @@ docs/media/video/
 
 # make coverage
 /coverage/
+
+# make difftest
+/difftest-out/

@@ -10,6 +10,9 @@ local MOD = "org.extensions.hugo"
 
 local M = {}
 
+--- See :h org-extensions-stability (scripts/extension_report.lua measures it).
+M.stability = "experimental"
+
 M.defaults = {
   --- The Hugo site (org-hugo-base-dir); `#+hugo_base_dir` or the
   --- EXPORT_HUGO_BASE_DIR property set it per file or subtree.

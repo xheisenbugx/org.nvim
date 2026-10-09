@@ -76,7 +76,12 @@ function M.macro_expander(ctx)
   -- inserted with `format "%s"`; one that can't be evaluated (Emacs stops
   -- the export) is left unexpanded, with a warning.
   local evaluated = {}
-  local function eval_macro(t, args)
+  local function eval_macro(name, t, args)
+    if ctx.no_eval then
+      -- the live preview exports on every write: no code from the
+      -- document runs without being asked for (export.preview.evaluate_babel)
+      return "[macro " .. name .. " not evaluated in the preview]"
+    end
     local ok = pcall(require("org.table.elisp").read, t)
     local body = ok and t:match("^%(eval(.*)%)%s*$")
     if not body then
@@ -172,7 +177,7 @@ function M.macro_expander(ctx)
         return ok and tostring(v or "") or ""
       end
       if t:match("^%(eval%f[^%w]") then
-        return eval_macro(t, args)
+        return eval_macro(key, t, args)
       end
       -- org-macro-expand takes (nth (1- N) args): $0 is the first argument
       return (t:gsub("%$(%d+)", function(d)

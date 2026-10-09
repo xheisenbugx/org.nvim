@@ -57,8 +57,11 @@ function M.pick(spec, finish, user)
     local chosen = {}
     local selected
     if how == "qflist" then
-      -- every item matching the query
-      selected = picker.items and picker:items() or {}
+      -- the selection, or every item matching the query (snacks' own qflist)
+      selected = picker.selected and picker:selected() or {}
+      if #selected == 0 then
+        selected = picker.items and picker:items() or {}
+      end
     else
       selected = spec.multi and picker.selected and picker:selected({ fallback = true }) or { item }
     end

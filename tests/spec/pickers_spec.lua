@@ -587,8 +587,10 @@ describe("pickers", function()
     --- A fake snacks picker: `selected` items, the typed `pattern`.
     local function fake_picker(selected, pattern)
       local p = { input = { filter = { pattern = pattern or "" } }, closed = false }
+      -- the selected items; with fallback, the current one when none is
+      -- (the tests pass it in `selected`)
       function p:selected(o)
-        eq({ fallback = true }, o)
+        ok(o == nil or vim.deep_equal(o, { fallback = true }), "selected() options")
         return selected
       end
       function p:close()
@@ -722,7 +724,7 @@ describe("pickers", function()
       eq(2, checked)
     end)
 
-    it("sends the selection with <CR>, or every match with the qflist key, to the quickfix list", function()
+    it("sends the selection with <CR> or the qflist key, every match when none, to the quickfix list", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       require("org.actions").run("pick_headline_all")
       local p = fake_picker({ captured.items[2], captured.items[5] })
@@ -734,13 +736,21 @@ describe("pickers", function()
       eq(2, #qf().items)
       ok(qf_open(), "the quickfix window is open")
       vim.cmd("cclose")
-      -- the qflist key: every item matching the query, not the selection
-      require("org.actions").run("pick_headline_all")
-      p = fake_picker({ captured.items[1] })
-      function p:items()
-        return { captured.items[3], captured.items[4], captured.items[6] }
+      local function matching(picker)
+        function picker:items()
+          return { captured.items[3], captured.items[4], captured.items[6] }
+        end
+        return picker
       end
-      captured.actions.org_qflist(p, captured.items[1])
+      -- the qflist key: the selection, even one item, not every match
+      require("org.actions").run("pick_headline_all")
+      captured.actions.org_qflist(matching(fake_picker({ captured.items[1] })), captured.items[1])
+      settle()
+      eq({ "a.org:2:1 a.org Projects  :work:" }, qf().items)
+      vim.cmd("cclose")
+      -- nothing selected: every item matching the query
+      require("org.actions").run("pick_headline_all")
+      captured.actions.org_qflist(matching(fake_picker({})), captured.items[1])
       settle()
       eq(
         { "a.org:5:1 a.org Projects › DONE Old thing", "a.org:6:1 a.org Notes", "b.org:2:1 b.org Ideas" },
@@ -987,7 +997,7 @@ describe("pickers", function()
       eq(true, returned)
     end)
 
-    it("sends the selection with enter, or every match with ctrl-q, to the quickfix list", function()
+    it("sends the selection with enter or ctrl-q to the quickfix list", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       require("org.actions").run("pick_headline")
       opts.actions.enter({ entries[2], entries[4] }, { last_query = "" })
@@ -995,13 +1005,13 @@ describe("pickers", function()
       eq("Headlines", vim.fn.getqflist({ title = 1 }).title)
       eq(2, #qf().items)
       vim.cmd("cclose")
-      -- ctrl-q selects every match first, then runs the action
+      -- ctrl-q: the selection as it is (no select-all first), even one entry
       require("org.actions").run("pick_headline")
       local q = opts.actions["ctrl-q"]
-      eq("select-all", q.prefix)
-      q.fn({ entries[1], entries[3] }, { last_query = "o" })
+      eq("function", type(q))
+      q({ entries[3] }, { last_query = "o" })
       settle()
-      eq({ "a.org:2:1 Projects  :work:", "a.org:5:1 Projects › DONE Old thing" }, qf().items)
+      eq({ "a.org:5:1 Projects › DONE Old thing" }, qf().items)
       vim.cmd("cclose")
       vim.fn.setqflist({}, "f")
     end)
@@ -1280,7 +1290,7 @@ describe("pickers", function()
       eq(true, cancelled)
     end)
 
-    it("sends the selection with <CR>, every match with <C-q>, the selection with <M-q>", function()
+    it("sends the selection with <CR>, <C-q> (every match when none) and <M-q>", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       replaced.send_to_qflist, replaced.send_selected_to_qflist = nil, nil
       local manager = {}
@@ -1322,9 +1332,16 @@ describe("pickers", function()
       settle()
       eq({ "a.org:2:1 Projects  :work:", "a.org:6:1 Notes" }, qf().items)
       vim.cmd("cclose")
-      -- <C-q>: every match
+      -- <C-q>: the selection, even one entry
       require("org.actions").run("pick_headline")
-      manager = { e(2), e(3) }
+      multi, manager = { e(4) }, { e(2), e(3) }
+      mapped["<C-q>"].fn()
+      settle()
+      eq({ "a.org:6:1 Notes" }, qf().items)
+      vim.cmd("cclose")
+      -- nothing selected: every match
+      require("org.actions").run("pick_headline")
+      multi, selected = {}, e(1)
       mapped["<C-q>"].fn()
       settle()
       eq(
@@ -1558,7 +1575,7 @@ describe("pickers", function()
       eq(true, cancelled)
     end)
 
-    it("sends marked items, or every match with the qflist key, to the quickfix list", function()
+    it("sends marked items with <M-CR> or the qflist key, every match when none, to the quickfix list", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       behaviour = function(source)
         source.choose_marked({ source.items[1], source.items[4] })
@@ -1567,16 +1584,26 @@ describe("pickers", function()
       settle()
       eq({ "a.org:2:1 Projects  :work:", "a.org:6:1 Notes" }, qf().items)
       vim.cmd("cclose")
-      local all
+      local all, marked
       stub(rawget(_G, "MiniPick"), "get_picker_matches", function()
-        return { current = all[1], all = all }
+        return { current = all[1], all = all, marked = marked }
       end)
+      -- the qflist key: the marked items, even one
       behaviour = function(source)
-        all = { source.items[2], source.items[3] }
+        all, marked = { source.items[2], source.items[3] }, { source.items[4] }
         return started.mappings.org_qflist.func()
       end
       require("org.actions").run("pick_headline")
       eq("<C-q>", started.mappings.org_qflist.char)
+      settle()
+      eq({ "a.org:6:1 Notes" }, qf().items)
+      vim.cmd("cclose")
+      -- none marked: every match
+      behaviour = function(source)
+        all, marked = { source.items[2], source.items[3] }, {}
+        return started.mappings.org_qflist.func()
+      end
+      require("org.actions").run("pick_headline")
       settle()
       eq(
         { "a.org:3:1 Projects › TODO [#A] Write report  :urgent:", "a.org:5:1 Projects › DONE Old thing" },

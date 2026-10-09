@@ -8,6 +8,16 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.7.0] - 2026-10-09
+
+### Features
+
+- Journal extension, :Org preview, docs playground, nightly Emacs difftest, extension promotion ([#227](https://github.com/xheisenbugx/org.nvim/pull/227))
+
+### Fixes
+
+- **pickers:** Send the selection to the quickfix list with \<C-q> ([#232](https://github.com/xheisenbugx/org.nvim/pull/232))
+
 ## [v2.6.1] - 2026-10-09
 
 ### Fixes
@@ -392,6 +402,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.1...v2.7.0
 [v2.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.0...v2.6.1
 [v2.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.5.0...v2.6.0
 [v2.5.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.4.1...v2.5.0

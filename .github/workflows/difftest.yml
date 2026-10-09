@@ -1,0 +1,149 @@
+name: Difftest
+
+# org.nvim against Emacs Org 9.8.10 on generated documents, nightly and on
+# demand: `make difftest` (tests/difftest/, scripts/emacs-parity/difftest.el)
+# from a random first seed. A difference that isn't a known one
+# (tests/difftest/known.lua) fails the run (exit 1), uploads the shrunk
+# inputs and opens an issue labelled "difftest" (or comments on the open
+# one, when the kinds of failure changed since its last report) with the
+# seeds, oracles, minimal inputs and diffs. An infrastructure failure (exit
+# 2: no Emacs, Emacs errors on too many documents, a crash) only fails the
+# job. See "Differential testing" in CONTRIBUTING.md.
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "First seed (SEED); empty: random"
+        default: ""
+      count:
+        description: "Documents (COUNT)"
+        default: "400"
+      oracles:
+        description: "Space-separated oracles (ORACLES); empty: all"
+        default: ""
+
+permissions:
+  contents: read
+
+# one run at a time: two runs would both report the same failures
+concurrency:
+  group: difftest
+  cancel-in-progress: false
+
+env:
+  ORG_VERSION: "9.8.10"
+
+jobs:
+  difftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # a scheduled run starts from the default branch (main, the last
+          # release): test dev, where new code lands
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+          # nothing pushes; gh reads GH_TOKEN
+          persist-credentials: false
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - uses: purcell/setup-emacs@bdc64dc730ae1fcba200bfd52cb1b4cf6159cbe5 # v8.0
+        with:
+          version: "30.1"
+      # Org 9.8.10 from GNU ELPA, byte-compiled once and cached
+      - uses: actions/cache@v4
+        id: org-cache
+        with:
+          path: ~/org-lisp
+          key: org-${{ env.ORG_VERSION }}-emacs-30.1
+      - name: Fetch Org ${{ env.ORG_VERSION }}
+        if: steps.org-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p ~/org-lisp
+          curl -fsSL "https://elpa.gnu.org/packages/org-$ORG_VERSION.tar" | tar -x -C ~/org-lisp
+          dir=~/org-lisp/org-$ORG_VERSION
+          emacs -Q --batch -L "$dir" -f batch-byte-compile "$dir"/*.el 2>&1 | grep -v '^Warning\|^In \|^$' | tail -n 20 || true
+      - name: Difftest
+        id: difftest
+        shell: bash
+        env:
+          ORG_EMACS: emacs
+          SEED: ${{ inputs.seed }}
+          COUNT: ${{ inputs.count || '400' }}
+          ORACLES: ${{ inputs.oracles }}
+          DIFFTEST_JOBS: "4"
+        # `make difftest` without make, which turns every failure into its
+        # own exit status 2: 1 is a difference, 2 an infrastructure failure
+        run: |
+          export ORG_LISP_DIR=~/org-lisp/org-$ORG_VERSION
+          d=$(mktemp -d)
+          set +e
+          XDG_DATA_HOME=$d XDG_CACHE_HOME=$d/cache \
+            nvim --headless -u tests/minimal_init.lua -l scripts/difftest.lua 2>&1 | tee difftest.log
+          status=${PIPESTATUS[0]}
+          set -e
+          rm -rf "$d"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Report the failure in an issue
+        if: failure() && steps.difftest.outputs.status == '1'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          sha=$(git rev-parse --short=12 HEAD)
+          # the kinds of failure ("Failing, by kind" without counts and
+          # seeds): report only when they changed since the last report
+          # shellcheck disable=SC2016 # the backquotes are literal
+          sig=$(sed -n '/^Failing, by kind/,/^## /p' difftest-out/report.md 2>/dev/null \
+            | grep '^- [0-9]' | grep -o '`[^`]*`' | sort -u | sha256sum | cut -c1-16)
+          {
+            echo "The [nightly difftest run]($RUN_URL) on \`$sha\` found differences from Emacs Org $ORG_VERSION."
+            echo
+            echo "Each one comes with the command that replays it, the shrunk input and"
+            echo "the diff (\`-\` Emacs, \`+\` org.nvim); the inputs are also in the run's"
+            echo "\`difftest-repros\` artifact. Fix the bug, or add the difference to"
+            echo "\`tests/difftest/known.lua\` with the reason (see \"Differential testing\""
+            echo "in CONTRIBUTING.md)."
+            echo
+            if [ -f difftest-out/report.md ]; then
+              head -c 60000 difftest-out/report.md
+            else
+              echo '```'
+              tail -n 80 difftest.log
+              echo '```'
+            fi
+            echo
+            echo "<!-- difftest-signature: $sig -->"
+          } > issue.md
+          gh label create difftest --color 5319E7 --description "Found by the nightly Emacs differential test" 2>/dev/null || true
+          num=$(gh issue list --label difftest --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$num" ]; then
+            last=$(gh issue view "$num" --json body,comments --jq '.body, .comments[].body' \
+              | grep -o 'difftest-signature: [0-9a-f]*' | tail -n 1 | cut -d' ' -f2)
+            if [ "$last" = "$sig" ]; then
+              echo "Issue #$num already reports these kinds of failure ($sig): not commenting"
+            else
+              gh issue comment "$num" --body-file issue.md
+            fi
+          else
+            gh issue create --title "Difftest: org.nvim differs from Emacs Org" --label difftest --body-file issue.md
+          fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: difftest-repros
+          path: |
+            difftest.log
+            difftest-out/report.md
+            difftest-out/repros/

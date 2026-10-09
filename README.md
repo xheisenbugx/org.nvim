@@ -20,6 +20,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Tour](#-a-quick-tour)** ·
 **[Features](#-features)** ·
 **[Docs](https://org-nvim.com/)** ·
+**[Try it in your browser](https://org-nvim.com/playground.html)** ·
 **[Changelog](CHANGELOG.md)** ·
 **[Contributing](CONTRIBUTING.md)**
 
@@ -113,6 +114,8 @@ Restart Neovim and run `:checkhealth org`. New to Org? Run `:Org tutor`:
 a guided lesson, like `vimtutor`, in a copy of its own where every org key
 works and each exercise gets a ✓ once you have done it (`:Org tutor
 workflow` continues with capture, the agenda and clocking; `:h org-tutor`).
+Not installed yet? [Try it in your browser](https://org-nvim.com/playground.html):
+the playground plays both lessons in a real Neovim, exercise by exercise.
 
 For a longer tour, open
 [`examples/tutorial.org`](examples/tutorial.org), a hands-on tour with a
@@ -435,7 +438,8 @@ letter, man page, Markdown, ASCII, Org, iCalendar, ODT and Texinfo
 back-ends are ports of Emacs's, there's a GitHub-flavoured Markdown
 back-end, Hugo blog posts with the `hugo` extension (a port of ox-hugo),
 and pandoc handles DOCX, EPUB and more. You can export to a buffer to check
-the result:
+the result. `:Org preview` shows a live HTML preview in the browser that
+reloads on every save, served from Neovim itself:
 
 ![Exporting an Org file to a Markdown buffer](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/export-md.gif)
 
@@ -469,7 +473,7 @@ searches it, and `{` / `}` jump between sections:
 | 🧪 | **Babel** | Asynchronous execution in many languages (with a spinner, placeholder results and cancelling), `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, GitHub-flavoured Markdown, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
-| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, Hugo blog export (ox-hugo), a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
+| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, Hugo blog export (ox-hugo), a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, live transclusion (org-transclusion) and a dated journal (org-journal) |
 | 🎁 | **And more** | Column view, `org-indent` mode, speed keys, footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, BibTeX links (`ol-bibtex`), `org-ctags`, the Org/table/agenda menus and org-mouse, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)), and
@@ -1155,7 +1159,11 @@ its options may still change):
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap`, `hugo` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap` | `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal` |
+
+An experimental extension is promoted once it meets measurable criteria
+(specs, coverage, docs, releases without a breaking change, no open bugs),
+checked at every release; the release notes say when.
 
 > [!NOTE]
 > 🧪 Experimental extensions are prone to change. Their options, commands,
@@ -1240,7 +1248,7 @@ its options may still change):
 
   ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/drill.gif)
 
-- 🧪 **`merge`**: a structural git merge driver for Org files. `:Org
+- ✅ **`merge`**: a structural git merge driver for Org files. `:Org
   merge_install` registers it for the repository (`*.org merge=org`), and
   git then merges org files entry by entry: entries matched by `ID` or
   outline path, refiles followed, properties merged key by key, clocks and
@@ -1324,7 +1332,7 @@ its options may still change):
 
   ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lsp.gif)
 
-- 🧪 **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
+- ✅ **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
   `#+transclude: [[file:notes.org::*Heading]] :level 2` or
   `[[file:main.py]] :lines 10-24 :src python` shows that text live, as
   virtual lines under the keyword (the file isn't touched) or inserted into
@@ -1353,7 +1361,7 @@ its options may still change):
 
   ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/timeline.gif)
 
-- 🧪 **`heatmap`**: a GitHub-style calendar of the time clocked each day,
+- ✅ **`heatmap`**: a GitHub-style calendar of the time clocked each day,
   the tasks closed or the habits done, shaded from your colorscheme, with
   totals and streaks; the selected day shows its tasks and `<CR>` opens its
   agenda (`:Org heatmap [clock|closed|habit] [tag]`, `<prefix>Vh`,
@@ -1367,6 +1375,16 @@ its options may still change):
   (`sidebar_toggle`, `<prefix>Vs`, `:h org-extensions-sidebar`).
 
   ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/sidebar.gif)
+
+- 🧪 **`journal`** ([org-journal](https://github.com/bastibe/org-journal)):
+  a dated journal, one file per day, week, month or year in org-journal's
+  format. `<prefix>Lj` adds a timed entry to today, moving yesterday's
+  unfinished TODOs over; `<prefix>Ln` / `<prefix>Lp` go between days,
+  `<prefix>Lc` opens a calendar with the days that have entries marked,
+  `<prefix>Ls` searches a date range, and future days take scheduled
+  entries that the agenda can show (`:h org-extensions-journal`).
+
+  ![Journal: a new entry carrying over yesterday's TODOs, moving between days and picking a day in the calendar](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/journal.gif)
 
 ---
 
