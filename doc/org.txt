@@ -5942,13 +5942,17 @@ keys there; in telescope its select_horizontal / vertical / tab actions
 Several entries can be chosen there too (multi-select, above). <CR> puts
 them in the quickfix list, titled after the picker, and opens it; <C-s>,
 <C-v> and <C-t> open each in a window of its own. <C-q> (`picker_keys`'
-`qflist`) puts every entry matching the typed text in the quickfix list.
-From there |:cdo| / |:cfdo| edit them all, and plugins reading the
-quickfix list take them: grug-far.nvim searches and replaces in their files
-with `<qflist>` as its paths, trouble.nvim and quicker.nvim show them. In
-telescope its own
-send_to_qflist (<C-q>) and send_selected_to_qflist (<M-q>) actions do the
-same; in fzf-lua <C-q> needs fzf 0.53 or later to take every match.
+`qflist`) puts the selected entries in the quickfix list, even just one,
+or with none selected every entry matching the typed text, like
+snacks.nvim's own <C-q>. In fzf-lua it takes the selection or the entry
+under the cursor, like fzf-lua's own alt-q: fzf can't say that nothing is
+selected. Select every match first with toggle-all (alt-a) there.
+In telescope its own send_to_qflist (<C-q>) does the same, and
+send_selected_to_qflist (<M-q>) takes the selection or the entry under
+the cursor. From there |:cdo| / |:cfdo| edit them all, and plugins
+reading the quickfix list take them: grug-far.nvim searches and replaces
+in their files with `<qflist>` as its paths, trouble.nvim and quicker.nvim
+show them.
 
 Picker options ~
                                                         *org-picker-opts*
@@ -6668,8 +6672,9 @@ Structure and visibility ~
   picker_keys               { split = "<C-s>", vsplit = "<C-v>",
                               tab = "<C-t>", qflist = "<C-q>" }
                                       open a place in a split, vsplit or
-                                      tab from a picker, or every match in
-                                      the quickfix list (|org-picker-keys|)
+                                      tab from a picker, or the selection
+                                      in the quickfix list
+                                      (|org-picker-keys|)
   bookmark_names            { last_capture = "org-capture-last-stored",
                               last_refile = "org-refile-last-stored",
                               last_capture_marker =

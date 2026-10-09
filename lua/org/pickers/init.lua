@@ -49,7 +49,8 @@ local M = {}
 ---The items are places to go to: the `picker_keys` (split, vsplit, tab,
 ---qflist) choose too, and `on_choice` gets how to open the items as its
 ---third argument (`pick_*` pass it on to `go()`). The qflist key chooses
----every item that matches the query.
+---the selected items, or every item that matches the query when none is
+---selected (fzf-lua: the current one).
 ---@field split? boolean
 
 ---@class org.PickerSpec: org.PickerOpts

@@ -491,8 +491,8 @@
 ---@field picker_opts? { ["fzf-lua"]?: table, snacks?: table, telescope?: table, mini?: table }
 ---Keys, in Vim's notation, of the pickers that go to a place (headlines,
 ---agenda entries, agenda files) that open it in a split, a vertical split
----or a tab page, or put every matching entry in the quickfix list
----(`qflist`); `false` for none. (default: `{ split = "<C-s>", vsplit =
+---or a tab page, or put the selected entries (every matching one when
+---none is selected) in the quickfix list (`qflist`); `false` for none. (default: `{ split = "<C-s>", vsplit =
 ---"<C-v>", tab = "<C-t>", qflist = "<C-q>" }`)
 ---@field picker_keys? { split?: string|false, vsplit?: string|false, tab?: string|false, qflist?: string|false }
 ---How sorting (entries, lists, tables, the agenda) compares text:
