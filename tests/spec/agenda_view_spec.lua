@@ -107,6 +107,20 @@ describe("agenda item dates", function()
     eq("  " .. ts(0, "09:00") .. " " .. ts(1, "17:00"), source_lines()[2])
   end)
 
+  it("S-Right on the block of a SCHEDULED range shifts that range", function()
+    open({ "* Range", "SCHEDULED: " .. ts(0) .. "--" .. ts(2), "  " .. ts(5) })
+    local target
+    for l, it in pairs(view.state.line_items) do
+      if it.type == "range" then
+        target = l
+      end
+    end
+    ok(target, "no block line")
+    vim.api.nvim_win_set_cursor(0, { target, 0 })
+    view.actions.date_later()
+    eq({ "SCHEDULED: " .. ts(1) .. "--" .. ts(3), "  " .. ts(5) }, { source_lines()[2], source_lines()[3] })
+  end)
+
   it("S-Right on a past date moves it to today; with a count it shifts", function()
     open({ "* Past", "  " .. ts(-3) }, {}, nil)
     view.quit(true)
