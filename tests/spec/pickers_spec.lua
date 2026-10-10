@@ -702,6 +702,31 @@ describe("pickers", function()
       eq(true, cancelled)
     end)
 
+    it("takes the typed text with <M-CR> even when entries match (picker_keys.query)", function()
+      local got, query
+      local spec = {
+        title = "T",
+        allow_query = true,
+        items = { { display = { { "Meeting notes" } }, value = 1 } },
+        on_choice = function(items, q)
+          got, query = items, q
+        end,
+      }
+      require("org.pickers").pick(spec)
+      eq({ "org_query", mode = { "n", "i" } }, captured.win.input.keys["<M-CR>"])
+      eq("org_query", captured.win.list.keys["<M-CR>"])
+      local p = fake_picker({ captured.items[1] }, " Meeting ")
+      captured.actions.org_query(p, captured.items[1])
+      settle()
+      eq({}, got)
+      eq("Meeting", query)
+      ok(p.closed)
+      -- not without allow_query
+      spec.allow_query = nil
+      require("org.pickers").pick(spec)
+      eq(nil, captured.actions.org_query)
+    end)
+
     it("previews the buffer of a loaded file, with its unsaved edits", function()
       vim.cmd("edit " .. vim.fn.fnameescape(a_path))
       local buf = vim.api.nvim_get_current_buf()
@@ -968,6 +993,27 @@ describe("pickers", function()
       opts.winopts.on_close()
       settle()
       eq(true, cancelled)
+    end)
+
+    it("takes the typed text with alt-enter even when entries match (picker_keys.query)", function()
+      eq("alt-enter", require("org.pickers.backends.fzf_lua").fzf_key("<M-CR>"))
+      local got, query
+      local spec = {
+        title = "T",
+        allow_query = true,
+        items = { { display = { { "Meeting notes" } }, value = 1 } },
+        on_choice = function(items, q)
+          got, query = items, q
+        end,
+      }
+      require("org.pickers").pick(spec)
+      opts.actions["alt-enter"]({ entries[1] }, { last_query = "Meeting" })
+      settle()
+      eq({}, got)
+      eq("Meeting", query)
+      spec.allow_query = nil
+      require("org.pickers").pick(spec)
+      eq(nil, opts.actions["alt-enter"])
     end)
 
     it("cancels once whichever key closes it", function()
@@ -1288,6 +1334,43 @@ describe("pickers", function()
       vim.api.nvim_buf_delete(conf.prompt_bufnr, { force = true })
       settle()
       eq(true, cancelled)
+    end)
+
+    it("takes the typed text with <M-CR> even when entries match (picker_keys.query)", function()
+      local got, query
+      local spec = {
+        title = "T",
+        allow_query = true,
+        items = { { display = { { "Meeting notes" } }, value = 1 } },
+        on_choice = function(items, q)
+          got, query = items, q
+        end,
+      }
+      require("org.pickers").pick(spec)
+      eq({ "i", "n" }, mapped["<M-CR>"].mode)
+      -- an entry matches and is selected: <CR> takes it, <M-CR> the text
+      selected, line = conf.finder.entry_maker(spec.items[1]), "Meeting"
+      mapped["<M-CR>"].fn()
+      settle()
+      eq({}, got)
+      eq("Meeting", query)
+      eq(conf.prompt_bufnr, closed)
+      -- nothing typed: nothing to take
+      got, query = nil, nil
+      require("org.pickers").pick(spec)
+      line = ""
+      mapped["<M-CR>"].fn()
+      settle()
+      eq(nil, got)
+      -- not without allow_query, nor with picker_keys.query = false
+      mapped = {}
+      spec.allow_query = nil
+      require("org.pickers").pick(spec)
+      eq(nil, mapped["<M-CR>"])
+      spec.allow_query = true
+      stub(require("org.config").opts, "picker_keys", { query = false })
+      require("org.pickers").pick(spec)
+      eq(nil, mapped["<M-CR>"])
     end)
 
     it("sends the selection with <CR>, <C-q> (every match when none) and <M-q>", function()
@@ -1755,6 +1838,25 @@ describe("pickers", function()
       eq({ title = "Durian" }, c)
     end)
 
+    it("creates a node from the typed text with alt-enter while nodes match it (#239)", function()
+      fake_module("fzf-lua", {
+        fzf_exec = function(e, o)
+          vim.schedule(function()
+            o.actions["alt-enter"]({ e[1] }, { last_query = "App" })
+          end)
+        end,
+      })
+      setup("fzf-lua")
+      local c
+      utils.run(function()
+        c = require("org.extensions.roam.node").read({})
+      end)
+      vim.wait(500, function()
+        return c ~= nil
+      end)
+      eq({ title = "App" }, c)
+    end)
+
     it("creates a node from the selected text with mini.pick", function()
       local typed = {}
       fake_global("MiniPick", {
@@ -1785,6 +1887,34 @@ describe("pickers", function()
         return done
       end)
       eq({ title = "Durian" }, c)
+    end)
+
+    it("creates a node from the typed text with <M-CR> in snacks while nodes match it", function()
+      local o
+      fake_global("Snacks", {
+        picker = {
+          pick = function(opts)
+            o = opts
+            vim.schedule(function()
+              local picker = { input = { filter = { pattern = " App " } } }
+              function picker:close()
+                o.on_close()
+              end
+              o.actions.org_query(picker)
+            end)
+          end,
+        },
+      })
+      setup("snacks")
+      local c
+      utils.run(function()
+        c = require("org.extensions.roam.node").read({})
+      end)
+      vim.wait(500, function()
+        return c ~= nil
+      end)
+      eq({ title = "App" }, c)
+      eq({ "org_query", mode = { "n", "i" } }, o.win.input.keys["<M-CR>"])
     end)
 
     it("keeps snacks for auto when snacks is loaded", function()

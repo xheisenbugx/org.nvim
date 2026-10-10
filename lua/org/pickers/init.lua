@@ -39,8 +39,10 @@ local M = {}
 ---in mini.pick); vim.ui.select chooses one.
 ---@field multi? boolean
 ---Confirming when nothing matches calls `on_choice({}, query)` with the
----typed text. mini.pick lists a `create_label` entry that takes the typed
----text; vim.ui.select offers one that asks for it.
+---typed text, and so does `picker_keys.query` (<M-CR>) whatever matches
+---(Emacs' vertico-exit-input, ivy-immediate-done; not mini.pick, where it
+---is choose_marked). mini.pick lists a `create_label` entry that takes the
+---typed text; vim.ui.select offers one that asks for it.
 ---@field allow_query? boolean
 ---Label of the entry vim.ui.select and mini.pick offer for `allow_query`.
 ---@field create_label? string
@@ -114,6 +116,18 @@ end
 function M.create_prompt(spec)
   local label = (spec.create_label or "New"):gsub("^%+%s*", ""):gsub("…$", "")
   return label .. ": "
+end
+
+--- The key that confirms the typed text, not the entry under the cursor,
+--- in a picker with `allow_query` (`picker_keys.query`), or nil.
+---@param spec { allow_query?: boolean }
+---@return string|nil
+function M.query_key(spec)
+  if not spec.allow_query then
+    return nil
+  end
+  local lhs = (require("org.config").opts.picker_keys or {}).query
+  return type(lhs) == "string" and lhs ~= "" and lhs or nil
 end
 
 -- the order the `picker_keys` are bound in

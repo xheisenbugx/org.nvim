@@ -169,8 +169,15 @@ local function snacks_read(items, opts)
         pos = { c.node.lnum or 1, 0 },
       }
     end
+    -- picker_keys.query: the typed text, whatever matches it
+    local qkey = opts.allow_new ~= false and require("org.pickers").query_key({ allow_query = true }) or nil
+    local keys = {}
+    if qkey then
+      keys[qkey] = { "org_query", mode = { "n", "i" } }
+    end
     require("org.pickers.backends.snacks").api().pick({
       source = "org_roam_node",
+      win = { input = { keys = keys }, list = { keys = keys } },
       title = opts.prompt or "Node",
       items = list,
       pattern = opts.default_title,
@@ -188,6 +195,13 @@ local function snacks_read(items, opts)
             finish(nil)
           end
           picker:close()
+        end,
+        org_query = function(picker)
+          local query = vim.trim(picker.input and picker.input.filter.pattern or "")
+          if query ~= "" then
+            finish({ title = query })
+            picker:close()
+          end
         end,
       },
       on_close = function()

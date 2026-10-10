@@ -167,8 +167,10 @@ local defaults = {
   --- Keys of the pickers that go to a place (headlines, agenda entries,
   --- files) opening it in a split, a vertical split or a tab page, or
   --- putting the selected entries (every matching one when none is
-  --- selected) in the quickfix list; false for none.
-  picker_keys = { split = "<C-s>", vsplit = "<C-v>", tab = "<C-t>", qflist = "<C-q>" },
+  --- selected) in the quickfix list; false for none. `query`, in pickers
+  --- that can take a new entry (a roam node, tags), confirms the text typed
+  --- even when entries match it (Emacs' vertico-exit-input).
+  picker_keys = { split = "<C-s>", vsplit = "<C-v>", tab = "<C-t>", qflist = "<C-q>", query = "<M-CR>" },
   --- How sorting compares text (org-sort-function): "collate" (the
   --- collation locale, like string-collate-lessp), "fallback" (character
   --- codes, org-sort-function-fallback) or function(a, b, ignore_case).

@@ -95,6 +95,20 @@ function M.pick(spec, finish, user)
     input_keys[k[2]] = { name, mode = { "n", "i" } }
     list_keys[k[2]] = name
   end
+  -- the typed text, whatever matches it
+  local qkey = pickers.query_key(spec)
+  if qkey then
+    actions.org_query = function(picker)
+      local query = vim.trim(picker.input and picker.input.filter and picker.input.filter.pattern or "")
+      if query ~= "" and not answered[picker] then
+        answered[picker] = true
+        finish({}, query)
+        picker:close()
+      end
+    end
+    input_keys[qkey] = { "org_query", mode = { "n", "i" } }
+    list_keys[qkey] = "org_query"
+  end
   local user_close = user.on_close
   local opts = vim.tbl_deep_extend(
     "force",
