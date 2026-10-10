@@ -78,7 +78,8 @@ function M.fzf_key(lhs)
   end
   local mod, key = lower:match("^([cma])%-(.+)$")
   if mod then
-    return (mod == "c" and "ctrl-" or "alt-") .. key
+    -- "<M-CR>" is "alt-enter"
+    return (mod == "c" and "ctrl-" or "alt-") .. (named[key] or key)
   end
   return lower
 end
@@ -129,6 +130,13 @@ function M.pick(spec, finish, user)
     -- nothing is selected (toggle-all, alt-a, selects every match)
     actions[M.fzf_key(k[2])] = function(selected, o)
       accept(selected, o, how)
+    end
+  end
+  -- the typed text, whatever matches it
+  local qkey = pickers.query_key(spec)
+  if qkey then
+    actions[M.fzf_key(qkey)] = function(_, o)
+      accept({}, o)
     end
   end
   local user_close = user.winopts and user.winopts.on_close

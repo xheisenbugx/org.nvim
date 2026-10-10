@@ -192,6 +192,18 @@ function M.pick(spec, finish, topts)
             end)
           end
         end
+        -- the typed text, whatever matches it
+        local qkey = pickers.query_key(spec)
+        if qkey then
+          map({ "i", "n" }, qkey, function()
+            local query = vim.trim(action_state.get_current_line() or "")
+            if query ~= "" then
+              answered = true
+              actions.close(prompt_bufnr)
+              finish({}, query)
+            end
+          end)
+        end
         -- closed without a choice
         vim.api.nvim_create_autocmd("BufWipeout", {
           buffer = prompt_bufnr,
