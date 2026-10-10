@@ -523,7 +523,10 @@ end
 M.on_item = on_item
 
 function kind_of(item)
-  if item.type == "deadline" then
+  if item.planning_kind then
+    -- a block from a SCHEDULED or DEADLINE date range
+    return item.planning_kind
+  elseif item.type == "deadline" then
     return "deadline"
   elseif item.type == "timestamp" or item.type == "range" then
     return "timestamp"

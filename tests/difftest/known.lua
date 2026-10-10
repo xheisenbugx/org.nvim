@@ -73,40 +73,6 @@ local function inlinetask_after_list(lines)
   return false
 end
 
---- Whether a link has more than one possible target: two headlines with
---- the same title and a "*title" link, or <<target>> twice. Inline tasks
---- aren't headlines a "*title" link reaches.
-local function ambiguous_links(lines)
-  local seen, dup, link = {}, false, false
-  for _, l in ipairs(lines) do
-    local title = not l:match(INLINETASK) and l:match("^%*+ (.-)%s*$")
-    if title then
-      title = title
-        :gsub("^%u%u+ ", "")
-        :gsub("^%[#%a%] ", "")
-        :gsub("%s+:[%w_@:]+:$", "")
-        :gsub("%s*%[%d*[/%%]%d*%]", "")
-        :lower()
-      dup = dup or seen[title] or false
-      seen[title] = true
-    end
-    link = link or l:find("[[*", 1, true) ~= nil
-  end
-  if dup and link then
-    return true
-  end
-  local targets = 0
-  for _, l in ipairs(lines) do
-    for _ in l:gmatch("[^<]<<target>>") do
-      targets = targets + 1
-    end
-    for _ in l:gmatch("^<<target>>") do
-      targets = targets + 1
-    end
-  end
-  return targets > 1
-end
-
 --- Whether an inline task comes before the first headline.
 local function inlinetask_before_headline(lines)
   for _, l in ipairs(lines) do
@@ -303,26 +269,6 @@ return {
   },
   {
     oracle = "export%-.*",
-    reason = [[A link with more than one possible target (two headlines titled
-      "Alpha" and a "*Alpha" link, or <<target>> twice): Emacs and org.nvim
-      pick different ones (so section numbers and reference ids differ).]],
-    input = ambiguous_links,
-    broad = true,
-    moves = true,
-    same = function(s)
-      -- the reference ids (custom or not) and the "See section <number
-      -- or title>" of ASCII only, in any line order
-      s = s:gsub("ID%d+", "ID#"):gsub("#custom%d*", "#ID#"):gsub("(See section )%d[%d%.]*", "%1#")
-      s = s:gsub("(See section )(%a+)", function(see, title)
-        return see .. title:lower()
-      end)
-      local lines = vim.split(s, "\n", { plain = true })
-      table.sort(lines)
-      return table.concat(lines, "\n")
-    end,
-  },
-  {
-    oracle = "export%-.*",
     reason = [[A timestamp with a habit repeater (<... .+2d/4d>): org.nvim
       exports it without the "/4d".]],
     emacs = "[%.%+]%d+[hdwmy]/%d+[hdwmy]",
@@ -421,13 +367,6 @@ return {
     same = function(s)
       return (s:gsub("[ \t]+\n", "\n"):gsub("[ \t]+$", ""))
     end,
-  },
-  {
-    oracle = "agenda",
-    reason = [[A date range in a planning line (SCHEDULED: <a>--<b>) also
-      gives Emacs a block entry ("(2/5): ...") on each day of the range, and
-      a time of day; org.nvim shows only the planning entry.]],
-    emacs = "%(%d+/%d+%):",
   },
   {
     oracle = "agenda",
