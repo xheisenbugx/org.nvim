@@ -1786,7 +1786,10 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   (org-scheduled-delay-days, 0) is the delay of entries without one, and a
   negative value applies to all of them.
 - Date ranges on each of their days (`(2/3):`), with the start time on
-  the first day and the end time on the last.
+  the first day and the end time on the last. A range on a SCHEDULED or
+  DEADLINE line shows this way too, next to its planning entry. As in
+  Emacs, a range starts at the first timestamp before it on its line:
+  `SCHEDULED: <a> DEADLINE: <b>--<c>` runs from a to c.
 - Active timestamps. Repeaters show on every repeat up to today and, after
   today, per `agenda.show_future_repeats` (true, false, "next");
   `agenda.prefer_last_repeat` shows the last repeat instead of the base
@@ -3414,6 +3417,14 @@ Syntax: `[[target][description]]`, `[[target]]`, plain links
 of the link, trailing punctuation is not) and <angle> links. Bracket links
 may span lines. With `ui.conceal_links` (org-link-descriptive), only the
 description is shown.
+                                                    *org-links-wrap*
+With 'wrap' on, Neovim breaks a line by its full text, the hidden part
+of a link included (neovim issue 14409, the same in Vim): when a link's
+hidden target reaches the right edge of the window, its description
+starts on the next row and the row above ends in a gap as wide as the
+hidden text. Emacs wraps the text as shown. This is Neovim's drawing,
+not something a plugin can change; to avoid the gap, set 'nowrap' in
+org buffers, or show links in full with <prefix>lt.
                                                     *org-conceal-cursor*
 As in Emacs, where point never stays inside invisible text, Normal-mode
 motions skip what is hidden: `l` from the text before a link goes to the
@@ -4083,7 +4094,8 @@ the formulas sorted like Emacs.
 References:
   $2 $> $< $>> $+1 $-1       columns
   @3 @> @< @<< @-1 @I @II    rows / hlines (a rule above the first row
-                             is @I)
+                             is @I; the one after the last hline is
+                             the last row)
   @2$3                       a single field
   @2$1..@4$3 $1..$3          ranges
   @# $#                      the current row / column number
@@ -6029,6 +6041,18 @@ off: >lua
 keys there; in telescope its select_horizontal / vertical / tab actions
 (<C-x>, <C-v>, <C-t>) do the same.
 
+                                                        *org-picker-query*
+A picker that can take a new entry (a roam node, the new tags of
+`pick_set_tags`) takes the typed text when <CR> matches nothing. When
+existing entries match it, <M-CR> (`picker_keys`' `query`) takes the
+typed text instead of the entry under the cursor, like vertico's M-RET
+(vertico-exit-input) or ivy's C-M-j (ivy-immediate-done) in Emacs: type
+"Meeting" and press <M-CR> to create a node "Meeting" while "Meeting
+notes" exists. It works in snacks.nvim, fzf-lua (alt-enter) and
+telescope. mini.pick keeps <M-CR> (choose_marked) and lists "+ New: <text>"
+below the matches for this; vim.ui.select has no typed text (use its
+"+ New" entry). `false` turns it off.
+
                                                         *org-picker-qflist*
 Several entries can be chosen there too (multi-select, above). <CR> puts
 them in the quickfix list, titled after the picker, and opens it; <C-s>,
@@ -6761,11 +6785,13 @@ Structure and visibility ~
   picker_opts               {}        options for the picker plugin, by
                                       picker (|org-picker-opts|)
   picker_keys               { split = "<C-s>", vsplit = "<C-v>",
-                              tab = "<C-t>", qflist = "<C-q>" }
+                              tab = "<C-t>", qflist = "<C-q>",
+                              query = "<M-CR>" }
                                       open a place in a split, vsplit or
                                       tab from a picker, or the selection
-                                      in the quickfix list
-                                      (|org-picker-keys|)
+                                      in the quickfix list; take the typed
+                                      text as a new entry
+                                      (|org-picker-keys|, |org-picker-query|)
   bookmark_names            { last_capture = "org-capture-last-stored",
                               last_refile = "org-refile-last-stored",
                               last_capture_marker =
@@ -8224,7 +8250,9 @@ Differences from Emacs:
   with the default "nc"), as Neovim reveals concealed text there. An image
   shown in place of its link whose line wraps after it, or on the first
   line of a closed fold, is drawn below the line or shown as its link text
-  (Emacs makes that screen line as tall as the image). Vim draws syntax
+  (Emacs makes that screen line as tall as the image). A wrapped line
+  breaks by its full text, hidden link targets included, so a long link
+  near the window edge leaves a gap (|org-links-wrap|). Vim draws syntax
   up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
   ends before that column, so a long line can't leave the lines below it
   bold. Emphasis over two lines is highlighted only when its part on the
@@ -9188,7 +9216,9 @@ Choosing a node ~
             "auto" takes LazyVim's picker, else snacks.nvim's first
             (default)
   "snacks"  fuzzy search; confirming a query that matches no node creates a
-            node with that title (like completing-read in Emacs)
+            node with that title (like completing-read in Emacs), and
+            <M-CR> creates it even when other nodes match
+            (|org-picker-query|)
   "fzf-lua", "telescope", "mini"
             the same with that picker, previewing the node (mini.pick:
             "+ New node: <text>", below the matches, takes the typed text)

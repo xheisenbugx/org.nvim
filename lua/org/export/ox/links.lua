@@ -294,10 +294,14 @@ function M.resolve_fuzzy_link(link, info, pseudo)
     end, { ignore = info.ignore })
     info.resolve_fuzzy_cache = cache
   end
+  -- Emacs pushes each datum onto its cell's list, so a cell's matches come
+  -- last in the document first: with two headlines of the same title (or
+  -- <<target>> twice), the link reaches the last one.
   local matches = {}
   for _, cell in ipairs(cells) do
-    for _, d in ipairs(cache[cell] or {}) do
-      matches[#matches + 1] = d
+    local list = cache[cell] or {}
+    for i = #list, 1, -1 do
+      matches[#matches + 1] = list[i]
     end
   end
   if #matches == 0 then

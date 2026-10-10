@@ -407,6 +407,16 @@ local function resolve_row(m, spec, r, pos)
       a = above[#above - spec.n + 1]
     else
       a = m.hlines[spec.n]
+      if not a and spec.n == #m.hlines + 1 then
+        -- Emacs adds an imaginary hline after the table, and a reference
+        -- that lands on it means the last row (org-table--row-type): with
+        -- one hline, `@II` is the last row, `@II-1` the one above it.
+        local off = spec.offset or 0
+        if off > 0 then
+          error("no hline " .. string.rep("I", spec.n))
+        end
+        return n + off
+      end
     end
     if not a then
       error("no hline " .. string.rep("I", spec.n))
@@ -420,6 +430,24 @@ local function resolve_row(m, spec, r, pos)
     return a + off + 1
   end
   error("bad row reference")
+end
+
+--- The first and last data rows of a range between row specs a and b.
+--- An hline end means the rows after it when the range starts there,
+--- before it when it ends there; Emacs takes the data lines between the
+--- two ends in either order, so `@II..@I` is `@I..@II`.
+local function range_rows(m, a, b, r)
+  local r1 = resolve_row(m, a, r, "start")
+  local r2 = resolve_row(m, b, r, "end")
+  if r1 > r2 then
+    local s1 = resolve_row(m, b, r, "start")
+    local s2 = resolve_row(m, a, r, "end")
+    if s1 <= s2 then
+      return s1, s2
+    end
+    return r2, r1
+  end
+  return r1, r2
 end
 
 local function resolve_col(m, spec, c)
@@ -651,13 +679,9 @@ local function read_ref(m, s, i, r, c, ctx)
     end
     return "field", row[cc] or "", j
   end
-  local r1 = resolve_row(m, spec.row, r, "start")
-  local r2 = resolve_row(m, spec2.row, r, "end")
+  local r1, r2 = range_rows(m, spec.row, spec2.row, r)
   local c1 = resolve_col(m, spec.col, c)
   local c2 = resolve_col(m, spec2.col, c)
-  if r1 > r2 then
-    r1, r2 = r2, r1
-  end
   if c1 > c2 then
     c1, c2 = c2, c1
   end
@@ -987,11 +1011,10 @@ local function targets(m, lhs, ctx)
     return { col = resolve_col(m, spec.col, 1) }, true
   end
   if spec2 then
-    local r1 = resolve_row(m, spec.row, 1, "start")
-    local r2 = resolve_row(m, spec2.row, 1, "end")
+    local r1, r2 = range_rows(m, spec.row, spec2.row, 1)
     local c1 = resolve_col(m, spec.col, 1)
     local c2 = resolve_col(m, spec2.col, 1)
-    for r = math.min(r1, r2), math.max(r1, r2) do
+    for r = r1, r2 do
       for c = math.min(c1, c2), math.max(c1, c2) do
         out[#out + 1] = { r, c }
       end

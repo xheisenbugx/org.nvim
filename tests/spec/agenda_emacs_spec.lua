@@ -548,3 +548,54 @@ describe("agenda config", function()
     ok(not line_hl(line_of("Other task")), "other entry highlighted")
   end)
 end)
+
+describe("agenda blocks from planning date ranges (org-agenda-get-blocks)", function()
+  local A = date.days_from_civil(2026, 9, 28)
+  local function day_entries(lines, d)
+    local file = parser.parse(lines, "/tmp/agenda_blocks.org")
+    local out = {}
+    for _, it in ipairs(items.agenda({ file }, A, A + 2, { today = A })[d] or {}) do
+      if it.type == "range" then
+        out[#out + 1] = (it.extra or "") .. it.title
+      end
+    end
+    table.sort(out)
+    return out
+  end
+
+  it("a SCHEDULED or DEADLINE range also gives a block entry on each day", function()
+    local lines = {
+      "* TODO s",
+      "SCHEDULED: <2026-09-28 Mon>--<2026-09-30 Wed>",
+      "* TODO d",
+      "DEADLINE: <2026-09-28 Mon>--<2026-09-30 Wed>",
+    }
+    eq({ "(1/3): d", "(1/3): s" }, day_entries(lines, A))
+    eq({ "(2/3): d", "(2/3): s" }, day_entries(lines, A + 1))
+  end)
+
+  it("a one-day range gets no (n/m) and keeps its time (difftest seed 5792810)", function()
+    local file =
+      parser.parse({ "* TODO b", "SCHEDULED: <2026-09-30 18:45>--<2026-09-30 Wed>" }, "/tmp/agenda_blocks.org")
+    local list = items.agenda({ file }, A + 2, A + 2, { today = A + 2 })[A + 2]
+    local block
+    for _, it in ipairs(list) do
+      if it.type == "range" then
+        block = it
+      end
+    end
+    ok(block, "no block entry")
+    eq("", block.extra)
+    eq("scheduled", block.planning_kind)
+    eq(18 * 60 + 45, block.time)
+  end)
+
+  it("a range after another stamp on its line starts at that stamp", function()
+    -- org-tr-regexp's `<date .*?>` runs over the first stamp's `>`
+    eq({}, day_entries({ "* TODO x", "SCHEDULED: <2026-10-12 Mon> DEADLINE: <2026-09-28 Mon>--<2026-09-29 Tue>" }, A))
+    eq({}, day_entries({ "* TODO a", "<2026-10-12 Mon> <2026-09-28 Mon>--<2026-09-29 Tue>" }, A))
+    local y = { "* TODO y", "SCHEDULED: <2026-09-25 Fri> DEADLINE: <2026-09-28 Mon>--<2026-09-29 Tue>" }
+    eq({ "(4/5): y" }, day_entries(y, A))
+    eq({ "(5/5): y" }, day_entries(y, A + 1))
+  end)
+end)

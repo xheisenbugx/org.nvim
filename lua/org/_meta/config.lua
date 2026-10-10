@@ -492,9 +492,10 @@
 ---Keys, in Vim's notation, of the pickers that go to a place (headlines,
 ---agenda entries, agenda files) that open it in a split, a vertical split
 ---or a tab page, or put the selected entries (every matching one when
----none is selected) in the quickfix list (`qflist`); `false` for none. (default: `{ split = "<C-s>", vsplit =
----"<C-v>", tab = "<C-t>", qflist = "<C-q>" }`)
----@field picker_keys? { split?: string|false, vsplit?: string|false, tab?: string|false, qflist?: string|false }
+---none is selected) in the quickfix list (`qflist`); `query` takes the typed text as a new entry even when entries
+---match it (roam nodes, new tags); `false` for none. (default: `{ split = "<C-s>", vsplit = "<C-v>", tab = "<C-t>",
+---qflist = "<C-q>", query = "<M-CR>" }`)
+---@field picker_keys? { split?: string|false, vsplit?: string|false, tab?: string|false, qflist?: string|false, query?: string|false }
 ---How sorting (entries, lists, tables, the agenda) compares text:
 ---`"collate"` with the collation locale (`:language collate`; character
 ---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`

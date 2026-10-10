@@ -51,6 +51,7 @@ M.day_sources = {}
 ---@field ts_date integer|nil day number used by the ts-*/timestamp-* sorting
 ---@field ts_type string|nil Emacs 'type ("scheduled", "past-scheduled", "deadline", ...)
 ---@field ts_index integer|nil index in `headline.timestamps` of a plain timestamp item
+---@field planning_kind "scheduled"|"deadline"|nil a block item from the date range of that planning keyword
 ---@field order integer insertion order (category-keep)
 
 local order = 0
@@ -577,6 +578,63 @@ local function entry_types(acfg, opts)
 end
 
 --- Integer value of an option that may be a number (else nil).
+--- The active timestamps of an entry for org-agenda-get-timestamps and
+--- org-agenda-get-blocks, in buffer order: its plain ones (`index` into
+--- `hl.timestamps`), and the date ranges on its planning line (`planning`
+--- the SCHEDULED or DEADLINE they belong to), which Emacs' org-tr-regexp
+--- matches like any other range.
+---
+--- The start of org-tr-regexp (`<date .*?>`) runs over a `>`, so a range
+--- starts at the first `<YYYY-MM-DD` before it on its line (after the
+--- range before it): in "SCHEDULED: <a> DEADLINE: <b>--<c>", the block
+--- goes from a to c, and there is none when a is after c.
+local function block_sources(hl)
+  local out = {}
+  for i, t in ipairs(hl.timestamps) do
+    out[#out + 1] = { date = t.date, line = t.line, start_col = t.start_col, end_col = t.end_col, index = i }
+  end
+  local pline = hl.planning_line and hl.file.lines[hl.planning_line]
+  if pline then
+    for _, item in ipairs(date.parse_all(pline)) do
+      local key = pline:sub(1, item.start_col - 1):match("(%u+):%s*$")
+      local kind = key == "SCHEDULED" and "scheduled" or key == "DEADLINE" and "deadline" or nil
+      if kind and item.date.active and item.date.range_end then
+        out[#out + 1] = {
+          date = item.date,
+          line = hl.planning_line,
+          start_col = item.start_col,
+          end_col = item.end_col,
+          planning = kind,
+        }
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.line ~= b.line then
+      return a.line < b.line
+    end
+    return (a.start_col or 0) < (b.start_col or 0)
+  end)
+  local floor = {}
+  for _, t in ipairs(out) do
+    local text = t.start_col and t.date.range_end and hl.file.lines[t.line]
+    if text then
+      local s = text:find("<%d%d%d%d%-%d%d%-%d%d", floor[t.line] or 1)
+      if s and s < t.start_col then
+        local first = date.parse_all(text:sub(s, t.start_col - 1))[1]
+        local start = first and first.start_col == 1 and first.date
+        if not start then
+          local y, m, d = text:match("^<(%d+)%-(%d+)%-(%d+)", s)
+          start = date.from_days(date.days_from_civil(tonumber(y), tonumber(m), tonumber(d)))
+        end
+        t.date = start:clone({ range_end = t.date.range_end })
+      end
+      floor[t.line] = (t.end_col or t.start_col) + 1
+    end
+  end
+  return out
+end
+
 local function int(v)
   return type(v) == "number" and v or nil
 end
@@ -990,7 +1048,7 @@ function M.agenda(files, from, to, opts)
     -- plain timestamps and date ranges --------------------------------
     if types.timestamp then
       local seen_day = {}
-      for idx, t in ipairs(hl.timestamps) do
+      for _, t in ipairs(block_sources(hl)) do
         local ts = t.date
         if done and acfg.skip_timestamp_if_done then
           break
@@ -1004,7 +1062,8 @@ function M.agenda(files, from, to, opts)
               type = "range",
               ts_type = "block",
               date = ts,
-              ts_index = idx,
+              ts_index = not t.planning and t.index or nil,
+              planning_kind = t.planning,
               extra = string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, n),
               face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
               undone_face = "OrgAgendaTimestamp",
@@ -1070,7 +1129,7 @@ function M.agenda(files, from, to, opts)
                 ts_type = "timestamp",
                 date = at_day(ts, d),
                 ts_date = ts:days(),
-                ts_index = idx,
+                ts_index = t.index,
                 extra = "",
                 face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
                 undone_face = "OrgAgendaTimestamp",
