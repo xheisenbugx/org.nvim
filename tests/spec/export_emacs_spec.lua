@@ -584,3 +584,27 @@ describe("export (Emacs features)", function()
     has(h, "Kid owner: Ada.")
   end)
 end)
+
+describe("export: fuzzy links with more than one target", function()
+  -- org-export-resolve-fuzzy-link pushes each datum onto its search cell,
+  -- so the last one in the document wins (difftest seed 5792506)
+  it("a *title link reaches the last headline that matches", function()
+    local out = ox.export_as("ascii", {
+      "#+OPTIONS: num:nil",
+      "** Alpha [/]",
+      "[[*Alpha][heading]]",
+      "*** alpha",
+    }, { body_only = true })
+    has(out, "[heading] See section alpha")
+  end)
+
+  it("a link reaches the last of two <<target>>s", function()
+    local out = html({ "first <<here>> and second <<here>>", "", "[[here][go]]" })
+    local ids = {}
+    for id in out:gmatch('id="([^"]+)"') do
+      ids[#ids + 1] = id
+    end
+    eq(2, #ids)
+    has(out, 'href="#' .. ids[2] .. '"')
+  end)
+end)
