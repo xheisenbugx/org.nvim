@@ -171,6 +171,34 @@ describe("tblfm emacs compat", function()
       })
       eq({ "out", "10", "20", "out" }, col(g, 2))
     end)
+
+    it("the hline after the last one is the last row (Emacs' imaginary hline)", function()
+      local lines = {
+        "| a | 1 |",
+        "|---+---|",
+        "| b | 2 |",
+        "| c | 3 |",
+        "| d |   |",
+      }
+      local function with(f)
+        local l = vim.deepcopy(lines)
+        l[#l + 1] = "#+TBLFM: " .. f
+        return calc(l)
+      end
+      eq({ "1", "2", "3", "5" }, col(with("@>$2=vsum(@I..@II)"), 2))
+      eq({ "5", "2", "3", "" }, col(with("@1$2=vsum(@II..@I)"), 2))
+      eq({ "3", "2", "3", "" }, col(with("@1$2=@II-1"), 2))
+      -- difftest seed 5792531: a row of "|" alone, @II the target itself
+      local g = calc({
+        "| Price1",
+        "|---+---|",
+        "| 13 | 49",
+        "|",
+        "| |",
+        "#+TBLFM: @>$1=vsum(@I..@II)",
+      })
+      eq({ "Price1", "13", "", "13" }, col(g, 1))
+    end)
   end)
 
   describe("ranges", function()
