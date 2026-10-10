@@ -8,6 +8,20 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v2.9.0] - 2026-10-10
+
+### Features
+
+- **pickers:** \<M-CR> takes the typed text even when entries match ([#241](https://github.com/xheisenbugx/org.nvim/pull/241))
+
+### Fixes
+
+- Difftest differences from [#238](https://github.com/xheisenbugx/org.nvim/pull/238) (fuzzy link target, imaginary hline, planning-range blocks) ([#240](https://github.com/xheisenbugx/org.nvim/pull/240))
+
+### Documentation
+
+- **links:** Explain the gap a wrapped line leaves for a hidden link target ([#237](https://github.com/xheisenbugx/org.nvim/pull/237))
+
 ## [v2.8.0] - 2026-10-09
 
 ### Features
@@ -408,6 +422,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v2.9.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.8.0...v2.9.0
 [v2.8.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.7.0...v2.8.0
 [v2.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.1...v2.7.0
 [v2.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.6.0...v2.6.1
