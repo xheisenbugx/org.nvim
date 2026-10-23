@@ -12,6 +12,8 @@ local shared = require("org.fold.shared")
 local M = require("org.fold")
 
 local file = shared.file
+local get = shared.get
+local numeric = shared.numeric
 local regions = shared.regions
 
 ---------------------------------------------------------------------------
@@ -43,6 +45,12 @@ end
 local function close_at(lnum)
   if vim.fn.foldclosed(lnum) == -1 and vim.fn.foldlevel(lnum) > 0 then
     pcall(vim.api.nvim_command, lnum .. "foldclose")
+    -- A fold smaller than 'foldminlines' cannot close; :foldclose can
+    -- close its parent instead. Leave that previously open parent open.
+    local closed = vim.fn.foldclosed(lnum)
+    if closed ~= -1 and closed ~= lnum then
+      pcall(vim.api.nvim_command, closed .. "foldopen")
+    end
   end
 end
 
@@ -65,7 +73,23 @@ local function close_drawers(s, e)
 end
 
 local function has_fold(hl)
-  return hl.end_line > hl.line
+  if hl.end_line <= hl.line then
+    return false
+  end
+  -- The parser includes separator/EOF blank lines in the entry, but the
+  -- fold expression can leave them outside its fold. Closing that empty
+  -- fold would close an enclosing subtree instead. Read the levels the
+  -- fold expression returns, so no window has to show the buffer.
+  local levels = get(vim.api.nvim_get_current_buf()).levels
+  local own, nxt = levels[hl.line], levels[hl.line + 1] or 0
+  if type(own) ~= "string" or own:sub(1, 1) ~= ">" then
+    return false
+  end
+  if type(nxt) == "string" and nxt:sub(1, 1) == ">" then
+    -- a fold starting on the next line belongs to it only when deeper
+    return numeric(nxt) > numeric(own)
+  end
+  return numeric(nxt) >= numeric(own)
 end
 
 --- Close the block folds (`#+begin_...`) in [s, e] (org-fold-hide-block-all).
