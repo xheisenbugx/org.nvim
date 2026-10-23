@@ -872,6 +872,7 @@ shared.get = get
 shared.is_blank = is_blank
 shared.ns_ellipsis = ns_ellipsis
 shared.ns_hide = ns_hide
+shared.numeric = numeric
 shared.regions = regions
 
 require("org.fold.hidden")

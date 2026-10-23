@@ -203,8 +203,10 @@ describe("visibility: cycling", function()
   -- org-cycle-hide-archived-subtrees: the message names the key bound to
   -- org-cycle-force-archived (\\[org-cycle-force-archived])
   local function archived_message()
-    org_buffer({ "* A", "** Old :ARCHIVE:", "old body" }, { 2, 0 })
+    org_buffer({ "* A", "** Old :ARCHIVE:", "old body" }, { 1, 0 })
     fold.overview()
+    fold.cycle()
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
     local echo, msg = vim.api.nvim_echo, nil
     vim.api.nvim_echo = function(chunks)
       msg = chunks[1][1]

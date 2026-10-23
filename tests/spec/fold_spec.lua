@@ -48,6 +48,39 @@ describe("fold: cycling", function()
     eq(1, vim.fn.foldclosed(1))
   end)
 
+  -- Emacs keeps point out of invisible text, so TAB acts on the visible
+  -- heading; Vim lets the cursor sit inside a closed fold (after G or a search)
+  it("cycles the visible heading when the cursor is inside a closed fold", function()
+    local buf = org_buffer({ "* A", "** B", "b body", "** C" }, { 1, 0 })
+    fold.setup_buffer(buf)
+    fold.overview()
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    eq(1, vim.fn.foldclosed(4))
+    fold.cycle()
+    -- Emacs 9.8.10: point ends up at the end of the visible heading
+    eq({ 1, 2 }, vim.api.nvim_win_get_cursor(0))
+    eq(-1, vim.fn.foldclosed(1))
+    eq(2, vim.fn.foldclosed(2))
+  end)
+
+  -- Emacs leaves point after a link that ends the heading, so
+  -- org-tab-follows-link doesn't follow it
+  it("cycles instead of following a link at the end of the visible heading", function()
+    local links = require("org.config").opts.links
+    local saved = links.tab_follows_link
+    links.tab_follows_link = true
+    local buf = org_buffer({ "* See [[B]]", "** sub", "body", "* B" }, { 1, 0 })
+    fold.setup_buffer(buf)
+    fold.overview()
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    eq(1, vim.fn.foldclosed(3))
+    local ok_, err = pcall(fold.cycle)
+    links.tab_follows_link = saved
+    assert(ok_, err)
+    eq({ 1, 10 }, vim.api.nvim_win_get_cursor(0))
+    eq(-1, vim.fn.foldclosed(1))
+  end)
+
   -- Emacs org-cycle-emulate-tab: TAB in body text indents the line, or
   -- with it off cycles the entry
   it("indents body text, or cycles the entry without cycle_emulate_tab", function()
@@ -116,6 +149,109 @@ describe("fold: cycling", function()
     eq(-1, vim.fn.foldclosed(3))
     eq(-1, vim.fn.foldclosed(4))
   end)
+end)
+
+describe("fold: mapped Tab with short child folds", function()
+  with_config({ cycle_separator_lines = 1 })
+  local saved_foldminlines
+  before_each(function()
+    saved_foldminlines = vim.wo.foldminlines
+    vim.wo.foldminlines = 1
+  end)
+  after_each(function()
+    vim.wo.foldminlines = saved_foldminlines
+  end)
+
+  local function tab()
+    vim.api.nvim_feedkeys(vim.keycode("<Tab>"), "xt", false)
+  end
+
+  local function shown()
+    local out = {}
+    for l = 1, vim.fn.line("$") do
+      if fold.line_visible(l) then
+        out[#out + 1] = vim.fn.getline(l)
+      end
+    end
+    return out
+  end
+
+  local cases = {
+    {
+      name = "a final child followed only by an EOF blank",
+      lines = { "* Unsortiert", "** A", "body", "** B", "" },
+      children = { "* Unsortiert", "** A", "** B", "" },
+      folded = { "* Unsortiert", "" },
+      child_closed = 2,
+    },
+    {
+      name = "a final child followed only by whitespace at EOF",
+      lines = { "* Unsortiert", "** A", "body", "** B", "", "  " },
+      children = { "* Unsortiert", "** A", "** B", "", "  " },
+      folded = { "* Unsortiert", "", "  " },
+      child_closed = 2,
+    },
+    {
+      name = "the cursor inside a closed parent with an empty final child",
+      lines = { "* Unsortiert", "** A", "body", "** B", "" },
+      cursor = 4,
+      children = { "* Unsortiert", "** A", "** B", "" },
+      folded = { "* Unsortiert", "" },
+      child_closed = 2,
+    },
+    {
+      name = "a child followed only by a separator blank",
+      lines = { "* Unsortiert", "** A", "body", "** B", "", "** C" },
+      children = { "* Unsortiert", "** A", "** B", "", "** C" },
+      folded = { "* Unsortiert" },
+      child_closed = 2,
+    },
+    {
+      name = "child folds no longer than foldminlines",
+      lines = { "* Unsortiert", "** A", "body", "** B", "short body", "" },
+      foldminlines = 2,
+      children = { "* Unsortiert", "** A", "body", "** B", "short body", "" },
+      folded = { "* Unsortiert", "" },
+      child_closed = -1,
+    },
+  }
+
+  for _, case in ipairs(cases) do
+    it("cycles FOLDED -> CHILDREN -> SUBTREE -> FOLDED with " .. case.name, function()
+      local buf = org_buffer(case.lines, { 1, 0 })
+      vim.wo.foldminlines = case.foldminlines or 1
+      fold.setup_buffer(buf)
+      fold.overview()
+      eq(1, vim.fn.foldclosed(1))
+      eq(case.folded, shown())
+      vim.api.nvim_win_set_cursor(0, { case.cursor or 1, 0 })
+      eq(1, vim.fn.foldclosed(case.cursor or 1))
+
+      -- Repeat the whole cycle: a bogus CHILDREN state must not leave the
+      -- parent closed and trap every subsequent mapped Tab in that state.
+      for _ = 1, 2 do
+        tab()
+        eq(-1, vim.fn.foldclosed(1), "CHILDREN keeps the parent open")
+        -- from inside the fold the cursor goes to the end of the heading
+        eq({ 1, case.cursor and #case.lines[1] - 1 or 0 }, vim.api.nvim_win_get_cursor(0))
+        eq("children", vim.w.org_last_cycle.status)
+        eq(case.child_closed, vim.fn.foldclosed(2))
+        eq(case.children, shown())
+
+        tab()
+        eq("subtree", vim.w.org_last_cycle.status)
+        eq(-1, vim.fn.foldclosed(1))
+        eq(-1, vim.fn.foldclosed(2))
+        eq(case.lines, shown())
+
+        tab()
+        eq("folded", vim.w.org_last_cycle.status)
+        eq(1, vim.fn.foldclosed(1))
+        eq(case.folded, shown())
+      end
+      eq(case.lines, buf_lines(buf))
+    end)
+  end
 end)
 
 -- org-cycle-include-plain-lists 'integrate (Emacs 9.8.10: CHILDREN shows

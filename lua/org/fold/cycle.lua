@@ -252,11 +252,28 @@ function M.cycle_limit_level()
   end
 end
 
+--- The command loop keeps point out of invisible text; Vim leaves the
+--- cursor inside a closed fold (after G or a search), so move it to the
+--- line that shows the fold. Emacs puts point at the end of that line,
+--- where the invisible text starts. Returns true when the cursor moved.
+local function cursor_to_shown_line()
+  local shown = vim.fn.foldclosed(".")
+  if shown ~= -1 and shown ~= vim.fn.line(".") then
+    local len = #vim.fn.getline(shown)
+    vim.api.nvim_win_set_cursor(0, { shown, math.max(len - 1, 0) })
+    return true
+  end
+  return false
+end
+
 --- TAB. With a count: 16 restores the startup visibility, 64 shows
 --- everything (drawers too), any other N shows the whole subtree of the
 --- ancestor at level N (like C-u C-u TAB, C-u C-u C-u TAB and M-N TAB).
 function M.cycle()
-  if (config.opts.links or {}).tab_follows_link and require("org.links").link_at_cursor() then
+  -- point at the end of the line is past any link there, which Emacs
+  -- doesn't follow
+  local moved = cursor_to_shown_line()
+  if not moved and (config.opts.links or {}).tab_follows_link and require("org.links").link_at_cursor() then
     -- org-tab-follows-link: TAB on a link follows it
     return require("org.context").open_at_point()
   end
