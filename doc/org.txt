@@ -7251,8 +7251,10 @@ toggle_link_display and the cursor rules of |org-conceal-cursor|.
 Differences: with "parser", nested and overlapping markup combine their
 groups (bold inside a headline keeps the headline's color, as in Emacs)
 where "syntax" draws the innermost group only; the emphasis isn't a
-syntax group, so `synID()` and `synstack()` don't report it (plugins that
-ask the syntax what is under the cursor see plain text there), and
+syntax group, so `synID()`, `synstack()` and |:Inspect| don't report it
+(plugins that ask the syntax what is under the cursor see plain text
+there), only org buffers draw it (a buffer that just sets 'syntax' to org
+keeps the regions), and
 verbatim and code are left out of spell checking with extmarks instead of
 |:syn-spell| clusters. "parser" will become the default in a later
 release; set it now with: >lua

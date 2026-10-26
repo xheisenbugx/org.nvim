@@ -49,13 +49,19 @@ local PRE = set_of(" \t\v\f\r\n('\"{-")
 local POST = set_of(" \t\v\f\r\n.,:!?;'\")}[-")
 
 --- Whether `ui.highlighter` makes buffer `bufnr` draw emphasis this way
---- (a buffer's `b:org_ui` can set it, like the other `ui` options).
+--- (a buffer's `b:org_ui` can set it, like the other `ui` options). Only
+--- org buffers do: one that just uses the org syntax keeps its regions.
 ---@param bufnr? integer
 ---@return boolean
 function M.active(bufnr)
   local ui = require("org.config").opts.ui or {}
   local h = ui.highlighter
   if bufnr and bufnr ~= 0 and vim.api.nvim_buf_is_valid(bufnr) then
+    -- (the decorations draw org buffers only: a buffer with just the org
+    -- syntax, like the drill window, keeps the syntax regions)
+    if vim.bo[bufnr].filetype ~= "org" then
+      return false
+    end
     local b = vim.b[bufnr].org_ui
     if type(b) == "table" and b.highlighter ~= nil then
       h = b.highlighter

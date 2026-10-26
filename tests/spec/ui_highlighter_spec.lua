@@ -188,6 +188,27 @@ describe("ui.highlighter = parser", function()
     require("org.config").opts.ui.highlighter = "parser"
   end)
 
+  it("leaves the syntax regions to a buffer with only the org syntax (drill)", function()
+    vim.cmd("enew!")
+    local b = vim.api.nvim_get_current_buf()
+    vim.bo[b].bufhidden = "wipe"
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "A *bold* word" })
+    vim.bo[b].filetype = "org_drill"
+    vim.bo[b].syntax = "org"
+    local names = vim.tbl_map(function(id)
+      return vim.fn.synIDattr(id, "name"):lower()
+    end, vim.fn.synstack(1, 4))
+    ok(vim.tbl_contains(names, "orgbold"), vim.inspect(names))
+  end)
+
+  it("gives a LaTeX preview with foreground auto the emphasis color", function()
+    require("org.config").opts.ui.latex_preview = { foreground = "auto" }
+    vim.api.nvim_set_hl(0, "OrgBold", { fg = "#ff0000", bold = true })
+    local buf = org_buffer({ "text *bold $x^2$ here* end" }, { 1, 0 })
+    eq("1.000,0.000,0.000", require("org.ui.images")._foreground(buf, 0, 11))
+    require("org.config").opts.ui.latex_preview = nil
+  end)
+
   it("the test helper sees the same on both sides of a plain case", function()
     local buf = org_buffer({ "*a* /b/ =c=" }, { 1, 0 })
     vim.wo.conceallevel = 2
