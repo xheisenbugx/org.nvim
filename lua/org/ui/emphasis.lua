@@ -129,9 +129,11 @@ local function classify(line)
       if key and INFO[key:lower()] then
         return "info"
       end
-      -- the begin and end lines of quote, center and special blocks, drawn
-      -- in their own face like the info keywords
-      if line:find("^#%+[bB][eE][gG][iI][nN]_", s) or line:find("^#%+[eE][nN][dD]_", s) then
+      -- the begin line of a quote, center or special block, drawn in its
+      -- own face like the info keywords (`M.kinds` draws an unterminated
+      -- one as text, and a block's end line like its begin line; an end
+      -- line that closes nothing draws nothing)
+      if line:find("^#%+[bB][eE][gG][iI][nN]_", s) then
         return "info"
       end
       return "none"
@@ -204,15 +206,21 @@ local function star_line(line)
 end
 
 --- The name of the block a `#+begin_NAME` / `#+end_NAME` line opens or
---- closes (lowercase), and whether it begins one.
+--- closes (lowercase), and whether it begins one. Names are letters
+--- (`#+begin_src_x` begins a src block); an end line's name ends at a
+--- character that isn't part of a word (`#+end_verse_` closes a verse
+--- block, `#+end_verse1` nothing).
 ---@return string?, boolean?
 local function block_line(line)
-  local name = line:match("^[ \t]*#%+[bB][eE][gG][iI][nN]_([%w_%-]+)")
+  local name = line:match("^[ \t]*#%+[bB][eE][gG][iI][nN]_(%a+)")
   if name then
     return name:lower(), true
   end
-  name = line:match("^[ \t]*#%+[eE][nN][dD]_([%w_%-]+)")
-  if name then
+  local e
+  name, e = line:match("^[ \t]*#%+[eE][nN][dD]_(%a+)()")
+  local b = name and byte(line, e)
+  -- (word characters in Org's syntax table: letters, digits, $ % ')
+  if name and not (b and (b >= 128 or b == 36 or b == 37 or b == 39 or (b >= 48 and b <= 57))) then
     return name:lower(), false
   end
 end
@@ -585,7 +593,7 @@ end
 local function inline_src(s)
   local out = {}
   -- (\_<: not after a symbol constituent)
-  local symbol = set_of("$%&'*+-/=_|~")
+  local symbol = set_of("$%&'*+-/=_|~\\")
   local function matching(j, open, close, lines)
     local depth, breaks = 0, 0
     while true do
@@ -736,8 +744,12 @@ local function emphasis(s, line_of, line_start, line_text)
           end
           -- Emacs looks at the line of the character before the marker:
           -- for a marker at the start of a line, the line above
+          -- (at the top of the buffer, the line itself)
           local tl = p == ls and l - 1 or l
           local text = line_text(tl)
+          if tl == 0 and text == nil then
+            tl, text = l, line_text(l)
+          end
           if ok and text and text:find("^[ \t]*|") then
             -- not over a "|" in a table row
             local bar = find_bar(p + 1)

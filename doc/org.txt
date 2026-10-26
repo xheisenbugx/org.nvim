@@ -7239,7 +7239,7 @@ verbatim and code show the link brackets and markers inside them. On the
 example files and a file of hard cases it draws what Emacs Org draws on
 every byte (tests/spec/emacs_fontify_parity_spec.lua, against
 tests/fixtures/emacs/fontify/); "syntax" differs from Emacs on about 2% of
-those lines. Its scan takes time linear in the length of a line, so it has
+the lines of the example files that have markup. Its scan takes time linear in the length of a line, so it has
 none of the limits of regions: markup is drawn past 'synmaxcol' (3000)
 and over two lines however long the first is, a long line full of markers
 can't run out of 'maxmempattern' (E363) and turn highlighting off, and an

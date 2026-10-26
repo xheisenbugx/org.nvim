@@ -466,9 +466,11 @@ describe("perf: long lines with the parser highlighter", function()
       local m = messages()
       ok(not m:find("E363"), m)
       local len = #vim.api.nvim_buf_get_lines(buf, 1, 2, false)[1]
+      -- ("end" is bold: earlier markers may close at its "*" too, as in
+      -- Emacs, and the marks of one kind that overlap are one)
       local found = false
       for _, mk in ipairs(deco.line_marks(buf, 1)) do
-        found = found or (mk[2].hl_group == "orgBold" and mk[1] == len - 4)
+        found = found or (mk[2].hl_group == "orgBold" and mk[1] <= len - 4 and mk[2].end_col >= len - 1)
       end
       ok(found, "bold at the end of the line")
     end)

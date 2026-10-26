@@ -258,6 +258,23 @@ x ~a src_sh{x} b~ y
 x *a src_sh{{x}} b* y
 x *a src_sh{} b* y
 
+* Found by the second fuzz run
+#+end_center *a* [[b]] x
+#+end_centerx *a* y
+
+#+begin_src_x *a* y
+*b*
+#+end_src
+
+#+begin_verse *a* y
+*b*
+#+end_verse_ *c*
+
+#+begin_verse *a* y
+#+end_verse1 *c*
+
+x *a \src_sh{x} b* y
+
 * An unterminated block (last: it reaches the end of the file)
 #+begin_example
 *
