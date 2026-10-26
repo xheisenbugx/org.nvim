@@ -5331,10 +5331,7 @@ first (`elisp` → `lisp`, `shell` → `sh` → the bash parser).
 (languages without a parser stay plain) or "syntax" (always the Vim
 syntax); `ui.src_highlight = false` turns both off. A parser installed
 while the file is open is used after <C-c><C-c> on a `#+` line (which
-refreshes the buffer's setup) or when the file is opened again. As in
-Emacs, a block shows its text as typed: the Vim syntax of json and
-markdown blocks is included without its concealing (`g:vim_json_conceal`,
-`g:markdown_syntax_conceal` stay as you set them for your own files).
+refreshes the buffer's setup) or when the file is opened again.
 TAB on a line of a src block (`src_tab_acts_natively`, default true)
 indents it for its language, like a round trip through the edit buffer:
 the body gets the block's content indentation and the line the

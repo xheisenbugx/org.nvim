@@ -7,7 +7,13 @@ local P = require("tests.emacs_parity")
 local hl = require("tests.helpers.highlighter")
 
 -- Known differences: file -> { [line] = reason }.
-local KNOWN = {}
+local KNOWN = {
+  ["examples/17-babel.org"] = {
+    -- a json src block: Vim's json syntax conceals the quotes
+    -- (g:vim_json_conceal), Emacs shows them; fixed by PR #299
+    [574] = "the json syntax",
+  },
+}
 
 describe("emacs parity: emphasis faces and hidden text", function()
   with_config({ ui = { hide_emphasis_markers = true, highlighter = "parser" } })
