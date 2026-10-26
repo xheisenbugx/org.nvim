@@ -84,7 +84,9 @@ T["node-property"] = function(el)
 end
 
 T.paragraph = function(el, contents, info)
-  contents = (contents or ""):gsub("\n[ \t\n]*\n", "\n")
+  -- org-remove-blank-lines: a line break is a (hard) newline too, so one
+  -- on a line of its own makes a blank line, which goes with its hardness
+  contents = (contents or ""):gsub("[\n\1][ \t\n\1]*[\n\1]", "\n")
   local ilw = info.ascii_indented_line_width
   if type(ilw) == "number" and ilw >= 0 then
     local first_in_section = not ox.get_previous_element(el, info) and el.parent and el.parent.type == "section"
