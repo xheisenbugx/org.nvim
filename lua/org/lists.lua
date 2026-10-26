@@ -217,6 +217,50 @@ local function verbatim_lines(lines, from, to)
   return set
 end
 
+--- The parent of a new item at indentation `ind` (org-list-parents-alist),
+--- updating `ind_to_ori`. Not always the open item it sits under: an item
+--- less indented than the sub-list before it but at no column used so far
+--- goes back to the first less indented level, the top one if none.
+---@param ind_to_ori { ind: integer, origin: org.ListItem? }[]
+---@param prev org.ListItem? the previous item of the list, nil for a new list
+---@param ind integer
+---@return org.ListItem?
+local function list_parent(ind_to_ori, prev, ind)
+  if not prev then
+    for k in pairs(ind_to_ori) do
+      ind_to_ori[k] = nil
+    end
+    ind_to_ori[1] = { ind = ind }
+    return nil
+  end
+  local top = ind_to_ori[#ind_to_ori]
+  if top.ind < ind then
+    -- a sub-list starts under the previous item
+    ind_to_ori[#ind_to_ori + 1] = { ind = ind, origin = prev }
+    return prev
+  elseif top.ind > ind then
+    -- a sub-list is over: back to the level at ind, else to the first
+    -- less indented one, else to a new top level
+    local k = #ind_to_ori
+    while k > 0 and ind_to_ori[k].ind ~= ind do
+      k = k - 1
+    end
+    if k == 0 then
+      k = #ind_to_ori
+      while k > 0 and ind_to_ori[k].ind >= ind do
+        k = k - 1
+      end
+    end
+    for j = #ind_to_ori, k + 1, -1 do
+      ind_to_ori[j] = nil
+    end
+    if k == 0 then
+      ind_to_ori[1] = { ind = ind }
+    end
+  end
+  return ind_to_ori[#ind_to_ori].origin
+end
+
 --- Parse all lists within lines[from..to]. With `first_only`, stop at
 --- the end of the first list (the element parser asks for one list at a
 --- time: scanning the rest of the section made it quadratic).
@@ -225,6 +269,10 @@ end
 function M.parse_region(lines, from, to, first_only)
   local lists, all = {}, {}
   local stack = {} -- open items
+  -- org-list-parents-alist: the sub-lists open at the last item, outermost
+  -- first, as { ind, origin } (origin: the parent of the items at ind)
+  local ind_to_ori = {}
+  local prev -- previous item
   local current -- current list
   local blanks = 0
   -- lines [verbatim_from, verbatim_to] are inside a forbidden block
@@ -264,7 +312,7 @@ function M.parse_region(lines, from, to, first_only)
         item.lnum = i
         item.end_lnum = i
         item.children = {}
-        item.parent = stack[#stack]
+        item.parent = list_parent(ind_to_ori, current and prev, ind)
         if item.parent then
           table.insert(item.parent.children, item)
           item.list = item.parent.list
@@ -278,6 +326,7 @@ function M.parse_region(lines, from, to, first_only)
         end
         stack[#stack + 1] = item
         all[#all + 1] = item
+        prev = item
       else
         while #stack > 0 and stack[#stack].indent >= ind do
           table.remove(stack)

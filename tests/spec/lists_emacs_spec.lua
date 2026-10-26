@@ -375,3 +375,29 @@ describe("lists: statistics cookies (make difftest, commands oracle)", function(
     eq({ "* P [1/1]" .. string.rep(" ", 65) .. ":x:", "** DONE a" }, buf_lines(buf))
   end)
 end)
+
+describe("lists: parents of ill-formed lists (org-list-parents-alist, make difftest #294)", function()
+  -- an item less indented than the sub-list before it, at a column no
+  -- earlier item of the list used, goes back to the first less indented
+  -- level (the top one if none), not under the item it sits below
+  local cases = {
+    { { "- a", "    - b", "  - c" }, { "- a", "  - b", "- c" } },
+    { { "- a", "  - b", "   - c", " - d", " - e" }, { "- a", "  - b", "    - c", "- d", "  - e" } },
+    { { "- a", "    - b", "  text", "   - c" }, { "- a", "  - b", "  text", "- c" } },
+    { { "- a", "   - b", "     - c", "  - d", "    - e" }, { "- a", "  - b", "    - c", "- d", "  - e" } },
+    { { "1. a", "    1. b", "  3. c", "  4. d" }, { "1. a", "   1. b", "2. c", "   1. d" } },
+  }
+  for i, c in ipairs(cases) do
+    it("repairs case " .. i .. " as Emacs does", function()
+      local buf = org_buffer(c[1], { 1, 0 })
+      lists.repair()
+      eq(c[2], buf_lines(buf))
+    end)
+  end
+
+  it("exports such a list to Org as Emacs does", function()
+    local src = { "+ [ ] @@html:<b>@@", "  1.", "   -", " 2. 42 [[#custom][custom id]] task" }
+    local out = require("org.export.ox").export_as("org", src, { body_only = true })
+    eq("- [ ] 1. \n  - \n- 42 [[#custom][custom id]] task\n", out)
+  end)
+end)
