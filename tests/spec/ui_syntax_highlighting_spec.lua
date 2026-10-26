@@ -660,3 +660,30 @@ describe("ui buffer setup", function()
     eq("v:lua.require'org.fold'.foldexpr(v:lnum)", vim.wo.foldexpr)
   end)
 end)
+
+describe("ui syntax: src block languages", function()
+  -- Emacs shows a block as typed: the json syntax doesn't hide quotes in
+  -- it (g:vim_json_conceal), markdown's no emphasis markers
+  -- (g:markdown_syntax_conceal), and the user's own setting stays
+  it("includes json and markdown without their concealing", function()
+    vim.g.vim_json_conceal = 1
+    org_buffer({
+      "#+begin_src json",
+      '{"answer": "yes"}',
+      "#+end_src",
+      "#+begin_src markdown",
+      "some *stars* here",
+      "#+end_src",
+    })
+    vim.wo.conceallevel = 2
+    for c = 1, #'{"answer": "yes"}' do
+      eq(0, vim.fn.synconcealed(2, c)[1])
+    end
+    for c = 1, #"some *stars* here" do
+      eq(0, vim.fn.synconcealed(5, c)[1])
+    end
+    eq(1, vim.g.vim_json_conceal)
+    eq(nil, vim.g.markdown_syntax_conceal)
+    vim.g.vim_json_conceal = nil
+  end)
+end)
