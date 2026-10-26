@@ -217,7 +217,8 @@ function M.adapt_indentation(bufnr)
 end
 
 local function enabled(ui)
-  return ui.bullets
+  return ui.highlighter == "parser"
+    or ui.bullets
     or ui.hide_leading_stars
     or ui.checkboxes
     or ui.indent_mode
@@ -775,6 +776,10 @@ function M.compute(bufnr, first, last, ui)
       end
     end
   end
+  if ui.highlighter == "parser" then
+    -- emphasis and the hidden parts of links (org.ui.emphasis)
+    require("org.ui.emphasis").add_marks(bufnr, first, last, ui, rows)
+  end
   -- column view rows stand for the whole line (Emacs turns org-num off)
   local colview = package.loaded["org.columns"]
   for lnum in pairs(colview and colview.overlay_lines(bufnr) or {}) do
@@ -975,7 +980,8 @@ vim.api.nvim_set_decoration_provider(ns, {
     end
     for _, m in ipairs(marks) do
       if not is_persistent(m) then
-        local opts = vim.tbl_extend("force", m[2], { ephemeral = true })
+        -- (org.ui.emphasis makes its marks ephemeral: no copy per redraw)
+        local opts = m[2].ephemeral and m[2] or vim.tbl_extend("force", m[2], { ephemeral = true })
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, m[1], opts)
       end
     end
@@ -994,9 +1000,36 @@ function M.line_marks(bufnr, row)
   end
   local out = {}
   for _, m in ipairs(rows_for(bufnr, row, row)[row] or {}) do
-    out[#out + 1] = { m[1], m[2] }
+    local o = m[2]
+    if o.ephemeral then
+      -- (callers set these marks for good)
+      o = vim.tbl_extend("force", {}, o)
+      o.ephemeral = nil
+    end
+    out[#out + 1] = { m[1], o }
   end
   return out
+end
+
+--- What the parser highlighter (org.ui.emphasis) hides at byte `col`
+--- (0-based) of row `row`: "" for a concealed emphasis marker or link
+--- bracket, nil when it hides nothing there. (Syntax concealing is
+--- `synconcealed()`; the entities shown as UTF-8 aren't hidden text.)
+---@param bufnr integer
+---@param row integer
+---@param col integer
+---@return string?
+function M.concealed(bufnr, row, col)
+  if not attached[bufnr] then
+    return nil
+  end
+  for _, m in ipairs(rows_for(bufnr, row, row)[row] or {}) do
+    local o = m[2]
+    if m[4] == "emphasis" and o.conceal and col >= m[1] and col < (o.end_col or m[1] + 1) then
+      return o.conceal
+    end
+  end
+  return nil
 end
 
 --- Recompute on the next redraw (e.g. after `ui` options changed).

@@ -582,6 +582,9 @@ function M.apply(bufnr)
     conceal_links = vim.b[bufnr].org_link_descriptive and true or false
   end
   local lists = require("org.lists")
+  -- ui.highlighter = "parser": emphasis and the hidden parts of links are
+  -- drawn by org.ui.emphasis (decorations), not by syntax regions
+  local parser = require("org.ui.emphasis").active(bufnr)
 
   cmd("syntax clear")
   cmd("syntax spell toplevel")
@@ -686,10 +689,12 @@ function M.apply(bufnr)
   cmd([=[syntax match orgInlineSrcBody /{\@1<=[^}]\+/ contained]=])
 
   -- Emphasis -----------------------------------------------------------------
-  emphasis(false, conceal_emph, synmaxcol)
+  if not parser then
+    emphasis(false, conceal_emph, synmaxcol)
+  end
 
   -- Links --------------------------------------------------------------------
-  M.links(bufnr, conceal_links)
+  M.links(bufnr, conceal_links and not parser)
 
   -- Description list terms (defined after the markup, links and timestamps,
   -- so a term that starts with one of them is still a term) ------------------
@@ -746,7 +751,9 @@ function M.apply(bufnr)
   cmd([=[syntax match orgTableHline /^\s*|[-+]\+|\?\s*$/ contained]=])
   cmd([=[syntax match orgTableFormula /^\s*#+\ctblfm:.*$/]=])
   -- markup in cells (after the formulas, so "| =v= |" is verbatim)
-  emphasis(true, conceal_emph, synmaxcol)
+  if not parser then
+    emphasis(true, conceal_emph, synmaxcol)
+  end
   -- (a border is an orgTable too: what it holds, defined after the cell
   -- markup so it wins at the start of the line, keeps "+--+" from being
   -- struck through)

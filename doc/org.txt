@@ -6814,6 +6814,8 @@ Options under `ui`:
                          zindex = 20 }
   conceal_links          show only link descriptions (conceallevel=2)
   hide_emphasis_markers  hide * / _ = ~ + around emphasized text
+  highlighter            what draws emphasis and hides link brackets:
+                         "syntax" (default) or "parser" (|org-highlighter|)
   hide_leading_stars     show only the last star of each headline
                          (#+STARTUP: hidestars / showstars)
   bullets                list of symbols replacing the stars, per level
@@ -7219,6 +7221,45 @@ When it goes wrong:
 Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
 break, and bold, italic, underline and strike-through can nest.
+
+Two highlighters can draw emphasis and hide link brackets, chosen with
+`ui.highlighter`:                                         *org-highlighter*
+
+  "syntax"   (the default) Vim |:syntax| regions, defined per buffer.
+  "parser"   the decoration provider, from a scan of the lines on screen
+             (org.ui.emphasis). The rest of the highlighting (headlines,
+             links, timestamps, tables, blocks, ...) stays syntax.
+
+"parser" ports Emacs's own fontification (org-do-emphasis-faces,
+org-activate-links) instead of approximating it with regions: every
+marker that can open emphasis is tried on its own, so markup may overlap
+the way it does in Emacs (`*a /b* c/` is bold and italic), markup in link
+descriptions, macros, property values and comment blocks is drawn, and
+verbatim and code show the link brackets and markers inside them. On the
+example files and a file of hard cases it draws what Emacs Org draws on
+every byte (tests/spec/emacs_fontify_parity_spec.lua, against
+tests/fixtures/emacs/fontify/); "syntax" differs from Emacs on about 2% of
+the lines of the example files that have markup. Its scan takes time linear in the length of a line, so it has
+none of the limits of regions: markup is drawn past 'synmaxcol' (3000)
+and over two lines however long the first is, a long line full of markers
+can't run out of 'maxmempattern' (E363) and turn highlighting off, and an
+emphasis whose end can't be found never runs on over the lines below.
+
+Both use the same highlight groups (`OrgBold`, `OrgVerbatim`, ... below)
+and follow `ui.hide_emphasis_markers`, `ui.conceal_links`,
+toggle_link_display and the cursor rules of |org-conceal-cursor|.
+Differences: with "parser", nested and overlapping markup combine their
+groups (bold inside a headline keeps the headline's color, as in Emacs)
+where "syntax" draws the innermost group only; the emphasis isn't a
+syntax group, so `synID()`, `synstack()` and |:Inspect| don't report it
+(plugins that ask the syntax what is under the cursor see plain text
+there), only org buffers draw it (a buffer that just sets 'syntax' to org
+keeps the regions), and
+verbatim and code are left out of spell checking with extmarks instead of
+|:syn-spell| clusters. "parser" will become the default in a later
+release; set it now with: >lua
+    ui = { highlighter = "parser" }
+<
 
 Quote and verse block contents are highlighted as ordinary Org (lists,
 tables, timestamps, markup) on top of OrgQuoteBlock; center, special
@@ -8996,7 +9037,9 @@ Differences from Emacs:
   line of a closed fold, is drawn below the line or shown as its link text
   (Emacs makes that screen line as tall as the image). A wrapped line
   breaks by its full text, hidden link targets included, so a long link
-  near the window edge leaves a gap (|org-links-wrap|). Vim draws syntax
+  near the window edge leaves a gap (|org-links-wrap|). With
+  `ui.highlighter = "syntax"` (the default; "parser" has none of these
+  limits, |org-highlighter|), Vim draws syntax
   up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
   ends before that column, so a long line can't leave the lines below it
   bold. Emphasis over two lines is highlighted only when its part on the

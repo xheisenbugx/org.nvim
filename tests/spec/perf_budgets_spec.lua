@@ -414,6 +414,93 @@ describe("perf: long lines", function()
   end)
 end)
 
+-- ui.highlighter = "parser" (org.ui.emphasis): emphasis and link brackets
+-- from a scan of the lines drawn, with no 'synmaxcol' to stop at, so the
+-- lines here are longer than those above and still drawn in full.
+describe("perf: long lines with the parser highlighter", function()
+  setup()
+  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  local deco = require("org.ui.decorations")
+
+  local KINDS = {
+    prose = gen.prose,
+    marked = gen.marked,
+    markers = gen.markers,
+    bold = function(k)
+      return string.rep("*a* ", math.ceil(k / 4)):sub(1, k)
+    end,
+    links = function(k)
+      return string.rep("[[https://x.org/a_b][d *e*]] ", math.ceil(k / 29)):sub(1, k)
+    end,
+    table = function(k)
+      return "| " .. gen.marked(k) .. " |"
+    end,
+    -- many openings that share one closing marker at the end (review of
+    -- the parser highlighter: verbatim showed what each one hid, 30 s for
+    -- 24 KB)
+    far_verbatim = function(k)
+      return string.rep("=a ", math.ceil(k / 3)):sub(1, k) .. "b="
+    end,
+    far_bold = function(k)
+      return string.rep("*a ", math.ceil(k / 3)):sub(1, k) .. "b*"
+    end,
+    far_table = function(k)
+      return "| " .. string.rep("*a ", math.ceil(k / 3)):sub(1, k) .. "b* |"
+    end,
+    open_links = function(k)
+      return string.rep("[[a][", math.ceil(k / 5)):sub(1, k)
+    end,
+  }
+
+  --- Draw the buffer with its decorations computed again.
+  local function redraw_fresh()
+    deco.render(vim.api.nvim_get_current_buf())
+    vim.cmd("redraw!")
+  end
+
+  for _, kind in ipairs({ "prose", "marked", "markers", "bold", "links", "table" }) do
+    it(kind .. ": 100,000 characters draw in budget, markup at the end too", function()
+      local buf = open({ "* Before", KINDS[kind](100000) .. " *end*", "* After *bold*" })
+      vim.cmd("messages clear")
+      budget("draw a 100,000-character " .. kind .. " line (parser)", 1000, redraw_fresh)
+      local m = messages()
+      ok(not m:find("E363"), m)
+      local len = #vim.api.nvim_buf_get_lines(buf, 1, 2, false)[1]
+      -- ("end" is bold: earlier markers may close at its "*" too, as in
+      -- Emacs, and the marks of one kind that overlap are one)
+      local found = false
+      for _, mk in ipairs(deco.line_marks(buf, 1)) do
+        found = found or (mk[2].hl_group == "orgBold" and mk[1] <= len - 4 and mk[2].end_col >= len - 1)
+      end
+      ok(found, "bold at the end of the line")
+    end)
+  end
+
+  for _, kind in ipairs({ "marked", "markers", "bold", "links", "far_verbatim", "far_bold", "far_table", "open_links" }) do
+    it(kind .. ": drawing time grows linearly with the line, past 'synmaxcol'", function()
+      local buf = open({ "" })
+      linear("draw a " .. kind .. " line 3x (parser)", 20000, function()
+        for _ = 1, 3 do
+          redraw_fresh()
+        end
+      end, function(n)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "* Before", KINDS[kind](n), "* After" })
+      end)
+    end)
+  end
+
+  it("typing in a 30,000-character line", function()
+    open({ "* Before", gen.marked(30000), "* After *bold*" })
+    vim.api.nvim_win_set_cursor(0, { 2, 100 })
+    budget("type 10 chars in a 30,000-character line (parser)", 1500, function()
+      for _ = 1, 10 do
+        vim.cmd("normal! ix")
+        vim.cmd("redraw")
+      end
+    end)
+  end)
+end)
+
 describe("perf: deep nesting", function()
   setup()
   local function deep()

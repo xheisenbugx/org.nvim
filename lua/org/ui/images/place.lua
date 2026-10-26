@@ -103,8 +103,9 @@ end
 local hidden_cache, hidden_count = {}, 0
 
 --- Screen columns hidden before byte `col` of line `lnum` in `win`, which
---- screenpos() still counts: text concealed by syntax (the brackets and
---- targets of links) and the text of images drawn in place (in `list`).
+--- screenpos() still counts: text concealed by syntax or by the parser
+--- highlighter (the brackets and targets of links) and the text of images
+--- drawn in place (in `list`).
 local function concealed_before(win, bufnr, lnum, col, list)
   local level = vim.wo[win].conceallevel
   if col == 0 or level < 2 then
@@ -136,6 +137,7 @@ local function concealed_before(win, bufnr, lnum, col, list)
   end
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
   local hidden = 0
+  local deco = package.loaded["org.ui.decorations"]
   vim.api.nvim_win_call(win, function()
     local i, region = 0, nil
     while i < math.min(col, #line) do
@@ -159,6 +161,11 @@ local function concealed_before(win, bufnr, lnum, col, list)
           region = sc[3]
         else
           region = nil
+          -- link brackets of ui.highlighter = "parser" (hidden, no
+          -- replacement)
+          if deco and deco.concealed(bufnr, lnum - 1, i) == "" then
+            hidden = hidden + w
+          end
         end
       end
       i = i + len
