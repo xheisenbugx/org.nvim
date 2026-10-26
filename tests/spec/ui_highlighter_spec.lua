@@ -145,6 +145,31 @@ describe("ui.highlighter = parser", function()
     end
   end)
 
+  it("draws a row alone like the whole buffer: links over lines, blocks far up", function()
+    local E = require("org.ui.emphasis")
+    local cases = {
+      { "a", "see [[a][first", "second", "third", "fourth]] end", "b" },
+      { "x [[a][b", "* H2", "c]] y" },
+    }
+    -- a src block with no headline within the look back
+    local far = {}
+    for i = 1, 3100 do
+      far[i] = "text " .. i
+    end
+    vim.list_extend(far, { "#+begin_src python", "x = '*y*'", "x = '*y*'", "x = '*y*'", "#+end_src", "*z*" })
+    cases[#cases + 1] = far
+    for _, lines in ipairs(cases) do
+      local whole = {}
+      E.marks(lines, 0, 0, #lines - 1, { hide_markers = true, conceal_links = true }, whole)
+      local buf = org_buffer(lines, { 1, 0 })
+      for row = math.max(0, #lines - 8), #lines - 1 do
+        local alone = {}
+        E.add_marks(buf, row, row, require("org.config").opts.ui, alone)
+        eq(vim.inspect(whole[row]), vim.inspect(alone[row]), "row " .. row .. ": " .. lines[row + 1])
+      end
+    end
+  end)
+
   it("moves the cursor over hidden markers and link brackets", function()
     vim.cmd("syntax on")
     local function press(keys)

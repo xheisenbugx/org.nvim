@@ -435,6 +435,21 @@ describe("perf: long lines with the parser highlighter", function()
     table = function(k)
       return "| " .. gen.marked(k) .. " |"
     end,
+    -- many openings that share one closing marker at the end (review of
+    -- the parser highlighter: verbatim showed what each one hid, 30 s for
+    -- 24 KB)
+    far_verbatim = function(k)
+      return string.rep("=a ", math.ceil(k / 3)):sub(1, k) .. "b="
+    end,
+    far_bold = function(k)
+      return string.rep("*a ", math.ceil(k / 3)):sub(1, k) .. "b*"
+    end,
+    far_table = function(k)
+      return "| " .. string.rep("*a ", math.ceil(k / 3)):sub(1, k) .. "b* |"
+    end,
+    open_links = function(k)
+      return string.rep("[[a][", math.ceil(k / 5)):sub(1, k)
+    end,
   }
 
   --- Draw the buffer with its decorations computed again.
@@ -459,7 +474,7 @@ describe("perf: long lines with the parser highlighter", function()
     end)
   end
 
-  for _, kind in ipairs({ "marked", "markers", "bold", "links" }) do
+  for _, kind in ipairs({ "marked", "markers", "bold", "links", "far_verbatim", "far_bold", "far_table", "open_links" }) do
     it(kind .. ": drawing time grows linearly with the line, past 'synmaxcol'", function()
       local buf = open({ "" })
       linear("draw a " .. kind .. " line 3x (parser)", 20000, function()

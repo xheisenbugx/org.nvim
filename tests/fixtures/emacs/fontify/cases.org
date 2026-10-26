@@ -142,3 +142,126 @@ x = *a* -- [[l]]
 #+begin_comment
 *no*
 #+end_comment
+
+* Found in review
+A line break after markup: *bold*\\
+=verbatim=\\ and /italic/\ too.
+
+x *a
+#+begin_quote b* y
+
+x *a
+#+BEGIN_QUOTE b* y
+
+x *a
+clock: b* y
+
+#+begin_quote *b* x
+quoted
+#+END_QUOTE *b* x
+
+#+begin_foo *b*
+#+end_foo
+
+#+begin_quote [[x][y]]
+#+end_quote
+
+x ~a
+#+: b~ c
+
+: x _a
+b_ y
+
+x [[a][b
+
+c]] y
+
+x [[a][b
+* H2
+c]] y
+
+x [[a][b
+| c]] y
+
+x [[a][b
+- c]] y
+
+see [[a][first
+second
+third
+fourth]] end
+
+[[a\\]] and [[c:\\dir\\][d]] and [[e\]f][g]]
+
+#+begin_src
+*a*
+#+end_src
+
+#+begin_src foo *x*
+*a*
+#+end_src *z*
+
+* Found by fuzzing against Emacs
+#+begin_quote
+#+NAME: *b* x
+# *b* x
+#+end_quote
+
+#+begin_quote
+#+begin_src python
+x = *b* + /i/
+#+end_src
+#+end_quote
+
+x *a*\ y
+
+a +9m>
+  + b +s+ x
+
+#+foo *b* x
+#+1: *b* x
+
+x *b* y
+x *b*　y and x *b* y
+
+x [[a\\]] y
+
+x *a
+#+begin_src b* c
+y
+#+end_src
+
+#+foo: *a
+b* c
+
+: x *a
+b* c
+
+x *a
+#+begin_foo b* c
+#+end_foo
+
+x https://x.org/a[[*Head]] y
+
+x [[a][b
+#+NAME: c]] y
+
+| a |
+*a | b* x
+
+|---+---|
++a+ x
+
+x *a src_sh{x} b* y
+x *a src_sh{=x=} b* y
+x ~a src_sh{x} b~ y
+x *a src_sh{{x}} b* y
+x *a src_sh{} b* y
+
+* An unterminated block (last: it reaches the end of the file)
+#+begin_example
+*
+_u_ x
+
+#+begin_src *b* y
+*c*
