@@ -7,19 +7,7 @@ local P = require("tests.emacs_parity")
 local hl = require("tests.helpers.highlighter")
 
 -- Known differences: file -> { [line] = reason }.
-local KNOWN = {
-  ["examples/02-markup.org"] = {
-    -- an HTML export block: Emacs draws its contents with mhtml-mode
-    -- (org-src-fontify-natively), which makes <em> text italic
-    [399] = "native fontification",
-  },
-  ["examples/17-babel.org"] = {
-    [542] = "native fontification (an HTML export block, as above)",
-    -- a json src block: Vim's json syntax conceals the quotes
-    -- (g:vim_json_conceal), Emacs's json-mode doesn't
-    [574] = "the json syntax",
-  },
-}
+local KNOWN = {}
 
 describe("emacs parity: emphasis faces and hidden text", function()
   with_config({ ui = { hide_emphasis_markers = true, highlighter = "parser" } })

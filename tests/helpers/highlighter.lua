@@ -109,6 +109,14 @@ function M.state(buf, engine)
 end
 
 local LETTERS = { bold = "b", italic = "i", underline = "u", strike = "s", verbatim = "v", code = "c" }
+-- Bold and italic of the syntax of a block's language (Emacs: the faces
+-- of its mode, mhtml-mode making <b> text bold and <em> italic)
+local NATIVE = {
+  htmlbold = { "b" },
+  htmlitalic = { "i" },
+  htmlbolditalic = { "b", "i" },
+  htmlitalicbold = { "b", "i" },
+}
 local ORDER = "biusvc"
 
 --- Buffer `buf` (shown in the current window) as the Emacs fontify fixture
@@ -138,6 +146,13 @@ function M.emacs_codes(buf, engine)
         end
         if fixed and c >= fixed then
           set.c = true
+        end
+        -- (the group drawn there: the innermost one; a tag inside the
+        -- italic region of <em> is drawn as a tag)
+        if kinds[l] == "none" then
+          for _, k in ipairs(NATIVE[vim.fn.synIDattr(vim.fn.synID(l, c, 1), "name"):lower()] or {}) do
+            set[k] = true
+          end
         end
         for i = 1, #ORDER do
           local c = ORDER:sub(i, i)
