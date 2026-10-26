@@ -1,0 +1,144 @@
+Emphasis cases for the fontify parity fixture: each paragraph or headline
+is a case, and the blank lines keep markup of one from going on into the
+next.
+
+* Kinds and nesting
+*bold* /italic/ _under_ +strike+ =verbatim= ~code~
+
+Body with *bold /it/ x*, =v *no*= and ~c~.
+
+*a /b *c* d/ e*
+
+/a *b/ c*
+
+x /a *b/ c*
+
+=v *no*= and *a =b* c=
+
+*a* *b*c* d
+
+a*b* c *d*e *f*
+
+== and ~~ and ** ok
+
+*x **
+
+"*q*" (*p*) {*b*} -*d*- '*s*' *x*. *y*, *z*; *w*! *v*? *u*: *t*[ *r*]
+
+Repeaters: +, ++ and .+
+
+=params.name == "Ada"=, =t= gives =true=, numbers
+
+* Over a line break
+para *bold
+continues here* ok
+
+one *two
+three
+four* five
+
+a *b
+
+c* d
+
+a *b
+- c* d
+
+x /a
+#+begin_quote
+b/ y
+#+end_quote
+
+* *bold* headline
+** *bold* two
+*** *bold* three
+**** /italic/ and *bold* four
+*** WAITING Level three
+* DONE *bold* and /it/ done :tag:
+** DONE [#A] =v= x
+* TODO a *b
+c* d
+
+* Lists
+- *term* :: x
+- *a :: b* c
++ =t= :: *d*
+- [X] *t* :: v
+1. *one* :: two
+- item *a
+  b* c
+
+* Tables
+| =v= | *b* |
+| *a | b* |
+|---+---|
+| =a+b |
+| x *y* z |
++--+--+
+| a | =b= |
+#+TBLFM: $2=*1*
+
+* Links and objects
+see [[https://x.org][desc *b*]] and *[[a]]*
+
+=[[x][y]]= raw ~[[a]]~
+
+*a [[b][c]] d*
+
+https://x.com/a-_b_ and <https://y.org/*a* b> *c*
+
+file:a_b_c.org _ok_
+
+<2024-01-01 Mon> *b* [2024-01-02 Tue]--[2024-01-03 Wed] /i/
+
+{{{macro(*a*)}}} *b*
+
+@@html:<b>*x*</b>@@ src_sh{echo *a*} *c* [fn:1] [fn:: *in* note] [1/2] [50%]
+
+a [[b][multi
+line *x*]] c
+
+[[target]] and [[t2][desc]] and [[file:a.org::*Head][head]]
+
+* Lines without markup
+# comment *no* [[a][b]]
+#+TITLE: *t* [[x][y]]
+#+AUTHOR: [[a]] *b*
+#+OPTIONS: *x*
+#+CAPTION: *cap* [[a][b]]
+:PROPERTIES:
+:KEY: *v* [[a][b]]
+:END:
+: fixed *no*
+CLOCK: [2024-01-01 Mon 10:00] *b*
+SCHEDULED: <2024-01-01 Mon> *s*
+
+#+begin_src lua
+x = *a* -- [[l]]
+#+end_src
+*after*
+
+#+begin_example
+*a*
+#+begin_src
+*b*
+#+end_example
+*c*
+
+#+BEGIN: clocktable
+*in* dyn
+#+END:
+
+%%(diary) *a*
+
+#+begin_center
+*centered*
+#+end_center
+
+#+begin_verse
+/verse/ *x*
+#+end_verse
+
+#+begin_comment
+*no*
+#+end_comment

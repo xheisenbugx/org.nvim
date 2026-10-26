@@ -66,6 +66,36 @@ describe("screen snapshot", function()
     screen:expect("emphasis_bullets_hidden")
   end)
 
+  -- ui.highlighter = "parser" (|org-highlighter|): the same groups, drawn
+  -- by the decorations over the headline faces
+  it("emphasis drawn by the parser highlighter", function()
+    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+    screen:org(EMPHASIS)
+    screen:expect("emphasis_parser_hidden")
+  end)
+
+  it("links, overlapping markup and verbatim drawn by the parser highlighter", function()
+    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } }, 60, 8)
+    screen:org({
+      "See [[https://orgmode.org][the *Org* site]] and *[[a]]*.",
+      "Overlap: *a /b* c/ and =v *no*= raw.",
+      "=[[x][y]]= shows the link, ~*b*~ the stars.",
+      "# comment *no* [[c][link]]",
+      "#+begin_src lua",
+      "x = *a* -- [[l]]",
+      "#+end_src",
+    })
+    screen:expect("emphasis_parser_objects")
+  end)
+
+  it("markup past 'synmaxcol' drawn by the parser highlighter", function()
+    new({ ui = { highlighter = "parser" } }, 60, 6)
+    screen:org({ string.rep("x", 3100) .. " *bold* end", "next line *bold*" })
+    screen:cmd("setlocal nowrap")
+    screen:input("$")
+    screen:expect("emphasis_parser_long_line")
+  end)
+
   -- #119: a closed fold keeps the faces of its headline
   it("folded headlines keep their keyword, priority and tag faces", function()
     new({ todo_keywords = { "TODO", "NEXT", "|", "DONE" } })

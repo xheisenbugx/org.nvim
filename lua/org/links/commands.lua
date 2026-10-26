@@ -31,6 +31,8 @@ function M.toggle_link_display()
   if utils.is_org(bufnr) then
     vim.cmd("syntax clear")
     require("org.syntax").apply(bufnr)
+    -- (ui.highlighter = "parser" hides the links in the decorations)
+    require("org.ui.decorations").render(bufnr)
   end
   utils.notify(cur and "Literal link display" or "Descriptive link display")
 end
