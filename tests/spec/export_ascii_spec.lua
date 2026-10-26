@@ -236,6 +236,14 @@ describe("ascii export", function()
       eq("a\nb\n", exp("a\\\\\nb"))
     end)
 
+    it("a line break on a line of its own is a blank line, removed with its break", function()
+      -- org-ascii-paragraph's org-remove-blank-lines turns the hard newline
+      -- into a plain one, which filling joins (make difftest, #294)
+      eq("end.  alpha task end.\n", exp({ "end.", "\\\\", "alpha task end." }))
+      eq("a b\n", exp({ "a \\\\", "\\\\", "b" }))
+      eq("c\nd\n", exp({ "c \\\\", "d" }))
+    end)
+
     it("drawers with a format function", function()
       config.opts.export.with_drawers = true
       config.opts.export.ascii = {
