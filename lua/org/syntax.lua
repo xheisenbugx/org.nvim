@@ -559,6 +559,92 @@ local function watch_synmaxcol()
   })
 end
 
+--- The regions of src and export blocks whose language is drawn by an
+--- included Vim syntax (or by tree-sitter: the region then only keeps the
+--- body out of spell checking), and the syncing. `delimiter`: the group of
+--- the begin and end lines.
+---@param bufnr integer
+---@param config table
+---@param block_stop string
+---@param delimiter string
+local function src_regions(bufnr, config, block_stop, delimiter)
+  local langs = src_languages(bufnr)
+  languages[bufnr] = languages[bufnr] or {}
+  languages[bufnr].seen = vim.deepcopy(langs)
+  languages[bufnr].pending = false
+  watch_languages(bufnr)
+  do
+    local included = {}
+    local modes = config.src_lang_modes or {}
+    local sorted = vim.tbl_keys(langs)
+    table.sort(sorted)
+    for _, lang in ipairs(sorted) do
+      local syn = syntax_of(lang)
+      local how = not included[syn] and highlighter(syn)
+      if how then
+        included[syn] = true
+        local cluster = "orgSrc_" .. syn
+        if how == "syntax" then
+          local saved = vim.b.current_syntax
+          vim.b.current_syntax = nil
+          local ok = pcall(cmd, string.format("syntax include @%s syntax/%s.vim", cluster, syn))
+          if not ok then
+            pcall(cmd, string.format("syntax include @%s syntax/%s.lua", cluster, syn))
+          end
+          vim.b.current_syntax = saved
+          -- an included file's `syntax case ignore` would make the org rules
+          -- below (TODO keywords, priorities) case-insensitive
+          cmd("syntax case match")
+        else
+          -- tree-sitter draws the body (org.ui.src_highlight): the region
+          -- only keeps it plain text, like an included syntax's leftovers
+          cmd(string.format("syntax cluster %s contains=@NoSpell", cluster))
+        end
+        -- all aliases of this syntax
+        local names = { esc(lang) }
+        local seen = { [lang] = true }
+        for _, map in ipairs({ modes, M.lang_aliases }) do
+          for alias in pairs(map) do
+            if not seen[alias] and syntax_of(alias) == syn then
+              seen[alias] = true
+              names[#names + 1] = esc(alias)
+            end
+          end
+        end
+        -- (the language ends at a blank: "c++" is not "c")
+        for _, kind in ipairs({ "src", "export" }) do
+          cmd(
+            string.format(
+              [=[syntax region orgSrcBlock_%s matchgroup=%s start=/\c^\s*#+begin_%s\s\+\%%(%s\)\%%(\s.*\)\=$/ end=/\c^\s*#+end_%s\%%(\s.*\)\=$/ %s keepend contains=@%s]=],
+              syn,
+              delimiter,
+              kind,
+              table.concat(names, [[\|]]),
+              kind,
+              block_stop,
+              cluster
+            )
+          )
+        end
+        cmd("syntax cluster orgQuoteContents add=orgSrcBlock_" .. syn)
+      end
+    end
+  end
+  -- Included syntax files set the buffer's syncing, spell and keyword
+  -- options: org's own come last.
+  cmd("syntax spell toplevel")
+  cmd("syntax sync clear")
+  -- Sync on headlines and block delimiters, which no region crosses, so a
+  -- line in the middle of a long block is still drawn as block text when
+  -- it is the first line on screen; and redraw the line above a change:
+  -- emphasis and links can continue on the next line.
+  cmd("syntax sync minlines=10 maxlines=5000 linebreaks=1")
+  -- (block begin lines are no sync points: parsing from the headline or
+  -- block end above them finds the block)
+  cmd([=[syntax sync match orgSyncHeadline grouphere NONE /^\*\+\s/]=])
+  cmd([=[syntax sync match orgSyncBlockEnd grouphere NONE /\c^\s*#+end_\S*/]=])
+end
+
 function M.apply(bufnr)
   require("org.highlights").ensure()
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
@@ -582,12 +668,20 @@ function M.apply(bufnr)
     conceal_links = vim.b[bufnr].org_link_descriptive and true or false
   end
   local lists = require("org.lists")
-  -- ui.highlighter = "parser": emphasis and the hidden parts of links are
-  -- drawn by org.ui.emphasis (decorations), not by syntax regions
+  -- ui.highlighter = "parser": org.ui.highlight draws the buffer (the
+  -- decorations); the syntax only includes the languages of src blocks
   local parser = require("org.ui.emphasis").active(bufnr)
 
   cmd("syntax clear")
   cmd("syntax spell toplevel")
+
+  if parser then
+    -- everything else is drawn by org.ui.highlight
+    src_regions(bufnr, config, [=[end=/^\ze]=] .. HEADLINE .. "/", "orgSrcDelimiter")
+    require("org.highlights").apply_todo_faces()
+    vim.b[bufnr].current_syntax = "org"
+    return
+  end
 
   -- Comments & keywords -----------------------------------------------------
   cmd([=[syntax match orgComment /^\s*#\(\s.*\)\?$/ contains=@Spell,@orgLinks]=])
@@ -796,80 +890,7 @@ function M.apply(bufnr)
   )
   cmd([=[syntax case match]=])
 
-  local langs = src_languages(bufnr)
-  languages[bufnr] = languages[bufnr] or {}
-  languages[bufnr].seen = vim.deepcopy(langs)
-  languages[bufnr].pending = false
-  watch_languages(bufnr)
-  do
-    local included = {}
-    local modes = config.src_lang_modes or {}
-    local sorted = vim.tbl_keys(langs)
-    table.sort(sorted)
-    for _, lang in ipairs(sorted) do
-      local syn = syntax_of(lang)
-      local how = not included[syn] and highlighter(syn)
-      if how then
-        included[syn] = true
-        local cluster = "orgSrc_" .. syn
-        if how == "syntax" then
-          local saved = vim.b.current_syntax
-          vim.b.current_syntax = nil
-          local ok = pcall(cmd, string.format("syntax include @%s syntax/%s.vim", cluster, syn))
-          if not ok then
-            pcall(cmd, string.format("syntax include @%s syntax/%s.lua", cluster, syn))
-          end
-          vim.b.current_syntax = saved
-          -- an included file's `syntax case ignore` would make the org rules
-          -- below (TODO keywords, priorities) case-insensitive
-          cmd("syntax case match")
-        else
-          -- tree-sitter draws the body (org.ui.src_highlight): the region
-          -- only keeps it plain text, like an included syntax's leftovers
-          cmd(string.format("syntax cluster %s contains=@NoSpell", cluster))
-        end
-        -- all aliases of this syntax
-        local names = { esc(lang) }
-        local seen = { [lang] = true }
-        for _, map in ipairs({ modes, M.lang_aliases }) do
-          for alias in pairs(map) do
-            if not seen[alias] and syntax_of(alias) == syn then
-              seen[alias] = true
-              names[#names + 1] = esc(alias)
-            end
-          end
-        end
-        -- (the language ends at a blank: "c++" is not "c")
-        for _, kind in ipairs({ "src", "export" }) do
-          cmd(
-            string.format(
-              [=[syntax region orgSrcBlock_%s matchgroup=orgBlockDelimiter start=/\c^\s*#+begin_%s\s\+\%%(%s\)\%%(\s.*\)\=$/ end=/\c^\s*#+end_%s\%%(\s.*\)\=$/ %s keepend contains=@%s]=],
-              syn,
-              kind,
-              table.concat(names, [[\|]]),
-              kind,
-              block_stop,
-              cluster
-            )
-          )
-        end
-        cmd("syntax cluster orgQuoteContents add=orgSrcBlock_" .. syn)
-      end
-    end
-  end
-  -- Included syntax files set the buffer's syncing, spell and keyword
-  -- options: org's own come last.
-  cmd("syntax spell toplevel")
-  cmd("syntax sync clear")
-  -- Sync on headlines and block delimiters, which no region crosses, so a
-  -- line in the middle of a long block is still drawn as block text when
-  -- it is the first line on screen; and redraw the line above a change:
-  -- emphasis and links can continue on the next line.
-  cmd("syntax sync minlines=10 maxlines=5000 linebreaks=1")
-  -- (block begin lines are no sync points: parsing from the headline or
-  -- block end above them finds the block)
-  cmd([=[syntax sync match orgSyncHeadline grouphere NONE /^\*\+\s/]=])
-  cmd([=[syntax sync match orgSyncBlockEnd grouphere NONE /\c^\s*#+end_\S*/]=])
+  src_regions(bufnr, config, block_stop, "orgBlockDelimiter")
 
   -- Headlines (defined last so they win) ------------------------------------
   local contains = list(

@@ -777,8 +777,8 @@ function M.compute(bufnr, first, last, ui)
     end
   end
   if ui.highlighter == "parser" then
-    -- emphasis and the hidden parts of links (org.ui.emphasis)
-    require("org.ui.emphasis").add_marks(bufnr, first, last, ui, rows)
+    -- everything the syntax regions draw otherwise (org.ui.highlight)
+    require("org.ui.highlight").add_marks(bufnr, first, last, ui, rows)
   end
   -- column view rows stand for the whole line (Emacs turns org-num off)
   local colview = package.loaded["org.columns"]
@@ -1025,7 +1025,7 @@ function M.concealed(bufnr, row, col)
   end
   for _, m in ipairs(rows_for(bufnr, row, row)[row] or {}) do
     local o = m[2]
-    if m[4] == "emphasis" and o.conceal and col >= m[1] and col < (o.end_col or m[1] + 1) then
+    if (m[4] == "emphasis" or m[4] == "parser") and o.conceal and col >= m[1] and col < (o.end_col or m[1] + 1) then
       return o.conceal
     end
   end
@@ -1104,6 +1104,10 @@ function M.attach(bufnr, force)
       ui_cache[bufnr] = nil
       num_cache[bufnr] = nil
       inline_synced[bufnr] = nil
+      local hl = package.loaded["org.ui.highlight"]
+      if hl then
+        hl.detach(bufnr)
+      end
     end,
   })
   M.render(bufnr)

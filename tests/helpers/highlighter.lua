@@ -33,6 +33,39 @@ local function kind_of(name)
   end
 end
 
+--- The groups drawn on byte `c` (1-based) of line `l` of the current
+--- buffer, lowercase and joined by " ": its syntax groups (`synstack()`)
+--- and the groups of the decoration marks over it, whichever highlighter
+--- draws the buffer. "conceal" is added when the byte is hidden.
+---@param l integer
+---@param c integer
+---@return string
+function M.groups(l, c)
+  local out = {}
+  for _, id in ipairs(vim.fn.synstack(l, c)) do
+    out[#out + 1] = vim.fn.synIDattr(id, "name"):lower()
+  end
+  local hidden = vim.fn.synconcealed(l, c)[1] == 1
+  for _, m in ipairs(require("org.ui.decorations").line_marks(vim.api.nvim_get_current_buf(), l - 1)) do
+    local o = m[2]
+    if c - 1 >= m[1] and c - 1 < (o.end_col or m[1] + 1) then
+      if o.hl_group then
+        out[#out + 1] = o.hl_group:lower()
+      end
+      hidden = hidden or o.conceal == ""
+    end
+  end
+  if hidden then
+    out[#out + 1] = "conceal"
+  end
+  return table.concat(out, " ")
+end
+
+--- Whether group `group` (any case) is drawn on byte `c` of line `l`.
+function M.has(l, c, group)
+  return (" " .. M.groups(l, c) .. " "):find(" " .. group:lower() .. " ", 1, true) ~= nil
+end
+
 --- Draw buffer `buf` with highlighter `engine` (the current window shows it).
 function M.use(buf, engine)
   require("org.config").opts.ui.highlighter = engine

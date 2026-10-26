@@ -198,6 +198,7 @@ local function separates(s)
     or s:find("^%d+[.)]$", i) ~= nil
 end
 M._separates = separates
+M.separates = separates
 
 --- Whether `line` ends the search for a block's end line: a headline or a
 --- line of stars only (Emacs: "^\*+[[:space:]]").
@@ -229,16 +230,21 @@ end
 ---@field name string
 ---@field verbatim boolean src, example or export (nothing drawn in it)
 
+---@class org.ui.emphasis.Role
+---@field block org.ui.emphasis.Block the block the line is in
+---@field role "begin"|"body"|"end"
+
 --- What each of `lines` holds, from the block state of the line before
 --- them (`block`). A `#+begin_NAME` opens a block when a `#+end_NAME` or a
 --- line of stars follows (`closed_after`: whether one follows the last of
 --- `lines`). In a src, example or export block nothing is drawn; in other
 --- blocks the lines aren't keywords or comments (Emacs draws their body as
---- text), and their begin and end lines are drawn like info keywords.
+--- text), and their begin and end lines are drawn like info keywords. The
+--- second result: per line in a block, which block and its role there.
 ---@param lines string[]
 ---@param block? org.ui.emphasis.Block|false
 ---@param closed_after? fun(name: string): boolean
----@return org.ui.emphasis.Kind[]
+---@return org.ui.emphasis.Kind[], table<integer, org.ui.emphasis.Role>
 function M.kinds(lines, block, closed_after)
   local n = #lines
   -- the next line of stars, and the end lines by name
@@ -276,6 +282,7 @@ function M.kinds(lines, block, closed_after)
   end
 
   local kinds = {} ---@type org.ui.emphasis.Kind[]
+  local roles = {} ---@type table<integer, org.ui.emphasis.Role>
   local cur = block or false ---@type org.ui.emphasis.Block|false
   if cur and not closed(0, cur.name) then
     cur = false
@@ -289,10 +296,13 @@ function M.kinds(lines, block, closed_after)
     elseif cur then
       if name == cur.name and not begins then
         kind = cur.verbatim and "none" or "info"
+        roles[i] = { block = cur, role = "end" }
         cur = false
       elseif cur.verbatim then
         kind = "none"
+        roles[i] = { block = cur, role = "body" }
       else
+        roles[i] = { block = cur, role = "body" }
         local k = classify(line)
         kind = (k == "none" or k == "info") and "text" or k == "comment" and "qcomment" or k
       end
@@ -300,6 +310,7 @@ function M.kinds(lines, block, closed_after)
       if closed(i, name) then
         cur = { name = name, verbatim = VERBATIM_BLOCKS[name] == true }
         kind = cur.verbatim and "none" or "info"
+        roles[i] = { block = cur, role = "begin" }
       else
         -- (no end: no block, and its line is text)
         kind = "text"
@@ -309,8 +320,12 @@ function M.kinds(lines, block, closed_after)
     end
     kinds[i] = kind
   end
-  return kinds
+  return kinds, roles
 end
+
+M.star_line = star_line
+M.block_line = block_line
+M.VERBATIM_BLOCKS = VERBATIM_BLOCKS
 
 -- The scan ------------------------------------------------------------------
 
@@ -1041,84 +1056,16 @@ end
 
 -- The buffer ----------------------------------------------------------------
 
---- How far back the scan looks for the headline above (the blocks open
---- there), and ahead for the end line of a block.
-local LOOKBACK = 3000
---- How far the scan goes on over a paragraph around the rows drawn.
-local PARAGRAPH = 50
-
 --- Emphasis and link marks of rows `first` to `last` (0-based) of buffer
---- `bufnr`, added to `rows` (the format of org.ui.decorations `compute`).
+--- `bufnr`, added to `rows` (the format of org.ui.decorations `compute`),
+--- from the window org.ui.highlight scans for them.
 ---@param bufnr integer
 ---@param first integer
 ---@param last integer
 ---@param ui table the buffer's `ui` options
 ---@param rows table<integer, table[]>
 function M.add_marks(bufnr, first, last, ui, rows)
-  local n = vim.api.nvim_buf_line_count(bufnr)
-  -- Markup can start on the line above the first one asked for, and a
-  -- link's text goes on over the lines of its paragraph: the scan covers
-  -- the paragraphs around the rows (PARAGRAPH lines at most each way), so
-  -- a row drawn alone gets what a whole buffer draws there.
-  local scan_row = math.max(0, first - 2)
-  local up = vim.api.nvim_buf_get_lines(bufnr, math.max(0, scan_row - PARAGRAPH), scan_row + 1, false)
-  for k = #up, 2, -1 do
-    if separates(up[k]) then
-      break
-    end
-    scan_row = scan_row - 1
-  end
-  local stop = math.min(n, last + 2)
-  local down = vim.api.nvim_buf_get_lines(bufnr, stop, math.min(n, stop + PARAGRAPH), false)
-  for _, line in ipairs(down) do
-    if separates(line) then
-      break
-    end
-    stop = stop + 1
-  end
-  -- the block open there: from the headline above (or LOOKBACK lines up)
-  local start = math.max(0, scan_row - LOOKBACK)
-  local before = vim.api.nvim_buf_get_lines(bufnr, start, scan_row, false)
-  local h = 0
-  for k = #before, 1, -1 do
-    if star_line(before[k]) then
-      h = k
-      break
-    end
-  end
-  local block = false ---@type org.ui.emphasis.Block|false
-  for j = h + 1, #before do
-    local name, begins = block_line(before[j])
-    if name then
-      if block and not begins and name == block.name then
-        block = false
-      elseif not block and begins then
-        -- (whether it has an end line is found out by `M.kinds`)
-        block = { name = name, verbatim = VERBATIM_BLOCKS[name] == true }
-      end
-    end
-  end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, scan_row, stop, false)
-  -- whether an end line for a block (or a line of stars) comes after
-  -- `lines`: a block is one only when it has an end
-  local function closed_after(name)
-    local from = stop
-    while from < math.min(n, stop + LOOKBACK) do
-      local chunk = vim.api.nvim_buf_get_lines(bufnr, from, math.min(n, from + 256), false)
-      for _, line in ipairs(chunk) do
-        if star_line(line) then
-          return true
-        end
-        local nm, begins = block_line(line)
-        if nm == name and not begins then
-          return true
-        end
-      end
-      from = from + #chunk
-    end
-    -- (beyond LOOKBACK lines: taken as closed)
-    return from < n
-  end
+  local w = require("org.ui.highlight").window(bufnr, first, last)
   local b = vim.b[bufnr]
   local hide = ui.hide_emphasis_markers and true or false
   if b.org_hide_emphasis_markers ~= nil then
@@ -1128,12 +1075,12 @@ function M.add_marks(bufnr, first, last, ui, rows)
   if b.org_link_descriptive ~= nil then
     conceal_links = b.org_link_descriptive and true or false
   end
-  M.marks(lines, scan_row, first, last, {
+  M.marks(w.lines, w.row0, first, last, {
     hide_markers = hide,
     conceal_links = conceal_links,
-    block = block,
-    prev = scan_row > 0 and vim.api.nvim_buf_get_lines(bufnr, scan_row - 1, scan_row, false)[1] or nil,
-    closed_after = closed_after,
+    block = w.block,
+    prev = w.prev,
+    closed_after = w.closed_after,
   }, rows)
 end
 
