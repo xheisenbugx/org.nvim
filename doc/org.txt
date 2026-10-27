@@ -9300,6 +9300,13 @@ Differences from Emacs:
 - Agenda column view (|org-agenda-columns|) writes a parent's summary
   back to its property only in agenda files loaded in a buffer (Emacs
   visits every agenda file, so it updates them all, without saving).
+- Agenda sorting by TODO state (`todo-state-up` / `-down`) ranks each
+  entry by the keyword sequence of its own file. Emacs's org-cmp-todo-state
+  ranks both entries it compares by the keywords of the first one's file
+  (a keyword missing there ranks as no keyword), so with files that have
+  different keyword sets its order depends on which entry the sort
+  compares first; and it takes a keyword as done when it is done in any
+  agenda file.
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - By default capture edits the text in a separate buffer and stores it at
