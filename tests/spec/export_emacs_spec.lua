@@ -1152,3 +1152,26 @@ describe("export: keyword macros read the buffer, not its setup file (Emacs 9.8.
     )
   end)
 end)
+
+describe("export: the end of a buffer or subtree without a newline (Emacs 9.8.10)", function()
+  -- Emacs exports the buffer text, whose last line may have no newline,
+  -- and org-narrow-to-subtree leaves out the newline ending a subtree that
+  -- isn't the last: Emacs gives "Text\nlast</p>" for "* Head\nText\nlast"
+  -- without a final newline, and "a text</p>" / "b text</p>" for the
+  -- subtrees of "* A\na text\n* B\nb text"
+  it("ends the last paragraph of a buffer without a final newline", function()
+    local buf = org_buffer({ "* Head", "Text", "last" }, { 1, 0 })
+    vim.bo[buf].eol = false
+    has(export.to_string("html", { bufnr = buf, body_only = true }), "<p>\nText\nlast</p>\n</div>")
+    vim.bo[buf].eol = true
+    has(export.to_string("html", { bufnr = buf, body_only = true }), "<p>\nText\nlast\n</p>\n</div>")
+  end)
+
+  it("ends the last paragraph of a subtree without a newline, unless it ends the buffer", function()
+    local buf = org_buffer({ "* A", "a text", "* B", "b text" }, { 1, 0 })
+    has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 1 }), "<p>\na text</p>")
+    has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 3 }), "<p>\nb text\n</p>")
+    vim.bo[buf].eol = false
+    has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 3 }), "<p>\nb text</p>")
+  end)
+end)

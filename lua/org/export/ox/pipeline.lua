@@ -358,6 +358,22 @@ function export_as(backend, lines, opts)
     (require("org.config").opts.links or {}).abbreviations or {},
     file0.settings.link_abbrevs or {}
   )
+  local no_final_newline = opts.no_final_newline
+  if no_final_newline == nil then
+    -- Emacs exports the buffer text: a file without a final newline ends
+    -- its last paragraph without one ("last</p>"). 'fixeol' only adds it
+    -- on write (Emacs' require-final-newline).
+    local bufnr = opts.bufnr
+    no_final_newline = bufnr ~= nil
+      and vim.api.nvim_buf_is_valid(bufnr)
+      and not vim.bo[bufnr].eol
+      and #lines == vim.api.nvim_buf_line_count(bufnr)
+    -- org-narrow-to-subtree stops before the newline ending a subtree,
+    -- unless it ends the buffer
+    if subtree and subtree.last < #lines then
+      no_final_newline = true
+    end
+  end
   local popts = {
     todo = todo,
     link_types = link_types,
@@ -365,7 +381,7 @@ function export_as(backend, lines, opts)
     abbrevs = abbrevs,
     radio = radio,
     macro = expander,
-    no_final_newline = opts.no_final_newline,
+    no_final_newline = no_final_newline or nil,
     footnote_section = c.footnote_section or require("org.config").opts.footnote_section,
     inlinetask_min_level = min_inline,
     alpha = require("org.lists").opt("allow_alphabetical"),
