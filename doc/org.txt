@@ -7274,6 +7274,23 @@ OrgStatistic (org-checkbox-statistics-done/-todo); OrgSexpDate is diary
 sexps (`<%%(...)>`, `%%(...)` lines) and OrgArchived the text of headlines
 tagged ARCHIVE.
 
+With the "parser" highlighter, the body of a `#+begin_src org` block (and of
+`#+begin_export org` and `#+begin_example org`, as Emacs fontifies them
+too) is drawn as Org text on OrgBlock, the way Emacs's
+org-src-fontify-natively draws it: as if the body were a buffer of its own
+(keywords, comments, lists, tables, drawers, timestamps, footnotes, links
+and markup, and blocks that open and close in it), from the lines around
+the rows on screen like the rest of the buffer. As in Emacs, the lines are
+taken as typed: a line escaped with a comma (`,* Heading`, `,#+TITLE:`) is
+no headline or keyword there, and nothing in the body is hidden (emphasis
+markers and link brackets show, the markers without the emphasis face when
+`ui.hide_emphasis_markers` is on). The language is matched as Emacs does,
+case and all, through `src_lang_modes` (a language mapped to "org" is drawn
+the same); `ui.src_highlight = false` leaves the body plain OrgBlock. The
+body is never drawn with a tree-sitter org parser or a Vim syntax for org,
+even when one is installed: this drawing wins. "syntax" draws such bodies
+as plain OrgBlock.
+
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
   - `OrgHeadlineLevel1..8` (linked to the colorscheme's markdown
     headings)

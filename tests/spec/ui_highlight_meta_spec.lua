@@ -274,6 +274,11 @@ describe("parser highlighter: keywords, drawers and comments", function()
           get_line = function()
             return nil
           end,
+          get_lines = function()
+            return {}
+          end,
+          top = 0,
+          bottom = #lines,
           lines = lines,
           row0 = 0,
           first = 0,

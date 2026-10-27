@@ -420,11 +420,13 @@ local function syntax_of(lang)
 end
 M.syntax_of = syntax_of
 
---- Whether src blocks of `lang` can get a language syntax (not "org":
---- Neovim's bundled syntax/org.vim would redefine orgBold and friends for
---- the whole buffer).
+--- Whether src blocks of `lang` can get a language syntax (not "org", in
+--- any case: Neovim's bundled syntax/org.vim, which a case-insensitive file
+--- system finds for "ORG" too, would redefine orgBold and friends for the
+--- whole buffer; with the parser highlighter, org.ui.highlight draws org
+--- bodies as Org).
 local function includable(syn)
-  return syn ~= "" and syn ~= "org" and syn:match("^[%w_]+$") ~= nil and has_syntax(syn)
+  return syn ~= "" and syn:lower() ~= "org" and syn:match("^[%w_]+$") ~= nil and has_syntax(syn)
 end
 
 --- How src blocks of the Vim syntax `syn` are highlighted: "treesitter"
