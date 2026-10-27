@@ -501,6 +501,147 @@ describe("perf: long lines with the parser highlighter", function()
   end)
 end)
 
+-- The parser highlighter as a whole (org.ui.highlight): the marks of the
+-- rows on screen are computed at every changedtick (typing keeps the rows
+-- an edit can't change) and drawn by the decoration provider, one scan per
+-- range of rows a window draws (one per closed fold in an overview).
+describe("perf: the parser highlighter", function()
+  setup()
+  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  local deco = require("org.ui.decorations")
+
+  -- the Emacs faces cases: every kind of element the highlighter draws
+  local CASES = {}
+  for _, name in ipairs({ "headline", "list", "date", "meta", "table", "block", "object" }) do
+    vim.list_extend(CASES, vim.fn.readfile("tests/fixtures/emacs/faces/" .. name .. ".org"))
+  end
+  --- `copies` times every kind of element.
+  local function kinds(copies)
+    local out = {}
+    for _ = 1, copies do
+      vim.list_extend(out, CASES)
+    end
+    return out
+  end
+
+  local function key(k)
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(k, true, false, true), "nx", false)
+  end
+  --- Page through the buffer from the top, drawing each screen.
+  local function page_through()
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.cmd("redraw")
+    local top
+    while top ~= vim.fn.line("w0") and vim.fn.line("w$") < vim.api.nvim_buf_line_count(0) do
+      top = vim.fn.line("w0")
+      key("<C-f>")
+      vim.cmd("redraw")
+    end
+  end
+  --- Draw the screen `times` times, its marks computed again each time.
+  local function fresh(buf, times)
+    for _ = 1, times do
+      deco.render(buf)
+      vim.cmd("redraw!")
+    end
+  end
+  local function middle()
+    vim.api.nvim_win_set_cursor(0, { math.floor(vim.api.nvim_buf_line_count(0) / 2), 0 })
+    vim.cmd("normal! zz")
+  end
+  local function type_chars(n)
+    for _ = 1, n do
+      vim.cmd("normal! ix")
+      vim.cmd("redraw")
+    end
+  end
+
+  it("draws, scrolls and types in a file of every kind of element in budget", function()
+    local buf = open(kinds(40))
+    middle()
+    budget("draw 20 screens of every kind (parser)", 600, function()
+      fresh(buf, 20)
+    end)
+    budget("type 20 chars among every kind (parser)", 300, function()
+      type_chars(20)
+    end)
+    budget("scroll 40 pages of every kind (parser)", 1500, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 40 do
+        key("<C-f>")
+        vim.cmd("redraw")
+      end
+    end)
+    vim.cmd("normal! zM")
+    middle()
+    budget("draw 20 screens of every kind, folded (parser)", 1000, function()
+      fresh(buf, 20)
+    end)
+    budget("type 20 chars among every kind, folded (parser)", 300, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 20 do
+        vim.cmd("normal! Ax")
+        vim.cmd("redraw")
+      end
+    end)
+  end)
+
+  it("pages through every kind of element in time linear in the pages", function()
+    local buf = open({ "" })
+    linear("page through every kind (parser)", 2, page_through, function(n)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, kinds(n))
+      deco.render(buf)
+    end)
+  end)
+
+  it("opens, edits, folds and scrolls 10,000 headlines in budget", function()
+    local lines = gen.headlines(10000)
+    local buf
+    budget("open 10,000 headlines (parser)", 3000, function()
+      buf = open(lines)
+    end)
+    middle()
+    budget("draw 20 screens of 10,000 headlines (parser)", 300, function()
+      fresh(buf, 20)
+    end)
+    budget("type 20 chars in 10,000 headlines (parser)", 300, function()
+      type_chars(20)
+    end)
+    budget("zM, zR in 10,000 headlines (parser)", 300, function()
+      vim.cmd("normal! zM")
+      vim.cmd("redraw")
+      vim.cmd("normal! zR")
+      vim.cmd("redraw")
+    end)
+    vim.cmd("normal! zM")
+    budget("scroll 40 pages of the overview of 10,000 headlines (parser)", 800, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 40 do
+        key("<C-f>")
+        vim.cmd("redraw")
+      end
+    end)
+    budget("type 20 chars in the overview of 10,000 headlines (parser)", 500, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 20 do
+        vim.cmd("normal! Ax")
+        vim.cmd("redraw")
+      end
+    end)
+  end)
+
+  it("pages through the overview of headlines in time linear in the headlines", function()
+    local buf = open({ "" })
+    linear("page through the overview of headlines (parser)", 500, function()
+      vim.cmd("normal! zM")
+      page_through()
+    end, function(n)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.headlines(n))
+      deco.render(buf)
+    end)
+  end)
+end)
+
 describe("perf: deep nesting", function()
   setup()
   local function deep()

@@ -17,6 +17,11 @@
 --- a formula. Each line is scanned once, from its "|" positions: the time
 --- is linear in its length.
 
+-- Not compiled by the JIT, like org.ui.highlight (see the comment there).
+if jit then
+  jit.off(true, true)
+end
+
 local M = {}
 
 local PRIO = require("org.ui.highlight").PRIO
