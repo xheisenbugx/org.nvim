@@ -11,6 +11,7 @@ local M = require("org.lists")
 local curbuf = shared.curbuf
 local cursor_lnum = shared.cursor_lnum
 local get_lines = shared.get_lines
+local indent_len = shared.indent_len
 local indent_of = shared.indent_of
 local is_blank = shared.is_blank
 local lopt = shared.lopt
@@ -306,7 +307,7 @@ end
 
 --- Rewrite the item's first line for its new indentation, bullet and box.
 local function item_line(it, line)
-  local rest = line:sub(it.indent + #it.bullet_ws + 1)
+  local rest = line:sub(it.ind_len + #it.bullet_ws + 1)
   if it.box ~= it.checkbox then
     -- [@N], [@c] or [@start:N] (a new box goes right after it)
     local counter = it.counter and rest:match("^%[@[^%]]*%]")
@@ -328,7 +329,9 @@ local function item_line(it, line)
       end
     end
   end
-  return string.rep(" ", it.ind) .. it.bul .. rest
+  -- unchanged indentation is kept as it is (tabs included)
+  local prefix = it.ind == it.indent and line:sub(1, it.ind_len) or string.rep(" ", it.ind)
+  return prefix .. it.bul .. rest
 end
 
 --- Owner item of each line of the structure (the innermost item whose
@@ -364,14 +367,14 @@ local function apply_struct(struct)
       if delta ~= 0 then
         local ind = indent_of(line)
         local target = math.max(ind + delta, owner.ind + 1)
-        new = string.rep(" ", target) .. line:sub(ind + 1)
+        new = string.rep(" ", target) .. line:sub(indent_len(line) + 1)
       end
     end
     out[i] = new
     if cur and cur[1] == lnum and new ~= line then
-      local old_ind, new_ind = indent_of(line), indent_of(new)
+      local old_ind, new_ind = indent_len(line), indent_len(new)
       if owner and owner.lnum == lnum then
-        local old_prefix = owner.indent + #owner.bullet_ws
+        local old_prefix = owner.ind_len + #owner.bullet_ws
         local new_prefix = owner.ind + #owner.bul
         if cur[2] >= old_prefix then
           cur_shift = (#new - #line)

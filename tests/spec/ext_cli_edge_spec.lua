@@ -175,3 +175,157 @@ describe("cli: a running Neovim follows the shell's clock", function()
     eq({ dir .. "/bin/" }, got)
   end)
 end)
+
+describe("cli: messages of a command the session server runs", function()
+  local dir, real_notify, real_echo
+  after_each(function()
+    vim.notify, vim.api.nvim_echo = real_notify, real_echo
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find(dir, 1, true) then
+        pcall(vim.api.nvim_buf_delete, b, { force = true })
+      end
+    end
+    require("org").setup({
+      org_directory = root .. "/tests/fixtures",
+      agenda_files = { root .. "/tests/fixtures/*.org" },
+    })
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("shows each message once in that Neovim, through its own vim.notify", function()
+    dir = workspace()
+    require("org").setup({ org_directory = dir, agenda_files = { dir .. "/work.org" } })
+    real_notify, real_echo = vim.notify, vim.api.nvim_echo
+    local echoed = {}
+    vim.api.nvim_echo = function(chunks)
+      echoed[#echoed + 1] = chunks[1][1]
+      -- the notify <-> nvim_echo loop used to run until the stack ran out
+      assert(#echoed < 20, "nvim_echo called again and again")
+    end
+    -- the default vim.notify echoes the message
+    vim.notify = function(msg)
+      vim.api.nvim_echo({ { msg } }, true, {})
+    end
+    -- work.org has unsaved changes in this Neovim: the command warns
+    local b = require("org.utils").load_buffer(dir .. "/work.org")
+    vim.api.nvim_buf_set_lines(b, -1, -1, false, { "unsaved" })
+    local res = require("org.extensions.cli.run").serve({ "--json", "set", "todo", "tests-id", "DONE" }, dir)
+    vim.notify, vim.api.nvim_echo = real_notify, real_echo
+    eq(0, res.code, res.err)
+    local e = vim.json.decode(res.out)
+    eq(1, #e.warnings, vim.inspect(e.warnings))
+    ok(e.warnings[1]:find("has unsaved changes in Neovim", 1, true), e.warnings[1])
+    eq({ e.warnings[1] }, echoed)
+  end)
+end)
+
+describe("cli: argument, configuration and message errors", function()
+  local function json(dir, args)
+    local code, out, err = run(dir, vim.list_extend({ "--no-server", "--json" }, args))
+    local okd, e = pcall(vim.json.decode, out)
+    ok(okd, out .. err)
+    return code, e
+  end
+
+  it("prints a failure once, not again after the warning that says it", function()
+    local dir = workspace()
+    vim.fn.writefile({ "* Inbox" }, dir .. "/inbox.org")
+    vim.fn.setfperm(dir .. "/inbox.org", "r--r--r--")
+    vim.fn.writefile({
+      "return { org_directory = "
+        .. vim.inspect(dir)
+        .. ", agenda_files = { "
+        .. vim.inspect(dir .. "/work.org")
+        .. " },",
+      "  capture = { templates = { t = { description = 'T', template = '* %?', target = " .. vim.inspect(
+        dir .. "/inbox.org"
+      ) .. " } } } }",
+    }, dir .. "/cfg.lua")
+    local code, _, err = run(dir, { "--no-server", "capture", "x" })
+    eq(1, code)
+    local _, n = err:gsub("Capture could not be saved", "")
+    eq(1, n, err)
+    vim.fn.setfperm(dir .. "/inbox.org", "rw-r--r--")
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("shows the child entries of show --children in text too", function()
+    local dir = workspace()
+    vim.fn.writefile({ "* Parent", "Parent text.", "** Child", "Child text.", "*** Grandchild" }, dir .. "/home.org")
+    local code, out = run(dir, { "--no-server", "show", "--children", "home.org::Parent" })
+    eq(0, code)
+    local lines = vim.split(vim.trim(out), "\n", { plain = true })
+    ok(lines[1]:find("* Parent$"), out)
+    ok(
+      out:find("Parent text.\n\n[^\n]*home.org:3: %*%* Child\n\nChild text.\n\n[^\n]*home.org:5: %*%*%* Grandchild"),
+      out
+    )
+    code, out = run(dir, { "--no-server", "show", "home.org::Parent" })
+    eq(0, code)
+    ok(not out:find("Child", 1, true), out)
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("refuses a --todo keyword no file knows and a --match it cannot read", function()
+    local dir = workspace()
+    local code, e = json(dir, { "headlines", "--todo", "NOPE" })
+    eq(2, code)
+    eq("bad_value", e.errors[1].code)
+    eq("NOPE", e.errors[1].details.keyword)
+    code, e = json(dir, { "headlines", "--todo", "TODO,open" })
+    eq(0, code)
+    eq(3, #e.data)
+    for _, m in ipairs({ "+(((", "+code +work", "a=" }) do
+      code, e = json(dir, { "headlines", "--match", m })
+      eq(2, code, m)
+      eq("bad_value", e.errors[1].code, m)
+      code, e = json(dir, { "search", "--match", m })
+      eq(2, code, m)
+    end
+    code, e = json(dir, { "headlines", "--match", " +work-boss " })
+    eq(0, code, vim.inspect(e))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("says a flag's value is missing when the next word is another flag", function()
+    local dir = workspace()
+    local code, e = json(dir, { "headlines", "--todo", "--limit", "1" })
+    eq(2, code)
+    eq("usage", e.errors[1].code)
+    eq("--todo needs a value", e.errors[1].message)
+    -- --flag=value takes any value
+    code, e = json(dir, { "headlines", "--match=-nothing" })
+    eq(0, code, vim.inspect(e))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("fails with a config error for a config that returns no table or gives agenda_files a wrong type", function()
+    local dir = workspace()
+    vim.fn.writefile({ "return 42" }, dir .. "/num.lua")
+    vim.fn.writefile({ "return { agenda_files = 5 }" }, dir .. "/files.lua")
+    vim.fn.writefile({ "return { org_directory = {} }" }, dir .. "/dir.lua")
+    for _, f in ipairs({ "num.lua", "files.lua", "dir.lua" }) do
+      local code, out, err = run(dir, { "--no-server", "--json", "--config", dir .. "/" .. f, "files" })
+      eq(2, code, f .. out .. err)
+      local e = vim.json.decode(out)
+      eq("config", e.errors[1].code, f .. out)
+      ok(not e.errors[1].message:find("%.lua:%d+:"), e.errors[1].message)
+    end
+    vim.fn.delete(dir, "rf")
+  end)
+end)
+
+describe("cli: FILE:LINE targets", function()
+  it("takes an agenda file's name as FILE, as FILE::TITLE does", function()
+    local dir = workspace()
+    for _, target in ipairs({ "work.org:2", "work:3", dir .. "/work.org:2" }) do
+      local code, out, err = run(dir, { "--no-server", "show", target })
+      eq(0, code, target .. ": " .. out .. err)
+      ok(out:find("* TODO Write tests", 1, true), target .. ": " .. out)
+    end
+    local code, _, err = run(dir, { "--no-server", "show", "nope:2" })
+    eq(1, code)
+    ok(err:find("no heading matches nope:2", 1, true), err)
+    vim.fn.delete(dir, "rf")
+  end)
+end)

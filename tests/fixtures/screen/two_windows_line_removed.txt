@@ -1,0 +1,15 @@
+screen 30x12
+|a {1:*}{2:bold}|
+|{2:text}{1:*} x|
+||
+|y|
+||
+|{3:                              }|
+|a {1:*}{2:bold}|
+|{2:text}{1:*} x|
+||
+|y|
+
+{1} orgBoldDelimiter -> OrgBold [bold]
+{2} OrgBold [bold]
+{3} StatusLine

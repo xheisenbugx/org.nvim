@@ -145,7 +145,7 @@ local function updated_item(old, hl)
   it.category = hl:get_category()
   it.tags = hl:get_tags()
   it.done = hl:is_done()
-  it.level = hl.level
+  it.level = hl:reduced_level()
   local prio = require("org.agenda.items").priority_value(hl)
   it.urgency = (old.urgency or old.prio or 0) - (old.prio or 0) + prio
   it.prio = prio
@@ -621,7 +621,7 @@ function M.shift_item(target, item, n, explicit_count, unit)
     if not x.hour then
       new = new:clone({ hour = vim.NIL, min = vim.NIL, end_hour = vim.NIL, end_min = vim.NIL })
     end
-    return new
+    return new:normalize()
   end
   local new = shift(d)
   if d.range_end then

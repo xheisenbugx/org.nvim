@@ -8,6 +8,7 @@
 local config = require("org.config")
 local date = require("org.date")
 local files = require("org.files")
+local parser = require("org.parser")
 local utils = require("org.utils")
 local shared = require("org.clock.shared")
 
@@ -189,7 +190,7 @@ local function scope_files(scope, cur, lnum)
     if level then
       while hl.parent do
         hl = hl.parent
-        if hl.level <= level then
+        if hl:reduced_level() <= level then
           break
         end
       end
@@ -278,15 +279,18 @@ local function table_data(file, roots, params, ts, te)
       props = values,
     }
   end
+  -- levels count only odd ones with #+STARTUP: odd (org-reduced-level)
+  local odd = parser.odd_levels(file)
   local function walk(hl)
     local time = times[hl]
-    if time and time > 0 and hl.level <= maxlevel then
-      add(hl, hl.level, time)
+    local level = parser.reduced_level(hl.level, odd)
+    if time and time > 0 and level <= maxlevel then
+      add(hl, level, time)
       -- org-clock-get-table-data lists an inline task after its headline,
       -- at the headline's level
       for _, it in ipairs(inline_tasks(hl)) do
         if times[it] then
-          add(it, hl.level, times[it])
+          add(it, level, times[it])
         end
       end
     end

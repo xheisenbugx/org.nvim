@@ -153,6 +153,26 @@ describe("sticky headline context", function()
     eq({}, at_top())
   end)
 
+  it("counts the screen lines of a wrapped line", function()
+    local lines = { "* A", "** B", "b1", string.rep("word ", 40), "b2", "** C" }
+    for i = 7, 60 do
+      lines[i] = "c" .. i
+    end
+    org_buffer(lines, { 1, 0 })
+    local win = vim.api.nvim_get_current_win()
+    vim.wo[win].foldenable = false
+    vim.wo[win].wrap = true
+    context.enable()
+    vim.api.nvim_win_set_cursor(win, { 5, 0 })
+    vim.fn.winrestview({ topline = 4 })
+    eq(4, vim.fn.line("w0"))
+    ok(vim.api.nvim_win_text_height(win, { start_row = 3, end_row = 3 }).all >= 2)
+    context.update(win, true)
+    -- the wrapped line takes the rows under the float: still in B (one
+    -- line a row, "** C" would come under two rows and end B)
+    eq({ 1, 2 }, context.lines(win))
+  end)
+
   it("gives each window its own context and closes it in other buffers", function()
     org_buffer(doc(), { 1, 0 })
     context.enable()

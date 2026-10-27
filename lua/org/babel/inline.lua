@@ -231,6 +231,13 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
       done(true)
       return
     end
+    if opts.export and results.is_null(result) then
+      -- no value: org-babel-insert-result inserts only the space before a
+      -- result, so the export shows nothing (in the buffer org.nvim writes
+      -- {{{results(==)}}}, which the next run replaces: :h org-differences)
+      done(true)
+      return
+    end
     local text, err = results.format_inline(result, iargs, src.lang, { base_dir = buf_dir(bufnr), cwd = info.cwd })
     if not text then
       -- a user-error in Emacs: it also stops org-babel-execute-buffer

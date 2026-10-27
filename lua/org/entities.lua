@@ -590,4 +590,39 @@ function M.utf8(name)
   return x and x[2] or nil
 end
 
+-- (the names org-fontify-entities tries before a run of letters: they end
+-- in digits)
+local DIGIT_NAMES = { "^there4", "^sup[123]", "^frac[13][24]" }
+
+--- The entity displayed at byte `i` of `s`, a backslash, as
+--- org-fontify-entities composes it: its one-character UTF-8 form and the
+--- last byte shown as it (`{}` after the name included); nil when there is
+--- none there. \there4, \sup1-3 and \frac12-style names come first when
+--- no letter follows them (\sup2 is ², \sup2x is ⊃ then "2x"), then the
+--- run of letters; an entity whose UTF-8 form is longer than a character
+--- isn't displayed.
+---@param s string
+---@param i integer
+---@return string? utf8, integer? last
+function M.pretty_at(s, i)
+  local name
+  for _, pat in ipairs(DIGIT_NAMES) do
+    local w = s:match(pat, i + 1)
+    if w and not s:find("^%a", i + 1 + #w) then
+      name = w
+      break
+    end
+  end
+  name = name or s:match("^%a+", i + 1)
+  local sym = name and M.utf8(name)
+  if not (sym and vim.fn.strchars(sym) == 1) then
+    return nil
+  end
+  local last = i + #name
+  if s:sub(last + 1, last + 2) == "{}" then
+    last = last + 2
+  end
+  return sym, last
+end
+
 return M

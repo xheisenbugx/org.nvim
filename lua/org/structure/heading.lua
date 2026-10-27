@@ -48,13 +48,14 @@ local function tb_outline_level(tb, pos)
 end
 
 --- Move to the beginning of the headline at or above point
---- (org-back-to-heading). Returns false before the first headline.
-local function tb_back_to_heading(tb)
+--- (org-back-to-heading). Returns false before the first headline. With
+--- `limited` (org-with-limited-levels), an inline task line is text.
+local function tb_back_to_heading(tb, limited)
   local p = tb:line_beg()
   local here = p
   while true do
     -- org-at-heading-p on the line itself, then limited levels above
-    if (p == here and tb_level(tb, p)) or tb_outline_level(tb, p) then
+    if (p == here and not limited and tb_level(tb, p)) or tb_outline_level(tb, p) then
       tb:goto_char(p)
       return true
     end
@@ -83,10 +84,11 @@ local function tb_next_heading(tb)
   end
 end
 
---- Level of the entry containing point (org-current-level).
+--- Level of the entry containing point (org-current-level, which ignores
+--- inline tasks).
 local function tb_current_level(tb)
   local save = tb.point
-  local ok = tb_back_to_heading(tb)
+  local ok = tb_back_to_heading(tb, true)
   local lvl = ok and tb_level(tb) or nil
   tb:goto_char(save)
   return lvl
@@ -273,7 +275,7 @@ function M.insert_heading_at_point(opts)
     if not current_level then
       tb_next_heading(tb)
     else
-      tb_back_to_heading(tb)
+      tb_back_to_heading(tb, true)
       if arg == 16 then
         tb_up_heading(tb)
       end

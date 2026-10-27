@@ -16,6 +16,9 @@
 ---Follow `org clock in/out/cancel` run from a shell: rereads the files and
 ---takes up or drops the running clock. (default: `true`)
 ---@field watch_clock? boolean
+---Seconds a write command waits for another `org` that is writing (the
+---write lock) before it fails with `file_busy`. (default: `10`)
+---@field lock_timeout? number
 ---`org mcp`, the MCP server for AI agents (`:h org-extensions-cli-mcp`).
 ---@field mcp? org.Config.Extensions.Cli.Mcp
 

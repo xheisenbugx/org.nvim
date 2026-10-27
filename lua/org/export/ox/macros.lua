@@ -33,8 +33,11 @@ function M.macro_expander(ctx)
     end
   end
   local kw = ctx.keywords
+  -- org-macro--find-keyword-value searches the buffer's own text: the
+  -- keywords of a #+SETUPFILE don't count (its #+MACRO definitions do)
+  local own = ctx.own_keywords or kw
   local function kwval(name, collect)
-    local v = kw[name]
+    local v = own[name]
     if not v then
       return nil
     end

@@ -534,3 +534,91 @@ describe("archive to the Archive sibling, as org-archive-to-archive-sibling find
     }, archive({ "* P", "** X", "** Archive :foo:ARCHIVE:" }, 2))
   end)
 end)
+
+describe("subtree commands treat an inline task as text (org-with-limited-levels)", function()
+  with_config({ inlinetask_min_level = 15 })
+  -- expected buffers from Emacs 9.8.10 with org-inlinetask loaded
+  local T = { "* A", "** B", "*************** inl", "body", "*************** END", "text", "* C" }
+  local function run(cursor, fn)
+    local buf = org_buffer(T, cursor)
+    if type(fn) == "string" then
+      require("org.actions").run(fn)
+    else
+      fn()
+    end
+    vim.cmd("stopinsert")
+    return buf_lines(buf)
+  end
+
+  it("inserts a heading at the level of the enclosing entry", function()
+    eq(
+      { "* A", "** B", "*************** inl", "** ", "body", "*************** END", "text", "* C" },
+      run({ 3, 18 }, "meta_return")
+    )
+    eq(
+      { "* A", "** B", "*************** inl", "body", "*************** END", "text", "** ", "* C" },
+      run({ 3, 18 }, "insert_heading")
+    )
+    eq(
+      { "* A", "** B", "*************** inl", "body", "*************** END", "text", "** ", "* C" },
+      run({ 5, 3 }, "insert_heading")
+    )
+    eq(
+      { "* A", "** B", "*************** inl", "*** ", "body", "*************** END", "text", "* C" },
+      run({ 3, 18 }, "insert_subheading")
+    )
+  end)
+
+  it("pastes a subtree before the next outline heading, at its level", function()
+    local S = require("org.structure")
+    local want = { "* A", "** B", "*************** inl", "body", "*************** END", "text", "** X", "x", "* C" }
+    for _, pos in ipairs({ { 3, 3 }, { 5, 3 }, { 4, 1 }, { 3, 0 } }) do
+      eq(
+        want,
+        run(pos, function()
+          S.paste_subtree({ lines = { "* X", "x" }, pos = pos })
+        end)
+      )
+    end
+  end)
+
+  it("promotes and demotes the enclosing subtree, not the inline task", function()
+    local demoted = { "* A", "*** B", "*************** inl", "body", "*************** END", "text", "* C" }
+    eq(demoted, run({ 3, 3 }, "demote_subtree"))
+    eq(demoted, run({ 5, 3 }, "demote_subtree"))
+    eq(demoted, run({ 3, 3 }, "shift_meta_right"))
+    eq(
+      { "* A", "* B", "*************** inl", "body", "*************** END", "text", "* C" },
+      run({ 3, 3 }, "shift_meta_left")
+    )
+    -- M-right on the inline task itself still demotes it (org-inlinetask-demote)
+    eq(
+      { "* A", "** B", "**************** inl", "body", "**************** END", "text", "* C" },
+      run({ 3, 3 }, "meta_right")
+    )
+  end)
+
+  it("cuts and copies the enclosing subtree", function()
+    eq({ "* A", "* C" }, run({ 3, 3 }, "cut_subtree"))
+    eq(
+      {
+        "* A",
+        "** B",
+        "*************** inl",
+        "body",
+        "*************** END",
+        "text",
+        "* B",
+        "*************** inl",
+        "body",
+        "*************** END",
+        "text",
+        "* C",
+      },
+      run({ 3, 3 }, function()
+        require("org.actions").run("copy_subtree")
+        require("org.structure").paste_subtree({ pos = { 7, 0 } })
+      end)
+    )
+  end)
+end)

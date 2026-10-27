@@ -277,3 +277,56 @@ describe("DST clock resolution", function()
     eq(date.parse("[2026-03-08 Sun 01:30]"):minutes(), clock.leftover)
   end)
 end)
+
+-- Emacs 9.8.10 in America/New_York: org-timestamp-change and
+-- org-auto-repeat-maybe go through encode-time, which moves a local time
+-- skipped on the spring-forward day (2026-03-08 02:00-03:00) an hour on
+describe("timestamps on a skipped local time (Emacs)", function()
+  local real_now = date.now
+  after_each(function()
+    date.now = real_now
+  end)
+
+  it("moves shifted and repeated times out of the DST gap", function()
+    skip_on_windows("the Windows C runtime takes no zone names: TZ=America/New_York is UTC there")
+    eq("<2026-03-08 Sun 03:30>", date.parse("<2026-03-07 Sat 02:30>"):add_with_range(1, "d"):to_string())
+    eq("<2026-03-08 Sun 03:30>", date.parse("<2026-03-08 Sun 01:30>"):add_with_range(1, "h"):to_string())
+    eq("<2026-03-08 Sun 03:30-04:00>", date.parse("<2026-03-07 Sat 02:30-03:00>"):add_with_range(1, "d"):to_string())
+    -- a fall-back time exists (twice): it stays
+    eq("<2026-11-01 Sun 01:30>", date.parse("<2026-10-31 Sat 01:30>"):add_with_range(1, "d"):to_string())
+    date.now = function()
+      return date.parse("<2026-10-01 Thu 12:00>")
+    end
+    local now = date.now()
+    eq("<2026-03-08 Sun 03:30 +1d>", date.apply_repeater(date.parse("<2026-03-07 Sat 02:30 +1d>"), now):to_string())
+    -- a ++ repeater stepping through the gap keeps the moved time
+    eq("<2026-10-04 Sun 03:30 ++1w>", date.apply_repeater(date.parse("<2026-03-01 Sun 02:30 ++1w>"), now):to_string())
+  end)
+
+  it("never moves a time back, whatever the C library gives", function()
+    -- (the Windows runtime gave 01:30 for a 02:30 in the gap: here 03:30 - 2h)
+    local real = os.date
+    os.date = function(fmt, t)
+      local r = real(fmt, t)
+      if fmt == "*t" and type(r) == "table" then
+        r.hour = r.hour - 2
+      end
+      return r
+    end
+    local ok_, res = pcall(function()
+      return date.parse("<2026-03-08 Sun 02:30>"):normalize():to_string()
+    end)
+    os.date = real
+    eq(true, ok_, res)
+    eq("<2026-03-08 Sun 02:30>", res)
+  end)
+
+  it("moves a time shifted with S-up out of the gap", function()
+    skip_on_windows("the Windows C runtime takes no zone names: TZ=America/New_York is UTC there")
+    local buf = org_buffer({ "* H", "<2026-03-07 Sat 02:30>", "<2026-03-08 Sun 01:30>" }, { 2, 12 })
+    timestamps.increment(1)
+    vim.api.nvim_win_set_cursor(0, { 3, 17 })
+    timestamps.increment(1)
+    eq({ "* H", "<2026-03-08 Sun 03:30>", "<2026-03-08 Sun 03:30>" }, buf_lines(buf))
+  end)
+end)

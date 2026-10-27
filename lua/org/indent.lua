@@ -643,6 +643,35 @@ function M.operator(kind)
   return kind
 end
 
+local OPFUNC = "v:lua.require'org.indent'.operator"
+
+--- `=` in org buffers (`mappings.org.indent_operator`): Vim's `=` with
+--- org-indent-region, Emacs's indent-region-function in Org, instead of
+--- 'indentexpr' line by line. In Normal mode it waits for a motion (`==`
+--- and `{count}==` indent lines), in Visual mode it indents the selection.
+---@return boolean|nil false when the key isn't ours (another operator pending)
+function M.indent_operator()
+  local mode = vim.api.nvim_get_mode().mode
+  if mode:sub(1, 2) == "no" then
+    -- the second `=` of `==`: the current line and count - 1 more. A
+    -- mapping in Operator-pending mode is the motion itself, from the
+    -- cursor before it to the cursor after (the operator takes whole lines)
+    if vim.v.operator == "g@" and vim.go.operatorfunc == OPFUNC then
+      local lnum = vim.api.nvim_win_get_cursor(0)[1]
+      local last = math.min(lnum + math.max(vim.v.count, 1) - 1, vim.api.nvim_buf_line_count(0))
+      local text = vim.api.nvim_buf_get_lines(0, last - 1, last, false)[1]
+      vim.api.nvim_win_set_cursor(0, { last, #text })
+      return
+    end
+    return false
+  end
+  if mode == "v" or mode == "V" or mode == "\22" then
+    return M.indent_region_action()
+  end
+  vim.go.operatorfunc = OPFUNC
+  vim.api.nvim_feedkeys((vim.v.count > 0 and vim.v.count or "") .. "g@", "ni", false)
+end
+
 local function element_of(types, what)
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]

@@ -4,7 +4,6 @@
 ---
 --- Part of org.structure, which loads it.
 
-local edit = require("org.edit")
 local files = require("org.files")
 local parser = require("org.parser")
 local utils = require("org.utils")
@@ -26,6 +25,9 @@ local start_insert = shared.start_insert
 -- Toggles
 ---------------------------------------------------------------------------
 
+--- org-toggle-comment: insert COMMENT after the stars, TODO keyword and
+--- priority, or remove it, changing nothing else on the line (the tags
+--- are not realigned).
 function M.toggle_comment()
   local bufnr = buf()
   local hl = current_headline()
@@ -33,7 +35,30 @@ function M.toggle_comment()
     utils.warn("Not on a headline")
     return
   end
-  edit.update_headline(bufnr, hl.line, { commented = not hl.commented })
+  local line = get_lines(bufnr, hl.line, hl.line)[1]
+  local todo_cfg = files.get_buffer(bufnr).settings.todo
+  -- the end of the stars, keyword and priority (org-complex-heading-regexp)
+  local pos = #line:match("^%*+")
+  local word, after = line:match("^[ \t]+(%S+)()", pos + 1)
+  if word and todo_cfg:is_keyword(word) and line:sub(after, after):match("^[ \t]?$") then
+    pos = after - 1
+  end
+  local prio_end = line:match("^[ \t]+%[#[^%]]%]()", pos + 1)
+  if prio_end then
+    pos = prio_end - 1
+  end
+  local q = pos + #line:match("^[ \t]*", pos + 1)
+  local head, rest = line:sub(1, q), line:sub(q + 1)
+  if not head:match("[ \t]$") then
+    head = head .. " "
+  end
+  if hl.commented then
+    -- up to the next space and the blanks after it
+    rest = rest:match("^%S* [ \t]*(.*)$") or ""
+  else
+    rest = "COMMENT" .. (rest ~= "" and " " .. rest or "")
+  end
+  set_lines(bufnr, hl.line, hl.line, { head .. rest })
 end
 
 --- org-toggle-heading (C-c *): headlines become text; list items become
@@ -75,8 +100,9 @@ function M.toggle_heading()
     set_lines(bufnr, s, e, vim.list_slice(lines, s, e))
   elseif lists.item_on(bufnr, s) then
     local struct = lists.struct_at(bufnr, s)
-    local hl = file:headline_at(s)
-    local level = hl and hl.level + 1 or 1
+    -- counted without odd levels (org-list-to-subtree)
+    local level = lists.subtree_start_level(bufnr, s)
+    local odd = M.odd_levels_only(bufnr)
     local stop = math.min(struct.last, e)
     local sel = {}
     for _, it in ipairs(struct.items) do
@@ -107,7 +133,8 @@ function M.toggle_heading()
         text = " " .. (term or "") .. " " .. (desc or "")
       end
       local kw = it.checkbox == "X" and (done_kw .. " ") or it.checkbox and (todo_kw .. " ") or ""
-      out[#out + 1] = (string.rep("*", level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
+      local n = level + depth - 1
+      out[#out + 1] = (string.rep("*", odd and 2 * n - 1 or n) .. " " .. kw .. text):gsub("%s+$", "")
       if region then
         for l = it.lnum + 1, math.min(it.end_lnum, stop) do
           local owner

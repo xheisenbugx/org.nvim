@@ -721,6 +721,109 @@ describe("window_frame_fractions", function()
   end)
 end)
 
+describe("agenda levels with #+STARTUP: odd", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local lines = {
+    "#+STARTUP: odd",
+    "* TODO Top",
+    "*** TODO Second",
+    "***** TODO Third",
+    "*** Project two",
+    "***** WAITING sub",
+    "* nothing",
+  }
+
+  -- Emacs 9.8.10 (org-reduced-level): LEVEL counts odd levels only, so do
+  -- the default stuck projects match (+LEVEL=2/-DONE) and %l
+  it("matches LEVEL, stuck projects and %l by the reduced level", function()
+    open(lines, {}, { type = "tags", match = "LEVEL=2" })
+    eq({ "  skip:       TODO Second", "  skip:       Project two" }, item_lines())
+    open(lines, {}, { type = "tags", match = "LEVEL>2" })
+    eq({ "  skip:       TODO Third", "  skip:       WAITING sub" }, item_lines())
+    open(lines, {}, { type = "stuck" })
+    eq({ "  skip:       Project two" }, item_lines())
+    open(lines, { agenda = { prefix_format = { todo = " %l|%-8c" } } }, { type = "todo" })
+    eq({ "  |skip    TODO Top", "   |skip    TODO Second", "    |skip    TODO Third" }, item_lines())
+  end)
+end)
+
+describe("agenda diary sexp entries sorting", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10: org-agenda-get-sexps sets no priority or urgency, so a
+  -- sexp entry sorts as 0, after an upcoming deadline and after the time
+  -- grid line of its time
+  it("gives sexp entries urgency 0", function()
+    open({
+      "* Sexps",
+      "%%(org-cyclic 1 2020 1 1) 10:00 Daily with time",
+      "%%(org-cyclic 1 2020 1 1) Daily",
+      "* TODO Soon",
+      "  DEADLINE: " .. ts(1),
+    }, {
+      agenda = {
+        time_grid = { times = { 1000 } },
+        show_current_time_in_grid = false,
+      },
+    })
+    eq({
+      "              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
+      "  skip:       10:00 ┄┄┄┄┄ Daily with time",
+      "  skip:       In   1 d.:  TODO Soon",
+      "  skip:       Daily",
+    }, vim.list_slice(buf_text(), 3))
+  end)
+end)
+
+describe("default_appointment_duration past midnight", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10 org-agenda-format-item with org-agenda-default-appointment-duration
+  -- 45: the end is a duration ("1d 0:45") shown by its time of day, while an
+  -- end time written past midnight keeps its "+"
+  it("shows the end by its time of day", function()
+    open({
+      "* Midnight",
+      ts(0, "24:00"),
+      "* Late",
+      ts(0, "23:30"),
+      "* Past midnight",
+      ts(0, "23:30-24:30"),
+    }, { agenda = { default_appointment_duration = 45, time_grid = { enabled = false } } })
+    eq({
+      "  skip:       23:30-0:15  Late",
+      "  skip:       23:30-+0:30 Past midnight",
+      "  skip:       24:00-0:45  Midnight",
+    }, item_lines())
+  end)
+end)
+
+describe("stuck projects keywords", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10 org-agenda-list-stuck-projects: the keywords are a regexp
+  -- on the heading lines of the subtree, so a word that is no TODO keyword
+  -- in the file counts too
+  it("matches the keywords as text on the heading lines", function()
+    open({
+      "* Project one",
+      "** NEXT do it",
+      "* Project two",
+      "** TODO only a todo",
+    }, { agenda = { stuck_projects = { match = "+LEVEL=1", todo_keywords = { "NEXT" } } } }, { type = "stuck" })
+    eq({ "  skip:       Project two" }, item_lines())
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()

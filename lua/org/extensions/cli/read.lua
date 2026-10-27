@@ -179,7 +179,9 @@ local function headline_result(hls, limit)
 end
 
 local function match_predicate(match)
-  local pred, e = require("org.agenda.search").try_compile(match)
+  -- strict: text the match can't read is an error, not ignored as Emacs
+  -- (and the agenda) ignore it
+  local pred, e = require("org.agenda.search").try_compile(match, { strict = true })
   if not pred then
     fail("bad match " .. match .. ": " .. tostring(e), "bad_value", { match = match })
   end
@@ -375,6 +377,28 @@ function M.cmd_headlines(words, flags)
     end
     files = sel
   end
+  -- a --todo that is no keyword of these files (nor any, open, done,
+  -- none) would just find nothing
+  local known = { any = true, open = true, done = true, none = true }
+  for _, n in ipairs(require("org.todo_keywords").global():names()) do
+    known[n] = true
+  end
+  for _, f in ipairs(files) do
+    for _, n in ipairs(f.settings.todo:names()) do
+      known[n] = true
+    end
+  end
+  for _, kw in ipairs(flags.todo) do
+    if not known[kw] then
+      local names = vim.tbl_keys(known)
+      table.sort(names)
+      fail(
+        "unknown TODO keyword " .. kw .. " (any, open, done, none or a keyword of the files)",
+        "bad_value",
+        { keyword = kw, keywords = names }
+      )
+    end
+  end
   local pred = M.headline_filter(flags)
   local hls = {}
   require("org.agenda.items").each_headline(files, { all = flags.archived or false }, function(hl)
@@ -385,10 +409,10 @@ function M.cmd_headlines(words, flags)
   return headline_result(hls, int_flag(flags, "limit"))
 end
 
-function M.cmd_show(words, flags)
-  local hl = M.resolve_target(table.concat(words, " "), flags)
-  local entry = data.entry(hl, { children = flags.children })
-  local text = { headline_line(hl) }
+--- The text of `org show` for headline `hl` (its data `entry`) and, with
+--- --children, its child entries after it.
+local function entry_text(hl, entry, text)
+  text[#text + 1] = headline_line(hl)
   local function ts(label, t)
     if t then
       text[#text + 1] = label .. t:to_string()
@@ -409,5 +433,17 @@ function M.cmd_show(words, flags)
     text[#text + 1] = ""
     vim.list_extend(text, vim.split(entry.body, "\n", { plain = true }))
   end
-  return { data = entry, text = text }
+  if type(entry.children) == "table" then
+    for i, child in ipairs(hl.children or {}) do
+      text[#text + 1] = ""
+      entry_text(child, entry.children[i], text)
+    end
+  end
+  return text
+end
+
+function M.cmd_show(words, flags)
+  local hl = M.resolve_target(table.concat(words, " "), flags)
+  local entry = data.entry(hl, { children = flags.children })
+  return { data = entry, text = entry_text(hl, entry, {}) }
 end

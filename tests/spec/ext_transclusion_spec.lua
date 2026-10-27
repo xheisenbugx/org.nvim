@@ -513,6 +513,27 @@ describe("transclusion", function()
     "Tail",
   }
 
+  it("reports bad options in :checkhealth", function()
+    local out = {}
+    local h = {}
+    for _, kind in ipairs({ "ok", "warn", "error", "info" }) do
+      h[kind] = function(m)
+        out[#out + 1] = kind .. " " .. m
+      end
+    end
+    T.health(h, vim.tbl_extend("force", T.defaults, { mode = "bogus", max_depth = -1, debounce = "x" }))
+    eq(
+      'error transclusion: mode must be "virtual", "materialized" or false, not "bogus"'
+        .. " (nothing is shown until transclusion_add)",
+      out[1]
+    )
+    eq("error transclusion: max_depth must be a number, 0 or more, not -1", out[2])
+    eq('error transclusion: debounce must be a number, 0 or more, not "x"', out[3])
+    out = {}
+    T.health(h, vim.tbl_extend("force", T.defaults, { mode = false }))
+    ok(out[1]:match("^ok transclusion: mode false"), out[1])
+  end)
+
   it("is off unless enabled, and its export hook is inert then", function()
     setup()
     eq(nil, require("org.actions").list.transclusion_add)

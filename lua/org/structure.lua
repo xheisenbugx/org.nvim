@@ -82,6 +82,26 @@ local function current_headline()
   return hl, file
 end
 
+--- The outline headline of the entry containing `lnum`: an inline task
+--- is text of the entry around it, not a subtree (org-with-limited-levels,
+--- org-current-level).
+---@param file org.File
+---@param lnum integer
+---@return org.Headline|nil
+local function outline_headline_at(file, lnum)
+  local hl = file:headline_at(lnum)
+  while hl and hl.inlinetask do
+    hl = hl.parent
+  end
+  return hl
+end
+
+--- `outline_headline_at` the cursor.
+local function current_outline_headline()
+  local file = files.get_buffer(0)
+  return outline_headline_at(file, cursor()[1]), file
+end
+
 local exit_visual = utils.exit_visual
 
 local function in_visual()
@@ -325,6 +345,8 @@ local shared = require("org.structure.shared")
 shared.buf = buf
 shared.cursor = cursor
 shared.current_headline = current_headline
+shared.current_outline_headline = current_outline_headline
+shared.outline_headline_at = outline_headline_at
 shared.exit_visual = exit_visual
 shared.get_lines = get_lines
 shared.in_visual = in_visual

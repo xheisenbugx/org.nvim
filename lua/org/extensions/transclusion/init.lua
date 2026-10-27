@@ -510,7 +510,22 @@ function M.teardown()
 end
 
 function M.health(h, o)
-  h.ok("transclusion: mode " .. tostring(o.mode) .. (o.watch and ", watching source files" or ""))
+  if o.mode ~= "virtual" and o.mode ~= "materialized" and o.mode ~= false then
+    h.error(
+      "transclusion: mode must be "
+        .. '"virtual", "materialized" or false, not '
+        .. vim.inspect(o.mode)
+        .. " (nothing is shown until transclusion_add)"
+    )
+  else
+    h.ok("transclusion: mode " .. tostring(o.mode) .. (o.watch and ", watching source files" or ""))
+  end
+  for _, k in ipairs({ "max_depth", "debounce" }) do
+    local n = tonumber(o[k])
+    if not n or n < 0 then
+      h.error(string.format("transclusion: %s must be a number, 0 or more, not %s", k, vim.inspect(o[k])))
+    end
+  end
   local ok = pcall(vim.treesitter.language.inspect, "python")
   if ok then
     h.ok("transclusion: tree-sitter parsers colour transcluded code")

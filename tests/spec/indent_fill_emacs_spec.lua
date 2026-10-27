@@ -72,9 +72,9 @@ describe("indentexpr", function()
     eq("   text", buf_lines(buf)[2])
   end)
 
-  it("= keeps the contents of example blocks and never moves items", function()
-    -- line by line (a documented difference): Emacs's org-indent-region
-    -- moves the example block and the list as a whole, see indent_region
+  it("'indentexpr' keeps the contents of example blocks and never moves items", function()
+    -- Vim's own `=` (normal!) goes line by line; the `=` key of org buffers
+    -- is org-indent-region (below)
     local buf = org_buffer({ "* H", "  #+begin_example", "    x", "      y", "  #+end_example", "   - a" }, { 1, 0 })
     vim.cmd("silent normal! gg=G")
     eq({ "* H", "#+begin_example", "    x", "      y", "#+end_example", "   - a" }, buf_lines(buf))
@@ -82,6 +82,41 @@ describe("indentexpr", function()
 end)
 
 describe("indent commands", function()
+  local function keys(k)
+    vim.api.nvim_feedkeys(vim.keycode(k), "mx", false)
+  end
+
+  it("the = key is org-indent-region (indent-region-function)", function()
+    -- expected buffers from Emacs 9.8.10, org-indent-region
+    local T = { "* H", "text line", "  - item", "    continued", "#+begin_example", " x", "#+end_example" }
+    local buf = org_buffer(T, { 1, 0 })
+    keys("gg=G")
+    eq({ "* H", "text line", "- item", "  continued", "#+begin_example", " x", "#+end_example" }, buf_lines(buf))
+    buf = org_buffer({ "* H", "   #+begin_example", "     x", "       y", "   #+end_example" }, { 1, 0 })
+    keys("=G")
+    eq({ "* H", "#+begin_example", "  x", "    y", "#+end_example" }, buf_lines(buf))
+    -- a src block keeps its code's relative indentation
+    buf = org_buffer({ "* H", "#+begin_src python", "    if x:", "        a = 1", "#+end_src" }, { 1, 0 })
+    keys("=G")
+    eq({ "* H", "#+begin_src python", "  if x:", "      a = 1", "#+end_src" }, buf_lines(buf))
+  end)
+
+  it("== and {count}== indent lines, Visual = the selection, . repeats", function()
+    local buf = org_buffer({ "   p1", "", "   p2", "   q2", "", "   p3", "", "   p4" }, { 1, 0 })
+    keys("==")
+    eq({ "p1", "", "   p2", "   q2", "", "   p3", "", "   p4" }, buf_lines(buf))
+    keys("2j2==")
+    eq({ "p1", "", "p2", "q2", "", "   p3", "", "   p4" }, buf_lines(buf))
+    keys("3j.")
+    eq({ "p1", "", "p2", "q2", "", "p3", "", "   p4" }, buf_lines(buf))
+    -- the later lines of a paragraph go like the line above (org-indent-line)
+    buf = org_buffer({ "   p1", "   p2", "   p3" }, { 2, 0 })
+    keys("==")
+    eq({ "   p1", "   p2", "   p3" }, buf_lines(buf))
+    keys("ggVj=")
+    eq({ "p1", "p2", "   p3" }, buf_lines(buf))
+  end)
+
   it("indent_region moves example blocks and lists as a whole", function()
     local buf = org_buffer({ "* H", "  #+begin_example", "    x", "      y", "  #+end_example", "   - a" }, { 1, 0 })
     require("org.actions").run("indent_region")

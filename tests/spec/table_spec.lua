@@ -73,6 +73,23 @@ describe("table", function()
     eq({ "| x | y |", "| 1 | 2 |" }, tbl.convert_lines({ "x  y", "1 2" }))
   end)
 
+  it("guesses the separator, keeps blank rows and drops indentation like org-table-convert-region", function()
+    -- expected tables from Emacs 9.8.10
+    -- a comma or tab separates fields only when every line has one
+    eq({ "| a | b, | c |", "| d | e  |   |" }, tbl.convert_lines({ "a b, c", "d e" }))
+    eq({ "| a | b | c |", "| d | e |   |" }, tbl.convert_lines({ "a\tb c", "d e" }))
+    eq({ "| a,b, |", "| c    |" }, tbl.convert_lines({ "a,b,", "c" }))
+    eq({ "| a |   | b |", "| c | d | e |" }, tbl.convert_lines({ "a\t\tb", "c\td\te" }))
+    -- a blank line inside is an empty row
+    eq({ "| a | b |", "|   |   |", "| c | d |" }, tbl.convert_lines({ "a b", "", "c d" }))
+    eq({ "| a | b |", "|   |   |", "| c | d |" }, tbl.convert_lines({ "a,b", "", "c,d" }))
+    -- the table starts at column 0
+    eq({ "| a | b |", "| c | d |" }, tbl.convert_lines({ "  a b", "    c d" }))
+    eq({ "| a | b |", "| c | d |" }, tbl.convert_lines({ "  a,b", "  c,d" }))
+    -- blank lines around the data stay outside the table
+    eq({ "", "| a | b |", "" }, tbl.convert_lines({ "", "a b", "" }))
+  end)
+
   it("named tables", function()
     local buf = org_buffer({ "#+NAME: data", "| h1 | h2 |", "|----+----|", "| 1 | 2 |", "| 3 | 4 |" })
     eq({ { "1", "2" }, { "3", "4" } }, tbl.get_named_table(buf, "data"))

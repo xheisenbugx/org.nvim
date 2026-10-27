@@ -581,8 +581,8 @@ end
 -- (for the mini.ai and flash.nvim adapters, org.integrations.regions)
 M.emphasis_close = emphasis_close
 
---- Byte ranges the decorations never prettify: links, verbatim/code-like
---- spans and plain URLs (like org.ui.decorations).
+--- Byte ranges where the decorations raise no scripts: links,
+--- verbatim/code-like spans and plain URLs (like org.ui.decorations).
 local function protected_ranges(s)
   local out = {}
   for a, e in s:gmatch("()%[%[.-%]%]()") do
@@ -604,6 +604,33 @@ local function in_ranges(ranges, pos)
     end
   end
   return false
+end
+
+--- `s` with its entities shown as UTF-8 when `o.entities` (a link
+--- description, the text of verbatim: org-fontify-entities composes them
+--- there too).
+local function entities_in(s, o)
+  if not (o.entities and s:find("\\", 1, true)) then
+    return s
+  end
+  local ents = require("org.entities")
+  local out, i = {}, 1
+  while true do
+    local b = s:find("\\", i, true)
+    if not b then
+      break
+    end
+    local sym, last = ents.pretty_at(s, b)
+    if sym and last then
+      out[#out + 1] = s:sub(i, b - 1) .. sym
+      i = last + 1
+    else
+      out[#out + 1] = s:sub(i, b)
+      i = b + 1
+    end
+  end
+  out[#out + 1] = s:sub(i)
+  return table.concat(out)
 end
 
 --- The text as the buffer displays it with the conceals of `o`
@@ -640,7 +667,7 @@ function M.visible_text(s, o)
         end
       end
       if after then
-        out[#out + 1] = o.links and visible or s:sub(i, after - 1)
+        out[#out + 1] = o.links and entities_in(visible, o) or s:sub(i, after - 1)
         i, handled = after, true
       end
     elseif drop[i] then
@@ -652,6 +679,7 @@ function M.visible_text(s, o)
         if c == "=" or c == "~" then
           -- verbatim and code: shown as typed
           local inner = s:sub(i + 1, close - 1)
+          inner = entities_in(inner, o)
           out[#out + 1] = o.emphasis and inner or (c .. inner .. c)
           i = close + 1
         else
@@ -662,20 +690,12 @@ function M.visible_text(s, o)
         handled = true
       end
     end
-    if not handled and o.entities and c == "\\" and not in_ranges(prot, i) then
-      local name = s:match("^%a+", i + 1)
-      local ents = require("org.entities")
-      local sym = name and ents.utf8(name)
-      local e = name and i + #name
-      if name and not sym then
-        local w = s:match("^%a+%d%d?", i + 1)
-        sym = w and ents.utf8(w)
-        e = sym and i + #w or e
-      end
-      if sym and vim.fn.strchars(sym) == 1 and not s:sub(e + 1, e + 1):match("%a") then
+    if not handled and o.entities and c == "\\" then
+      -- (in plain URLs too, like org-fontify-entities)
+      local sym, last = require("org.entities").pretty_at(s, i)
+      if sym and last then
         out[#out + 1] = sym
-        i = s:sub(e + 1, e + 2) == "{}" and e + 3 or e + 1
-        handled = true
+        i, handled = last + 1, true
       end
     end
     if not handled and o.scripts and (c == "_" or c == "^") and i > 1 and s:sub(i - 1, i - 1):match("%S") then

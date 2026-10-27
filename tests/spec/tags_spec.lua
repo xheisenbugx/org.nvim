@@ -53,6 +53,15 @@ describe("properties", function()
 end)
 
 -- Emacs Org 9.8 parity (expectations checked against Emacs in batch mode)
+describe("tags: alignment with a tab in the title", function()
+  it("counts the tab up to the next multiple of 8 columns (Emacs 9.8.10)", function()
+    local buf = org_buffer({ "* a\tb" }, { 1, 0 })
+    require("org.tags").set_tags(nil, { "a" })
+    -- "* a\tb" is 9 columns wide: the tags end at column 77
+    eq("* a\tb" .. string.rep(" ", 65) .. ":a:", buf_lines(buf)[1])
+  end)
+end)
+
 describe("tags: Emacs parity", function()
   local config = require("org.config")
   local search = require("org.agenda.search")

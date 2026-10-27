@@ -234,6 +234,7 @@ local function set_time(item, stamp, acfg, remove_stamps, sexp_stamp, dotime)
   end
   if item.time and not item.end_time and acfg.default_appointment_duration then
     item.end_time = item.time + acfg.default_appointment_duration
+    item.end_time_default = true
   end
   if title ~= item.title then
     item.display_title = title

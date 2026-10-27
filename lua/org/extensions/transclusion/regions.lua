@@ -288,16 +288,16 @@ function M.ranges(bufnr)
   return out
 end
 
---- Lines of `buf` without its materialized text, and a map from those
---- lines to buffer lines (nil when there is nothing materialized).
----@param buf integer
----@return string[], integer[]|nil
-function M.clean_lines(buf)
+--- The lines of `buf` holding inserted (materialized) text, as a set of
+--- 1-based line numbers; nil when nothing is inserted. Its keyword lines
+--- are not in it.
+---@param buf? integer
+---@return table<integer, boolean>|nil
+function M.inserted_rows(buf)
   buf = (buf == nil or buf == 0) and api.nvim_get_current_buf() or buf
-  local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
   local list = collect(buf)
   if #list == 0 then
-    return lines, nil
+    return nil
   end
   local anchors = M.buffers[buf].cache.anchors
   local inside = {}
@@ -307,6 +307,20 @@ function M.clean_lines(buf)
         inside[row + 1] = true
       end
     end
+  end
+  return inside
+end
+
+--- Lines of `buf` without its materialized text, and a map from those
+--- lines to buffer lines (nil when there is nothing materialized).
+---@param buf integer
+---@return string[], integer[]|nil
+function M.clean_lines(buf)
+  buf = (buf == nil or buf == 0) and api.nvim_get_current_buf() or buf
+  local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+  local inside = M.inserted_rows(buf)
+  if not inside then
+    return lines, nil
   end
   local out, map = {}, {}
   for i, l in ipairs(lines) do

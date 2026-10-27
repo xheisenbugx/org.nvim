@@ -342,6 +342,21 @@ function M.is_blank(l)
   return l == nil or l:match("^%s*$") ~= nil
 end
 
+--- `s` in upper case, non-ASCII letters included (`string.upper` only
+--- knows ASCII; Emacs's `upcase` and case-fold-search know Unicode).
+---@param s string
+---@return string
+function M.upper(s)
+  return s:find("[\128-\255]") and vim.fn.toupper(s) or s:upper()
+end
+
+--- `s` in lower case, non-ASCII letters included (see `upper`).
+---@param s string
+---@return string
+function M.lower(s)
+  return s:find("[\128-\255]") and vim.fn.tolower(s) or s:lower()
+end
+
 --- `s` without one pair of surrounding double quotes (`"a b"` gives
 --- `a b`); `s` itself when it isn't quoted that way.
 ---@param s string
@@ -752,8 +767,21 @@ function M.split_content(content)
   return require("org.agenda.index.thread").split_content(content)
 end
 
+--- Make directory `dir` and its parents. Another process making the same
+--- directory at the same time (parallel `org` commands) makes mkdir() fail
+--- with E739 although the directory is there: that isn't an error.
+---@param dir string
+function M.mkdir_p(dir)
+  if vim.fn.isdirectory(dir) == 1 then
+    return
+  end
+  if not pcall(vim.fn.mkdir, dir, "p") and vim.fn.isdirectory(dir) == 0 then
+    vim.fn.mkdir(dir, "p")
+  end
+end
+
 function M.writefile(path, lines)
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+  M.mkdir_p(vim.fn.fnamemodify(path, ":h"))
   local fd, err = io.open(path, "wb")
   if not fd then
     error("org: cannot write " .. path .. ": " .. tostring(err))
@@ -1018,6 +1046,35 @@ function M.diff_indices(a, b)
   ---@diagnostic disable-next-line: deprecated
   local xdiff = (vim.text and vim.text.diff) or vim.diff
   return xdiff(a, b, { result_type = "indices" }) --[[@as integer[][] ]]
+end
+
+--- Lines `first`..`last` (1-based, `last` included; default the whole
+--- buffer) of buffer `bufnr` as its file holds them: text that is in the
+--- buffer only to be shown (what the transclusion extension inserted) and
+--- never reaches the file is left out. Anything that copies buffer text
+--- somewhere else (refile, archive, a kill) takes it from here, or the
+--- shown text would become real text there.
+---@param bufnr integer
+---@param first? integer
+---@param last? integer
+---@return string[]
+function M.file_lines(bufnr, first, last)
+  bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  first = first or 1
+  local lines = vim.api.nvim_buf_get_lines(bufnr, first - 1, last or -1, false)
+  -- only when the extension is loaded: core never loads it
+  local tr = package.loaded["org.extensions.transclusion"]
+  local inside = tr and tr.inserted_rows and tr.inserted_rows(bufnr)
+  if not inside then
+    return lines
+  end
+  local out = {}
+  for i, l in ipairs(lines) do
+    if not inside[first + i - 1] then
+      out[#out + 1] = l
+    end
+  end
+  return out
 end
 
 --- Restore a synchronous edit snapshot without replacing unchanged lines.

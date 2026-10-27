@@ -939,3 +939,122 @@ describe("clock sums with inline tasks (Emacs)", function()
     }, vim.list_slice(buf_lines(buf), 3, 11))
   end)
 end)
+
+describe("clock line recognition (Emacs)", function()
+  -- Org 9.8.10: org-element-clock-line-re (any case, nothing after the
+  -- duration, a blank after CLOCK:) decides what is a clock; org-clock-sum
+  -- also adds a naked `CLOCK: => H:MM` whatever the line holds after it.
+  -- Minutes below are the :org-clock-minutes org-clock-sum puts on each.
+  it("sums the clocks org-element and org-clock-sum recognise", function()
+    local buf = org_buffer({
+      "* A",
+      "CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13] =>  0:13 extra",
+      "* B",
+      "clock: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:17] =>  0:17",
+      "* C",
+      "CLOCK: => 2:00 trailing",
+      "* D",
+      "clock: => 1:00",
+      "* G",
+      "  CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:20]   =>  0:20   ",
+      "* H",
+      "CLOCK: =>  0:05",
+      "* I",
+      "CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13]",
+      "* K",
+      "CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13] junk",
+      "* L",
+      "CLOCK:[2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13] =>  0:13",
+      "* M",
+      "CLOCK: =>2:00",
+    }, { 1, 0 })
+    local got = {}
+    for _, hl in ipairs(files.get_buffer(buf).headlines) do
+      got[#got + 1] = hl.title .. "=" .. clock.sum_minutes(hl) .. "/" .. hl:clocked_minutes(nil, nil, true)
+    end
+    eq({ "A=0/0", "B=17/17", "C=120/120", "D=60/60", "G=20/20", "H=5/5", "I=13/13", "K=0/0", "L=0/0", "M=0/0" }, got)
+  end)
+
+  it("counts a naked clock in a clock report whatever its range", function()
+    local buf = org_buffer({
+      "#+BEGIN: clocktable :scope file :maxlevel 1 :block 2026-09-29",
+      "#+END:",
+      "* Task",
+      "CLOCK: [2026-09-29 Tue 12:00]--[2026-09-29 Tue 12:01] =>  0:01",
+      "CLOCK: => 2:00",
+    }, { 1, 0 })
+    clock.clock_report()
+    ok(vim.tbl_contains(buf_lines(buf), "| Task         | 2:01   |"), table.concat(buf_lines(buf), "\n"))
+  end)
+end)
+
+describe("clock tables with #+STARTUP: odd (Emacs)", function()
+  -- Org 9.8.10 org-clock-get-table-data and :scope treeN count levels with
+  -- org-reduced-level: 1, 3, 5 stars are levels 1, 2, 3
+  local function line(h)
+    return ("CLOCK: [2026-09-29 Tue %02d:00]--[2026-09-29 Tue %02d:30] =>  0:30"):format(h, h)
+  end
+
+  it("reduces levels in :maxlevel, :level and the indentation", function()
+    local buf = org_buffer({
+      "#+STARTUP: odd",
+      "* Top",
+      line(9),
+      "*** Odd level two",
+      line(10),
+      "***** Odd level three",
+      line(11),
+      "#+BEGIN: clocktable :scope tree :maxlevel 3 :level t",
+      "#+END:",
+    }, { 8, 0 })
+    clock.clock_report()
+    eq({
+      "| L | Headline              | Time   |      |      |",
+      "|---+-----------------------+--------+------+------|",
+      "|   | *Total time*          | *1:30* |      |      |",
+      "|---+-----------------------+--------+------+------|",
+      "| 1 | Top                   | 1:30   |      |      |",
+      "| 2 | \\_  Odd level two     |        | 1:00 |      |",
+      "| 3 | \\_    Odd level three |        |      | 0:30 |",
+      "#+END:",
+    }, vim.list_slice(buf_lines(buf), 10, 17))
+  end)
+
+  it("goes up to a reduced level for :scope treeN", function()
+    local buf = org_buffer({
+      "#+STARTUP: odd",
+      "* Top",
+      line(9),
+      "*** Odd level two",
+      line(10),
+      "***** Odd level three",
+      "#+BEGIN: clocktable :scope tree2 :maxlevel 3",
+      "#+END:",
+    }, { 7, 0 })
+    clock.clock_report()
+    eq({
+      "| Headline          | Time   |      |",
+      "|-------------------+--------+------|",
+      "| *Total time*      | *0:30* |      |",
+      "|-------------------+--------+------|",
+      "| \\_  Odd level two |        | 0:30 |",
+      "#+END:",
+    }, vim.list_slice(buf_lines(buf), 9, 14))
+  end)
+end)
+
+describe("clocked minutes from the timestamps (Emacs)", function()
+  -- org-clock-sum computes a closed clock from its two timestamps; the
+  -- `=> H:MM` text after them isn't read
+  it("ignores a duration text that disagrees with the timestamps", function()
+    local file = require("org.parser").parse({
+      "* Task",
+      "CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 10:13] =>  9:99",
+      "** Child",
+      "CLOCK: [2024-01-01 Mon 11:00]--[2024-01-01 Mon 11:30] =>  0:01",
+    })
+    local task = file.headlines[1]
+    eq(13, task:clocked_minutes(nil, nil, false))
+    eq(43, task:clocked_minutes(nil, nil, true))
+  end)
+end)

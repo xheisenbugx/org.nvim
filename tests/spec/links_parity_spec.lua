@@ -84,6 +84,85 @@ describe("links parity", function()
   end)
 
   describe("fuzzy links (org-link-search)", function()
+    -- search string -> "line:col" of the match, or false (Emacs 9.8.10's
+    -- org-link-search with org-link-search-must-match-exact-headline nil)
+    local function search_all(lines, expected)
+      config.opts.links.search_must_match_exact_headline = false
+      org_buffer(lines, { 1, 0 })
+      local src = links.search_source(0)
+      local got = {}
+      for s in pairs(expected) do
+        local l, c = links.search_location(s, src, {})
+        got[s] = l and (l .. ":" .. c) or false
+      end
+      eq(expected, got)
+    end
+
+    it("takes <<targets>> only where they are target objects", function()
+      search_all({
+        "#+begin_src emacs-lisp",
+        '(setq x "<<foo>>")',
+        "#+end_src",
+        "Some =<<bar>>= text.",
+        ": <<baz>> fixed",
+        "#+begin_example",
+        "<<qux>>",
+        "#+end_example",
+        "# <<cmt>> comment line",
+        "#+TITLE: <<intitle>>",
+        "#+begin_quote",
+        "quoted <<inquote>> x",
+        "#+end_quote",
+        "| cell <<incell>> |",
+        "~<<incode>>~ and <<real>>",
+        "* COMMENT foo",
+        "* TODO [#A] bar [1/2] :tag:",
+        "* baz",
+        "* qux",
+        "* cmt",
+        "* COMMENT",
+      }, {
+        foo = "16:0",
+        bar = "17:0",
+        baz = "18:0",
+        qux = "19:0",
+        cmt = "20:0",
+        intitle = "10:11",
+        inquote = "12:7",
+        incell = "14:7",
+        incode = "15:3",
+        real = "15:17",
+        ["*COMMENT"] = "21:0",
+        COMMENT = "21:0",
+      })
+    end)
+
+    it("takes a #+NAME: only when it names an element", function()
+      search_all({ "#+NAME: emph", "", "* emph", "#+NAME: tbl", "#+CAPTION: c", "| 1 |", "#+NAME: lone", "* lone" }, {
+        emph = "3:0",
+        tbl = "4:0",
+        lone = "8:0",
+      })
+    end)
+
+    it("folds the case of non-ASCII letters", function()
+      search_all({
+        "Text <<Ünï Tärget>> here.",
+        "plain ÉLAN text",
+        "* Café Ünï",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: Über",
+        ":END:",
+      }, {
+        ["ünï tärget"] = "1:5",
+        ["élan"] = "2:6",
+        ["CAFÉ ÜNÏ"] = "3:0",
+        ["*café ünï"] = "3:0",
+        ["#ÜBER"] = "3:0",
+        ["#über"] = "3:0",
+      })
+    end)
+
     it("offers to create a missing heading instead of matching the link itself", function()
       org_buffer({ "* A", "See [[nonexistent thing]] here", "* B" }, { 2, 8 })
       local asked
@@ -207,6 +286,31 @@ describe("links parity", function()
       eq("\\c\\(foo\\|bar\\)\\%(x\\)", links.emacs_regexp_to_vim("\\(foo\\|bar\\)\\(?:x\\)"))
       eq("\\cx\\{2,3}.\\{-}", links.emacs_regexp_to_vim("x\\{2,3\\}.*?"))
       eq("\\c[^\\\\a]\\%(\\<\\|\\>\\)", links.emacs_regexp_to_vim("[^\\a]\\b"))
+    end)
+
+    it("translates stacked and leading repetition operators like Emacs", function()
+      -- each pair: regexp, Emacs's (string-match RE "xaaab") as { start, end } (0-based)
+      local cases = {
+        { "a**", { 0, 0 } },
+        { "a+*", { 0, 0 } },
+        { "a*+", { 0, 0 } },
+        { "a+?", { 1, 2 } },
+        { "a\\{2\\}*", { 0, 0 } },
+        { "[a]**", { 0, 0 } },
+        { "**a", { 1, 2 } },
+        { "^*a", nil },
+        { "\\(*a\\)", nil },
+        { "x\\|+a", { 0, 1 } },
+      }
+      for _, c in ipairs(cases) do
+        local vre = links.emacs_regexp_to_vim(c[1])
+        local okp, rx = pcall(vim.regex, vre)
+        ok(okp, c[1] .. " => " .. vre)
+        local s, e = rx:match_str("xaaab")
+        eq(c[2], s and { s, e } or nil, c[1])
+      end
+      eq("\\ca*", links.emacs_regexp_to_vim("a**"))
+      eq("\\ca\\{-1,}", links.emacs_regexp_to_vim("a+??"))
     end)
   end)
 

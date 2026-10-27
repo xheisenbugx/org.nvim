@@ -14,7 +14,7 @@ local bullet_string = shared.bullet_string
 local cursor_lnum = shared.cursor_lnum
 local fix_bul = shared.fix_bul
 local get_lines = shared.get_lines
-local indent_of = shared.indent_of
+local indent_len = shared.indent_len
 local is_blank = shared.is_blank
 local lopt = shared.lopt
 local ordered_p = shared.ordered_p
@@ -123,7 +123,7 @@ function M.new_item(opts)
   if desc then
     body = body .. " :: "
   end
-  local prefix = string.rep(" ", item.indent)
+  local prefix = first:sub(1, item.ind_len)
   local new_lnum
   if beforep then
     local new = { prefix .. body }
@@ -173,7 +173,7 @@ function M.new_item(opts)
   M.repair(bufnr, new_lnum)
   local final = get_lines(bufnr, new_lnum, new_lnum)[1]
   local parsed = M.parse_item_line(final)
-  local col = indent_of(final) + (parsed and #parsed.bullet_ws or cursor_col)
+  local col = indent_len(final) + (parsed and #parsed.bullet_ws or cursor_col)
   if opts.checkbox then
     col = col + 4
   end
@@ -472,5 +472,5 @@ function M.goto_sibling_item(dir)
     utils.warn(dir > 0 and "On last item" or "On first item")
     return
   end
-  vim.api.nvim_win_set_cursor(0, { target.lnum, target.indent })
+  vim.api.nvim_win_set_cursor(0, { target.lnum, target.ind_len })
 end

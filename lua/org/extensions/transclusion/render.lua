@@ -333,8 +333,9 @@ local function render(buf, st, refresh)
       local spec, err = keyword.parse(kw.value)
       local show = st.virtual and not hidden(buf, kw.row) and not (spec and spec.disable_auto)
       -- text under a keyword may be its own, brought back by undo: look
-      -- when it is drawn anyway or the buffer had inserted text
-      local check = show or next(st.regions) ~= nil or vim.bo[buf].undofile
+      -- when it is drawn anyway or the buffer had inserted text (a detach
+      -- forgets its region, and undo brings the keyword back over it)
+      local check = show or next(st.regions) ~= nil or st.detached or vim.bo[buf].undofile
       local res, adopted
       if spec and check then
         res, err = source.resolve_cached(spec, context(env, kw.row, kw.indent))

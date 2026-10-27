@@ -286,7 +286,15 @@ M.ERRORS = {
   failed = { exit = 1, desc = "org.nvim refused or failed (details.messages has its messages)" },
   internal = { exit = 1, desc = "an unexpected Lua error" },
   input_needed = { exit = 3, desc = "the command would have to ask (details.prompt names the question)" },
-  file_busy = { exit = 4, desc = "a running Neovim has unsaved changes in the file (details.file); --force writes" },
+  file_busy = {
+    exit = 4,
+    desc = "a running Neovim has unsaved changes in the file (details.file; --force writes), "
+      .. "or another org command kept the write lock (details.lock)",
+  },
+  file_changed = {
+    exit = 4,
+    desc = "another program wrote the file (details.file) while the command changed it; it was not written",
+  },
 }
 do
   local codes = vim.tbl_keys(M.ERRORS)
@@ -299,7 +307,7 @@ M.EXIT_CODES = {
   ["1"] = "failed, or nothing found in text mode (search, clock out without a clock)",
   ["2"] = "bad usage",
   ["3"] = "input needed",
-  ["4"] = "file busy in a running Neovim",
+  ["4"] = "file busy in a running Neovim or another org command, or changed on disk meanwhile",
 }
 
 ---------------------------------------------------------------------------

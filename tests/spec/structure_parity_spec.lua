@@ -613,6 +613,33 @@ describe("emacs parity: S2", function()
     "* Meet",
     "[2024-01-02 Tue]",
   })
+  -- Emacs 9.8.10 org-clone-subtree-with-time-shift (org-timestamp-change):
+  -- hours on a date without a time move the day only past midnight
+  case("clone-hours-date-only", "* Meet|\nSCHEDULED: <2024-01-31 Wed>\n<2024-01-31 Wed>", function()
+    h.stub_input({ "2", "+30h" })
+    require("org.structure").clone_subtree()
+  end, {
+    "* Meet",
+    "SCHEDULED: <2024-01-31 Wed>",
+    "<2024-01-31 Wed>",
+    "* Meet",
+    "SCHEDULED: <2024-02-01 Thu>",
+    "<2024-02-01 Thu>",
+    "* Meet",
+    "SCHEDULED: <2024-02-02 Fri>",
+    "<2024-02-02 Fri>",
+  })
+  case("clone-hours-date-only-repeater", "* Meet|\nSCHEDULED: <2024-01-31 Wed +1d>", function()
+    h.stub_input({ "1", "+5h" })
+    require("org.structure").clone_subtree()
+  end, {
+    "* Meet",
+    "SCHEDULED: <2024-01-31 Wed>",
+    "* Meet",
+    "SCHEDULED: <2024-01-31 Wed>",
+    "* Meet",
+    "SCHEDULED: <2024-01-31 Wed +1d>",
+  })
   case("clone-neg", "* Meet|\n<2024-01-10 Wed>", function()
     h.stub_input({ "1", "-1d" })
     require("org.structure").clone_subtree()

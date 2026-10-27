@@ -489,6 +489,33 @@ describe("ql extension", function()
       eq({ searched }, ql.saved_views()["Saved buffer"].files)
       vim.fn.delete(ql.defaults.views_file)
     end)
+    it("doesn't save a view over a views file it can't read", function()
+      local ql = require("org.extensions.ql")
+      local f = ql.defaults.views_file
+      vim.fn.mkdir(vim.fn.fnamemodify(f, ":h"), "p")
+      local broken = { '{"Kept": {"query": "todo:NEXT"}', "oops" }
+      vim.fn.writefile(broken, f)
+      local errors = {}
+      local notify = vim.notify
+      vim.notify = function(m, level)
+        if level == vim.log.levels.ERROR then
+          errors[#errors + 1] = m
+        end
+      end
+      local saved = ql.save_view("New", { query = "(done)" })
+      vim.notify = notify
+      eq(false, saved)
+      eq(broken, vim.fn.readfile(f))
+      ok(errors[1] and errors[1]:find("not saved", 1, true), vim.inspect(errors))
+      -- a readable file gets the view, and no temporary file is left
+      vim.fn.writefile({ '{"Kept": {"query": "todo:NEXT"}}' }, f)
+      run(function()
+        eq(true, ql.save_view("New", { query = "(done)" }))
+      end)
+      eq({ "Kept", "New" }, vim.fn.sort(vim.tbl_keys(ql.saved_views())))
+      eq({}, vim.fn.glob(f .. ".tmp*", false, true))
+      vim.fn.delete(f)
+    end)
     it("lists recently dated entries, newest first", function()
       require("org.extensions.ql").recent_items(2, "ts-inactive")
       local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)

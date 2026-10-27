@@ -866,3 +866,24 @@ describe("agenda lines of a headline that is only tags", function()
     )
   end)
 end)
+
+describe("agenda todo-state sorting across files (:h org-differences)", function()
+  -- each entry ranks by its own file's sequence (Emacs ranks both by the
+  -- first one's file, an order that depends on the comparisons made)
+  it("ranks each entry by the keyword sequence of its file", function()
+    local a = parser.parse({ "#+TODO: TODO NEXT | DONE", "* NEXT a-next", "* TODO a-todo" }, "/tmp/sort_a.org")
+    local b = parser.parse({ "#+TODO: WAIT TODO | DONE", "* TODO b-todo", "* WAIT b-wait" }, "/tmp/sort_b.org")
+    local list = {}
+    for _, f in ipairs({ a, b }) do
+      for _, hl in ipairs(f.headlines) do
+        list[#list + 1] = items.new_item(hl)
+      end
+    end
+    local out = {}
+    for _, it in ipairs(items.sort(list, { "todo-state-up" })) do
+      out[#out + 1] = it.title
+    end
+    -- position from the end of each sequence: a-todo, b-wait 3rd; a-next, b-todo 2nd
+    eq({ "a-todo", "b-wait", "a-next", "b-todo" }, out)
+  end)
+end)

@@ -264,6 +264,91 @@ end
 -- entries by similarity (beyond that only exact matches are found).
 local SIMILARITY_BUDGET = 250000
 
+-- Siblings with the same title (and no ID) are keyed by occurrence, the
+-- first "Note" against the base's first "Note": when one side deleted or
+-- added one of them, the others would be matched with the wrong base
+-- entries. Match them by content instead: the same text first, then the
+-- most similar, then the rest in order; one with no base entry left gets
+-- a key of its own.
+local function match_duplicates(e, bparent)
+  local groups, order = {}, {}
+  for _, c in ipairs(e.children) do
+    if not c.id then
+      if not groups[c.title] then
+        groups[c.title] = { mine = {}, theirs = {} }
+        order[#order + 1] = c.title
+      end
+      table.insert(groups[c.title].mine, c)
+    end
+  end
+  for _, b in ipairs(bparent.children) do
+    local g = not b.id and groups[b.title]
+    if g then
+      table.insert(g.theirs, b)
+    end
+  end
+  for _, title in ipairs(order) do
+    local g = groups[title]
+    if (#g.mine > 1 or #g.theirs > 1) and #g.theirs > 0 then
+      local key_of, taken = {}, {}
+      local function take(c, b)
+        key_of[c] = b.key
+        taken[b] = true
+      end
+      local by_sig = {}
+      for _, b in ipairs(g.theirs) do
+        local sig = content_sig(b)
+        if sig then
+          by_sig[sig] = by_sig[sig] or {}
+          table.insert(by_sig[sig], b)
+        end
+      end
+      for _, c in ipairs(g.mine) do
+        for _, b in ipairs(by_sig[content_sig(c) or false] or {}) do
+          if not taken[b] then
+            take(c, b)
+            break
+          end
+        end
+      end
+      local compare = #g.mine * #g.theirs <= SIMILARITY_BUDGET
+      for _, c in ipairs(g.mine) do
+        if compare and not key_of[c] then
+          local best, score = nil, 0
+          for _, b in ipairs(g.theirs) do
+            local sc = not taken[b] and similarity(c, b) or 0
+            if sc > score then
+              best, score = b, sc
+            end
+          end
+          if best then
+            take(c, best)
+          end
+        end
+      end
+      local n, at = 0, 1
+      for _, c in ipairs(g.mine) do
+        if not key_of[c] then
+          while g.theirs[at] and taken[g.theirs[at]] do
+            at = at + 1
+          end
+          if g.theirs[at] then
+            take(c, g.theirs[at])
+          end
+        end
+        if not key_of[c] then
+          -- more of them than in the base: numbered past the base's
+          n = n + 1
+          key_of[c] = e.key .. SEP .. title .. DUP .. (#g.theirs + n)
+        end
+      end
+      for _, c in ipairs(g.mine) do
+        c.key = key_of[c]
+      end
+    end
+  end
+end
+
 ---@class org.merge.Version
 ---@field lines string[]
 ---@field root table
@@ -306,14 +391,19 @@ local function set_keys(version, base, opts)
         end
       end
       c.key = k
-      if base and not base.by_key[k] then
+    end
+    local bparent = base and base.by_key[e.key]
+    if bparent then
+      match_duplicates(e, bparent)
+    end
+    for _, c in ipairs(e.children) do
+      if base and not base.by_key[c.key] then
         fresh[#fresh + 1] = c
       end
     end
     -- an entry renamed on this side, or one that got an ID here: an
     -- unmatched base child with the same title, the same content, or
     -- (without an ID) similar content
-    local bparent = base and base.by_key[e.key]
     if #fresh > 0 and bparent then
       local taken = {}
       for _, c in ipairs(e.children) do
@@ -1286,6 +1376,10 @@ function M.merge_files(base_path, ours_path, theirs_path, opts)
   local text = table.concat(res.lines, "\n")
   if #res.lines > 0 and eol then
     text = text .. "\n"
+  elseif text:sub(-1) == "\r" and (ours[#ours] or ""):sub(-1) ~= "\r" then
+    -- no final newline: the CR of a CRLF file's line ends goes too
+    -- (unless ours ended with a lone CR)
+    text = text:sub(1, -2)
   end
   fh:write(text)
   fh:close()
