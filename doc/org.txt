@@ -7241,10 +7241,7 @@ Org buffers are drawn by the parser highlighter: the decoration provider,
 from a scan of the lines on screen (org.ui.highlight and its parts,
 emphasis and hidden link parts in org.ui.emphasis). Vim |:syntax| only
 draws the languages of src and export blocks that tree-sitter doesn't
-(|org-src-highlight|), as regions over their bodies. (The old highlighter
-of Vim syntax regions for everything, `ui.highlighter = "syntax"`, was
-removed: setting `ui.highlighter` is ignored, with a warning unless its
-value is "parser".)
+(|org-src-highlight|), as regions over their bodies.
 
 It ports Emacs's own fontification (org-set-font-lock-defaults:
 org-fontify-meta-lines-and-blocks, org-do-emphasis-faces,

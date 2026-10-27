@@ -1,7 +1,6 @@
 -- The parser highlighter over the life of a buffer: reloading it,
--- turning org off and on, errors while drawing, the removed
--- ui.highlighter option and the rows kept over editing commands
--- (org.ui.decorations, org.ui.highlight).
+-- turning org off and on, errors while drawing and the rows kept over
+-- editing commands (org.ui.decorations, org.ui.highlight).
 local deco = require("org.ui.decorations")
 
 local dir = vim.fn.tempname()
@@ -123,81 +122,6 @@ describe("parser highlighter, over the life of a buffer", function()
     vim.api.nvim_buf_set_text(buf, 1, 0, 1, 0, { "x" })
     vim.cmd("redraw!")
     ok(vim.tbl_contains((groups_at(buf, 1, 10)), "orgBold"))
-  end)
-end)
-
--- ui.highlighter was removed (the parser highlighter is the only one): a
--- config that still sets it gets a warning, not an error.
-describe("the removed ui.highlighter option", function()
-  local root = vim.fn.getcwd()
-  local function setup(ui)
-    require("org").setup({
-      org_directory = root .. "/tests/fixtures",
-      agenda_files = { root .. "/tests/fixtures/*.org" },
-      ui = ui,
-    })
-  end
-  local notify
-  before_each(function()
-    notify = vim.notify
-  end)
-  after_each(function()
-    vim.notify = notify
-    setup({})
-  end)
-
-  -- (first: the warning is given once per session)
-  it('doesn\'t warn for the value it has now anyway, "parser"', function()
-    local warnings = {}
-    vim.notify = function(msg, level)
-      if level == vim.log.levels.WARN then
-        warnings[#warnings + 1] = msg
-      end
-    end
-    ok(pcall(setup, { highlighter = "parser" }))
-    eq({}, warnings)
-    eq(nil, require("org.config").opts.ui.highlighter)
-  end)
-
-  it("warns once, is ignored and draws with the parser highlighter", function()
-    local warnings = {}
-    vim.notify = function(msg, level)
-      if level == vim.log.levels.WARN then
-        warnings[#warnings + 1] = msg
-      end
-    end
-    for _, value in ipairs({ "syntax", "parser", "syntax" }) do
-      ok(pcall(setup, { highlighter = value, hide_emphasis_markers = true }))
-    end
-    eq(1, #warnings, vim.inspect(warnings))
-    ok(warnings[1]:find("ui.highlighter", 1, true) and warnings[1]:find("parser highlighter", 1, true), warnings[1])
-    local opts = require("org.config").opts
-    eq(nil, opts.ui.highlighter)
-    eq(true, opts.ui.hide_emphasis_markers)
-    local buf = org_buffer({ "* TODO H", "text *bold* a" }, { 1, 0 })
-    vim.cmd("redraw")
-    local marks, syn = groups_at(buf, 1, 6)
-    ok(vim.tbl_contains(marks, "orgBold"), vim.inspect(marks))
-    eq({}, syn)
-  end)
-
-  it("is listed by :checkhealth org as removed", function()
-    vim.notify = function() end
-    setup({ highlighter = "syntax" })
-    local out = {}
-    local h = {}
-    for _, k in ipairs({ "start", "ok", "info", "warn", "error" }) do
-      h[k] = function(msg, advice)
-        out[#out + 1] = k .. ": " .. msg .. " " .. table.concat(type(advice) == "table" and advice or {}, " ")
-      end
-    end
-    require("org.health").check_options(h)
-    local text = table.concat(out, "\n")
-    ok(text:find("warn: Removed option passed to setup() (ignored): ui.highlighter", 1, true), text)
-    -- (vim.health makes a tag of ":h X": nothing may follow X)
-    ok(text:find(":h org-highlighter", 1, true) and not text:find("org-highlighter)", 1, true), text)
-    ok(not text:find("Unknown options", 1, true), text)
-    ok(not text:find("every option passed to setup() is known", 1, true), text)
   end)
 end)
 
