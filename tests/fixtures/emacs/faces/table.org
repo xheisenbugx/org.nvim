@@ -105,3 +105,6 @@ Cookies outside tables: a | <l5> b and x |<r> and | <c3>.
 
 | x |  
 Text after table | <c> here.
+
+| <%%(diary-float t 4 2)> | =<%%(x)>= | a |
+| $ | <%%(memq 1 2)> | x |

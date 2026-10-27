@@ -28,20 +28,8 @@ local byte = string.byte
 
 local PRIO = H.PRIO
 
--- (word characters in Org's syntax table: letters, digits, $ % ' and
--- non-ASCII characters; "\\<" matches where the byte before isn't one)
-local WORD = {} ---@type table<integer, boolean>
-for c = 48, 57 do
-  WORD[c] = true
-end
-for c = 65, 90 do
-  WORD[c] = true
-  WORD[c + 32] = true
-end
-for c = 128, 255 do
-  WORD[c] = true
-end
-WORD[36], WORD[37], WORD[39] = true, true, true
+-- ("\\<": org.ui.emphasis `word_start`, Org's syntax table)
+local word_start = require("org.ui.emphasis").word_start
 
 -- org-deadline-string, org-scheduled-string, org-closed-string,
 -- org-clock-string
@@ -136,8 +124,16 @@ local function stamps(ctx, i, line, nospell)
   end
 end
 
---- Paint the planning and clock keywords of line `i`, anywhere on it.
-local function specials(ctx, i, line)
+--- The planning and clock keywords of `line` ("\\<SCHEDULED:", ...), in
+--- order: { first, last, keyword } bytes. Emacs draws them over (`t`) the
+--- faces of the headline, table and property rules before them.
+---@param line string
+---@return { [1]: integer, [2]: integer, [3]: string }[]
+function M.special_spans(line)
+  local out = {}
+  if not line:find("[DSC]") then
+    return out
+  end
   for _, kw in ipairs(SPECIAL) do
     local pos = 1
     while true do
@@ -145,12 +141,23 @@ local function specials(ctx, i, line)
       if not p then
         break
       end
-      if not WORD[byte(line, p - 1) or 32] then
-        local group = kw == "CLOCK:" and "orgClock" or "orgPlanning"
-        ctx.emit(i, p - 1, p - 1 + #kw, { hl_group = group, priority = PRIO.object, spell = false })
+      if word_start(line, p) then
+        out[#out + 1] = { p, p + #kw - 1, kw }
       end
       pos = p + #kw
     end
+  end
+  table.sort(out, function(x, y)
+    return x[1] < y[1]
+  end)
+  return out
+end
+
+--- Paint the planning and clock keywords of line `i`, anywhere on it.
+local function specials(ctx, i, line)
+  for _, sp in ipairs(M.special_spans(line)) do
+    local group = sp[3] == "CLOCK:" and "orgClock" or "orgPlanning"
+    ctx.emit(i, sp[1] - 1, sp[2], { hl_group = group, priority = PRIO.object, spell = false })
   end
 end
 
@@ -174,30 +181,84 @@ local function durations(ctx, i, line)
   end
 end
 
---- Paint the diary sexps of line `i`: the rest of a line that starts with
---- "%%(" (or "&%%("), else each "<%%(...>".
-local function sexps(ctx, i, line)
-  local s = line:match("^&?()%%%%%(")
-  if s then
-    ctx.emit(i, 0, #line, { hl_group = "orgSexpDate", priority = PRIO.object, spell = false })
-    return
+--- The diary sexps of `line`: the rest of a line that starts with "%%("
+--- (or "&%%("), else each "<%%(...>", in order: { first, last } bytes.
+--- Emacs draws them over (`t`) the faces of the headline, table and
+--- property rules before them.
+---@param line string
+---@return integer[][]
+function M.sexp_spans(line)
+  local out = {}
+  if not line:find("%%(", 1, true) then
+    return out
+  end
+  if line:find("^&?%%%%%(") then
+    out[1] = { 1, #line }
+    return out
   end
   if not line:find("<%%(", 1, true) then
-    return
+    return out
   end
   local gt = finder(line, ">")
   local pos = 1
   while true do
     local p = line:find("<%%(", pos, true)
     if not p then
-      return
+      return out
     end
     local e = gt(p + 4)
     if not e then
-      return
+      return out
     end
-    ctx.emit(i, p - 1, e, { hl_group = "orgSexpDate", priority = PRIO.object, spell = false })
+    out[#out + 1] = { p, e }
     pos = e + 1
+  end
+end
+
+--- The bytes of `line` whose faces of the headline, table and property
+--- rules Emacs replaces (`t`): its diary sexps and its planning and clock
+--- keywords, in order ({ first, last } bytes).
+---@param line string
+---@return integer[][]
+function M.override_spans(line)
+  local out = M.sexp_spans(line)
+  local keys = M.special_spans(line)
+  if #keys == 0 then
+    return out
+  end
+  vim.list_extend(out, keys)
+  table.sort(out, function(x, y)
+    return x[1] < y[1]
+  end)
+  return out
+end
+
+--- The parts of [a, e] that no range of `cut` (sorted by start) covers.
+---@param a integer
+---@param e integer
+---@param cut integer[][]
+---@return integer[][]
+function M.minus(a, e, cut)
+  local out = {} ---@type integer[][]
+  for _, sp in ipairs(cut) do
+    if sp[1] > e then
+      break
+    end
+    if sp[1] > a then
+      out[#out + 1] = { a, sp[1] - 1 }
+    end
+    a = math.max(a, sp[2] + 1)
+  end
+  if a <= e then
+    out[#out + 1] = { a, e }
+  end
+  return out
+end
+
+--- Paint the diary sexps of line `i`.
+local function sexps(ctx, i, line)
+  for _, sp in ipairs(M.sexp_spans(line)) do
+    ctx.emit(i, sp[1] - 1, sp[2], { hl_group = "orgSexpDate", priority = PRIO.object, spell = false })
   end
 end
 
@@ -267,9 +328,7 @@ function M.paint(ctx)
         specials(ctx, i, line)
         durations(ctx, i, line)
       end
-      if line:find("%%(", 1, true) then
-        sexps(ctx, i, line)
-      end
+      sexps(ctx, i, line)
     elseif kind == "none" and not ctx.roles[i] and line:find("^[ \t]*#%+[cC][aA][pP][tT][iI][oO][nN]") then
       -- a caption is spell checked (org.ui.highlight.block), but not its
       -- timestamps (org--flyspell-object-check-p)

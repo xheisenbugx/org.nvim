@@ -12,8 +12,8 @@ local KNOWN = {
     -- font-lock's calls to it; how far that goes depends on jit-lock's
     -- chunks): an accident not worth copying, the lines are drawn as
     -- anywhere else.
-    [107] = "Emacs stops at an unterminated block",
-    [108] = "Emacs stops at an unterminated block",
+    [112] = "Emacs stops at an unterminated block",
+    [113] = "Emacs stops at an unterminated block",
   },
   ["tests-fixtures-emacs-faces-object.org"] = {
     -- An inline src block in a comment or a keyword line: Emacs's inline

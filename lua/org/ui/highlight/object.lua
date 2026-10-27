@@ -205,10 +205,60 @@ local function radio_targets(file)
   return out
 end
 
---- Whether byte b is a letter or digit ([[:alnum:]]; non-ASCII bytes are
---- taken as letters).
-local function alnum(b)
-  return b ~= nil and (b >= 128 or (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122))
+-- org-footnote-forbidden-blocks
+local FORBIDDEN = { comment = true, example = true, export = true, src = true }
+
+--- Whether line `l`, in the body of a block, is in a comment, example,
+--- export or src block nested in it (org-in-block-p: the nearest begin
+--- line above, its end line below), which org.ui.emphasis `kinds` doesn't
+--- track.
+---@param lines string[]
+---@param roles table<integer, org.ui.emphasis.Role>
+---@param l integer
+local function nested_forbidden(lines, roles, l)
+  for j = l - 1, 1, -1 do
+    local r = roles[j]
+    if not r or r.role ~= "body" then
+      return false
+    end
+    local name, begins = E.block_line(lines[j])
+    if name then
+      if not (begins and FORBIDDEN[name]) then
+        return false
+      end
+      for k = l + 1, #lines do
+        local r2 = roles[k]
+        if not r2 or r2.role ~= "body" then
+          return false
+        end
+        local n2, b2 = E.block_line(lines[k])
+        if n2 == name and not b2 then
+          return true
+        end
+      end
+      return false
+    end
+  end
+  return false
+end
+
+--- Whether the character before byte i of s (`after`: the one at byte i)
+--- keeps a radio link from starting (ending) there: [[:alnum:]] and not
+--- line-breakable (\\c|, such as CJK characters), org-update-radio-target-
+--- regexp's boundaries.
+---@param s string
+---@param i integer
+---@param after? boolean
+local function alnum(s, i, after)
+  local b = byte(s, after and i or i - 1)
+  if b == nil then
+    return false
+  elseif b < 128 then
+    return (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
+  end
+  local chars = require("org.ui.chars")
+  local cp = after and chars.at(s, i) or not after and chars.before(s, i - 1)
+  return cp and chars.alnum_unbreakable(cp) or false
 end
 
 --- The radio links of `s` (org-activate-target-links): the leftmost
@@ -233,7 +283,7 @@ local function radio_links(s, targets)
         if not a then
           break
         end
-        if not alnum(byte(s, a - 1)) and not alnum(byte(s, e + 1)) then
+        if not alnum(s, a) and not alnum(s, e + 1, true) then
           local cur = best[a]
           if not cur or cur[2] > k then
             best[a] = { e, k }
@@ -491,8 +541,7 @@ function M.paint(ctx)
         break
       end
       i = p + 4
-      local b = byte(s, p - 1)
-      if b == nil or not (b >= 128 or symbol[b] or s:sub(p - 1, p - 1):find("%w")) then
+      if E.symbol_start(s, p, symbol) then
         local le = s:match("^[^ \t\n%[{]+()", p + 4)
         if le then
           inline[#inline + 1] = { p, p + 3, "orgInlineSrcMarker" }
@@ -584,7 +633,7 @@ function M.paint(ctx)
         break
       end
       i = p + 1
-      local q = s:match("^%[fn:[-_%w\128-\255]*()", p)
+      local q = E.word_end(s, p + 4)
       local label = q - p - 4
       local c = byte(s, q)
       local l = line_of(p)
@@ -595,6 +644,9 @@ function M.paint(ctx)
             bi = bi + 1
           end
           local in_link = brackets[bi] and brackets[bi][1] <= p and p < brackets[bi][2]
+          -- (or the path of a "[[fn:...]]" a plain link took in: Emacs
+          -- asks org-link-bracket-re, not what was drawn)
+          in_link = in_link or (byte(s, p - 1) == 91 and s:find("^%[%[[^%[%]]+%]", p - 1) ~= nil)
           if e and not in_link and not after_latex_macro(s, p, starts[l]) then
             local head = c == 58 and q or e
             span(p, head, { hl_group = "orgFootnote", priority = P.footnote, spell = false })
@@ -616,6 +668,7 @@ function M.paint(ctx)
           and block ~= "example"
           and block ~= "export"
           and block ~= "src"
+          and not (block and nested_forbidden(lines, ctx.roles, l))
         then
           span(p, q, { hl_group = "orgFootnote", priority = P.footnote, spell = false })
         end

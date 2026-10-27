@@ -30,6 +30,79 @@ M.GROUPS = {
   ["~"] = "orgCode",
 }
 
+local chars = require("org.ui.chars")
+
+-- Org's word constituents among the ASCII characters (letters, digits and
+-- $ % ')
+local WORD = {} ---@type table<integer, boolean>
+for c = 48, 57 do
+  WORD[c] = true
+end
+for c = 65, 90 do
+  WORD[c] = true
+  WORD[c + 32] = true
+end
+WORD[36], WORD[37], WORD[39] = true, true, true
+M.WORD = WORD
+
+--- Whether "\\<" matches before the Latin letter at byte i of s: the
+--- character before it isn't a word constituent, or is one of another
+--- script (org.ui.chars).
+---@param s string
+---@param i integer
+function M.word_start(s, i)
+  local b = byte(s, i - 1)
+  if b == nil then
+    return true
+  elseif b < 128 then
+    return not WORD[b]
+  end
+  local cp = chars.before(s, i - 1)
+  return cp ~= nil and (chars.syntax(cp) ~= "w" or chars.word_start_after(cp))
+end
+
+--- The byte after the run of word constituents, "-" and "_" at byte i of
+--- s ([-_[:word:]]*: a drawer's name, a footnote's label), i when there is
+--- none.
+---@param s string
+---@param i integer
+---@return integer
+function M.word_end(s, i)
+  while true do
+    local b = byte(s, i)
+    if b == nil then
+      return i
+    elseif b < 128 then
+      if not (WORD[b] or b == 45 or b == 95) then
+        return i
+      end
+      i = i + 1
+    else
+      local cp, e = chars.at(s, i)
+      if not (cp and e and chars.syntax(cp) == "w") then
+        return i
+      end
+      i = e + 1
+    end
+  end
+end
+
+--- Whether "\\_<" matches at byte i of s (the character before it is
+--- neither a word nor a symbol constituent).
+---@param s string
+---@param i integer
+---@param symbol table<integer, boolean> the ASCII symbol constituents and word characters but letters and digits
+function M.symbol_start(s, i, symbol)
+  local b = byte(s, i - 1)
+  if b == nil then
+    return true
+  elseif b < 128 then
+    return not (symbol[b] or s:sub(i - 1, i - 1):find("%w"))
+  end
+  local cp = chars.before(s, i - 1)
+  return cp ~= nil and chars.syntax(cp) == "."
+end
+
 local MARKERS = {} ---@type table<integer, string>
 for m in pairs(M.GROUPS) do
   MARKERS[byte(m)] = m
@@ -123,6 +196,12 @@ local function classify(line)
     if c2 == nil or c2 == 32 then
       return "comment" -- org-comment-regexp
     end
+    if c2 == 9 then
+      -- "#" and a tab: a paragraph to org-element, but a keyword to
+      -- org-fontify-meta-lines-and-blocks, which puts org-meta-line over
+      -- the whole line and shows what is hidden there
+      return "none"
+    end
     -- a meta line: "#+" and letters (org-fontify-meta-lines-and-blocks)
     if c2 == 43 and line:find("^#%+%a", s) then
       local key = line:match("^#%+(%a+):", s)
@@ -155,8 +234,14 @@ M._classify = classify
 -- break, "$" at the end of the part; case-sensitive, as font-lock
 -- matches). Emphasis or a link whose text holds one isn't drawn.
 local function separates(s)
-  if s:find("^%*+ ") or s:find("^%[fn:[-_%w\128-\255]+%]") or s:find("^%%%%%(") then
+  if s:find("^%*+ ") or s:find("^%%%%%(") then
     return true
+  end
+  if s:find("^%[fn:") then
+    local e = M.word_end(s, 5)
+    if e > 5 and byte(s, e) == 93 then
+      return true
+    end
   end
   local i = s:match("^[ \t]*()") ---@type integer
   local c = byte(s, i)
@@ -177,7 +262,11 @@ local function separates(s)
       and (s:find("^#%+BEGIN_%S", i) ~= nil or s:find("^#%+%S+:", i) ~= nil or s:find("^#%+%S+%[.*%]:", i) ~= nil)
   elseif c == 58 then
     local c2 = byte(s, i + 1)
-    return c2 == nil or c2 == 32 or s:find("^:[-_%w\128-\255]+:[ \t]*$", i) ~= nil
+    if c2 == nil or c2 == 32 then
+      return true
+    end
+    local e = M.word_end(s, i + 1)
+    return e > i + 1 and byte(s, e) == 58 and s:find("^[ \t]*$", e + 1) ~= nil
   elseif c == 45 and s:find("^%-%-%-%-%-+[ \t]*$", i) then
     return true
   elseif c == 92 and s:find("^\\begin{[%w*]+}", i) then
@@ -219,9 +308,19 @@ local function block_line(line)
   end
   local e
   name, e = line:match("^[ \t]*#%+[eE][nN][dD]_(%a+)()")
-  local b = name and byte(line, e)
-  -- (word characters in Org's syntax table: letters, digits, $ % ')
-  if name and not (b and (b >= 128 or b == 36 or b == 37 or b == 39 or (b >= 48 and b <= 57))) then
+  if not name then
+    return
+  end
+  -- (not followed by a word constituent, "\\>": letters, digits, $ % ',
+  -- and non-ASCII word constituents of the Latin script; 東京 starts
+  -- another word)
+  local b = byte(line, e)
+  local word = b ~= nil and WORD[b]
+  if b and b >= 128 then
+    local cp = chars.at(line, e)
+    word = cp == nil or (chars.syntax(cp) == "w" and not chars.word_start_after(cp))
+  end
+  if not word then
     return name:lower(), false
   end
 end
@@ -513,6 +612,17 @@ local function links(s, types, line_of, line_start)
           break
         end
         last, j = e, e + 1
+      elseif b >= 0xC0 then
+        -- (a multibyte character: [[:punct:]] unless a word constituent)
+        local cp, e = chars.at(s, j)
+        if cp and e then
+          if chars.syntax(cp) == "w" then
+            last = e
+          end
+          j = e + 1
+        else
+          j = j + 1
+        end
       elseif not PATH_STOP[b] then
         if not (PUNCT[b] or SPACE[b]) or b == 47 or b == 45 then
           last = j
@@ -525,9 +635,8 @@ local function links(s, types, line_of, line_start)
     return last
   end
 
-  local function word_start(x)
-    local b = byte(s, x - 1)
-    return b == nil or not (b >= 128 or s:sub(x - 1, x - 1):find("%w"))
+  local word_start = function(x)
+    return M.word_start(s, x)
   end
 
   -- the next start of each kind at or after a position
@@ -645,8 +754,7 @@ local function inline_src(s)
       return out
     end
     i = p + 4
-    local b = byte(s, p - 1)
-    if b == nil or not (b >= 128 or symbol[b] or s:sub(p - 1, p - 1):find("%w")) then
+    if M.symbol_start(s, p, symbol) then
       local e = s:match("^src_[^ \t\n%[{]+()", p)
       if e and byte(s, e) == 91 then
         local h = matching(e, 91, 93, 0)

@@ -59,3 +59,16 @@
 107	2:.,4:inline-src-block+shadow,2:inline-src-block+meta-line,1:inline-src-block+shadow,1:block,1:inline-src-block+shadow,23:.,6:footnote,5:.,5:target
 108	11:block-end-line
 110	13:level-1
+114	34:level-1
+115	6:.,19:link,8:.,15:link,10:.,13:link,10:.,12:link,8:.
+117	30:.,10:link,8:.,15:link,8:.,15:link,8:.,16:link,1:.
+119	14:.,4:inline-src-block+shadow,2:inline-src-block+meta-line,1:inline-src-block+shadow,4:block+font-lock-builtin-face,2:block,1:inline-src-block+shadow,8:.,4:inline-src-block+shadow,2:inline-src-block+meta-line,1:inline-src-block+shadow,4:block+font-lock-builtin-face,2:block,1:inline-src-block+shadow,30:.
+121	5:link,7:.,10:link,11:.,9:link,43:.,5:link,3:.
+124	4:.,11:footnote,18:.,8:footnote,6:.
+126	50:level-1
+127	40:footnote,2:footnote+link#,4:footnote+link,1:footnote+link#,1:link#,14:.
+129	33:level-1
+130	13:.,20:link,28:.
+132	35:level-1
+133	14:block-begin-line
+137	12:block-end-line

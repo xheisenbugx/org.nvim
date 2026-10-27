@@ -35,6 +35,7 @@
 #
    # an indented comment
 #	a tab after the hash
+#	a *bold* [[https://orgmode.org][link]], <2026-10-01 Thu>, [1/2] and {{{m}}} after a tab
 #x not a comment
 # a comment with [[https://orgmode.org][a link]] and *bold* and ~code~
 Text # not a comment
@@ -50,11 +51,15 @@ Text # not a comment
 ::
 :k:v
 :p: [[https://orgmode.org][link]] *bold*
+:WHEN: every <%%(diary-float t 4 2)> or DEADLINE: soon
 :END:
   :LOGBOOK:  
   :END:
 :my-drawer_1:
 :dräwer:
+:»:
+:a$b:
+:x—y:
 :a b:
 :NAME: a property outside a drawer
 

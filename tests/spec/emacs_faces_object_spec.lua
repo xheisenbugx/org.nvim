@@ -21,6 +21,15 @@ local KNOWN = {
     -- fontifies (the whole buffer here, a jit-lock chunk when editing):
     -- org.nvim goes on to the macros after it
     [81] = "macros after an unclosed one",
+    -- a footnote reference org-footnote-next-reference-or-definition
+    -- turns down (in a bracket link, in a LaTeX macro's argument, at the
+    -- start of a line, with no closing bracket) goes on to its definition
+    -- branch, which finds the definition above it (up to a headline or
+    -- two blank lines) and draws org-footnote from that definition's
+    -- label to the end of the reference: over whole paragraphs, lists
+    -- and tables. An Emacs bug not worth copying: org.nvim draws the
+    -- label of the definition only
+    [127] = "org-footnote from a definition to a reference it turned down",
   },
 }
 
