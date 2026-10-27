@@ -401,3 +401,48 @@ describe("lists: parents of ill-formed lists (org-list-parents-alist, make difft
     eq("- [ ] 1. \n  - \n- 42 [[#custom][custom id]] task\n", out)
   end)
 end)
+
+describe("lists: tab indentation (current-indentation, tab-width 8)", function()
+  -- Org fixes tab-width at 8: "\t- b" is indented 8 columns, so it is a
+  -- sub-item of "- a" and of "    - b" alike, and lines whose indentation
+  -- doesn't change are left alone (tabs kept)
+  it("toggles a tab-indented child and updates its parents", function()
+    local t = { "* H [/]", "- [ ] a", "    - [ ] b", "\t- [ ] c", "- [ ] d" }
+    local buf = org_buffer(t, { 4, 3 })
+    lists.toggle_checkbox()
+    eq({ "* H [1/2]", "- [X] a", "    - [X] b", "\t- [X] c", "- [ ] d" }, buf_lines(buf))
+  end)
+
+  it("keeps tabs on lines whose indentation doesn't change", function()
+    local buf = org_buffer({ "- [ ] a", "\t- [ ] b" }, { 2, 2 })
+    lists.toggle_checkbox()
+    eq({ "- [X] a", "\t- [X] b" }, buf_lines(buf))
+    buf = org_buffer({ "\t- [ ] b", "\t- [ ] c" }, { 1, 2 })
+    lists.toggle_checkbox()
+    eq({ "\t- [X] b", "\t- [ ] c" }, buf_lines(buf))
+  end)
+
+  it("inserts an item at the tab-indented item's indentation", function()
+    local buf = org_buffer({ "\t- b" }, { 1, 4 })
+    lists.new_item({ pos = { 1, 4 }, split = false })
+    eq({ "\t- b", "\t- " }, buf_lines(buf))
+  end)
+
+  it("outdents a tab-indented item with its body", function()
+    local buf = org_buffer({ "- a", "\t- b", "\t  text" }, { 2, 1 })
+    require("org.actions").run("shift_meta_left")
+    eq({ "- a", "- b", "  text" }, buf_lines(buf))
+  end)
+
+  it("moves a tab-indented sub-item among its siblings", function()
+    local buf = org_buffer({ "1. a", "\t1. x", "\t3. y" }, { 2, 2 })
+    require("org.actions").run("meta_down")
+    eq({ "1. a", "   1. y", "   2. x" }, buf_lines(buf))
+  end)
+
+  it("measures indentation in columns", function()
+    eq(8, lists.parse_item_line("\t- b").indent)
+    eq(9, lists.parse_item_line("  \t - b").indent)
+    eq(1, lists.parse_item_line("\t- b").ind_len)
+  end)
+end)

@@ -17,6 +17,7 @@ local cursor_lnum = shared.cursor_lnum
 local fix_bul = shared.fix_bul
 local fix_ind = shared.fix_ind
 local get_lines = shared.get_lines
+local indent_len = shared.indent_len
 local indent_of = shared.indent_of
 local is_blank = shared.is_blank
 local line_owners = shared.line_owners
@@ -117,7 +118,7 @@ local function shift_text(lines, s, e, ind)
     local l = lines[i]
     if not is_blank(l) and not parser.headline_level(l) then
       local n = indent_of(l)
-      lines[i] = string.rep(" ", math.max(0, n + delta)) .. l:sub(n + 1)
+      lines[i] = string.rep(" ", math.max(0, n + delta)) .. l:sub(indent_len(l) + 1)
     end
   end
 end
@@ -152,7 +153,7 @@ function M.toggle_item()
     for i = s, e do
       local it = M.parse_item_line(lines[i])
       if it and not parser.headline_level(lines[i]) then
-        lines[i] = string.rep(" ", it.indent) .. lines[i]:sub(it.indent + #it.bullet_ws + 1)
+        lines[i] = lines[i]:sub(1, it.ind_len) .. lines[i]:sub(it.ind_len + #it.bullet_ws + 1)
       end
     end
     set_lines(bufnr, s, e, vim.list_slice(lines, s, e))
@@ -252,7 +253,7 @@ function M.toggle_item()
   if arg then
     -- 3. one item holding the region
     local ind = indent_of(first)
-    lines[s] = first:sub(1, ind) .. "- " .. first:sub(ind + 1)
+    lines[s] = first:sub(1, indent_len(first)) .. "- " .. first:sub(indent_len(first) + 1)
     if e > s then
       shift_text(lines, s + 1, e, ind + 2)
     end

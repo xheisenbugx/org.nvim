@@ -117,7 +117,7 @@ function M.reset_checkbox_state_subtree()
     local it = not verbatim[l] and M.parse_item_line(line)
     if it and it.checkbox and it.checkbox ~= " " then
       -- the box must be followed by whitespace (org-at-item-checkbox-p)
-      local p = it.indent + #it.bullet_ws
+      local p = it.ind_len + #it.bullet_ws
       local q = p + #(line:sub(p + 1):match("^%[@[^%]]*%][ \t]*") or "")
       if line:sub(q + 1, q + 3):match("^%[[xX%-]%]$") and line:sub(q + 4, q + 4):match("^[ \t]$") then
         set_lines(bufnr, l, l, { line:sub(1, q) .. "[ ]" .. line:sub(q + 4) })

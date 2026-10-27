@@ -9502,6 +9502,12 @@ Differences from Emacs:
     Emacs would insert the letter); Normal mode keeps Vim's letters.
   - Pretty sub/superscripts can't be raised: Unicode super/subscript
     characters are used when they exist, else a highlight.
+  - Plain lists: a tab in an item's indentation counts up to the next
+    multiple of 8 columns, as in Emacs (Org fixes tab-width at 8). A
+    line whose indentation a list command changes is re-indented with
+    spaces ('expandtab'); Emacs uses tabs from column 8 on when
+    `indent-tabs-mode` is on, its default. Lines it doesn't move keep
+    their tabs.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
   - Indentation (|org-indent|): `=` indents line by line with

@@ -650,7 +650,7 @@ function M.compute(bufnr, first, last, ui)
         local item = line:find("^%s*[-+*%w]") and require("org.lists").parse_item_line(line)
         local pre, box
         if item and item.checkbox then
-          local col = item.indent + #item.bullet_ws
+          local col = item.ind_len + #item.bullet_ws
           local counter = line:match("^%[@[^%]]*%][ \t]*", col + 1) or ""
           col = col + #counter
           box = line:match("^%[[ X%-]%]", col + 1)

@@ -30,7 +30,8 @@ package.loaded["org.lists"] = M
 ---@class org.ListItem
 ---@field lnum integer
 ---@field end_lnum integer last line of the item, children included (trailing blanks excluded)
----@field indent integer
+---@field indent integer indentation in columns, a tab reaching the next multiple of 8 (current-indentation)
+---@field ind_len integer bytes of leading whitespace (`indent` when there is no tab)
 ---@field bullet string "-", "+", "*", "1.", "1)", or "a.", "A)"... (lists.allow_alphabetical)
 ---@field bullet_ws string the bullet with the whitespace after it
 ---@field is_ordered boolean
@@ -64,6 +65,21 @@ local function first_nonblank(line)
     b = line:byte(j)
   end
   return b and j or nil
+end
+
+--- Width of the first `n` bytes of `line` (leading whitespace), a tab
+--- reaching the next multiple of 8 like Emacs' current-indentation (Org
+--- fixes tab-width at 8).
+local function ws_width(line, n)
+  local w = 0
+  for k = 1, n do
+    if line:byte(k) == 9 then
+      w = w + 8 - w % 8
+    else
+      w = w + 1
+    end
+  end
+  return w
 end
 
 --- Plain list option `name` (config `lists`), falling back to its default.
@@ -136,7 +152,8 @@ function M.parse_item_line(line)
     gap = gap:sub(1, -2)
   end
   local item = {
-    indent = #ind,
+    indent = ind:find("\t", 1, true) and ws_width(ind, #ind) or #ind,
+    ind_len = #ind,
     bullet = bullet,
     bullet_ws = bullet .. gap,
     is_ordered = bullet:match("^%w") ~= nil,
@@ -175,7 +192,20 @@ function M.parse_item_line(line)
   return item
 end
 
+--- Indentation of `line` in columns (current-indentation): a tab counts
+--- up to the next multiple of 8.
 local function indent_of(line)
+  local j = first_nonblank(line)
+  local n = j and j - 1 or #line
+  if n == 0 or not line:find("\t", 1, true) then
+    return n
+  end
+  return ws_width(line, n)
+end
+M.indent_of = indent_of
+
+--- Bytes of leading whitespace of `line` (what `indent_of` measures).
+local function indent_len(line)
   local j = first_nonblank(line)
   return j and j - 1 or #line
 end
@@ -526,6 +556,7 @@ local shared = require("org.lists.shared")
 shared.curbuf = curbuf
 shared.cursor_lnum = cursor_lnum
 shared.get_lines = get_lines
+shared.indent_len = indent_len
 shared.indent_of = indent_of
 shared.is_blank = is_blank
 shared.lopt = lopt
