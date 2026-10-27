@@ -450,23 +450,15 @@ function M.check_options(h)
   h.start("org.nvim configuration")
   local config = require("org.config")
   local cfg = config.opts
-  local unknown, removed = {}, 0
-  for _, path in ipairs(M.unknown_options(config.user_opts)) do
-    if config.REMOVED[path] then
-      removed = removed + 1
-      h.warn(string.format("Removed option passed to setup() (ignored): %s", path), { config.REMOVED[path] })
-    else
-      unknown[#unknown + 1] = path
-    end
-  end
+  local unknown = M.unknown_options(config.user_opts)
   if #unknown > 0 then
     h.warn("Unknown options passed to setup() (ignored): " .. table.concat(unknown, ", "), {
       "see :h org-config and :h org-keymaps",
       "an extension's options: see :h org-extensions",
     })
-  elseif config.user_opts and removed == 0 then
+  elseif config.user_opts then
     h.ok("every option passed to setup() is known")
-  elseif not config.user_opts then
+  else
     h.info("setup() wasn't called: the defaults are used; see :h org-config")
   end
 

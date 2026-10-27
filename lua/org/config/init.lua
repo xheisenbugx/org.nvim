@@ -98,35 +98,6 @@ for _, k in ipairs({
   SECTIONS[k] = true
 end
 
---- Options that were removed: dotted path -> what to say instead. Setting
---- one is no error: it is dropped from `M.opts`, with a warning once per
---- session (none when the value is `quiet[path]`, what it does now
---- anyway), and `:checkhealth org` lists it.
-M.REMOVED = {
-  ["ui.highlighter"] = "the parser highlighter is the only one now, see :h org-highlighter",
-}
-
---- The value of a removed option that is what org.nvim does now anyway.
-local quiet = { ["ui.highlighter"] = "parser" }
-
-local warned = {} ---@type table<string, boolean>
-
---- Drop the removed options (`M.REMOVED`) the user set from `M.opts`, and
---- warn about each once.
-function M.removed_options()
-  for path, instead in pairs(M.REMOVED) do
-    local section, key = path:match("^([%w_]+)%.([%w_]+)$")
-    local given = (M.user_opts or {})[section]
-    if type(given) == "table" and given[key] ~= nil then
-      M.opts[section][key] = nil
-      if not warned[path] and given[key] ~= quiet[path] then
-        warned[path] = true
-        vim.notify(string.format("org.nvim: option `%s` was removed (ignored): %s", path, instead), vim.log.levels.WARN)
-      end
-    end
-  end
-end
-
 --- Merge user options into `M.opts`. Dict options merge key by key; lists
 --- (and `capture.templates`) replace the default; `{}` for a dict option
 --- keeps its defaults; `babel.languages = { lang = false }` removes a
@@ -159,7 +130,6 @@ function M.setup(opts)
   end
   -- what the user passed, for :checkhealth org (unknown options)
   M.user_opts = opts
-  M.removed_options()
   if opts.babel and opts.babel.languages then
     -- languages merge per key; allow `false` to remove one
     for k, v in pairs(opts.babel.languages) do
