@@ -848,6 +848,7 @@ local attached = {} ---@type table<integer, boolean>
 ---@field hi table<integer, integer> and the last
 ---@field file? org.File|false the parse org.ui.highlight drew with (false: more than one)
 ---@field bvars string the buffer variables the drawing follows
+---@field before? org.ui.decorations.Before what the rows drew before the edits since the last tick drawn
 local cache = {} ---@type table<integer, org.ui.decorations.Cache>
 
 --- The `ui` options the provider draws with. Reading `#+STARTUP` needs a
@@ -886,7 +887,14 @@ local inline_synced = {} ---@type table<integer, { tick: integer, ui: table, row
 
 --- (how many times rows were kept over an edit, for the specs)
 M._carried = 0
-local edits = {} ---@type table<integer, { since: integer, tick: integer, rows: table<integer, boolean>|false }>
+---@class org.ui.decorations.Edits
+---@field since integer the changedtick of the cache the edits follow
+---@field tick integer the changedtick after the last of them
+---@field rows table<integer, boolean>|false the rows edited, false when an edit added or removed lines
+---@field first? integer the first row an edit changed
+---@field last? integer the last row an edit left (a row of the text after it)
+---@field shift integer the lines added (less those removed)
+local edits = {} ---@type table<integer, org.ui.decorations.Edits>
 local tracked = {} ---@type table<integer, boolean>
 
 local function on_bytes(_, bufnr, tick, start_row, _, _, old_rows, _, _, new_rows)
@@ -902,6 +910,14 @@ local function on_bytes(_, bufnr, tick, start_row, _, _, old_rows, _, _, new_row
     else
       e.rows = false
     end
+    -- (the rows after the edit move by the lines it added)
+    local last = start_row + new_rows
+    if e.last and e.last >= start_row then
+      e.last = e.last + new_rows - old_rows
+    end
+    e.first = math.min(e.first or start_row, start_row)
+    e.last = math.max(e.last or last, last)
+    e.shift = e.shift + new_rows - old_rows
     -- (the changedtick before the edit: the edit makes it tick + 1)
     e.tick = tick + 1
   end
@@ -935,7 +951,7 @@ local function carried(bufnr, c, tick, ui)
     return nil
   end
   local colview = package.loaded["org.columns"]
-  if colview and next(colview.overlay_lines(bufnr)) then
+  if colview and next(colview.overlay_lines(bufnr) or {}) then
     return nil
   end
   local hl = package.loaded["org.ui.highlight"]
@@ -954,9 +970,12 @@ local function carried(bufnr, c, tick, ui)
   if synced and not (synced.tick == c.tick and synced.ui == ui) then
     synced = nil
   end
+  -- (what the rows dropped drew, see `redraw_changed`)
+  local before = { rows = {}, done = {}, edits = e } ---@type org.ui.decorations.Before
   for row in pairs(c.done) do
     for edited in pairs(e.rows) do
       if c.lo[row] <= edited and edited <= c.hi[row] then
+        before.rows[row], before.done[row] = c.rows[row], true
         c.rows[row], c.done[row], c.text[row], c.lo[row], c.hi[row] = nil, nil, nil, nil, nil
         if synced then
           synced.rows[row] = nil
@@ -969,8 +988,89 @@ local function carried(bufnr, c, tick, ui)
     synced.tick = tick
   end
   c.tick = tick
+  c.before = before
   M._carried = M._carried + 1
   return c
+end
+
+-- Neovim redraws the lines an edit changed (and scrolls those below when it
+-- added or removed lines), but the marks of a row can change with the text
+-- of another: markup over two lines, a link over the lines of a paragraph,
+-- the end line of a block. So the rows drawn again after an edit are
+-- compared with what they drew before it, and those whose marks changed
+-- and that Neovim doesn't redraw are redrawn too.
+
+---@class org.ui.decorations.Before
+---@field rows table<integer, table[]> the marks of the rows before the edits, by their rows before them
+---@field done table<integer, boolean>
+---@field edits? org.ui.decorations.Edits nil: not known
+
+--- What the rows of `c` drew before the edits since (see above), for
+--- a cache of the edited text made anew.
+---@param c org.ui.decorations.Cache
+---@return org.ui.decorations.Before
+local function before_edits(bufnr, c)
+  local e = edits[bufnr]
+  return { rows = c.rows, done = c.done, edits = e and e.since == c.tick and e or nil }
+end
+
+--- Whether two lists of marks (`compute`) draw the same.
+local function same_marks(a, b)
+  if a == b then
+    return true
+  end
+  a, b = a or {}, b or {}
+  if #a ~= #b then
+    return false
+  end
+  for k = 1, #a do
+    local x, y = a[k], b[k]
+    if x[1] ~= y[1] or x[3] ~= y[3] or x[4] ~= y[4] then
+      return false
+    end
+    local ox, oy = x[2], y[2]
+    for key, v in pairs(ox) do
+      local w = oy[key]
+      if v ~= w and not (type(v) == "table" and type(w) == "table" and vim.deep_equal(v, w)) then
+        return false
+      end
+    end
+    for key in pairs(oy) do
+      if ox[key] == nil then
+        return false
+      end
+    end
+  end
+  return true
+end
+
+--- Redraw the rows of [s, e] (computed again at `c.tick`) whose marks
+--- changed with an edit of other rows (see above).
+---@param c org.ui.decorations.Cache
+local function redraw_changed(bufnr, c, s, e)
+  local before = c.before ---@type org.ui.decorations.Before
+  local ed = before.edits
+  local lo, hi ---@type integer?, integer?
+  for row = s, e do
+    -- (the row it was before the edits, nil when Neovim redraws it anyway:
+    -- the rows edited; it scrolls those below the lines added or removed)
+    local old ---@type integer?
+    if not ed then
+      old = row
+    elseif ed.rows then
+      old = not ed.rows[row] and row or nil
+    elseif ed.first and row < ed.first then
+      old = row
+    elseif ed.last and row > ed.last then
+      old = row - ed.shift
+    end
+    if old and before.done[old] and not same_marks(before.rows[old], c.rows[row]) then
+      lo, hi = lo or row, row
+    end
+  end
+  if lo then
+    pcall(vim.api.nvim__redraw, { buf = bufnr, range = { lo, hi + 1 } })
+  end
 end
 
 --- Decorations of rows [top, bot] at the current changedtick, computed
@@ -979,12 +1079,26 @@ local function rows_for(bufnr, top, bot)
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
   local ui = provider_ui(bufnr)
   local c = cache[bufnr]
-  if not c or c.tick ~= tick or c.ui ~= ui then
-    c = c and c.tick ~= tick and carried(bufnr, c, tick, ui)
-      or { tick = tick, ui = ui, rows = {}, done = {}, text = {}, lo = {}, hi = {}, bvars = bvars(bufnr) }
+  -- (`b:org_hide_emphasis_markers` and the like set since: drawn anew, on
+  -- the next redraw of the window)
+  if not c or c.tick ~= tick or c.ui ~= ui or c.bvars ~= bvars(bufnr) then
+    local old = c
+    local kept = old and carried(bufnr, old, tick, ui)
+    c = kept
+      or {
+        tick = tick,
+        ui = ui,
+        rows = {},
+        done = {},
+        text = {},
+        lo = {},
+        hi = {},
+        bvars = bvars(bufnr),
+        before = old and before_edits(bufnr, old) or nil,
+      }
     cache[bufnr] = c
     if tracked[bufnr] then
-      edits[bufnr] = { since = tick, tick = tick, rows = {} }
+      edits[bufnr] = { since = tick, tick = tick, rows = {}, shift = 0 }
     end
   end
   local s = top
@@ -1003,6 +1117,9 @@ local function rows_for(bufnr, top, bot)
     for row, marks in pairs(M.compute(bufnr, s, e, ui)) do
       c.rows[row] = marks
     end
+    if c.before then
+      redraw_changed(bufnr, c, s, e)
+    end
     -- (the rows the computation read: the rows themselves, or the window
     -- org.ui.highlight scanned for them)
     local read = hl and hl.last_read
@@ -1020,8 +1137,6 @@ local function rows_for(bufnr, top, bot)
   end
   return c.rows
 end
-
-local current ---@type table<integer, table[]>?
 
 -- Inline virtual text (indent mode) can't be ephemeral, so those marks are
 -- real extmarks in their own namespace, rebuilt for the rows a window is
@@ -1124,22 +1239,62 @@ local function on_spell_nav(_, _, bufnr, srow, _, erow)
   end
 end
 
+--- Compute the rows from `row` on (a screenful at most), drawn past the
+--- rows on_win computed; their inline marks (real extmarks, which can't be
+--- placed while the screen is drawn) are placed right after the redraw.
+local function late_rows(bufnr, row)
+  local last = math.min(row + 60, vim.api.nvim_buf_line_count(bufnr) - 1)
+  if last < row then
+    return
+  end
+  local rows = rows_for(bufnr, row, last)
+  for r = row, last do
+    for _, m in ipairs(rows[r] or {}) do
+      if is_persistent(m) then
+        vim.schedule(function()
+          if attached[bufnr] and vim.api.nvim_buf_is_valid(bufnr) then
+            last = math.min(last, vim.api.nvim_buf_line_count(bufnr) - 1)
+            sync_inline(bufnr, rows_for(bufnr, row, last), row, last)
+          end
+        end)
+        return
+      end
+    end
+  end
+end
+
 local provider = {
   on_win = function(_, win, bufnr, toprow, botrow)
     if not attached[bufnr] then
       return false
     end
+    -- (`botrow` is the last row of the last redraw: the virtual indentation
+    -- placed below can make the lines take fewer screen rows, no less than
+    -- a row each; the rows past it are computed by on_line, but their
+    -- indentation would come a redraw late)
+    if vim.wo[win].wrap and provider_ui(bufnr).indent_mode then
+      botrow = math.max(botrow, toprow + vim.api.nvim_win_get_height(win) - 1)
+    end
     botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
     local ranges = (vim.wo[win].foldenable and botrow - toprow > 0) and drawn_ranges(win, toprow, botrow)
       or { { toprow, botrow } }
     for _, r in ipairs(ranges) do
-      current = rows_for(bufnr, r[1], r[2])
-      sync_inline(bufnr, current, r[1], r[2])
+      sync_inline(bufnr, rows_for(bufnr, r[1], r[2]), r[1], r[2])
     end
-    return current ~= nil and next(current) ~= nil
+    -- (on_line computes the rows past `botrow`: on_line is needed even
+    -- when the rows on_win was told of draw nothing)
+    return true
   end,
   on_line = function(_, _, bufnr, row)
-    local marks = current and current[row]
+    local c = cache[bufnr]
+    if not (c and c.done[row]) then
+      -- a row past the last one on_win was told of: Neovim guesses it from
+      -- the last redraw, and draws more rows when an edit or a fold made the
+      -- lines take fewer screen rows
+      late_rows(bufnr, row)
+      c = cache[bufnr]
+    end
+    local marks = c and c.rows[row]
     if not marks then
       return
     end

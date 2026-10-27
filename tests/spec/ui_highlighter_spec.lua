@@ -121,6 +121,15 @@ describe("ui.highlighter = parser", function()
     ok(has(marks(buf, 0), "orgBoldDelimiter@2-3"))
   end)
 
+  it("follows b:org_hide_emphasis_markers set since the last redraw", function()
+    local buf = org_buffer({ "a *b* c" }, { 1, 0 })
+    ok(has(marks(buf, 0), "conceal@2-3"))
+    vim.b[buf].org_hide_emphasis_markers = false
+    ok(not has(marks(buf, 0), "conceal@2-3"))
+    vim.b[buf].org_hide_emphasis_markers = nil
+    ok(has(marks(buf, 0), "conceal@2-3"))
+  end)
+
   it("draws nothing in a src block that starts far above the window", function()
     local lines = { "* H", "#+begin_src lua" }
     for i = 1, 400 do
@@ -555,6 +564,16 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
     vim.list_extend(fixtures, vim.fn.readfile(root .. f .. ".org"))
   end
 
+  it("keeps rows with the column view loaded and not shown", function()
+    require("org.columns")
+    local buf = org_buffer({ "a *bold* b", "", "c" }, { 1, 0 })
+    all_marks(buf)
+    local carried = deco._carried
+    vim.api.nvim_buf_set_text(buf, 2, 0, 2, 0, { "x" })
+    all_marks(buf)
+    ok(deco._carried > carried)
+  end)
+
   it("draws every row as a fresh scan does, and keeps rows", function()
     local carried = deco._carried
     for _, seed in ipairs(fuzz.seeds(4)) do
@@ -600,5 +619,98 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
     end
     -- (rows were kept, not only drawn again)
     ok(deco._carried > carried)
+  end)
+end)
+
+-- Neovim redraws only the lines an edit changed (and those below, when it
+-- adds or removes lines), while the marks of a row can change with the text
+-- of another: the screen after an edit must be the screen drawn anew.
+describe("ui.highlighter = parser, the screen after an edit", function()
+  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = false } })
+
+  --- The attributes of the screen's first `n` rows, one string per row.
+  local function screen(n)
+    vim.cmd("redraw")
+    local out = {}
+    for r = 1, n do
+      local t = {}
+      for c = 1, 30 do
+        t[c] = vim.fn.screenattr(r, c)
+      end
+      out[r] = table.concat(t, ",")
+    end
+    return out
+  end
+
+  --- Run `keys` (typed) in a buffer of `lines` with the cursor at `cursor`,
+  --- and check the screen against a redraw from scratch.
+  local function check(lines, cursor, keys)
+    local buf = org_buffer(lines, { 1, 0 })
+    screen(#lines)
+    vim.api.nvim_win_set_cursor(0, cursor)
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), "xn", false)
+    local drawn = screen(#lines)
+    deco.render(buf)
+    eq(screen(#lines), drawn)
+    return drawn
+  end
+
+  it("redraws the line above that markup closed on the edited line opens on", function()
+    local drawn = check({ "a *bold over", "two lines here" }, { 2, 8 }, "a*<Esc>")
+    -- (the line above is bold now)
+    local plain = check({ "a *bold over", "two lines here" }, { 2, 8 }, "")
+    ok(drawn[1] ~= plain[1])
+  end)
+
+  it("redraws the lines below whose markup an edit opened", function()
+    check({ "plain line", "two lines* here", "" }, { 1, 1 }, "a *<Esc>")
+  end)
+
+  it("redraws the line above when the line closing its markup is deleted", function()
+    check({ "a *bold over", "two lines* here", "next" }, { 2, 0 }, "dd")
+  end)
+
+  it("redraws the lines of a paragraph a link goes on over", function()
+    check({ "see [[https://example.org][a", "description]] here" }, { 2, 11 }, "x")
+  end)
+
+  it("redraws the rows an undo and a redo change", function()
+    check({ "a *bold over", "two lines here", "" }, { 2, 8 }, "a*<Esc>u<C-r>u")
+  end)
+end)
+
+describe("ui.highlighter = parser, rows past the last one Neovim expects", function()
+  with_config({ ui = { highlighter = "parser", indent_mode = true } })
+
+  --- The attributes of the screen's rows, one string per row.
+  local function screen()
+    vim.cmd("redraw")
+    local out = {}
+    for r = 1, vim.o.lines - 2 do
+      local t = {}
+      for c = 1, 12 do
+        t[c] = vim.fn.screenattr(r, c)
+      end
+      out[r] = table.concat(t, ",")
+    end
+    return out
+  end
+
+  -- (Neovim tells the decoration provider the rows it drew last, but the
+  -- virtual indentation placed then can make the lines take fewer rows)
+  it("draws the rows a shorter virtual indentation brought on screen", function()
+    local lines = { "* A", "** B" }
+    for i = 1, 60 do
+      -- (wraps after an indentation of 3, not of 2)
+      local l = "*bold* " .. i .. " "
+      lines[#lines + 1] = l .. string.rep("x", vim.o.columns - 2 - #l)
+    end
+    local buf = org_buffer(lines, { 2, 0 })
+    vim.wo.wrap = true
+    screen()
+    vim.cmd("normal! x")
+    local drawn = screen()
+    deco.render(buf)
+    eq(screen(), drawn)
   end)
 end)
