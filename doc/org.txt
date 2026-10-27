@@ -886,7 +886,10 @@ org-inlinetask-show-first-star). With odd levels only (`#+STARTUP: odd`,
 stars, as in Emacs: 29 for 15, and 15 stars is then a level 8 headline. In
 the agenda, a timestamp in the text after an END line (up to the next
 headline) shows as an entry titled "END", with the inline task's tags, as
-in Emacs.
+in Emacs. Subtree commands on an inline task act on the entry around it,
+as in Emacs: a new heading gets that entry's level, a pasted subtree goes
+before the next real headline, and promoting, demoting, cutting or copying
+the subtree takes the entry's subtree.
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.

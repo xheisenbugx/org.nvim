@@ -17,6 +17,8 @@ local M = require("org.structure")
 local buf = shared.buf
 local cursor = shared.cursor
 local current_headline = shared.current_headline
+local current_outline_headline = shared.current_outline_headline
+local outline_headline_at = shared.outline_headline_at
 local get_lines = shared.get_lines
 local insert_lines = shared.insert_lines
 local is_blank = shared.is_blank
@@ -35,7 +37,7 @@ local function line_visible(lnum)
 end
 
 local function subtree_lines()
-  local hl = current_headline()
+  local hl = current_outline_headline()
   if not hl then
     utils.warn("Not in a subtree")
     return nil
@@ -105,7 +107,7 @@ end
 local function is_subtree(lines)
   local start
   for _, l in ipairs(lines or {}) do
-    local lv = parser.headline_level(l)
+    local lv = parser.outline_level(l)
     if not start then
       if lv then
         start = lv
@@ -155,19 +157,19 @@ function M.paste_subtree(opts)
   local line = get_lines(bufnr, lnum, lnum)[1] or ""
   local old_level
   for _, l in ipairs(lines) do
-    old_level = parser.headline_level(l)
+    old_level = parser.outline_level(l)
     if old_level then
       break
     end
   end
-  local cur_level = parser.headline_level(line)
+  local cur_level = parser.outline_level(line)
   local level_indicator
   local force
   if (not numeric) and line:match("^%*+[ \t]*$") and pos[2] >= #line:match("^%*+") then
     level_indicator = #line:match("^%*+")
     force = level_indicator
   elseif arg == 4 then
-    local hl = file:headline_at(lnum)
+    local hl = outline_headline_at(file, lnum)
     force = hl and hl.level or 1
   elseif arg == 16 then
     force = nil
@@ -181,7 +183,7 @@ function M.paste_subtree(opts)
     if not cur_level then
       l = lnum - 1
       while l >= 1 do
-        local lv = parser.headline_level(get_lines(bufnr, l, l)[1])
+        local lv = parser.outline_level(get_lines(bufnr, l, l)[1])
         if lv and line_visible(l) then
           return lv
         end
@@ -194,14 +196,14 @@ function M.paste_subtree(opts)
   local function next_visible_line(from)
     local total = vim.api.nvim_buf_line_count(bufnr)
     for l = from + 1, total do
-      if parser.headline_level(get_lines(bufnr, l, l)[1]) and line_visible(l) then
+      if parser.outline_level(get_lines(bufnr, l, l)[1]) and line_visible(l) then
         return l
       end
     end
   end
   local prev_level = prev_visible_level()
   local nl = next_visible_line(lnum)
-  local next_level = nl and parser.headline_level(get_lines(bufnr, nl, nl)[1]) or 1
+  local next_level = nl and parser.outline_level(get_lines(bufnr, nl, nl)[1]) or 1
   local new_level = force or math.max(arg == 16 and prev_level + 1 or 0, prev_level, next_level)
   -- remove the level indicator line
   if level_indicator then
@@ -215,7 +217,7 @@ function M.paste_subtree(opts)
   else
     local from = lnum
     if arg == 4 then
-      local hl = files.get_buffer(bufnr):headline_at(math.max(lnum, 1))
+      local hl = outline_headline_at(files.get_buffer(bufnr), math.max(lnum, 1))
       if hl then
         from = hl.end_line
       end
