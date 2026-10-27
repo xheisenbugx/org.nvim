@@ -277,6 +277,9 @@ describe("parser highlighter: keywords, drawers and comments", function()
           get_lines = function()
             return {}
           end,
+          star_above = function()
+            return false
+          end,
           top = 0,
           bottom = #lines,
           lines = lines,

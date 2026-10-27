@@ -7254,21 +7254,22 @@ long line full of markers can't run out of 'maxmempattern' (E363) and
 turn highlighting off, and an emphasis or block whose end can't be found
 never runs on over the lines below.
 
-Both use the same highlight groups (`OrgBold`, `OrgVerbatim`, ... below,
-and the `org...` syntax group names linked to them, so a colorscheme that
-sets either keeps working) and follow `ui.hide_emphasis_markers`,
+Both use the same highlight groups (`OrgBold`, `OrgVerbatim`, ... below, and
+the `org...` syntax group names linked to them, so a colorscheme that sets
+either keeps working) and follow `ui.hide_emphasis_markers`,
 `ui.conceal_links`, toggle_link_display and the cursor rules of
-|org-conceal-cursor|. Differences: with "parser", nested and overlapping
-faces combine (bold inside a headline keeps the headline's color, as in
-Emacs) where "syntax" draws the innermost group only; what it draws
-isn't a syntax group, so `synID()`, `synstack()` and |:Inspect| don't
-report it (plugins that ask the syntax what is under the cursor see plain
-text there, except in src blocks; `:Org inspect` lists it), only org buffers are drawn by it (a
-buffer that just sets 'syntax' to org, like the drill window, keeps the
-regions), verbatim and code are left out of spell checking with extmarks
-instead of |:syn-spell| clusters (|org-highlighter-spell|), and `ui.highlight_latex_and_related`
-"native" draws fragments like "latex" (Vim's tex syntax isn't included in
-them). To go back to the old engine while it is kept: >lua
+|org-conceal-cursor|. Differences: with "parser", nested and overlapping faces
+combine (bold inside a headline keeps the headline's color, as in Emacs) where
+"syntax" draws the innermost group only; what it draws isn't a syntax group,
+so `synID()`, `synstack()` and |:Inspect| don't report it (plugins that ask
+the syntax what is under the cursor see plain text there, except in src
+blocks; `:Org inspect` lists it), only org buffers are drawn by it (a buffer
+that just sets 'syntax' to org, like the drill window, keeps the regions),
+verbatim and code are left out of spell checking with extmarks instead of
+|:syn-spell| clusters (|org-highlighter-spell|), and
+`ui.highlight_latex_and_related` "native" draws fragments like "latex" (Vim's
+tex syntax isn't included in them). To go back to the old engine while it is
+kept: >lua
     ui = { highlighter = "syntax" }
 <
                                                 *org-highlighter-spell*
