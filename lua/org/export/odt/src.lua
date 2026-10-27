@@ -68,11 +68,32 @@ local function hfy_quote(s)
   )
 end
 
+--- The OrgSrcBlock paragraph style, from the default face (Normal).
+local function default_src_style(info)
+  local st = state(info)
+  if st.src_styles.OrgSrcBlock == nil then
+    st.src_styles.OrgSrcBlock = info.odt_create_custom_styles_for_srcblocks == false and ""
+      or fmt(SRC_BLOCK_PARAGRAPH_FORMAT, hl_color("Normal", "bg") or "#ffffff", hl_color("Normal", "fg") or "#000000")
+    table.insert(st.src_style_order, 1, "OrgSrcBlock")
+  end
+end
+
 --- Colorize `code` with tree-sitter (Emacs uses htmlfontify): one string
 --- per line, or nil when the language has no parser/highlights query.
 local function fontify_lines(code, lang, info)
-  if not lang or not info.odt_fontify_srcblocks then
+  if not info.odt_fontify_srcblocks then
     return nil
+  end
+  if not lang then
+    -- an example block or fixed-width area: org-odt-do-format-code runs
+    -- htmlfontify with `ignore` as the mode, which only quotes the text
+    -- (spaces as <text:s/>) in OrgSrcBlock paragraphs
+    default_src_style(info)
+    local out = {}
+    for i, l in ipairs(vim.split(code, "\n", { plain = true })) do
+      out[i] = hfy_quote(l)
+    end
+    return out
   end
   local ft = vim.filetype.match({ filename = "x." .. lang }) or lang
   local tslang = vim.treesitter.language.get_lang(ft) or lang
@@ -129,12 +150,7 @@ local function fontify_lines(code, lang, info)
     out[i] = table.concat(parts)
   end
   -- the default face gives the OrgSrcBlock paragraph style
-  local st = state(info)
-  if st.src_styles.OrgSrcBlock == nil then
-    st.src_styles.OrgSrcBlock = info.odt_create_custom_styles_for_srcblocks == false and ""
-      or fmt(SRC_BLOCK_PARAGRAPH_FORMAT, hl_color("Normal", "bg") or "#ffffff", hl_color("Normal", "fg") or "#000000")
-    table.insert(st.src_style_order, 1, "OrgSrcBlock")
-  end
+  default_src_style(info)
   return out
 end
 

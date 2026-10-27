@@ -269,6 +269,56 @@ describe("export odt", function()
       )
     end)
 
+    it("formats example blocks and fixed-width areas as source code when fontifying (Org 9.8.10)", function()
+      -- org-odt-do-format-code runs htmlfontify (mode `ignore`) on code
+      -- without a language: OrgSrcBlock paragraphs, every space a
+      -- <text:s/>. A language Emacs has no mode for stays fixed-width.
+      config.opts.export.odt.fontify_srcblocks = true
+      local _, get = export({
+        "#+begin_example",
+        "example  line <a>",
+        "\tindented & tab",
+        "#+end_example",
+        "",
+        ": fixed  width",
+        ":   lines",
+        "",
+        "#+begin_src unknownlang",
+        "ab  c",
+        "#+end_src",
+      })
+      has(
+        get("content.xml"),
+        table.concat({
+          '<text:p text:style-name="OrgSrcBlock">example<text:s/><text:s/>line<text:s/>&lt;a&gt;</text:p>',
+          "",
+          '<text:p text:style-name="OrgSrcBlockLastLine"><text:tab/>indented<text:s/>&amp;<text:s/>tab</text:p>',
+          "",
+          "",
+          '<text:p text:style-name="OrgSrcBlock">fixed<text:s/><text:s/>width</text:p>',
+          "",
+          '<text:p text:style-name="OrgSrcBlockLastLine"><text:s/><text:s/>lines</text:p>',
+          "",
+          "",
+          '<text:p text:style-name="OrgFixedWidthBlockLastLine">ab <text:s text:c="1"/>c</text:p>',
+        }, "\n")
+      )
+      has(
+        get("styles.xml"),
+        '<style:style style:name="OrgSrcBlock" style:family="paragraph" style:parent-style-name="Preformatted_20_Text">'
+      )
+    end)
+
+    it("keeps the indentation of every verse line (intentional difference)", function()
+      -- Emacs encodes only the first line's leading blanks (:h org-differences)
+      local _, get = export({ "#+begin_verse", "  Great clouds", "     Tiny birds", "Snow", "#+end_verse" })
+      has(
+        get("content.xml"),
+        '<text:p text:style-name="OrgVerse"> <text:s text:c="1"/>Great clouds<text:line-break/>'
+          .. ' <text:s text:c="4"/>Tiny birds<text:line-break/>Snow<text:line-break/></text:p>'
+      )
+    end)
+
     it("renders LaTeX to pictures with a preview process (tex:dvipng...)", function()
       local ui = config.opts.ui.latex_preview
       local saved_processes = ui.processes

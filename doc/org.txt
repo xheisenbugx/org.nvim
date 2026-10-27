@@ -9411,7 +9411,10 @@ Differences from Emacs:
   isn't searched for: a page number becomes `#page=5`, another option the
   anchor (Emacs searches the PDF's raw bytes as text, which aborts the
   export or gives `#MissingReference`). Other files are searched as in
-  Emacs.
+  Emacs. In ODT, the leading blanks of every line of a verse block become
+  `<text:s/>` / `<text:tab/>`, so the indentation shows (Emacs joins the
+  lines before encoding them and so encodes only the first line's: the
+  others' spaces collapse into one in the document).
 - Links (|org-links|):
   - `elisp:(sexp)` links are evaluated in a separate `emacs --batch`
     (`babel.emacs_lisp`), not in the editor, after `links.confirm_elisp`
