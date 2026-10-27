@@ -290,6 +290,8 @@ end
 --- The last parse of each buffer seen (its #+TODO keywords and other
 --- settings, which drawing needs without parsing on every redraw).
 local parses = {} ---@type table<integer, org.File>
+-- (for the specs)
+M._parses = parses
 
 --- The parse the marks of `bufnr` are drawn with: that of its current text
 --- when one is cached, else the last one seen (nil before the first).
@@ -535,7 +537,8 @@ function M.add_marks(bufnr, first, last, ui, rows)
   end
 end
 
---- Forget what is kept for `bufnr` (it was wiped out).
+--- Forget what is kept for `bufnr` (it was wiped out, or is no longer
+--- drawn as Org).
 function M.detach(bufnr)
   parses[bufnr] = nil
   memos[bufnr] = nil

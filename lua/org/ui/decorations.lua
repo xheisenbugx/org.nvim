@@ -907,6 +907,21 @@ local function on_bytes(_, bufnr, tick, start_row, _, _, old_rows, _, _, new_row
   end
 end
 
+-- (a reload replaces every line without on_bytes: nothing is kept over it)
+local function on_reload(_, bufnr)
+  local e = edits[bufnr]
+  if e then
+    e.rows = false
+  end
+end
+
+-- (`:edit!` and unloading the buffer stop the listener: `attach` starts it
+-- again when the buffer is set up anew)
+local function on_detach(_, bufnr)
+  tracked[bufnr] = nil
+  edits[bufnr] = nil
+end
+
 --- The buffer variables the decorations follow (org.ui.highlight `add_marks`).
 local function bvars(bufnr)
   local b = vim.b[bufnr]
@@ -1098,10 +1113,7 @@ end
 --- Neovim reads for the words it looks at. (Drawing reads them from
 --- on_line; without this, `]s` would stop on the words the screen doesn't
 --- mark, in verbatim, links, tags, ... with ui.highlighter = "parser".)
-local function on_spell_nav(_, _, bufnr, srow, _, erow)
-  if not attached[bufnr] then
-    return
-  end
+local function spell_nav(bufnr, srow, erow)
   local last = vim.api.nvim_buf_line_count(bufnr) - 1
   erow = math.min(math.max(erow or srow, srow), last)
   if srow > erow then
@@ -1124,19 +1136,56 @@ local function on_spell_nav(_, _, bufnr, srow, _, erow)
   end
 end
 
+--- The rows of `bufnr` window `win` draws, [toprow, botrow], computed and
+--- made `current` for on_line; whether there is anything to draw.
+local function draw_win(win, bufnr, toprow, botrow)
+  botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
+  local ranges = (vim.wo[win].foldenable and botrow - toprow > 0) and drawn_ranges(win, toprow, botrow)
+    or { { toprow, botrow } }
+  for _, r in ipairs(ranges) do
+    current = rows_for(bufnr, r[1], r[2])
+    sync_inline(bufnr, current, r[1], r[2])
+  end
+  return current ~= nil and next(current) ~= nil
+end
+
+-- An error raised in a decoration provider is reported by Neovim on every
+-- redraw, at every keystroke: the callbacks catch it, draw nothing for that
+-- window and report each error once.
+local reported = {} ---@type table<string, boolean>
+local function failed(err)
+  err = tostring(err)
+  if reported[err] then
+    return
+  end
+  reported[err] = true
+  vim.schedule(function()
+    require("org.utils").notify("org.nvim: drawing the buffer failed: " .. err, vim.log.levels.ERROR)
+  end)
+end
+
+local function on_spell_nav(_, _, bufnr, srow, _, erow)
+  if not attached[bufnr] then
+    return
+  end
+  local ok, err = pcall(spell_nav, bufnr, srow, erow)
+  if not ok then
+    failed(err)
+  end
+end
+
 local provider = {
   on_win = function(_, win, bufnr, toprow, botrow)
     if not attached[bufnr] then
       return false
     end
-    botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
-    local ranges = (vim.wo[win].foldenable and botrow - toprow > 0) and drawn_ranges(win, toprow, botrow)
-      or { { toprow, botrow } }
-    for _, r in ipairs(ranges) do
-      current = rows_for(bufnr, r[1], r[2])
-      sync_inline(bufnr, current, r[1], r[2])
+    local ok, res = pcall(draw_win, win, bufnr, toprow, botrow)
+    if not ok then
+      current = nil
+      failed(res)
+      return false
     end
-    return current ~= nil and next(current) ~= nil
+    return res
   end,
   on_line = function(_, _, bufnr, row)
     local marks = current and current[row]
@@ -1234,7 +1283,12 @@ end
 --- Stop drawing the decorations of `bufnr` (its filetype changed).
 function M.detach(bufnr)
   attached[bufnr] = nil
+  -- (the BufWipeout autocmd that forgets the rest goes with the group)
   pcall(vim.api.nvim_del_augroup_by_name, "org.decorations." .. bufnr)
+  local hl = package.loaded["org.ui.highlight"]
+  if hl then
+    hl.detach(bufnr)
+  end
   M.render(bufnr)
 end
 
@@ -1266,7 +1320,11 @@ function M.attach(bufnr, force)
   local first = not attached[bufnr]
   attached[bufnr] = true
   if not tracked[bufnr] then
-    tracked[bufnr] = vim.api.nvim_buf_attach(bufnr, false, { on_bytes = on_bytes }) or nil
+    tracked[bufnr] = vim.api.nvim_buf_attach(bufnr, false, {
+      on_bytes = on_bytes,
+      on_reload = on_reload,
+      on_detach = on_detach,
+    }) or nil
   end
   local group = vim.api.nvim_create_augroup("org.decorations." .. bufnr, { clear = true })
   vim.api.nvim_create_autocmd("BufWinEnter", {
