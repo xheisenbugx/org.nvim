@@ -9884,7 +9884,8 @@ Commands ~
 All of them are also actions, for `mappings`. Results open in the agenda
 buffer, so the agenda keys work on them. Saved views are kept in
 `views_file` and listed with the configured ones (which win on a name
-clash). The same view can be an agenda custom command:
+clash). A `views_file` that can't be read as JSON is left alone: saving
+a view then fails with an error instead of writing over it. The same view can be an agenda custom command:
 >lua
     agenda = { custom_commands = {
       q = { type = "org-ql", query = "(and (todo) (scheduled :to today))",
