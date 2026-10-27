@@ -12766,7 +12766,9 @@ not after `:noautocmd wq`.
 Commands that copy a subtree elsewhere copy its keywords, not the text
 inserted under them: refile (and refile a copy), archive, cut and copy
 subtree, clone, roam's extract, and the `:w` of an edit buffer (an Org
-source's own inserted transclusions show in it too).
+source's own inserted transclusions show in it too). Undo after
+`transclusion_detach` brings the keyword back with its text inserted
+again, not with a copy of it as well.
 
 Transclusions are drawn when an org buffer is shown, redrawn when the
 buffer or a source buffer changes (`live`) or a source is written, and,
