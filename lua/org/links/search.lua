@@ -28,8 +28,30 @@ local upper_words = shared.upper_words
 function M.emacs_regexp_to_vim(re)
   local out = {}
   local i, n = 1, #re
-  local function emit(s)
+  -- what the last emitted piece was: nil at the start of the regexp or a
+  -- group and after `\|` (where `*`, `+` and `?` are literal), else "atom",
+  -- "multi" (`* + ?`) or "interval"; `atom` is where the last atom starts
+  local prev, atom = nil, nil ---@type string|nil, integer|nil
+  local groups = {}
+  local function emit(s, kind)
+    kind = kind or "atom"
+    if kind == "atom" then
+      atom = #out + 1
+    elseif kind == "open" then
+      groups[#groups + 1] = #out + 1
+    elseif kind == "close" then
+      atom = table.remove(groups) or 1
+    elseif (kind == "multi" or kind == "interval") and (prev == "multi" or prev == "interval") and atom then
+      -- a repeat of a repeat (`a\{2\}*`): Vim needs the repeated atom in a group
+      out[atom] = "\\%(" .. out[atom]
+      out[#out] = out[#out] .. "\\)"
+    end
     out[#out + 1] = s
+    if kind == "open" or kind == "alt" then
+      prev = nil
+    else
+      prev = kind == "close" and "atom" or kind
+    end
   end
   while i <= n do
     local c = re:sub(i, i)
@@ -72,17 +94,21 @@ function M.emacs_regexp_to_vim(re)
       i = i + 2
       if d == "(" then
         if re:sub(i, i + 1) == "?:" then
-          emit("\\%(")
+          emit("\\%(", "open")
           i = i + 2
         else
-          emit("\\(")
+          emit("\\(", "open")
         end
-      elseif d == ")" or d == "|" or d == "<" or d == ">" or d == "w" or d == "W" or d:match("%d") then
+      elseif d == ")" then
+        emit("\\)", "close")
+      elseif d == "|" then
+        emit("\\|", "alt")
+      elseif d == "<" or d == ">" or d == "w" or d == "W" or d:match("%d") then
         emit("\\" .. d)
       elseif d == "{" then
         local e = re:find("\\}", i, true)
         if e then
-          emit("\\{" .. re:sub(i, e - 1) .. "}")
+          emit("\\{" .. re:sub(i, e - 1) .. "}", "interval")
           i = e + 2
         else
           emit("{")
@@ -114,19 +140,38 @@ function M.emacs_regexp_to_vim(re)
       else
         emit(d)
       end
+    elseif (c == "+" or c == "*" or c == "?") and not prev then
+      -- nothing to repeat: a literal character
+      emit(c == "*" and "\\*" or c)
+      i = i + 1
     elseif c == "+" or c == "*" or c == "?" then
-      if re:sub(i + 1, i + 1) == "?" then
-        emit(c == "*" and "\\{-}" or c == "+" and "\\{-1,}" or "\\{-,1}")
-        i = i + 2
-      else
-        emit(c == "+" and "\\+" or c == "?" and "\\=" or "*")
+      -- a run of repetition characters collapses into one (regex-emacs.c):
+      -- `a**` is `a*`, `a+*` is `a*`, and a `?` after the first makes it
+      -- non-greedy
+      local zero, many, greedy = c ~= "+", c ~= "?", true
+      i = i + 1
+      while i <= n and re:sub(i, i):match("[*+?]") do
+        local d = re:sub(i, i)
+        if d == "?" then
+          greedy = false
+        else
+          zero, many = zero or d ~= "+", many or d ~= "?"
+        end
         i = i + 1
+      end
+      if zero and many then
+        emit(greedy and "*" or "\\{-}", "multi")
+      elseif many then
+        emit(greedy and "\\+" or "\\{-1,}", "multi")
+      else
+        emit(greedy and "\\=" or "\\{-,1}", "multi")
       end
     elseif c == "~" then
       emit("\\~")
       i = i + 1
     else
-      emit(c)
+      -- `^` at the start of the regexp or a group is an anchor
+      emit(c, c == "^" and not prev and "alt" or "atom")
       i = i + 1
     end
   end
@@ -183,13 +228,76 @@ local function buffer_text(bufnr, first, last)
   return lines_text(vim.api.nvim_buf_get_lines(bufnr, first - 1, last or -1, false), first)
 end
 
+local fold_cache = {}
+
+--- `s` in lower case, non-ASCII letters included (case-fold-search),
+--- with its length kept, so that byte offsets into the result are offsets
+--- into `s` (a letter whose lower case has another length stays as it is).
+---@param s string
+---@return string
+local function fold(s)
+  local low = s:lower()
+  if not s:find("[\128-\255]") then
+    return low
+  end
+  return (
+    low:gsub("[\192-\247][\128-\191]*", function(ch)
+      local l = fold_cache[ch]
+      if not l then
+        l = vim.fn.tolower(ch)
+        if #l ~= #ch then
+          l = ch
+        end
+        fold_cache[ch] = l
+      end
+      return l
+    end)
+  )
+end
+
 local function words_pattern(words, sep)
   return table.concat(
     vim.tbl_map(function(w)
-      return vim.pesc(w:lower())
+      return vim.pesc(fold(w))
     end, words),
     sep
   )
+end
+
+--- Does the `#+NAME:` keyword on `lines[i]` name an element (org-element
+--- gives it a :name)? A keyword followed by a blank line, a headline or
+--- the end of the text is a keyword of its own.
+local function names_element(lines, i)
+  local element = require("org.element")
+  local parser = require("org.parser")
+  local j = i + 1
+  while lines[j] and element.is_affiliated(lines[j]) do
+    j = j + 1
+  end
+  local l = lines[j]
+  return l ~= nil and not utils.is_blank(l) and not parser.headline_level(l)
+end
+
+--- Is the `<<target>>` at byte `col1` of `lines[i]` a target object
+--- (org-element-context)? Not in src, example, export or comment blocks,
+--- comments, fixed-width lines, node properties, most keywords, verbatim
+--- or code, or a bracket link. `ignored` caches the skipped lines.
+local function real_target(lines, i, col1, ignored)
+  if ignored[i] then
+    return false
+  end
+  local line = lines[i]
+  -- of the keywords, only CAPTION holds objects
+  local key = line:match("^%s*#%+([^%s:]+):")
+  if key and not key:upper():match("^CAPTION") then
+    return false
+  end
+  for _, sp in ipairs(require("org.parser").verbatim_spans(line)) do
+    if col1 >= sp[1] and col1 <= sp[2] then
+      return false
+    end
+  end
+  return not M.in_bracket_link(line, col1)
 end
 
 --- Insert a heading named `text` at the end of the buffer (level 1) or
@@ -293,18 +401,18 @@ function M.search_location(search, src, sopts)
     end
   end
   local text, pos, offset, lines = lines_text(vim.list_slice(src.lines, first, last), first)
-  local lower = text:lower()
+  local lower = fold(text)
 
   if normalized:sub(1, 1) == "#" then
-    local id = normalized:sub(2):lower()
+    local id = utils.lower(normalized:sub(2))
     -- the file-level property drawer (org-find-property: point-min)
     local fcid = file and first == 1 and file.properties and file.properties.CUSTOM_ID
-    if fcid and fcid:lower() == id then
+    if fcid and utils.lower(fcid) == id then
       return 1, 0
     end
     for _, hl in ipairs(headlines) do
       local cid = hl.properties.CUSTOM_ID
-      if cid and cid:lower() == id then
+      if cid and utils.lower(cid) == id then
         return hl.line, 0
       end
     end
@@ -328,16 +436,19 @@ function M.search_location(search, src, sopts)
     -- dedicated target <<words>>
     local pat = "<<" .. words_pattern(words, "[ \t\n]+") .. ">>"
     local init = 1
+    local ignored
     while true do
       local s, e = lower:find(pat, init)
       if not s then
         break
       end
-      if text:sub(s - 1, s - 1) ~= "<" and text:sub(e + 1, e + 1) ~= ">" then
-        -- a real target, not text in a link (org-link-search checks
-        -- that `org-element-context` is a target)
+      -- a target object (org-link-search checks that `org-element-context`
+      -- is a target): on one line, not a radio target, not in a block,
+      -- verbatim text or a link
+      if text:sub(s - 1, s - 1) ~= "<" and text:sub(e + 1, e + 1) ~= ">" and not text:sub(s, e):find("\n", 1, true) then
         local l, c = pos(s)
-        if not M.in_bracket_link(lines[l - first + 1], c + 1) then
+        ignored = ignored or M.ignored_lines(lines)
+        if real_target(lines, l - first + 1, c + 1, ignored) then
           return l, c
         end
       end
@@ -347,15 +458,21 @@ function M.search_location(search, src, sopts)
     local want = upper_words(table.concat(words, " "))
     for i, l in ipairs(lines) do
       local name = l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+(.-)[ \t]*$")
-      if name and vim.deep_equal(upper_words(name), want) then
+      if name and vim.deep_equal(upper_words(name), want) and names_element(lines, i) then
         return first + i - 1, 0
       end
     end
   end
   if file then
-    local want = vim.tbl_map(string.upper, words)
+    local want = vim.tbl_map(utils.upper, words)
     for _, hl in ipairs(headlines) do
-      if vim.deep_equal(upper_words(M.normalize_string(hl.title)), want) then
+      local title = hl.title
+      if hl.commented and vim.trim(title) == "" then
+        -- `* COMMENT` alone: org-get-heading keeps the word (it only
+        -- removes "COMMENT " with a space after it)
+        title = "COMMENT"
+      end
+      if vim.deep_equal(upper_words(M.normalize_string(title)), want) then
         return hl.line, 0
       end
     end
@@ -506,7 +623,7 @@ end
 function M.search_radio_target(target)
   local text, pos = buffer_text(0)
   local pat = "<<<" .. words_pattern(split_words(target), "[ \t]+\n?[ \t]*") .. ">>>"
-  local lower = text:lower()
+  local lower = fold(text)
   local init = 1
   while true do
     local s = lower:find(pat, init)

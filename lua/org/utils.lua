@@ -342,6 +342,21 @@ function M.is_blank(l)
   return l == nil or l:match("^%s*$") ~= nil
 end
 
+--- `s` in upper case, non-ASCII letters included (`string.upper` only
+--- knows ASCII; Emacs's `upcase` and case-fold-search know Unicode).
+---@param s string
+---@return string
+function M.upper(s)
+  return s:find("[\128-\255]") and vim.fn.toupper(s) or s:upper()
+end
+
+--- `s` in lower case, non-ASCII letters included (see `upper`).
+---@param s string
+---@return string
+function M.lower(s)
+  return s:find("[\128-\255]") and vim.fn.tolower(s) or s:lower()
+end
+
 --- `s` without one pair of surrounding double quotes (`"a b"` gives
 --- `a b`); `s` itself when it isn't quoted that way.
 ---@param s string

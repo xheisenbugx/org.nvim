@@ -105,7 +105,7 @@ local function split_words(s)
 end
 
 local function upper_words(s)
-  return vim.tbl_map(string.upper, split_words(s))
+  return vim.tbl_map(utils.upper, split_words(s))
 end
 
 ---------------------------------------------------------------------------
