@@ -367,6 +367,15 @@ function M.cycle()
         end
       end
       M.unconceal(0, hl.line + 1, hl.end_line)
+      -- the inline tasks of its text folded (org-inlinetask-hide-tasks
+      -- 'children, from org-cycle-hook)
+      if hl.body_end > hl.line and parser.inlinetask_min_level() then
+        for _, r in ipairs(regions(curbuf(), hl.line + 1, hl.body_end)) do
+          if r.kind == "inlinetask" and r.start > hl.line and r.start <= hl.body_end then
+            close_at(r.start)
+          end
+        end
+      end
       open_items(hl.line + 1, hl.body_end)
       -- "integrate": every list shows its top-level items, folded
       for _, list in ipairs(body_lists) do
