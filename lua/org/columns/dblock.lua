@@ -78,7 +78,8 @@ local function capture(rows, cols, params)
   end
   local out = { titles, "hline" }
   for _, r in ipairs(rows) do
-    local row = { level = r.hl.level, hl = r.hl, rel_level = r.rel_level }
+    -- (org-reduced-level: odd levels count as 1, 2, 3...)
+    local row = { level = r.hl:reduced_level(), hl = r.hl, rel_level = r.rel_level }
     local distinct = {}
     for i, c in ipairs(cols) do
       row[i] = c.prop:upper() == "ITEM" and r.cells[i] or r.display[i]

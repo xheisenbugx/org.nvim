@@ -365,7 +365,7 @@ function M.compute(roots, cols, opts)
   local summaries = M.summaries(roots, cols, opts.update)
   local rows = {}
   local function walk(hl, base)
-    if opts.maxlevel and hl.level > opts.maxlevel then
+    if opts.maxlevel and hl:reduced_level() > opts.maxlevel then
       return
     end
     local cells, display = {}, {}
