@@ -1,0 +1,15 @@
+screen 60x12
+|{1:#+begin_quote}|
+|{2:A }{3:*}{4:quote}{3:*}{2: with }{5:=}{6:code}{5:=}{2:.}|
+|{1:#+end_quote}|
+|{1:#+begin_verse}|
+|{7:  A verse}|
+|{1:#+end_verse}|
+
+{1} OrgBlockDelimiter -> Comment
+{2} OrgQuoteBlock -> Normal
+{3} OrgQuoteBlock -> Normal | orgBoldDelimiter -> OrgBold [bold]
+{4} OrgQuoteBlock -> Normal | OrgBold [bold]
+{5} OrgQuoteBlock -> Normal | orgVerbatimDelimiter -> OrgVerbatim -> String
+{6} OrgQuoteBlock -> Normal | OrgVerbatim -> String
+{7} OrgVerseBlock -> OrgQuoteBlock -> Normal

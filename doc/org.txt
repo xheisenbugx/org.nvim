@@ -6854,6 +6854,10 @@ Options under `ui`:
   fontify_done_headline  dim DONE headlines
   fontify_todo_headline  highlight the text of TODO headlines with
                          OrgHeadlineTodo (org-fontify-todo-headline)
+  fontify_quote_and_verse_blocks  the bodies of quote and verse blocks
+                         on OrgQuoteBlock / OrgVerseBlock, under their
+                         Org text (org-fontify-quote-and-verse-blocks);
+                         false by default like Emacs: Org text only
   level_color_stars_only the level color on the stars only
                          (org-level-color-stars-only)
   hidden_keywords        keywords shown without their "#+KEYWORD:" part:
@@ -7242,10 +7246,10 @@ Two highlighters can draw org buffers, chosen with `ui.highlighter`:
 "parser" ports Emacs's own fontification (org-set-font-lock-defaults:
 org-fontify-meta-lines-and-blocks, org-do-emphasis-faces,
 org-activate-links, ...) instead of approximating it with regions. On the
-example files and the fixtures of hard cases (26,264 lines), it draws
-the faces Emacs Org 9.8.12 draws on every byte of all but 83 lines, most
+example files and the fixtures of hard cases (26,379 lines), it draws
+the faces Emacs Org 9.8.12 draws on every byte of all but 20 lines, most
 of them known differences (tests/spec/emacs_faces_*_spec.lua, against
-tests/fixtures/emacs/faces/); "syntax" differs from Emacs on 4,373 lines
+tests/fixtures/emacs/faces/); "syntax" differs from Emacs on 4,324 lines
 of the same files. Every marker that can open emphasis is tried on its
 own, so markup may overlap the way it does in Emacs (`*a /b* c/` is bold
 and italic), markup in link descriptions, macros, property values and
@@ -7309,7 +7313,11 @@ checked and whether it hides the text, then the syntax groups, tree-sitter
 captures and extmarks |:Inspect| lists.
 
 Quote and verse block contents are highlighted as ordinary Org (lists,
-tables, timestamps, markup) on top of OrgQuoteBlock; center, special
+tables, timestamps, markup), on top of OrgQuoteBlock (quote) and
+OrgVerseBlock (verse, linked to OrgQuoteBlock) only with
+`ui.fontify_quote_and_verse_blocks` (off by default, as Emacs's
+org-fontify-quote-and-verse-blocks; the deprecated "syntax" highlighter
+draws both on OrgQuoteBlock); center, special
 (`#+begin_note`...) and dynamic (`#+BEGIN:`) blocks highlight only their
 delimiter lines. Every block ends at the next headline, whether or not it
 has its `#+end` line. `#+begin_export LANG` blocks get LANG's syntax, as
@@ -7349,7 +7357,8 @@ Both highlighters draw with the `org...` group names (`orgHeadlineLevel1`,
     `OrgTags`, `OrgTimestamp`, `OrgTimestampInactive`, `OrgPlanning`,
     `OrgClockDuration`, `OrgClockSum`, `OrgDrawer`, `OrgPropertyKey`,
     `OrgPropertyValue`, `OrgKeyword`, `OrgKeywordValue`, `OrgTitle`,
-    `OrgComment`, `OrgBlock`, `OrgQuoteBlock`, `OrgBlockDelimiter`,
+    `OrgComment`, `OrgBlock`, `OrgQuoteBlock`, `OrgVerseBlock`,
+    `OrgBlockDelimiter`,
     `OrgBold`, `OrgItalic`, `OrgUnderline`, `OrgStrikethrough`,
     `OrgVerbatim`, `OrgCode`, `OrgLink`, `OrgListBullet`, `OrgListTerm`,
     `OrgCheckbox`, `OrgCheckboxChecked`, `OrgCheckboxPartial`,

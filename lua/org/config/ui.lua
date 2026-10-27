@@ -116,6 +116,9 @@ local defaults = {
     --- Highlight the text of TODO headlines with OrgHeadlineTodo
     --- (org-fontify-todo-headline).
     fontify_todo_headline = false,
+    --- Highlight the bodies of quote and verse blocks with OrgQuoteBlock /
+    --- OrgVerseBlock under their Org text (org-fontify-quote-and-verse-blocks).
+    fontify_quote_and_verse_blocks = false,
     --- The headline level color on the stars only (org-level-color-stars-only).
     level_color_stars_only = false,
     --- Keywords shown without their "#+KEYWORD:" part: any of "title",

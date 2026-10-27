@@ -774,6 +774,8 @@ local function inline_src(s)
   end
 end
 
+M.inline_src = inline_src
+
 --- Whether `line` is a table row, for a marker on the line after it.
 local function table_row(line)
   return line:find("^[ \t]*|") ~= nil

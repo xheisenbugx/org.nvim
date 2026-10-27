@@ -332,10 +332,14 @@ function M.nvim_lines(faces, family)
   return out
 end
 
---- The fixture files: name -> path of the input.
-function M.fixtures()
+--- The fixture files: name -> path of the input. `set`: the directory of
+--- expected files under tests/fixtures/emacs/faces/ ("expected", the
+--- default; "expected-quote": recorded with
+--- org-fontify-quote-and-verse-blocks, FACES_QUOTE=1 in faces.el).
+---@param set? string
+function M.fixtures(set)
   local out = {}
-  for _, f in ipairs(vim.fn.globpath(P.dir .. "/faces/expected", "*.txt", false, true)) do
+  for _, f in ipairs(vim.fn.globpath(P.dir .. "/faces/" .. (set or "expected"), "*.txt", false, true)) do
     local name = vim.fn.fnamemodify(f, ":t"):gsub("%.txt$", "")
     out[#out + 1] = { expected = f, name = name }
   end
@@ -364,7 +368,8 @@ local cache = {} ---@type table<string, table>
 function M.differences(fx, family, known)
   local expected = {}
   local lines = vim.fn.readfile(input_of(fx.name))
-  local key = fx.name .. ":" .. tostring(require("org.config").opts.ui.highlighter)
+  local ui = require("org.config").opts.ui
+  local key = fx.name .. ":" .. tostring(ui.highlighter) .. ":" .. tostring(ui.fontify_quote_and_verse_blocks)
   local faces = cache[key]
   if not faces then
     local buf = org_buffer(lines, { 1, 0 })
@@ -403,9 +408,10 @@ function M.differences(fx, family, known)
 end
 
 --- One test per fixture file for `family`. `KNOWN`: fixture name ->
---- { [line] = reason }.
-function M.spec(family, KNOWN)
-  for _, fx in ipairs(M.fixtures()) do
+--- { [line] = reason }. `set`: the expected files (`M.fixtures`).
+---@param set? string
+function M.spec(family, KNOWN, set)
+  for _, fx in ipairs(M.fixtures(set)) do
     it(fx.name, function()
       local diffs = M.differences(fx, family, (KNOWN or {})[fx.name])
       eq(

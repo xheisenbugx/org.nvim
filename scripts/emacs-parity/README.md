@@ -24,6 +24,7 @@ bundles an older Org, so you usually need `ORG_DIR`.
 | export | `export.el` | `examples/*.org` listed in `export/cases.txt`, with their backends | `export/<name>.{txt,html,tex,md}`: body-only, Babel off |
 | clocktable | `clocktable.el` | `clocktable/{a,b,c}.org`, `clocktable/tables.org` | `clocktable/tables.expected.org`: every block updated |
 | lint | `lint.el` | `examples/*.org`, `lint/*.org` | `lint/expected.txt`: `line:col [checker] message` |
+| faces | `faces.el` | `examples/*.org`, `fontify/*.org`, `faces/*.org` (or the files in `FACES_FILES`) | `faces/expected/<path>.txt`: per line, the faces and hidden text of each byte; with `FACES_QUOTE=1`, `org-fontify-quote-and-verse-blocks` is t and the inputs with a quote or verse block go to `faces/expected-quote/` (run it after the plain one) |
 | chars | `chars.el` | Org's syntax table, char-script-table, the char categories | `lua/org/ui/chars_data.lua`: the non-ASCII characters' syntax classes and word boundaries, for the parser highlighter (`org.ui.chars`) |
 
 Each output file is split into `=== <case>` sections (or files), and each

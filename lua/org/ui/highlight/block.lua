@@ -13,8 +13,10 @@
 --- are left alone and the body gets orgSrcBlock, a group without
 --- attributes (one can be given to it); otherwise it is orgBlock. None of
 --- it is spell checked but what an included syntax checks (its comments). Quote and verse bodies
---- are Org text on orgQuoteBlock (`:h org-highlights`; Emacs only with
---- org-fontify-quote-and-verse-blocks). Comment, center and special
+--- are Org text, on orgQuoteBlock / orgVerseBlock with
+--- `ui.fontify_quote_and_verse_blocks` (org-fontify-quote-and-verse-blocks:
+--- every byte of the body, under the faces of its text, even the lines
+--- of a block or a keyword in it, which font-lock skips). Comment, center and special
 --- blocks draw only their delimiters (their body is Org text to Emacs's
 --- font-lock: it isn't a protecting block), and dynamic blocks nothing
 --- here: `#+BEGIN:` and `#+END:` are keyword lines (org-meta-line, the
@@ -149,7 +151,13 @@ local function paint_blocks(ctx)
   -- (no attributes: org-block under the faces of the language)
   local native = { hl_group = "orgSrcBlock", priority = element }
   local native_nospell = { hl_group = "orgSrcBlock", priority = element, spell = false }
-  local quote = { hl_group = "orgQuoteBlock", priority = element }
+  -- (org-fontify-quote-and-verse-blocks: nil by default, like Emacs)
+  local quote_verse = ctx.ui.fontify_quote_and_verse_blocks
+      and {
+        quote = { hl_group = "orgQuoteBlock", priority = element },
+        verse = { hl_group = "orgVerseBlock", priority = element },
+      }
+    or {}
   -- (spell checked, as by Emacs's flyspell, but its links: see
   -- org.ui.highlight.object)
   local caption = { hl_group = "orgBlock", priority = element }
@@ -202,6 +210,53 @@ local function paint_blocks(ctx)
     how[block] = v
     return v
   end
+  -- The bodies of the src, example and export blocks in a quote, verse,
+  -- center or special block (in the lines), per outer block: line -> true.
+  -- Org text to font-lock, but blocks to org-element, which flyspell
+  -- doesn't check (org-mode-flyspell-verify), as the syntax engine's
+  -- orgBlock; a src block whose language is drawn is left to its syntax.
+  local inner = {} ---@type table<org.ui.emphasis.Block, table<integer, true>>
+  local function inner_of(block, i)
+    local v = inner[block]
+    if v then
+      return v
+    end
+    v = {}
+    inner[block] = v
+    local j = i
+    while j > 1 and roles[j - 1] and roles[j - 1].block == block do
+      j = j - 1
+    end
+    while j <= #lines and roles[j] and roles[j].block == block do
+      local name, begins = nil, nil
+      if roles[j].role == "body" then
+        name, begins = E.block_line(lines[j])
+      end
+      local lang = name == "src" and language(lines[j])
+      if
+        begins
+        and (name == "example" or name == "export" or name == "src")
+        and not (lang and (drawn_by(lang) or drawn_by(lang:lower())))
+      then
+        local k = j + 1
+        while k <= #lines and roles[k] and roles[k].block == block and roles[k].role == "body" do
+          local n2, b2 = E.block_line(lines[k])
+          if n2 == name and not b2 then
+            break
+          end
+          k = k + 1
+        end
+        if k <= #lines and roles[k] and roles[k].block == block and roles[k].role == "body" then
+          for x = j + 1, k - 1 do
+            v[x] = true
+          end
+          j = k
+        end
+      end
+      j = j + 1
+    end
+    return v
+  end
   -- (the rows drawn only: nothing is carried from one line to the next)
   for i = math.max(1, ctx.first - ctx.row0 + 1), math.min(#lines, ctx.last - ctx.row0 + 1) do
     local line = lines[i]
@@ -225,10 +280,22 @@ local function paint_blocks(ctx)
             emit(i, 0, n, native)
           end
         else
-          if block.name == "quote" or block.name == "verse" then
-            emit(i, 0, n, quote)
+          local q = quote_verse[block.name]
+          if q then
+            -- (but on the braces and body of an inline src block, whose
+            -- faces org-fontify-inline-src-blocks removes)
+            local cancel = find(line, "src_", 1, true) and E.inline_src(line) or {}
+            local from = 0
+            for x = 1, n + 1 do
+              if x > n or cancel[x] then
+                if x - 1 > from then
+                  emit(i, from, x - 1, q)
+                end
+                from = x
+              end
+            end
           end
-          if block.name ~= "comment" and line:find("^[ \t]*#%+%S") then
+          if block.name ~= "comment" and (line:find("^[ \t]*#%+%S") or inner_of(block, i)[i]) then
             emit(i, 0, n, meta_nospell)
           end
         end

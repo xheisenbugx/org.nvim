@@ -287,6 +287,21 @@ describe("screen snapshot", function()
     screen:expect("blocks")
   end)
 
+  -- org-fontify-quote-and-verse-blocks: the quote and verse bodies on
+  -- OrgQuoteBlock / OrgVerseBlock, under their Org text
+  it("quote and verse blocks with fontify_quote_and_verse_blocks", function()
+    new({ ui = { fontify_quote_and_verse_blocks = true } })
+    screen:org({
+      "#+begin_quote",
+      "A *quote* with =code=.",
+      "#+end_quote",
+      "#+begin_verse",
+      "  A verse",
+      "#+end_verse",
+    })
+    screen:expect("blocks_quote_verse")
+  end)
+
   it("source blocks highlighted with tree-sitter", function()
     new()
     -- the parsers bundled with Neovim (lib/nvim/parser), which the child's

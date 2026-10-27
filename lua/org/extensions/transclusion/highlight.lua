@@ -256,7 +256,16 @@ function M.org(lines, todo_cfg)
         block = nil
         chunks = { { line, "OrgBlockDelimiter" } }
       else
-        chunks = code[idx] or { { line, block == "quote" and "OrgQuoteBlock" or "OrgBlock" } }
+        chunks = code[idx]
+        if not chunks and (block == "quote" or block == "verse") then
+          -- Org text, on OrgQuoteBlock / OrgVerseBlock with
+          -- ui.fontify_quote_and_verse_blocks (org-fontify-quote-and-verse-blocks)
+          local ui = require("org.config").opts.ui or {}
+          local base = ui.fontify_quote_and_verse_blocks and (block == "quote" and "OrgQuoteBlock" or "OrgVerseBlock")
+            or nil
+          chunks = M.inline(line, base)
+        end
+        chunks = chunks or { { line, "OrgBlock" } }
       end
     elseif level then
       chunks = headline(line, #level, todo_cfg)

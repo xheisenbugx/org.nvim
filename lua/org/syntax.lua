@@ -898,23 +898,26 @@ function M.apply(bufnr)
       block_stop
     )
   )
-  -- quote and verse blocks: Org text with the quote face underneath (the
-  -- elements and objects of @orgQuoteContents; not `contains=TOP`, which
-  -- would leave the text out of spell checking)
+  -- quote and verse blocks: Org text (the elements and objects of
+  -- @orgQuoteContents; not `contains=TOP`, which would leave the text out
+  -- of spell checking), with the quote face underneath only with
+  -- ui.fontify_quote_and_verse_blocks (orgQuoteText has no colour)
+  local quote_group = ui.fontify_quote_and_verse_blocks and "orgQuoteBlock" or "orgQuoteText"
   cmd(
     "syntax cluster orgQuoteContents contains="
       .. list(
         "@Spell,orgComment,orgKeyword,orgTitle,orgInfoKeyword,orgListBullet,orgListTermLine",
         "orgCheckbox,orgCheckboxChecked,orgCheckboxPartial,orgPlanning,orgClock,orgClockDuration",
         "orgDrawer,orgPropertyKey,orgFixedWidth,orgHorizontalRule,orgTable,orgTableFormula",
-        "orgBlockDelimiter,orgBlock,orgQuoteBlock",
+        "orgBlockDelimiter,orgBlock," .. quote_group,
         MARKUP,
         OBJECTS
       )
   )
   cmd(
     string.format(
-      [=[syntax region orgQuoteBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\z(quote\|verse\)\%%(\s.*\)\=$/ end=/^\s*#+end_\z1\%%(\s.*\)\=$/ %s keepend contains=@orgQuoteContents]=],
+      [=[syntax region %s matchgroup=orgBlockDelimiter start=/^\s*#+begin_\z(quote\|verse\)\%%(\s.*\)\=$/ end=/^\s*#+end_\z1\%%(\s.*\)\=$/ %s keepend contains=@orgQuoteContents]=],
+      quote_group,
       block_stop
     )
   )
