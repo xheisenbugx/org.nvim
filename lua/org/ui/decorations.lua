@@ -891,12 +891,12 @@ M._carried_rows = 0
 ---@field tick integer the changedtick after the last of them
 ---@field rows table<integer, boolean>|false the rows edited, false when an edit added or removed lines
 ---@field first? integer the first row an edit changed
----@field last? integer the last row an edit left (a row of the text after it)
+---@field last? integer the last row an edit changed (or the row before `first`: lines removed)
 ---@field shift integer the lines added (less those removed)
 local edits = {} ---@type table<integer, org.ui.decorations.Edits>
 local tracked = {} ---@type table<integer, boolean>
 
-local function on_bytes(_, bufnr, tick, start_row, _, _, old_rows, _, _, new_rows)
+local function on_bytes(_, bufnr, tick, start_row, start_col, _, old_rows, old_col, _, new_rows, new_col)
   if not attached[bufnr] then
     tracked[bufnr] = nil
     edits[bufnr] = nil
@@ -909,8 +909,14 @@ local function on_bytes(_, bufnr, tick, start_row, _, _, old_rows, _, _, new_row
     else
       e.rows = false
     end
-    -- (the rows after the edit move by the lines it added)
+    -- (the rows after the edit move by the lines it added; the row the
+    -- edit ends on is one of them when it only moved, whole lines added
+    -- or removed before it: Neovim scrolls it in the other windows on the
+    -- buffer, it doesn't draw it again)
     local last = start_row + new_rows
+    if new_col == 0 and old_col == 0 and (start_col == 0 or (new_rows > 0 and old_rows > 0)) then
+      last = last - 1
+    end
     if e.last and e.last >= start_row then
       e.last = e.last + new_rows - old_rows
     end

@@ -590,6 +590,25 @@ describe("screen snapshot", function()
     screen:expect("edit_first_buffer_redraws_row_below")
   end)
 
+  -- two windows on one buffer: the rows an added or removed line only
+  -- moved are scrolled, not drawn again, in the window not edited
+  it("draws again in the other window a row whose markup a line added or removed changed", function()
+    new(nil, 30, 12)
+    screen:org({ "a *bold", "text* x", "", "y" })
+    screen:cmd("set nofoldenable")
+    screen:cmd("split")
+    screen:snapshot()
+    screen:input("ox<Esc>")
+    screen:expect("two_windows_line_added")
+    screen:input("u")
+    screen:snapshot()
+    screen:input("ggo<Esc>")
+    screen:snapshot()
+    screen:input("dd")
+    screen:cmd("echo ''")
+    screen:expect("two_windows_line_removed")
+  end)
+
   it("fails with a diff when the screen differs, and on a missing golden file", function()
     local dir, update = Screen.dir, vim.env.ORG_UPDATE_SNAPSHOTS
     Screen.dir = vim.fn.tempname()
