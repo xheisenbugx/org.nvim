@@ -5,8 +5,8 @@
 --- symbol constituent ("\\<", "\\_<", [[:punct:]]), whether "\\<" matches
 --- between it and a Latin letter (word_boundary_p: a word constituent of
 --- another script, such as 東京https://x.org, starts a new word), and
---- whether it is [[:alnum:]] and not line-breakable (the boundaries of
---- radio target links). The tables are generated from Emacs
+--- whether it is [[:alnum:]] (tags) and line-breakable (with [[:alnum:]],
+--- the boundaries of radio target links). The tables are generated from Emacs
 --- (scripts/emacs-parity/chars.el, lua/org/ui/chars_data.lua) and read
 --- on first use. ASCII characters are the callers' (their syntax in Org:
 --- word constituents are letters, digits and $ % ', symbol constituents
@@ -122,11 +122,17 @@ function M.word_start_after(cp)
   return not member("JOIN", cp)
 end
 
+--- Whether non-ASCII codepoint `cp` is [[:alnum:]].
+---@param cp integer
+function M.alnum(cp)
+  return member("ALNUM", cp)
+end
+
 --- Whether non-ASCII codepoint `cp` is [[:alnum:]] and not
 --- line-breakable (\\c|).
 ---@param cp integer
 function M.alnum_unbreakable(cp)
-  return member("ALNUM", cp)
+  return member("ALNUM", cp) and not member("BREAKABLE", cp)
 end
 
 return M

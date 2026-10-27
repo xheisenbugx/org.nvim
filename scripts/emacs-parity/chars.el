@@ -12,9 +12,10 @@
 ;;            letter after them: word constituents of the Latin script
 ;;            and combining marks (Emacs's word_boundary_p:
 ;;            char-script-table and word-combining-categories)
-;;   ALNUM    the characters that are [[:alnum:]] and not line-breakable
-;;            (\\c|): the ones the radio target links regexp
-;;            (org-update-radio-target-regexp) doesn't take as a boundary
+;;   ALNUM    the [[:alnum:]] characters (tags: org-tag-re)
+;;   BREAKABLE  the line-breakable characters (\\c|): with ALNUM, the
+;;            boundaries of radio target links
+;;            (org-update-radio-target-regexp)
 ;;
 ;;   scripts/emacs-parity/generate.sh chars
 
@@ -49,8 +50,8 @@ per line."
                (lambda (c)
                  (and (= (char-syntax c) ?w)
                       (not (string-match-p "\\<a" (string c ?a) 1))))))
-        (alnum (chars-ranges
-                (lambda (c) (not (string-match-p "[^[:alnum:]]\\|\\c|" (string c)))))))
+        (alnum (chars-ranges (lambda (c) (string-match-p "[[:alnum:]]" (string c)))))
+        (breakable (chars-ranges (lambda (c) (string-match-p "\\c|" (string c))))))
     (parity-write
      (expand-file-name "lua/org/ui/chars_data.lua" parity-root)
      (concat
@@ -64,8 +65,10 @@ per line."
       "  OTHER = [[\n" (chars-lua other) "\n]],\n"
       "  -- word constituents after which \"\\\\<\" doesn't match before a Latin letter\n"
       "  JOIN = [[\n" (chars-lua join) "\n]],\n"
-      "  -- [[:alnum:]] and not line-breakable (\\\\c|)\n"
+      "  -- [[:alnum:]]\n"
       "  ALNUM = [[\n" (chars-lua alnum) "\n]],\n"
+      "  -- line-breakable characters (\\\\c|)\n"
+      "  BREAKABLE = [[\n" (chars-lua breakable) "\n]],\n"
       "}\n"))))
 
 (provide 'chars)

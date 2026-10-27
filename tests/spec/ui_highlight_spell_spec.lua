@@ -37,7 +37,14 @@ local KNOWN = {
   ["examples/tutorial.org"] = { [207] = COMMENT_BLOCK },
   ["tests/fixtures/emacs/faces/block.org"] = { [43] = FACES, [76] = COMMENT_BLOCK, [137] = FACES, [138] = FACES },
   ["tests/fixtures/emacs/faces/date.org"] = { [26] = FACES, [27] = FACES, [71] = FACES },
-  ["tests/fixtures/emacs/faces/headline.org"] = { [28] = FACES, [48] = FACES, [50] = FACES, [55] = FACES, [94] = FACES },
+  ["tests/fixtures/emacs/faces/headline.org"] = {
+    [28] = FACES,
+    [48] = FACES,
+    [50] = FACES,
+    [55] = FACES,
+    [94] = FACES,
+    [96] = FACES,
+  },
   ["tests/fixtures/emacs/faces/list.org"] = { [32] = TAG, [65] = COMMENT_BLOCK },
   ["tests/fixtures/emacs/faces/meta.org"] = {
     [47] = FACES,

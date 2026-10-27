@@ -93,3 +93,5 @@ Its body.
 ** Birthday <%%(diary-anniversary 10 1 1990)> and more   :tag:
 ** DONE Call DEADLINE: and SCHEDULED: in the title
 ** TODO [#A] <%%(diary-float t 4 2)>
+** Not tags: an emoji is not alnum   :🎉:work:
+** Tags in other scripts :日本:é:Ελλ:

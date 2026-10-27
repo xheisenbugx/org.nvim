@@ -112,12 +112,32 @@ end
 
 --- Whether the tag group bytes [s, e] of `line` match
 --- org-tag--group-enclosed-re: ":" then tag characters and colons
---- ([:alnum:]_@#%, non-ASCII letters too) then ":".
+--- ([[:alnum:]]_@#%, non-ASCII letters and digits too: org.ui.chars) then
+--- ":".
 local function tag_group(line, s, e)
-  return e - s >= 2
-    and byte(line, s) == COLON
-    and byte(line, e) == COLON
-    and line:sub(s + 1, e - 1):find("^[%w_@#%%:\128-\255]+$") ~= nil
+  if not (e - s >= 2 and byte(line, s) == COLON and byte(line, e) == COLON) then
+    return false
+  end
+  local tags = line:sub(s + 1, e - 1)
+  if tags:find("^[%w_@#%%:]+$") then
+    return true
+  elseif not tags:find("^[%w_@#%%:\128-\255]+$") then
+    return false
+  end
+  local chars = require("org.ui.chars")
+  local i = 1
+  while i <= #tags do
+    if byte(tags, i) < 128 then
+      i = i + 1
+    else
+      local cp, last = chars.at(tags, i)
+      if not (cp and last and chars.alnum(cp)) then
+        return false
+      end
+      i = last + 1
+    end
+  end
+  return true
 end
 
 --- The level of a headline of `n` stars (org-get-level-face): with
