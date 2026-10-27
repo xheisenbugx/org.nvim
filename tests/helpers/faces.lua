@@ -53,6 +53,9 @@ M.FACE_OF = {
   orgplanning = "special-keyword",
   orgclock = "special-keyword",
   orgsexpdate = "sexp-date",
+  -- (the COMMENT keyword of a headline: org-special-keyword, prepended
+  -- last in org-set-font-lock-defaults)
+  orgheadlinecomment = "special-keyword",
   -- keywords, drawers, comments
   orgkeyword = "meta-line",
   orgkeywordvalue = "meta-line",
