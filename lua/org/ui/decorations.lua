@@ -544,14 +544,16 @@ function M.compute(bufnr, first, last, ui)
     r[#r + 1] = { col, opts, persist }
   end
   local min_inline = require("org.parser").inlinetask_min_level()
+  local src_faces = src_face_groups(ui)
+  local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   local level, in_block, src_lang = 0, false, nil
-  if first > 0 then
+  -- (the level draws the prefixes of indent mode; whether a block is open,
+  -- its checkboxes, entities and src block faces)
+  if first > 0 and (ui.indent_mode or boxes or ui.pretty_entities or src_faces) then
     level, in_block, src_lang = context_at(bufnr, first, min_inline)
   end
-  local src_faces = src_face_groups(ui)
   local lines = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
   local bullets = type(ui.bullets) == "table" and ui.bullets or nil
-  local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   local nums = {}
   if ui.num then
     -- numbers count every headline above: computed for the whole buffer
@@ -844,8 +846,10 @@ local attached = {} ---@type table<integer, boolean>
 ---@field rows table<integer, table[]>
 ---@field done table<integer, boolean>
 ---@field text table<integer, string> the text of the rows done
----@field lo table<integer, integer> per row done, the first row its computation read
+---@field lo table<integer, integer> per row done, the first row its marks depend on
 ---@field hi table<integer, integer> and the last
+---@field wlo table<integer, integer> per row done, the first row its computation read
+---@field whi table<integer, integer> and the last
 ---@field file? org.File|false the parse org.ui.highlight drew with (false: more than one)
 ---@field bvars string the buffer variables the drawing follows
 local cache = {} ---@type table<integer, org.ui.decorations.Cache>
@@ -870,9 +874,11 @@ local function provider_ui(bufnr)
 end
 
 -- Typing keeps the decorations of the rows it can't change. After an edit
--- inside one line, the rows whose scan read that line (org.ui.highlight
--- `window`: the paragraphs around the rows computed together, and the
--- lines that bound them) are computed again and the others keep theirs,
+-- inside one line, the rows whose marks depend on that line (org.ui.highlight
+-- `last_reads`: those a scan of the row alone reads, the paragraphs around
+-- it and the lines that bound them; all the rows the scan of the rows
+-- computed together read, `last_read`, when the line holds what draws rows
+-- together) are computed again and the others keep theirs,
 -- when the line before and after the edit holds nothing the scans read
 -- from further away: no headline or line of stars (levels, where blocks
 -- end), no `#` line (block delimiters, keywords), no backslash (LaTeX
@@ -957,13 +963,21 @@ local function carried(bufnr, c, tick, ui)
   if c.file == false or (hl and c.file and hl.file_in_use(bufnr) ~= c.file) or c.bvars ~= bvars(bufnr) then
     return nil
   end
+  -- (whether an edited line holds what draws rows together, and whether
+  -- the scan of the lines after it reads it differently)
+  local together, above = false, false
+  local E = package.loaded["org.ui.emphasis"]
   for row in pairs(e.rows) do
     local old = c.text[row]
     local new = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
     if not (old and new and local_edit(old, new)) then
       return nil
     end
+    together = together or hl ~= nil and (hl.spans_paragraphs(old) or hl.spans_paragraphs(new))
+    above = above or E ~= nil and E.line_above(old) ~= E.line_above(new)
   end
+  local lo, hi = together and c.wlo or c.lo, together and c.whi or c.hi
+  local up = above and 1 or 0
   -- (the inline marks of the rows kept stay where they are)
   local synced = inline_synced[bufnr] ---@type { tick: integer, ui: table, rows: table<integer, boolean> }?
   if synced and not (synced.tick == c.tick and synced.ui == ui) then
@@ -971,8 +985,9 @@ local function carried(bufnr, c, tick, ui)
   end
   for row in pairs(c.done) do
     for edited in pairs(e.rows) do
-      if c.lo[row] <= edited and edited <= c.hi[row] then
-        c.rows[row], c.done[row], c.text[row], c.lo[row], c.hi[row] = nil, nil, nil, nil, nil
+      if lo[row] - up <= edited and edited <= hi[row] then
+        c.rows[row], c.done[row], c.text[row] = nil, nil, nil
+        c.lo[row], c.hi[row], c.wlo[row], c.whi[row] = nil, nil, nil, nil
         if synced then
           synced.rows[row] = nil
         end
@@ -996,7 +1011,18 @@ local function rows_for(bufnr, top, bot)
   local c = cache[bufnr]
   if not c or c.tick ~= tick or c.ui ~= ui then
     c = c and c.tick ~= tick and carried(bufnr, c, tick, ui)
-      or { tick = tick, ui = ui, rows = {}, done = {}, text = {}, lo = {}, hi = {}, bvars = bvars(bufnr) }
+      or {
+        tick = tick,
+        ui = ui,
+        rows = {},
+        done = {},
+        text = {},
+        lo = {},
+        hi = {},
+        wlo = {},
+        whi = {},
+        bvars = bvars(bufnr),
+      }
     cache[bufnr] = c
     if tracked[bufnr] then
       edits[bufnr] = { since = tick, tick = tick, rows = {} }
@@ -1013,18 +1039,21 @@ local function rows_for(bufnr, top, bot)
   if s <= e then
     local hl = package.loaded["org.ui.highlight"]
     if hl then
-      hl.last_read = nil
+      hl.last_read, hl.last_reads = nil, nil
     end
     for row, marks in pairs(M.compute(bufnr, s, e, ui)) do
       c.rows[row] = marks
     end
     -- (the rows the computation read: the rows themselves, or the window
-    -- org.ui.highlight scanned for them)
+    -- org.ui.highlight scanned for them; and those each row depends on)
     local read = hl and hl.last_read
+    local reads = read and hl.last_reads
     for k, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, s, e + 1, false)) do
       local row = s + k - 1
       c.done[row], c.text[row] = true, line
-      c.lo[row], c.hi[row] = read and read[1] or row, read and read[2] or row
+      local wlo, whi = read and read[1] or row, read and read[2] or row
+      c.wlo[row], c.whi[row] = wlo, whi
+      c.lo[row], c.hi[row] = reads and reads.lo[row] or wlo, reads and reads.hi[row] or whi
     end
     local file = hl and hl.file_in_use(bufnr) or nil
     if c.file == nil then

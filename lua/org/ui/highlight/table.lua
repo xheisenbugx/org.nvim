@@ -141,6 +141,10 @@ local function formulas(line, row, s)
   return spans, bars
 end
 
+-- (what a line without formulas or special keywords has of them: not
+-- changed)
+local NONE = {}
+
 --- Paint the rows of `ctx` (see org.ui.highlight `Ctx`).
 ---@param ctx org.ui.highlight.Ctx
 function M.paint(ctx)
@@ -162,13 +166,13 @@ function M.paint(ctx)
         -- (no @Spell in orgTable: the rows aren't spell checked)
         emit(i, 0, #line, { spell = false, priority = element })
       end
-      local spans, bars = {}, {} ---@type integer[][], integer[]
+      local spans, bars = NONE, NONE ---@type integer[][], integer[]
       if row or (line:find("|", 1, true) and not property_line(line)) then
         spans, bars = formulas(line, row, s)
       end
       -- (the planning keywords and diary sexps: their faces replace the
       -- table and formula faces, "\\<SCHEDULED:" ... and "<%%(...>")
-      local keys = row and D.override_spans(line) or {} ---@type integer[][]
+      local keys = row and D.override_spans(line) or NONE ---@type integer[][]
       for _, sp in ipairs(spans) do
         for _, r in ipairs(#keys > 0 and minus(sp[1], sp[2], keys) or { sp }) do
           emit(i, r[1] - 1, r[2], { hl_group = "orgTableFormula", priority = part, spell = false })

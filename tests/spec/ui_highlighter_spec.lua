@@ -169,6 +169,8 @@ describe("ui.highlighter = parser", function()
     local cases = {
       { "a", "see [[a][first", "second", "third", "fourth]] end", "b" },
       { "x [[a][b", "* H2", "c]] y" },
+      -- a begin line with no end line is text: the src block after it is one
+      { "#+begin_ex.ample", "#+begin_src python", "", "", "x = '*y*'", "", "x = '*y*'", "#+end_src", "*z*" },
     }
     -- a src block with no headline within the look back
     local far = {}
@@ -599,6 +601,141 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
       end
     end
     -- (rows were kept, not only drawn again)
+    ok(deco._carried > carried)
+  end)
+
+  --- Count the rows computed while `fn` runs.
+  local function computed(fn)
+    local compute, n = deco.compute, 0
+    deco.compute = function(b, s, e, ui)
+      n = n + e - s + 1
+      return compute(b, s, e, ui)
+    end
+    local ok_, err = pcall(fn)
+    deco.compute = compute
+    assert(ok_, err)
+    return n
+  end
+
+  --- The marks of rows `top` to `bot` as drawn, and as the scan of those
+  --- rows together draws them.
+  local function screen_marks(buf, top, bot)
+    local ui = deco.ui_options(buf, require("org.ui.highlight").file_in_use(buf))
+    local fresh = deco.compute(buf, top, bot, ui)
+    local kept, now = {}, {}
+    for row = top, bot do
+      for _, t in ipairs({ { kept, deco.line_marks(buf, row) }, { now, fresh[row] or {} } }) do
+        local out = {}
+        for _, m in ipairs(t[2]) do
+          local o = vim.tbl_extend("force", {}, m[2])
+          o.ephemeral = nil
+          out[#out + 1] = m[1] .. ":" .. vim.inspect(o, { newline = "", indent = "" })
+        end
+        table.sort(out)
+        t[1][row - top + 1] = table.concat(out, " ")
+      end
+    end
+    return kept, now
+  end
+
+  it("computes again only the rows of a screen an edit inside a line can change", function()
+    -- (rows drawn together: an edit of a paragraph line computes again the
+    -- rows whose own scan reads it, not every row the screen's scan read)
+    local buf = org_buffer(require("tests.helpers.gen").headlines(40), { 1, 0 })
+    local row = 0
+    for i, l in ipairs(buf_lines(buf)) do
+      if i > 60 and l:find("^Body") then
+        row = i - 1
+        break
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    vim.cmd("normal! zz")
+    vim.cmd("redraw")
+    local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    ok(bot - top > 15)
+    local carried = deco._carried
+    local n = computed(function()
+      vim.api.nvim_buf_set_text(buf, row, 4, row, 4, { "x" })
+      vim.cmd("redraw")
+    end)
+    eq(carried + 1, deco._carried)
+    ok(n >= 1 and n <= 8, "rows computed: " .. n)
+    local kept, fresh = screen_marks(buf, top, bot)
+    eq(fresh, kept)
+  end)
+
+  it("computes again every row of a screen an edit changes what draws rows together in", function()
+    -- a macro over the items of a list is drawn when the rows are scanned
+    -- together: an edit of any of them computes them all again
+    for _, case in ipairs({
+      { 4, 7, "" }, -- "}}}" -> "}}"
+      { 1, 4, "{" }, -- "{{" -> "{{{"
+      { 2, 3, "x" }, -- an item between
+    }) do
+      local lines = { "para", "- a {{{m(", "- b", "- c", "- d )}}} e", "- f", "g" }
+      if case[3] == "{" then
+        lines[2] = "- a {{m("
+      end
+      for _ = 1, 30 do
+        lines[#lines + 1] = "text"
+      end
+      local buf = org_buffer(lines, { 1, 0 })
+      vim.cmd("redraw")
+      local row, col = case[1], case[2]
+      if case[3] == "" then
+        vim.api.nvim_buf_set_text(buf, row, col, row, col + 1, {})
+      else
+        vim.api.nvim_buf_set_text(buf, row, col, row, col, { case[3] })
+      end
+      vim.cmd("redraw")
+      local kept, fresh = screen_marks(buf, 0, 6)
+      eq(fresh, kept, vim.inspect(case))
+    end
+  end)
+
+  it("draws a screen as a fresh scan of its rows does after edits, and keeps rows", function()
+    local carried = deco._carried
+    for _, seed in ipairs(fuzz.seeds(4)) do
+      local rng = fuzz.rng(seed)
+      local lines = fuzz.doc(rng, { crlf = false })
+      local from = rng:int(1, #fixtures - 40)
+      vim.list_extend(lines, vim.list_slice(fixtures, from, from + 40))
+      -- (the rows of what draws rows together are drawn as a scan of each
+      -- row alone draws them once edits computed some again: left out)
+      for i, l in ipairs(lines) do
+        lines[i] = (l:gsub("{{{", "{{"):gsub("%[fn:", "[f:"))
+      end
+      local buf = org_buffer(lines, { 1, 0 })
+      for _ = 1, 25 do
+        local n = vim.api.nvim_buf_line_count(buf)
+        vim.api.nvim_win_set_cursor(0, { rng:int(1, n), 0 })
+        vim.cmd("redraw")
+        local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+        local row = rng:int(top, bot)
+        local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1]
+        local col = rng:int(0, #line)
+        if #line > 0 and rng:chance(0.3) then
+          col = math.min(col, #line - 1)
+          vim.api.nvim_buf_set_text(buf, row, col, row, col + 1, {})
+        else
+          vim.api.nvim_buf_set_text(buf, row, col, row, col, { rng:pick(CHARS) })
+        end
+        vim.cmd("redraw")
+        local now = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        if not require("org.ui.highlight").spans_paragraphs(table.concat(now, "\n")) then
+          top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+          local kept, fresh = screen_marks(buf, top, bot)
+          for i = 1, #fresh do
+            if kept[i] ~= fresh[i] then
+              error(
+                fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(top + i - 1, row), now, now)
+              )
+            end
+          end
+        end
+      end
+    end
     ok(deco._carried > carried)
   end)
 end)
