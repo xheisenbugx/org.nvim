@@ -103,7 +103,7 @@ end
 --- session (none when the value is `quiet[path]`, what it does now
 --- anyway), and `:checkhealth org` lists it.
 M.REMOVED = {
-  ["ui.highlighter"] = "the parser highlighter is the only one now (see :h org-highlighter)",
+  ["ui.highlighter"] = "the parser highlighter is the only one now, see :h org-highlighter",
 }
 
 --- The value of a removed option that is what org.nvim does now anyway.
