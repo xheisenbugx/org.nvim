@@ -284,8 +284,11 @@ local function setup()
   end)
 end
 
+-- (the syntax engine, the fallback: "perf: long lines with the parser
+-- highlighter" below times the default)
 describe("perf: long lines", function()
   setup()
+  with_highlighter("syntax")
   --- A line of `kind` of `n` characters.
   local function line(kind, n)
     return ({
@@ -890,7 +893,7 @@ describe("perf: tables", function()
     local m = messages()
     ok(not m:find("redrawtime"), m)
     ok(not m:find("E363"), m)
-    eq("OrgTable", syn(10, 3))
+    ok(require("tests.helpers.highlighter").has(10, 3, "orgTable"), "the row is drawn as a table")
   end)
 
   it("recalculates formulas linearly", function()
