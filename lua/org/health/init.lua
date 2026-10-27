@@ -436,8 +436,11 @@ function M.check_files(h)
 
   if (cfg.remote or {}).enabled then
     local remote = require("org.remote")
+    local problem = remote.address_problem(remote.address())
     if remote.is_server() then
       h.ok("session server: listening on " .. tostring(remote.serving))
+    elseif problem or remote.start_error then
+      h.warn("session server: " .. (problem or remote.start_error), { "see :h org-remote" })
     else
       h.info("session server: another Neovim listens on " .. remote.address() .. " (or none); see :h org-remote")
     end

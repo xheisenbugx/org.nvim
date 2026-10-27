@@ -3485,7 +3485,10 @@ address yourself (`remote.address = "~/.cache/nvim/org.sock"`): >sh
       "luaeval('vim.inspect(require([[org.api]]).clock.status())')"
 <
 Requests run in that Neovim with its configuration, not the command
-line's. `:checkhealth org` says whether this Neovim is the server.
+line's. `:checkhealth org` says whether this Neovim is the server. An
+address it can't listen on (a socket path longer than the system allows,
+103 bytes on macOS, 107 on Linux) is a warning at startup and in
+`:checkhealth org`; set a shorter `remote.address`.
 
 Plain links through tags files                                   *org-ctags*
 Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
