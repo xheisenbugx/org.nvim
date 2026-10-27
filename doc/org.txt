@@ -7253,11 +7253,11 @@ Two highlighters can draw org buffers, chosen with `ui.highlighter`:
 "parser" ports Emacs's own fontification (org-set-font-lock-defaults:
 org-fontify-meta-lines-and-blocks, org-do-emphasis-faces,
 org-activate-links, ...) instead of approximating it with regions. On the
-example files and the fixtures of hard cases (26,379 lines), it draws
-the faces Emacs Org 9.8.12 draws on every byte of all but 20 lines, most
-of them known differences (tests/spec/emacs_faces_*_spec.lua, against
-tests/fixtures/emacs/faces/); "syntax" differs from Emacs on 4,324 lines
-of the same files. Every marker that can open emphasis is tried on its
+example files and the fixtures of hard cases (26,503 lines), it draws
+the faces Emacs Org 9.8.12 draws on every byte of all but 9 lines, each a
+known difference with its reason (tests/spec/emacs_faces_*_spec.lua,
+against tests/fixtures/emacs/faces/); "syntax" differs from Emacs on
+4,388 lines of the same files. Every marker that can open emphasis is tried on its
 own, so markup may overlap the way it does in Emacs (`*a /b* c/` is bold
 and italic), markup in link descriptions, macros, property values and
 comment blocks is drawn, and verbatim and code show the link brackets and
