@@ -1,0 +1,9 @@
+screen 60x10
+||
+||
+|e board to be set to a certain color. {1:*}{2:ok}{1:*} I would like the|
+||
+|the board to be set to a certain color. {1:*}{2:ok}{1:*} I would like th|
+
+{1} orgBoldDelimiter -> OrgBold [bold]
+{2} OrgBold [bold]

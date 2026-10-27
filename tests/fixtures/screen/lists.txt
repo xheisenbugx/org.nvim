@@ -5,13 +5,13 @@ screen 60x12
 |{3:-} {6:[-]} partial item|
 |  {3:1.} ordered child|
 |  {3:2)} other child|
-|{3:+} {7:term} :: description|
+|{3:+} {7:term ::} description|
 |{1:* Fancy}|
 |{3:-} {4:[ ]} icon|
 |{3:-} {5:[X]} icon|
 
 {1} OrgHeadlineLevel1 -> Title [bold]
-{2} OrgStatistic -> OrgTodo -> @comment.error
+{2} OrgHeadlineLevel1 -> Title | OrgStatistic -> OrgTodo -> @comment.error [bold]
 {3} OrgListBullet -> Special
 {4} OrgCheckbox -> Special
 {5} OrgCheckboxChecked -> DiagnosticOk

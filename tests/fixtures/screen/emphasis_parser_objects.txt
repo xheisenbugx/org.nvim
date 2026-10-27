@@ -1,11 +1,11 @@
 screen 60x8
 |See {1:the }{2:Org}{1: site} and {2:a}.|
 |Overlap: {3:a }{4:b}{5: c} and {6:v *no*} raw.|
-|{7:[[}{8:x][}{9:y}{7:]]} shows the link, {10:*b*} the stars.|
-|{11:# comment *no* }{1:link}|
-|{12:#+begin_src lua}|
-|x {13:=} {13:*}a{13:*} {14:-- [[l]]}|
-|{12:#+end_src}|
+|{7:[[x][y]]} shows the link, {8:*b*} the stars.|
+|{9:# comment *no* link}|
+|{10:#+begin_src lua}|
+|x {11:=} {11:*}a{11:*} {12:-- [[l]]}|
+|{10:#+end_src}|
 
 {1} OrgLink -> @markup.link [underline]
 {2} OrgLink -> @markup.link | OrgBold [bold, underline]
@@ -13,11 +13,9 @@ screen 60x8
 {4} OrgBold | OrgItalic [bold, italic]
 {5} OrgItalic [italic]
 {6} OrgVerbatim -> String
-{7} orgLinkBracket -> OrgLink -> @markup.link | OrgVerbatim -> String [underline]
-{8} orgLinkTargetHidden -> OrgLink -> @markup.link | OrgVerbatim -> String [underline]
-{9} OrgLink -> @markup.link | OrgVerbatim -> String [underline]
-{10} OrgCode -> String
-{11} OrgComment -> Comment
-{12} OrgBlockDelimiter -> Comment
-{13} Operator
-{14} Comment
+{7} OrgLink -> @markup.link | OrgVerbatim -> String [underline]
+{8} OrgCode -> String
+{9} OrgComment -> Comment
+{10} OrgBlockDelimiter -> Comment
+{11} Operator
+{12} Comment

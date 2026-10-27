@@ -1,5 +1,5 @@
 screen 60x12
-|{1:#+TITLE:}{2: Blocks}|
+|{1:#+TITLE:} {2:Blocks}|
 |{3:#+begin_src lua :results output}|
 |{4:local} x {5:=} {6:"string"} {7:-- comment}|
 |{8:print}(x)|
@@ -19,7 +19,7 @@ screen 60x12
 {7} Comment
 {8} Identifier
 {9} OrgQuoteBlock -> Normal
-{10} orgBoldDelimiter -> OrgBold [bold]
-{11} OrgBold [bold]
+{10} OrgQuoteBlock -> Normal | orgBoldDelimiter -> OrgBold [bold]
+{11} OrgQuoteBlock -> Normal | OrgBold [bold]
 {12} orgFixedWidth -> OrgVerbatim -> String
 {13} OrgComment -> Comment

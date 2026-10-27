@@ -1,23 +1,29 @@
 screen 60x12
 |{1:◉ }{2:bold}{1: one}|
-|{3: }{4:○ }{2:bold}{4: two}|
-|{5:  }{6:✸ }{2:bold}{6: three}|
-|{7:   }{8:✿ }{9:italic}{8: and }{2:bold}{8: four}|
-|{10:    }{11:◉ }{12:under}{11: }{13:verbatim}{11: }{14:code}{11: }{15:strike}{11: five}|
-|Body with {2:bold}, {9:italic} and {13:verbatim}.|
+|{3: }{4:○ }{5:bold}{4: two}|
+|{6:  }{7:✸ }{8:bold}{7: three}|
+|{9:   }{10:✿ }{11:italic}{10: and }{12:bold}{10: four}|
+|{13:    }{14:◉ }{15:under}{14: }{16:verbatim}{14: }{17:code}{14: }{18:strike}{14: five}|
+|Body with {19:bold}, {20:italic} and {21:verbatim}.|
 
 {1} OrgHeadlineLevel1 -> Title [bold]
-{2} OrgBold [bold]
+{2} OrgHeadlineLevel1 -> Title | OrgBold [bold]
 {3} OrgHeadlineLevel2 -> Constant | OrgHiddenStars -> Conceal
 {4} OrgHeadlineLevel2 -> Constant
-{5} OrgHeadlineLevel3 -> Identifier | OrgHiddenStars -> Conceal
-{6} OrgHeadlineLevel3 -> Identifier
-{7} OrgHeadlineLevel4 -> Statement | OrgHiddenStars -> Conceal [bold]
-{8} OrgHeadlineLevel4 -> Statement [bold]
-{9} OrgItalic [italic]
-{10} OrgHeadlineLevel5 -> PreProc | OrgHiddenStars -> Conceal
-{11} OrgHeadlineLevel5 -> PreProc
-{12} OrgUnderline [underline]
-{13} OrgVerbatim -> String
-{14} OrgCode -> String
-{15} OrgStrikethrough [strikethrough]
+{5} OrgHeadlineLevel2 -> Constant | OrgBold [bold]
+{6} OrgHeadlineLevel3 -> Identifier | OrgHiddenStars -> Conceal
+{7} OrgHeadlineLevel3 -> Identifier
+{8} OrgHeadlineLevel3 -> Identifier | OrgBold [bold]
+{9} OrgHeadlineLevel4 -> Statement | OrgHiddenStars -> Conceal [bold]
+{10} OrgHeadlineLevel4 -> Statement [bold]
+{11} OrgHeadlineLevel4 -> Statement | OrgItalic [bold, italic]
+{12} OrgHeadlineLevel4 -> Statement | OrgBold [bold]
+{13} OrgHeadlineLevel5 -> PreProc | OrgHiddenStars -> Conceal
+{14} OrgHeadlineLevel5 -> PreProc
+{15} OrgHeadlineLevel5 -> PreProc | OrgUnderline [underline]
+{16} OrgHeadlineLevel5 -> PreProc | OrgVerbatim -> String
+{17} OrgHeadlineLevel5 -> PreProc | OrgCode -> String
+{18} OrgHeadlineLevel5 -> PreProc | OrgStrikethrough [strikethrough]
+{19} OrgBold [bold]
+{20} OrgItalic [italic]
+{21} OrgVerbatim -> String

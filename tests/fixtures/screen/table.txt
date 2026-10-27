@@ -4,13 +4,12 @@ screen 60x12
 |{5:|-------+-------|}|
 |{3:|}{4: Alice }{3:|}{4:    10 }{3:|}|
 |{3:|}{4: }{6:*}{7:Bob}{6:*}{4: }{3:|}{4:     7 }{3:|}|
-|{8:#+TBLFM: $2=$2+1}|
+|{1:#+TBLFM:}{2: $2=$2+1}|
 
 {1} OrgKeyword -> PreProc
 {2} OrgKeywordValue -> String
-{3} OrgTableSeparator -> Delimiter
+{3} OrgTable -> Normal | OrgTableSeparator -> Delimiter
 {4} OrgTable -> Normal
 {5} orgTableHline -> OrgTableSeparator -> Delimiter
-{6} orgBoldDelimiter -> OrgBold [bold]
-{7} OrgBold [bold]
-{8} OrgTableFormula -> Comment
+{6} OrgTable -> Normal | orgBoldDelimiter -> OrgBold [bold]
+{7} OrgTable -> Normal | OrgBold [bold]
