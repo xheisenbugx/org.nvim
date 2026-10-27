@@ -146,6 +146,19 @@ describe("the removed ui.highlighter option", function()
     setup({})
   end)
 
+  -- (first: the warning is given once per session)
+  it('doesn\'t warn for the value it has now anyway, "parser"', function()
+    local warnings = {}
+    vim.notify = function(msg, level)
+      if level == vim.log.levels.WARN then
+        warnings[#warnings + 1] = msg
+      end
+    end
+    ok(pcall(setup, { highlighter = "parser" }))
+    eq({}, warnings)
+    eq(nil, require("org.config").opts.ui.highlighter)
+  end)
+
   it("warns once, is ignored and draws with the parser highlighter", function()
     local warnings = {}
     vim.notify = function(msg, level)

@@ -244,6 +244,35 @@ describe("parser highlighter", function()
     eq({}, marks(b, 0))
   end)
 
+  it("runs no mode hooks and sets no window options for a buffer with only the org syntax", function()
+    local ui = require("org.config").opts.ui
+    local indent, num = ui.indent_mode, ui.num
+    ui.indent_mode, ui.num = true, true
+    local fired = {}
+    local au = vim.api.nvim_create_autocmd("User", {
+      pattern = { "OrgIndentMode", "OrgNumMode" },
+      callback = function(ev)
+        fired[#fired + 1] = ev.match
+      end,
+    })
+    vim.cmd("enew!")
+    local b = vim.api.nvim_get_current_buf()
+    vim.bo[b].bufhidden = "wipe"
+    vim.wo.breakindent = false
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "* H", "A *bold* word" })
+    vim.bo[b].filetype = "org_drill"
+    vim.bo[b].syntax = "org"
+    vim.api.nvim_del_autocmd(au)
+    ui.indent_mode, ui.num = indent, num
+    eq({}, fired)
+    eq(false, vim.wo.breakindent)
+    ok(has(marks(b, 1), "orgBold@3-7"), vim.inspect(marks(b, 1)))
+    -- (one autocmd per such buffer, in one group)
+    eq(1, #vim.api.nvim_get_autocmds({ group = "org.syntax.decorations", buffer = b }))
+    vim.bo[b].syntax = "text"
+    eq(0, #vim.api.nvim_get_autocmds({ group = "org.syntax.decorations", buffer = b }))
+  end)
+
   it("gives a LaTeX preview with foreground auto the emphasis color", function()
     require("org.config").opts.ui.latex_preview = { foreground = "auto" }
     vim.api.nvim_set_hl(0, "OrgBold", { fg = "#ff0000", bold = true })

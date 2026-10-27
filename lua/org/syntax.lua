@@ -339,12 +339,15 @@ function M.attach_decorations(bufnr)
     return
   end
   require("org.ui.decorations").attach(bufnr)
+  -- (one group for all such buffers, each with its own autocmd)
+  local group = vim.api.nvim_create_augroup("org.syntax.decorations", { clear = false })
+  vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
   vim.api.nvim_create_autocmd("Syntax", {
-    group = vim.api.nvim_create_augroup("org.syntax.decorations." .. bufnr, { clear = true }),
+    group = group,
     buffer = bufnr,
     callback = function(ev)
       if ev.match ~= "org" and vim.bo[ev.buf].filetype ~= "org" then
-        pcall(vim.api.nvim_del_augroup_by_name, "org.syntax.decorations." .. ev.buf)
+        vim.api.nvim_clear_autocmds({ group = group, buffer = ev.buf })
         require("org.ui.decorations").detach(ev.buf)
       end
     end,

@@ -100,10 +100,14 @@ end
 
 --- Options that were removed: dotted path -> what to say instead. Setting
 --- one is no error: it is dropped from `M.opts`, with a warning once per
---- session, and `:checkhealth org` lists it.
+--- session (none when the value is `quiet[path]`, what it does now
+--- anyway), and `:checkhealth org` lists it.
 M.REMOVED = {
   ["ui.highlighter"] = "the parser highlighter is the only one now (see :h org-highlighter)",
 }
+
+--- The value of a removed option that is what org.nvim does now anyway.
+local quiet = { ["ui.highlighter"] = "parser" }
 
 local warned = {} ---@type table<string, boolean>
 
@@ -115,7 +119,7 @@ function M.removed_options()
     local given = (M.user_opts or {})[section]
     if type(given) == "table" and given[key] ~= nil then
       M.opts[section][key] = nil
-      if not warned[path] then
+      if not warned[path] and given[key] ~= quiet[path] then
         warned[path] = true
         vim.notify(string.format("org.nvim: option `%s` was removed (ignored): %s", path, instead), vim.log.levels.WARN)
       end

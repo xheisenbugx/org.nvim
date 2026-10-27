@@ -1490,9 +1490,10 @@ function M.render(bufnr, later)
 end
 
 --- Indent mode wraps lines with 'breakindent', set for the buffer in the
---- windows that show it (not globally: other buffers keep theirs).
+--- windows that show it (not globally: other buffers keep theirs; nor in a
+--- buffer that only sets 'syntax' to org, like the drill window).
 local function set_win_opts(bufnr, win)
-  if vim.api.nvim_win_get_buf(win) == bufnr and M.ui_options(bufnr).indent_mode then
+  if vim.api.nvim_win_get_buf(win) == bufnr and vim.bo[bufnr].filetype == "org" and M.ui_options(bufnr).indent_mode then
     vim.wo[win][0].breakindent = true
     vim.wo[win][0].wrap = true
   end
@@ -1519,9 +1520,10 @@ function M.attach(bufnr, force)
       set_win_opts(bufnr, win)
     end
   end
-  if not attached[bufnr] and not force then
+  if not attached[bufnr] and not force and vim.bo[bufnr].filetype == "org" then
     -- the modes turned on when the buffer is set up (org-startup-indented,
-    -- org-startup-numerated) run their hooks
+    -- org-startup-numerated) run their hooks (in org buffers only: not in
+    -- one that only sets 'syntax' to org)
     if ui.indent_mode then
       mode_hook("OrgIndentMode", bufnr, true)
     end
