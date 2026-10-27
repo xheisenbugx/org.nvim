@@ -37,6 +37,8 @@ M.FACE_OF = {
   orgpriorityc = "priority",
   orgtags = "tag",
   orginlinetask = "inlinetask",
+  -- (Emacs draws the COMMENT keyword in org-special-keyword)
+  orgheadlinecomment = "special-keyword",
   orghiddenstars = "hide",
   -- lists
   orglistterm = "list-dt",
