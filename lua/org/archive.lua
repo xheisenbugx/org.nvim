@@ -241,8 +241,9 @@ local function archive_point(abuf, loc, d, open_line)
     local file = files.get_buffer(abuf)
     return file.headlines[1] and file.preamble_end or line_count(abuf), 1
   end
-  -- point-max, then a newline
-  return line_count(abuf), 1, not open_line
+  -- point-max, then a newline: a blank line unless the file didn't end in
+  -- a newline (that one ends its last line)
+  return line_count(abuf), 1, not open_line and vim.bo[abuf].eol
 end
 
 --- Mark the archived entry done (org-archive-mark-done), without logging.
@@ -436,6 +437,12 @@ function M.archive_subtree(target, opts)
   local rs, re = source:rows()
   source:del()
   if rs and re then
+    -- org-cut-subtree takes the blank lines up to the next heading too
+    -- (blank lines the archived copy put after the subtree, in the same file)
+    local n = vim.api.nvim_buf_line_count(bufnr)
+    while re < n and is_blank(get_line(bufnr, re + 1)) do
+      re = re + 1
+    end
     vim.api.nvim_buf_set_lines(bufnr, rs - 1, re, false, {})
   else
     utils.warn("The archived subtree was removed from " .. utils.abbreviate(file.filename))
