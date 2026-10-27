@@ -647,6 +647,16 @@ local function src_regions(bufnr, config, block_stop, delimiter)
   cmd([=[syntax sync match orgSyncBlockEnd grouphere NONE /\c^\s*#+end_\S*/]=])
 end
 
+--- Whether the syntax of org buffer `bufnr` was defined for the other
+--- `ui.highlighter` (setup() called again with another one, or the
+--- buffer's `b:org_ui` changed it): it must be defined again.
+---@param bufnr integer
+---@return boolean
+function M.stale(bufnr)
+  local was = vim.b[bufnr].org_syntax_highlighter
+  return was ~= nil and was ~= (require("org.ui.emphasis").active(bufnr) and "parser" or "syntax")
+end
+
 function M.apply(bufnr)
   require("org.highlights").ensure()
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
@@ -673,6 +683,8 @@ function M.apply(bufnr)
   -- ui.highlighter = "parser": org.ui.highlight draws the buffer (the
   -- decorations); the syntax only includes the languages of src blocks
   local parser = require("org.ui.emphasis").active(bufnr)
+  -- (see `M.stale`)
+  vim.b[bufnr].org_syntax_highlighter = parser and "parser" or "syntax"
 
   cmd("syntax clear")
   cmd("syntax spell toplevel")
