@@ -107,6 +107,22 @@ end
 -- Headline line
 ---------------------------------------------------------------------------
 
+--- Display width of `s` from column 0, a tab reaching the next multiple
+--- of 8 (Org fixes tab-width at 8).
+local function line_width(s)
+  if not s:find("\t", 1, true) then
+    return utils.width(s)
+  end
+  local w = 0
+  for seg, tab in s:gmatch("([^\t]*)(\t?)") do
+    w = w + utils.width(seg)
+    if tab ~= "" then
+      w = w + 8 - w % 8
+    end
+  end
+  return w
+end
+
 --- Place tags on a headline text according to `tags_column`.
 ---@param before string headline text without tags
 ---@param tags string[]
@@ -122,7 +138,7 @@ function M.with_tags(before, tags)
   end
   local tagstr = ":" .. table.concat(tags, ":") .. ":"
   local col = require("org.config").opts.tags_column or -77
-  local w = utils.width(before)
+  local w = line_width(before)
   local pad
   if col < 0 then
     pad = -col - w - utils.width(tagstr)
@@ -375,12 +391,14 @@ end
 
 --- A property drawer line `:NAME: value` formatted with `property_format`
 --- (org-property-format, `%-10s %s`); an empty value leaves no trailing
---- space.
+--- space. The value loses its leading and trailing blanks, as with
+--- org--align-node-property.
 function M.property_line(indent, name, value)
   local fmt = require("org.config").opts.property_format or "%-10s %s"
-  local ok, text = pcall(string.format, fmt, ":" .. name .. ":", value or "")
+  value = (value or ""):match("^[ \t]*(.-)[ \t]*$")
+  local ok, text = pcall(string.format, fmt, ":" .. name .. ":", value)
   if not ok then
-    text = ":" .. name .. ": " .. (value or "")
+    text = ":" .. name .. ": " .. value
   end
   return (indent or "") .. text:gsub("%s+$", "")
 end

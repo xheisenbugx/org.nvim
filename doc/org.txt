@@ -9527,6 +9527,10 @@ Differences from Emacs:
     spaces ('expandtab'); Emacs uses tabs from column 8 on when
     `indent-tabs-mode` is on, its default. Lines it doesn't move keep
     their tabs.
+  - Indenting or outdenting a list item moves the text it owns with it,
+    text after its sub-list included. Emacs lines that text up with the
+    sub-list's last item instead, which can hand it to another item or
+    end the list.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
   - Indentation (|org-indent|): src block code keeps its own relative
