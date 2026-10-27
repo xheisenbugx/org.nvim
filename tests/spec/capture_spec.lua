@@ -376,6 +376,18 @@ describe("capture placement (Emacs parity)", function()
       "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| x |\n| 3 |\n",
     },
     { "text\n* A\n", { type = "table-line", template = "| x |" }, "text\n* A\n|   |\n|---|\n| x |\n" },
+    -- a table-looking line in a block is not a table: a new one goes after
+    -- the block, or the line goes to the next real table
+    {
+      "* A\n#+begin_example\n| x |\n#+end_example\n* B\n",
+      { type = "table-line", headline = "A", template = "| c |" },
+      "* A\n#+begin_example\n| x |\n#+end_example\n|   |\n|---|\n| c |\n* B\n",
+    },
+    {
+      "* A\n#+begin_src text\n| x |\n#+end_src\n: | f |\n| y |\n",
+      { type = "table-line", template = "| c |" },
+      "* A\n#+begin_src text\n| x |\n#+end_src\n: | f |\n| y |\n| c |\n",
+    },
     { "* A\nbody\n* B\n", { regexp = "^\\* B", template = "* new" }, "* A\nbody\n* B\n** new\n" },
     {
       "* A\nfoo MARK bar\n* B\n",

@@ -299,27 +299,30 @@ local function place_table_line(bufnr, loc, tpl, lines, pos_line)
     local hl = file:headline_at(pos_line)
     s, e = pos_line, hl and hl.body_end or #file.lines
   end
-  -- the first table (with a data line) in the region
+  -- the Org table holding the first data line of the region
+  -- (org-table-dataline-regexp, then the table element around it: a
+  -- table-looking line in a block, a fixed-width area or a table.el table
+  -- doesn't count)
+  local element = require("org.element")
   local ts, te
   local i = s
   while i <= e do
     local l = get_line(bufnr, i)
-    if l and l:match("^%s*|") then
-      local j = i
-      local has_data = false
-      while j + 1 <= #file.lines and (get_line(bufnr, j + 1) or ""):match("^%s*|") do
-        j = j + 1
+    if l and l:match("^%s*|") and not l:match("^%s*|%-") then
+      local at = element.at(bufnr, i)
+      local el = at
+      while el and el.type ~= "table" do
+        el = el.parent
       end
-      for k = i, j do
-        if not get_line(bufnr, k):match("^%s*|%-") then
-          has_data = true
+      if el and el.cfirst then
+        ts, te = el.post, el.post
+        while te + 1 <= #file.lines and (get_line(bufnr, te + 1) or ""):match("^%s*|") do
+          te = te + 1
         end
-      end
-      if has_data then
-        ts, te = i, j
         break
       end
-      i = j + 1
+      -- skip the rest of the element (a block's or table.el table's lines)
+      i = math.max(i, at and at.clast or i) + 1
     else
       i = i + 1
     end
