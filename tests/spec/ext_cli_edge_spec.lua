@@ -218,3 +218,18 @@ describe("cli: messages of a command the session server runs", function()
     eq({ e.warnings[1] }, echoed)
   end)
 end)
+
+describe("cli: FILE:LINE targets", function()
+  it("takes an agenda file's name as FILE, as FILE::TITLE does", function()
+    local dir = workspace()
+    for _, target in ipairs({ "work.org:2", "work:3", dir .. "/work.org:2" }) do
+      local code, out, err = run(dir, { "--no-server", "show", target })
+      eq(0, code, target .. ": " .. out .. err)
+      ok(out:find("* TODO Write tests", 1, true), target .. ": " .. out)
+    end
+    local code, _, err = run(dir, { "--no-server", "show", "nope:2" })
+    eq(1, code)
+    ok(err:find("no heading matches nope:2", 1, true), err)
+    vim.fn.delete(dir, "rf")
+  end)
+end)

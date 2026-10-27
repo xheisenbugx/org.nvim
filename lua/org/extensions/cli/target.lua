@@ -98,10 +98,19 @@ function M.find_headlines(query)
   local file_part, head_part = query:match("^(.-)::(.+)$")
   if not file_part then
     local f, l = query:match("^(.-[^:]):(%d+)$")
+    -- FILE: a path, else (as in FILE::TITLE) an agenda file's name
+    local named = {}
     if f and vim.fn.filereadable(arg_path(f)) == 1 then
-      local file = require("org.files").get(arg_path(f))
-      local hl = file and file:headline_at(tonumber(l))
-      return { hl }
+      named = { require("org.files").get(arg_path(f)) }
+    elseif f then
+      named = files_named(f, files)
+    end
+    if #named > 0 then
+      local found = {}
+      for _, file in ipairs(named) do
+        found[#found + 1] = file:headline_at(tonumber(l))
+      end
+      return found
     end
   end
   if file_part and file_part ~= "" then
