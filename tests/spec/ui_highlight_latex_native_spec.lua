@@ -57,7 +57,7 @@ local function spans(l, group)
 end
 
 describe("parser highlighter: highlight_latex_and_related native", function()
-  with_config({ ui = { highlighter = "parser", highlight_latex_and_related = { "native" } } })
+  with_config({ ui = { highlight_latex_and_related = { "native" } } })
 
   it("draws fragments with the tex syntax over orgSrcBlock, not orgLatex", function()
     org_buffer({ "Text $x^2$ and \\(a+b\\) and \\[ \\frac{1}{2} \\] and $$y$$ end." })
@@ -137,7 +137,7 @@ describe("parser highlighter: highlight_latex_and_related native", function()
 end)
 
 describe("parser highlighter: native without the tex syntax", function()
-  with_config({ ui = { highlighter = "parser", highlight_latex_and_related = { "native" } } })
+  with_config({ ui = { highlight_latex_and_related = { "native" } } })
 
   it("draws org-block alone, as Emacs does without latex-mode", function()
     local N = require("org.ui.highlight.native")
@@ -156,7 +156,7 @@ describe("parser highlighter: native without the tex syntax", function()
 end)
 
 describe("parser highlighter: latex without native", function()
-  with_config({ ui = { highlighter = "parser", highlight_latex_and_related = { "latex" } } })
+  with_config({ ui = { highlight_latex_and_related = { "latex" } } })
 
   it("draws no tex groups", function()
     org_buffer({ "x \\(\\frac{a}{b}\\) $y$, z" })
@@ -172,7 +172,7 @@ describe("parser highlighter: latex without native", function()
 end)
 
 describe("parser highlighter: an environment open above lines without LaTeX", function()
-  with_config({ ui = { highlighter = "parser", highlight_latex_and_related = { "latex" } } })
+  with_config({ ui = { highlight_latex_and_related = { "latex" } } })
 
   it("draws them when it ends below them", function()
     -- (rows 100 to 150 have no backslash or dollar of their own: they were

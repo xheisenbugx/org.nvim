@@ -6,8 +6,8 @@
 --- (org-list-full-item-re, group 3), statistics cookies
 --- (org-get-checkbox-statistics-face) and description terms (the
 --- org-list-dt rule, its " ::" included), each found on its own line by a
---- scan of that line. Bullets have no face in Emacs: they are drawn as the
---- syntax engine draws them (lists.allow_alphabetical,
+--- scan of that line. Bullets have no face in Emacs: they are drawn in
+--- orgListBullet as org.lists reads them (lists.allow_alphabetical,
 --- lists.ordered_item_terminator). Emacs finds all of them on any line,
 --- then org-fontify-meta-lines-and-blocks replaces the faces of keywords,
 --- comments and the bodies of src, example and export blocks: nothing is
@@ -41,7 +41,7 @@ local function letter(b)
 end
 
 --- The end (exclusive, 1-based) of the bullet at `s` (the first non-blank
---- byte of `line`), as org.syntax draws orgListBullet, or nil.
+--- byte of `line`), as org.lists reads it, or nil.
 ---@param line string
 ---@param s integer
 ---@param terms table<integer, boolean> the ordered item terminators

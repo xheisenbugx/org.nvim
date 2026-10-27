@@ -1,11 +1,6 @@
-local function syn(l, c)
-  return vim.fn.synIDattr(vim.fn.synID(l, c, 1), "name")
-end
+local hl = require("tests.helpers.highlighter")
 
-describe("syntax", function()
-  -- (the syntax engine's groups: ui_highlight_*_spec.lua check the parser
-  -- highlighter's)
-  with_highlighter("syntax")
+describe("highlighting", function()
   it("highlights core elements", function()
     org_buffer({
       "#+TODO: TODO WAIT | DONE",
@@ -17,63 +12,14 @@ describe("syntax", function()
       "local x = 1",
       "#+end_src",
     })
-    eq("OrgTodo", syn(2, 3))
-    eq("OrgPriorityA", syn(2, 8))
-    eq("OrgTags", syn(2, 27))
-    eq("OrgCheckbox", syn(3, 3))
-    eq("OrgDone", syn(4, 4))
-    eq("OrgTableSeparator", syn(5, 1))
-    eq("OrgBlockDelimiter", syn(6, 1))
-    ok(syn(7, 1):match("^lua"), "lua embedded: " .. syn(7, 1))
-  end)
-
-  it("highlights description list terms after the bullet and checkbox", function()
-    org_buffer({
-      "- term :: description",
-      "- [ ] box term :: desc",
-      "   * star bullet :: x",
-      "1. numbered :: no term",
-      "- no space::here",
-      "- tricky :: one :: two",
-    })
-    eq("OrgListBullet", syn(1, 1))
-    eq("OrgListTerm", syn(1, 3))
-    eq("OrgListTerm", syn(1, 6))
-    eq("", syn(1, 11))
-    eq("OrgCheckbox", syn(2, 3))
-    eq("OrgListTerm", syn(2, 7))
-    eq("OrgListTerm", syn(3, 6))
-    ok(syn(4, 4) ~= "OrgListTerm")
-    ok(syn(5, 3) ~= "OrgListTerm")
-    eq("OrgListTerm", syn(6, 3))
-    ok(syn(6, 14) ~= "OrgListTerm")
-  end)
-
-  -- #121: with the NFA engine orgListTerm's lazy .\{-} ran out of
-  -- 'maxmempattern' on a long paragraph line, and highlighting stopped there
-  it("highlights long paragraph lines within the default maxmempattern", function()
-    local mmp = vim.o.maxmempattern
-    vim.o.maxmempattern = 1000
-    local prose = string.rep("I would like the board to be set to a certain color for clients. ", 20)
-    org_buffer({
-      "* TODO Miro Color Tagging :blender:",
-      "",
-      prose,
-      "",
-      "- " .. prose .. ":: term",
-      "",
-      "** Prompt *bold*",
-    })
-    for _, l in ipairs({ 3, 5 }) do
-      for c = 1, #prose, 50 do
-        local ok_syn, err = pcall(vim.fn.synstack, l, c)
-        ok(ok_syn, ("line %d col %d: %s"):format(l, c, tostring(err)))
-      end
-    end
-    eq("OrgListTerm", syn(5, 3))
-    eq("OrgHeadlineLevel2", syn(7, 1))
-    eq("OrgBold", syn(7, 12))
-    vim.o.maxmempattern = mmp
+    ok(hl.has(2, 3, "orgTodo"), hl.groups(2, 3))
+    ok(hl.has(2, 8, "orgPriorityA"), hl.groups(2, 8))
+    ok(hl.has(2, 20, "orgBold"), hl.groups(2, 20))
+    ok(hl.has(2, 27, "orgTags"), hl.groups(2, 27))
+    ok(hl.has(3, 3, "orgCheckbox"), hl.groups(3, 3))
+    ok(hl.has(4, 4, "orgDone"), hl.groups(4, 4))
+    ok(hl.has(5, 1, "orgTableSeparator"), hl.groups(5, 1))
+    ok(hl.has(6, 1, "orgBlockDelimiter"), hl.groups(6, 1))
   end)
 end)
 
@@ -310,33 +256,6 @@ describe("decorations", function()
       local rows = deco.compute(buf)
       eq("inline", rows[1][1][2].virt_text_pos)
     end)
-  end)
-end)
-
-describe("link conceal", function()
-  -- (the syntax engine's conceal: ui_highlighter_spec.lua checks the
-  -- parser highlighter's)
-  with_highlighter("syntax")
-  local function rendered(text)
-    org_buffer({ text })
-    local s, line, last = "", vim.fn.getline(1), nil
-    for c = 1, #line do
-      local r = vim.fn.synconcealed(1, c)
-      if r[1] == 0 then
-        s, last = s .. line:sub(c, c), nil
-      elseif r[3] ~= last then
-        s, last = s .. r[2], r[3]
-      end
-    end
-    return s
-  end
-  it("shows only the description", function()
-    eq("3. this is something else", rendered("3. this is [[https://www.google.com][something else]]"))
-    eq("* TODO see Link :tag:", rendered("* TODO see [[file:a.org::*x][Link]] :tag:"))
-    eq("| cell H | b |", rendered("| cell [[*Heading][H]] | b |"))
-  end)
-  it("shows the target when there is no description", function()
-    eq("no desc https://example.com end", rendered("no desc [[https://example.com]] end"))
   end)
 end)
 

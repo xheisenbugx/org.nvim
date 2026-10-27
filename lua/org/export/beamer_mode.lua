@@ -217,11 +217,8 @@ function M.mode(bufnr, on)
     end
     vim.b[bufnr].org_beamer_saved_maps = saved
     pcall(vim.api.nvim_set_hl, 0, "OrgBeamerTag", { default = true, link = "Special" })
-    vim.api.nvim_buf_call(bufnr, function()
-      vim.cmd([=[syntax match orgBeamerTag /:\zs\(B_\l\+\|BMCOL\)\ze:/ contained containedin=orgTags]=])
-      vim.cmd("highlight default link orgBeamerTag OrgBeamerTag")
-    end)
-    -- (ui.highlighter = "parser" draws the tags in the decorations)
+    pcall(vim.api.nvim_set_hl, 0, "orgBeamerTag", { default = true, link = "OrgBeamerTag" })
+    -- (the decorations draw the tags: org.ui.highlight.headline)
     pcall(require("org.ui.decorations").render, bufnr)
   else
     for _, lhs in ipairs(keys()) do
@@ -233,9 +230,6 @@ function M.mode(bufnr, on)
       end)
     end
     vim.b[bufnr].org_beamer_saved_maps = nil
-    vim.api.nvim_buf_call(bufnr, function()
-      pcall(vim.api.nvim_command, "syntax clear orgBeamerTag")
-    end)
     pcall(require("org.ui.decorations").render, bufnr)
   end
   pcall(vim.api.nvim_exec_autocmds, "User", {

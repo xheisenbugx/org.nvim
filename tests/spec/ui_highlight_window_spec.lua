@@ -100,7 +100,7 @@ local function fragment(rng)
 end
 
 describe("parser highlighter windows", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   it("draws macros and footnotes over separating lines whatever the window", function()
     for _, lines in ipairs({

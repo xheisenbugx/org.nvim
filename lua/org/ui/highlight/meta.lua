@@ -84,7 +84,7 @@ local function meta_line(ctx, i, line, s, hidden)
   elseif c2 == 9 then
     -- "#" and a tab: not a comment (org-comment-regexp), but Emacs draws
     -- it as a keyword, all of it in org-meta-line (spell checked: to
-    -- org-element it's a paragraph, as the syntax engine's comment is)
+    -- org-element it's a paragraph)
     emit(i, 0, n, { hl_group = "orgKeyword", priority = H.PRIO.object + 1 })
     -- (but its links, as flyspell leaves them out)
     local _, found = E._links(line, ctx.link_types or E.link_types(), function()
@@ -103,7 +103,7 @@ local function meta_line(ctx, i, line, s, hidden)
   local key_end = line:match("^#%+%a+()", s) ---@type integer?
   if not key_end then
     -- (no face, but a keyword to org-element, "#+1x: ...": not spell
-    -- checked, like the syntax engine's orgKeyword)
+    -- checked)
     if line:find("^#%+%S+:", s) then
       emit(i, 0, n, { priority = H.PRIO.object + 1, spell = false })
     end
@@ -151,10 +151,10 @@ local function meta_line(ctx, i, line, s, hidden)
     end
   end
   -- any other keyword: the whole line in org-meta-line (the keyword, up to
-  -- the last colon of its first word, in orgKeyword, like the syntax), not
+  -- the last colon of its first word, in orgKeyword), not
   -- spell checked. A line with no colon after its first word ("#+key
   -- text") isn't a keyword to org-element but a paragraph, spell checked
-  -- (by flyspell and the syntax engine), unless it is a block line, such
+  -- (by flyspell), unless it is a block line, such
   -- as an end line that closes nothing.
   local k = line:match("^#%+%S+:()", s)
   local spell ---@type boolean?

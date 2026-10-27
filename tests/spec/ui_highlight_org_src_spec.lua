@@ -36,7 +36,7 @@ local function keys(rows, row)
 end
 
 describe("parser highlighter: org src blocks", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   it("draws the body as Org text on orgBlock", function()
     org_buffer({

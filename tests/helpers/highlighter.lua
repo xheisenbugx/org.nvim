@@ -1,16 +1,15 @@
--- What the two emphasis highlighters (`ui.highlighter`: "syntax" regions,
--- or "parser", org.ui.emphasis) draw on each byte of a buffer, in one form
--- both can be compared in:
+-- What the parser highlighter (org.ui.emphasis, org.ui.highlight) draws on
+-- each byte of a buffer, in a form two states can be compared in:
 --
 --   local hl = require("tests.helpers.highlighter")
---   local a = hl.state(buf, "syntax")
---   local b = hl.state(buf, "parser")
---   local diffs = hl.diff(buf, a, b)
+--   local a = hl.state(buf)
+--   ... (an edit, another option)
+--   local diffs = hl.diff(buf, a, hl.state(buf))
 --
 -- A byte's state is the emphasis kinds covering it ("bold italic"), a ">"
 -- when the innermost one draws a marker there, and "#" when it is hidden
--- (an emphasis marker, a link bracket or target; and whatever else the
--- syntax conceals: macro markers, hidden keywords).
+-- (an emphasis marker, a link bracket or target, macro markers, hidden
+-- keywords).
 local M = {}
 
 local KINDS = {
@@ -22,8 +21,8 @@ local KINDS = {
   orgcode = "code",
 }
 
---- The kind of a syntax or highlight group name, and whether it draws a
---- marker; nil for any other group.
+--- The kind of a highlight group name, and whether it draws a marker; nil
+--- for any other group.
 local function kind_of(name)
   name = name:lower()
   local delim = name:match("^(.-)delimiter$")
@@ -34,9 +33,9 @@ local function kind_of(name)
 end
 
 --- The groups drawn on byte `c` (1-based) of line `l` of the current
---- buffer, lowercase and joined by " ": its syntax groups (`synstack()`)
---- and the groups of the decoration marks over it, whichever highlighter
---- draws the buffer. "conceal" is added when the byte is hidden.
+--- buffer, lowercase and joined by " ": its syntax groups (`synstack()`,
+--- in src blocks) and the groups of the decoration marks over it.
+--- "conceal" is added when the byte is hidden.
 ---@param l integer
 ---@param c integer
 ---@return string
@@ -66,9 +65,8 @@ function M.has(l, c, group)
   return (" " .. M.groups(l, c) .. " "):find(" " .. group:lower() .. " ", 1, true) ~= nil
 end
 
---- Draw buffer `buf` with highlighter `engine` (the current window shows it).
-function M.use(buf, engine)
-  require("org.config").opts.ui.highlighter = engine
+--- Draw buffer `buf` again (the current window shows it).
+function M.use(buf)
   vim.api.nvim_buf_call(buf, function()
     vim.cmd("syntax clear")
     vim.b.current_syntax = nil
@@ -84,52 +82,35 @@ end
 
 --- Per line, per byte: the state string (see the top of the file).
 ---@param buf integer shown in the current window
----@param engine "syntax"|"parser"
 ---@return string[][]
-function M.state(buf, engine)
-  M.use(buf, engine)
+function M.state(buf)
+  M.use(buf)
   local out = {}
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local deco = require("org.ui.decorations")
   vim.api.nvim_buf_call(buf, function()
     for l, line in ipairs(lines) do
       local row = {}
-      local marks = engine == "parser" and deco.line_marks(buf, l - 1) or {}
+      local marks = deco.line_marks(buf, l - 1)
       for c = 1, #line do
         local kinds, seen, delim = {}, {}, false
         local hidden = vim.fn.synconcealed(l, c)[1] == 1
-        if engine == "syntax" then
-          local stack = vim.fn.synstack(l, c)
-          local inner
-          for _, id in ipairs(stack) do
-            local k, d = kind_of(vim.fn.synIDattr(id, "name"))
+        local best = -1
+        for _, m in ipairs(marks) do
+          local o = m[2]
+          if c - 1 >= m[1] and c - 1 < (o.end_col or m[1] + 1) then
+            local k, d = kind_of(o.hl_group or "")
             if k then
               if not seen[k] then
                 seen[k] = true
                 kinds[#kinds + 1] = k
               end
-              inner = d
+              if (o.priority or 0) >= best then
+                best, delim = o.priority or 0, d
+              end
             end
-          end
-          delim = inner or false
-        else
-          local best = -1
-          for _, m in ipairs(marks) do
-            local o = m[2]
-            if c - 1 >= m[1] and c - 1 < (o.end_col or m[1] + 1) then
-              local k, d = kind_of(o.hl_group or "")
-              if k then
-                if not seen[k] then
-                  seen[k] = true
-                  kinds[#kinds + 1] = k
-                end
-                if (o.priority or 0) >= best then
-                  best, delim = o.priority or 0, d
-                end
-              end
-              if o.conceal == "" then
-                hidden = true
-              end
+            if o.conceal == "" then
+              hidden = true
             end
           end
         end
@@ -157,10 +138,9 @@ local ORDER = "biusvc"
 --- hidden bytes, runs of "<count><code>". The faces of hidden bytes are
 --- left out: they aren't drawn (Emacs gives emphasis markers no face when
 --- it hides them).
----@param engine "syntax"|"parser"
 ---@return table<integer, string>
-function M.emacs_codes(buf, engine)
-  local st = M.state(buf, engine)
+function M.emacs_codes(buf)
+  local st = M.state(buf)
   local out = {}
   -- Emacs draws fixed-width lines in org-code, where org.nvim has its own
   -- group (orgFixedWidth): "c" from the colon on

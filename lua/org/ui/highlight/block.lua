@@ -27,8 +27,8 @@
 --- start of a line up to `\end{x}`) in orgLatex, entities (`\alpha`) in
 --- orgLatexEntity and sub/superscripts (`ui.use_sub_superscripts`, a
 --- buffer's `#+OPTIONS: ^:`) in orgLatexScript, found left to right the
---- way Emacs's combined regexp finds them, none spell checked. As with the
---- syntax engine, `\(`, `\[` and `$$` fragments don't go over an empty line
+--- way Emacs's combined regexp finds them, none spell checked. `\(`, `\[`
+--- and `$$` fragments don't go over an empty line (org-do-latex-and-related)
 --- and nothing goes over a headline. With "native", what is found (entities
 --- and scripts too, as in Emacs) is drawn by Vim's tex syntax over
 --- orgSrcBlock instead (org.ui.highlight.native).
@@ -73,7 +73,7 @@ local PROTECTED = {
 -- Blocks --------------------------------------------------------------------
 
 --- Per Vim syntax and runtimepath / engine: how src bodies of it are drawn
---- ("treesitter", "syntax" or false), as org.syntax `highlighter` decides.
+--- ("treesitter", "syntax" or false), as org.syntax `drawn_by` decides.
 local drawn_cache = {} ---@type table<string, string|false>
 local drawn_key ---@type string?
 
@@ -182,7 +182,7 @@ local function paint_blocks(ctx)
   local caption = { hl_group = "orgBlock", priority = element }
   -- a keyword or block line in the body of a quote, verse, center or
   -- special block: Org text to font-lock, but a keyword or a block to
-  -- org-element, not spell checked (as by the syntax engine)
+  -- org-element, not spell checked
   local meta_nospell = { priority = element, spell = false }
   -- how each verbatim block's body is drawn (by its begin line)
   local how = {} ---@type table<org.ui.emphasis.Block, string|false>
@@ -232,8 +232,8 @@ local function paint_blocks(ctx)
   -- The bodies of the src, example and export blocks in a quote, verse,
   -- center or special block (in the lines), per outer block: line -> true.
   -- Org text to font-lock, but blocks to org-element, which flyspell
-  -- doesn't check (org-mode-flyspell-verify), as the syntax engine's
-  -- orgBlock; a src block whose language is drawn is left to its syntax.
+  -- doesn't check (org-mode-flyspell-verify); a src block whose language
+  -- is drawn is left to its syntax.
   local inner = {} ---@type table<org.ui.emphasis.Block, table<integer, true>>
   local function inner_of(block, i)
     local v = inner[block]

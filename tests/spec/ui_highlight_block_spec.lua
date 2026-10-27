@@ -1,7 +1,6 @@
 -- Blocks and LaTeX drawn by the parser highlighter (org.ui.highlight.block):
--- the rules of org.syntax for them, ported (ui_syntax_highlighting_spec.lua,
--- display_emacs_spec.lua, syntax_long_lines_spec.lua), and spelling, a
--- part of a buffer drawn alone and the time on long lines. What Emacs
+-- the groups, spelling, a part of a buffer drawn alone and the time on
+-- long lines. What Emacs
 -- draws is compared in emacs_faces_block_spec.lua.
 local hl = require("tests.helpers.highlighter")
 local deco = require("org.ui.decorations")
@@ -42,11 +41,11 @@ local function col(l, s)
 end
 
 local function ui(over)
-  return vim.tbl_extend("force", vim.deepcopy(require("org.config").opts.ui), { highlighter = "parser" }, over or {})
+  return vim.tbl_extend("force", vim.deepcopy(require("org.config").opts.ui), over or {})
 end
 
 describe("parser highlighter: blocks", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   it("draws begin and end lines whole, never spell checked", function()
     org_buffer({
@@ -157,7 +156,7 @@ describe("parser highlighter: blocks", function()
     require("org.config").opts.ui.src_highlight = nil
   end)
 
-  -- (ui_src_treesitter_spec.lua checks the syntax engine's)
+  -- (ui_src_treesitter_spec.lua checks that no region is defined)
   it('draws in orgBlock a language src_highlight_engine = "treesitter" has no parser for', function()
     if pcall(vim.treesitter.language.add, "fstab") and vim.treesitter.language.add("fstab") then
       return
@@ -499,7 +498,7 @@ describe("parser highlighter: highlight_latex_and_related", function()
 end)
 
 describe("parser highlighter: a block open above the rows drawn", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("draws its body by its own begin line, not by a begin line in the body", function()
     -- (a "#+begin_src lua" in the body of an org block, above a blank line

@@ -30,22 +30,6 @@ _G.after_each = function(fn)
   table.insert(afters[#afters], fn)
 end
 
---- Inside a describe: draw the org buffers of each of its tests with
---- highlighter `name` (`ui.highlighter`, the other `ui` options kept), e.g.
---- "syntax" for specs of the deprecated syntax engine's internals
---- (synID(), synconcealed(), 'synmaxcol').
-_G.with_highlighter = function(name)
-  local saved
-  before_each(function()
-    local ui = require("org.config").opts.ui
-    saved = ui.highlighter
-    ui.highlighter = name
-  end)
-  after_each(function()
-    require("org.config").opts.ui.highlighter = saved
-  end)
-end
-
 --- Inside a describe: set top-level config options for each of its tests
 --- and restore them afterwards (specs written for a non-default setup,
 --- e.g. a NEXT keyword or logging into LOGBOOK).

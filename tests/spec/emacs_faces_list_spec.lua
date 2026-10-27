@@ -6,6 +6,6 @@
 local KNOWN = {}
 
 describe("emacs faces: list", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   require("tests.helpers.faces").spec("list", KNOWN)
 end)

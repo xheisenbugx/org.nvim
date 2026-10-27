@@ -2,6 +2,7 @@
 -- ui.src_highlight_engine), org-src-fontify-natively with tree-sitter.
 
 local ts = require("org.ui.src_highlight")
+local hl = require("tests.helpers.highlighter")
 
 -- the parsers bundled with Neovim (lib/nvim/parser: c, lua, vim, ...),
 -- which the minimal runtimepath leaves out
@@ -59,12 +60,12 @@ describe("tree-sitter src blocks", function()
       vim.opt.runtimepath:append(parser_dir)
     end
     local ui = require("org.config").opts.ui
-    saved_ui = { ui.src_highlight, ui.src_highlight_engine, ui.highlighter }
+    saved_ui = { ui.src_highlight, ui.src_highlight_engine }
     saved_inject_max = ts.inject_max
   end)
   after_each(function()
     local ui = require("org.config").opts.ui
-    ui.src_highlight, ui.src_highlight_engine, ui.highlighter = saved_ui[1], saved_ui[2], saved_ui[3]
+    ui.src_highlight, ui.src_highlight_engine = saved_ui[1], saved_ui[2]
     vim.o.runtimepath = saved_rtp
     ts.inject_max = saved_inject_max
   end)
@@ -90,12 +91,11 @@ describe("tree-sitter src blocks", function()
   end)
 
   it("doesn't include the lua syntax: the body is a plain region", function()
-    -- (the syntax engine's groups; ui_highlight_block_spec.lua checks the
-    -- parser highlighter's delimiter lines)
-    set_ui({ highlighter = "syntax" })
+    -- (the region only keeps the body out of spell checking;
+    -- ui_highlight_block_spec.lua checks the delimiter lines' marks)
     org_buffer({ "* H", "#+begin_src lua", "local x = 1", "#+end_src" })
     eq("orgsrcblock_lua", groups(3, 1))
-    eq("orgsrcblock_lua orgblockdelimiter", groups(2, 1))
+    eq("orgsrcblock_lua orgsrcdelimiter", groups(2, 1))
   end)
 
   it("follows the aliases and src_lang_modes of a language", function()
@@ -275,9 +275,7 @@ describe("tree-sitter src blocks", function()
     if has_parser("fstab") then
       return
     end
-    -- (the syntax engine's groups: ui_highlight_block_spec.lua checks the
-    -- parser highlighter's)
-    set_ui({ src_highlight_engine = "treesitter", highlighter = "syntax" })
+    set_ui({ src_highlight_engine = "treesitter" })
     org_buffer({
       "#+begin_src fstab",
       "UUID=1234 / ext4 defaults 0 1",
@@ -286,17 +284,18 @@ describe("tree-sitter src blocks", function()
       "local x",
       "#+end_src",
     })
-    eq("orgblock", groups(2, 1))
+    -- (no region: the parser highlighter draws the body in orgBlock)
+    eq("", groups(2, 1))
+    ok(hl.has(2, 1, "orgblock"), hl.groups(2, 1))
     eq("@keyword.lua", group_at(5, 0))
   end)
 
   it("src_highlight = false turns both off", function()
-    -- (the syntax engine's groups: ui_highlight_block_spec.lua checks the
-    -- parser highlighter's)
-    set_ui({ src_highlight = false, highlighter = "syntax" })
+    set_ui({ src_highlight = false })
     org_buffer({ "#+begin_src lua", "local x = 1", "#+end_src" })
     eq({}, hls(2))
-    eq("orgblock", groups(2, 1))
+    eq("", groups(2, 1))
+    ok(hl.has(2, 1, "orgblock"), hl.groups(2, 1))
   end)
 
   it("draws the highlights as extmarks in the window", function()

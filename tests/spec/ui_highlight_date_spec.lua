@@ -1,10 +1,8 @@
--- ui.highlighter = "parser": dates and planning (org.ui.highlight.date):
+-- The parser highlighter: dates and planning (org.ui.highlight.date):
 -- timestamps and ranges, SCHEDULED / DEADLINE / CLOSED and CLOCK, clock
--- durations, diary sexps and the COMMENT keyword of headlines, drawn with
--- the groups of the syntax rules. What Emacs draws is compared in
--- emacs_faces_date_spec.lua; this spec ports the syntax engine's
--- assertions (ui_syntax_highlighting_spec.lua) and checks spelling and
--- the time on long lines.
+-- durations, diary sexps and the COMMENT keyword of headlines. What Emacs
+-- draws is compared in emacs_faces_date_spec.lua; this spec checks the
+-- groups, spelling and the time on long lines.
 local hl = require("tests.helpers.highlighter")
 local groups, has = hl.groups, hl.has
 
@@ -32,7 +30,7 @@ local function spans(l, group)
 end
 
 describe("parser highlighter: dates and planning", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("defines no syntax for timestamps, planning or clocks", function()
     org_buffer({ "SCHEDULED: <2026-10-02 Fri> CLOCK: [2026-10-02 Fri]" })

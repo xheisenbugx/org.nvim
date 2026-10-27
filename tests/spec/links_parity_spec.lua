@@ -276,33 +276,6 @@ describe("links parity", function()
       links.open_at_point(0)
       eq({ 1, 0 }, cursor())
     end)
-
-    -- (the syntax engine's groups: ui_highlight_object_spec.lua and
-    -- ui_highlighter_spec.lua check the parser highlighter's)
-    describe("with the syntax highlighter", function()
-      with_highlighter("syntax")
-
-      it("highlights radio links and custom link faces", function()
-        config.opts.links.types = { jira = { follow = function() end, face = "ErrorMsg" } }
-        org_buffer({ "<<<my radio>>>", "a My Radio b", "[[jira:X-1]] jira:Y-2" }, { 1, 0 })
-        local function names(l, c)
-          return vim.tbl_map(function(id)
-            return vim.fn.synIDattr(id, "name")
-          end, vim.fn.synstack(l, c))
-        end
-        ok(vim.tbl_contains(names(2, 4), "orgRadioLink"), vim.inspect(names(2, 4)))
-        eq({}, names(2, 1))
-        ok(vim.tbl_contains(names(3, 4), "orgLinkType_jira"), vim.inspect(names(3, 4)))
-        ok(vim.tbl_contains(names(3, 16), "orgLinkType_jira"), vim.inspect(names(3, 16)))
-        -- toggling the display only changes link concealing
-        org_buffer({ "[[https://x][desc]] *b*" }, { 1, 0 })
-        eq(1, vim.fn.synconcealed(1, 1)[1])
-        links.toggle_link_display()
-        eq(0, vim.fn.synconcealed(1, 1)[1])
-        links.toggle_link_display()
-        eq(1, vim.fn.synconcealed(1, 1)[1])
-      end)
-    end)
   end)
 
   describe("next / previous link", function()

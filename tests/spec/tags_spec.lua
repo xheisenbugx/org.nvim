@@ -311,38 +311,6 @@ describe("properties: Emacs parity", function()
   end)
 end)
 
-describe("priority and tag faces", function()
-  -- (the syntax engine's groups: ui_highlight_headline_spec.lua checks the
-  -- parser highlighter's)
-  with_highlighter("syntax")
-  it("ui.priority_faces / ui.tag_faces highlight cookies and tags", function()
-    local ui = require("org.config").opts.ui
-    local saved_p, saved_t = ui.priority_faces, ui.tag_faces
-    ui.priority_faces = { A = "ErrorMsg", ["10"] = { fg = "#123456" } }
-    ui.tag_faces = { urgent = ":foreground red :weight bold" }
-    local ok_, err = pcall(function()
-      org_buffer({ "* TODO [#A] Task :urgent:x:", "* [#10] N" })
-      require("org.syntax").apply(0)
-      require("org.highlights").apply_todo_faces()
-      local function group_at(l, c)
-        local names = {}
-        for _, id in ipairs(vim.fn.synstack(l, c)) do
-          names[#names + 1] = vim.fn.synIDattr(id, "name")
-        end
-        return table.concat(names, " ")
-      end
-      local line = buf_lines()[1]
-      ok(group_at(1, line:find("#A", 1, true)):find("orgPriorityFace_A"), group_at(1, 9))
-      ok(group_at(1, line:find("urgent", 1, true)):find("orgTagFace_urgent"), group_at(1, line:find("urgent")))
-      ok(not group_at(1, line:find("x:", 1, true)):find("orgTagFace"))
-      ok(group_at(2, 4):find("orgPriorityFace_10"), group_at(2, 4))
-      eq("#ff0000", string.format("#%06x", vim.api.nvim_get_hl(0, { name = "orgTagFace_urgent" }).fg))
-    end)
-    ui.priority_faces, ui.tag_faces = saved_p, saved_t
-    assert(ok_, err)
-  end)
-end)
-
 describe("inheritance options", function()
   local config = require("org.config")
   it("use_tag_inheritance as a list or regexp, use_property_inheritance as a regexp", function()

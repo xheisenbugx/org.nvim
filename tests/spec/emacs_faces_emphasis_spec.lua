@@ -19,6 +19,6 @@ local KNOWN = {
 }
 
 describe("emacs faces: emphasis", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   F.spec("emphasis", KNOWN)
 end)

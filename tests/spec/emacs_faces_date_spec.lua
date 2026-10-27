@@ -16,6 +16,6 @@ local KNOWN = {
 }
 
 describe("emacs faces: date", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   F.spec("date", KNOWN)
 end)

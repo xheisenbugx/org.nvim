@@ -1,10 +1,9 @@
 ---@mod org.ui.highlight The parser highlighter
 ---
---- With `ui.highlighter = "parser"`, org buffers are drawn by the
---- decoration provider (org.ui.decorations) from a scan of the rows on
---- screen instead of by `:syntax` regions: this module computes the marks
---- of those rows. org.syntax then defines only the regions that include the
---- Vim syntax of src block languages (for languages without a tree-sitter
+--- Org buffers are drawn by the decoration provider (org.ui.decorations)
+--- from a scan of the rows on screen: this module computes the marks of
+--- those rows. org.syntax defines only the regions that include the Vim
+--- syntax of src block languages (for languages without a tree-sitter
 --- parser, see org.ui.src_highlight).
 ---
 --- The marks come from parts, one per area, each a module of this
@@ -79,13 +78,6 @@ M.PRIO = {
   --- an object: a link, a timestamp, a footnote
   object = 95,
 }
-
---- Whether buffer `bufnr` is drawn by this highlighter (`ui.highlighter`).
----@param bufnr? integer
----@return boolean
-function M.active(bufnr)
-  return E.active(bufnr)
-end
 
 --- How far back the scan looks for the headline above (the blocks open
 --- there), and ahead for the end line of a block.

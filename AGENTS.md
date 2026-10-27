@@ -156,11 +156,8 @@ in `tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
 
 The runner is a small busted-style harness (`tests/run.lua`) with globals
 `describe`, `it`, `before_each`, `after_each`, `eq(expected, actual)`,
-`ok(value)`, `org_buffer(lines, cursor)`, `buf_lines(buf)`,
-`with_config(overrides)` (set options for every test in a `describe`) and
-`with_highlighter(name)` (the same for `ui.highlighter` alone, keeping the
-other `ui` options: `"syntax"` pins a spec of the deprecated syntax
-engine's internals, `synID()` / `synconcealed()` / 'synmaxcol').
+`ok(value)`, `org_buffer(lines, cursor)`, `buf_lines(buf)` and
+`with_config(overrides)` (set options for every test in a `describe`).
 
 ```lua
 describe("tags", function()

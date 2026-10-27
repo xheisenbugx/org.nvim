@@ -1,4 +1,4 @@
--- ui.highlighter = "parser" (org.ui.highlight.object) against every face
+-- The parser highlighter (org.ui.highlight.object) against every face
 -- Emacs Org 9.8.12 draws, for the object family: links, footnotes,
 -- targets, macros, inline src blocks, citations and hidden text
 -- (tests/helpers/faces.lua, tests/fixtures/emacs/faces/expected/).
@@ -36,6 +36,6 @@ local KNOWN = {
 }
 
 describe("emacs parity: object faces", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   require("tests.helpers.faces").spec("object", KNOWN)
 end)

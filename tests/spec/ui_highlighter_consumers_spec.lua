@@ -1,6 +1,6 @@
--- What reads or adds to an org buffer's highlighting, with
--- ui.highlighter = "parser" (the buffer drawn by org.ui.decorations, the
--- syntax only including the languages of src blocks).
+-- What reads or adds to an org buffer's highlighting: the buffer drawn by
+-- the parser highlighter (org.ui.decorations), the syntax only including
+-- the languages of src blocks.
 
 local deco = require("org.ui.decorations")
 
@@ -17,7 +17,7 @@ local function groups_at(buf, row, col)
 end
 
 describe("parser highlighter consumers", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("draws the beamer tags of org-beamer-mode", function()
     local beamer = require("org.export.beamer_mode")

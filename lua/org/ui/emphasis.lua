@@ -1,12 +1,11 @@
 ---@mod org.ui.emphasis Emphasis and link brackets drawn from the text
 ---
---- With `ui.highlighter = "parser"`, the markup of org-do-emphasis-faces
---- (bold, italic, underline, strike-through, verbatim and code) and the
---- hidden parts of bracket links (org-activate-links) are drawn by the
---- decoration provider (org.ui.decorations) from a scan of the lines on
---- screen, instead of by the `:syntax` regions of org.syntax.
+--- The markup of org-do-emphasis-faces (bold, italic, underline,
+--- strike-through, verbatim and code) and the hidden parts of bracket links
+--- (org-activate-links) are drawn by the decoration provider
+--- (org.ui.decorations) from a scan of the lines on screen.
 ---
---- The scan is a port of Emacs's fontification, not of the regions: every
+--- The scan is a port of Emacs's fontification: every
 --- marker that can open emphasis is tried on its own (org-emph-re, with the
 --- shortest text up to a closing marker, over at most one line break), so
 --- markup may overlap the way it does in Emacs; links are found the way
@@ -145,28 +144,6 @@ local function uspace_starts(s, i)
     return false
   end
   return USPACES[s:sub(i, i + 1)] or USPACES[s:sub(i, i + 2)] or false
-end
-
---- Whether `ui.highlighter` makes buffer `bufnr` draw emphasis this way
---- (a buffer's `b:org_ui` can set it, like the other `ui` options). Only
---- org buffers do: one that just uses the org syntax keeps its regions.
----@param bufnr? integer
----@return boolean
-function M.active(bufnr)
-  local ui = require("org.config").opts.ui or {}
-  local h = ui.highlighter
-  if bufnr and bufnr ~= 0 and vim.api.nvim_buf_is_valid(bufnr) then
-    -- (the decorations draw org buffers only: a buffer with just the org
-    -- syntax, like the drill window, keeps the syntax regions)
-    if vim.bo[bufnr].filetype ~= "org" then
-      return false
-    end
-    local b = vim.b[bufnr].org_ui
-    if type(b) == "table" and b.highlighter ~= nil then
-      h = b.highlighter
-    end
-  end
-  return h == "parser"
 end
 
 -- Lines ---------------------------------------------------------------------
@@ -1159,9 +1136,9 @@ function M.marks(lines, row0, first, last, opts, rows)
   -- with nothing inside one starting another. (Font-lock tries every
   -- marker, so a verbatim's closing marker can open another one that runs
   -- on over plain text: `=a "b"=, the rest=` draws ", the rest" as
-  -- verbatim, which org-element, flyspell and the syntax engine check.)
+  -- verbatim, which org-element and flyspell check.)
   -- In table rows, which aren't spell checked, the text of the other
-  -- emphasis is (like the syntax engine's emphasis groups, with @Spell).
+  -- emphasis is.
   local nospell_end = 0
   for _, r in ipairs(regions) do
     if (r.m == "=" or r.m == "~") and r.open > nospell_end then

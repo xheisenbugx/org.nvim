@@ -111,7 +111,6 @@ describe("inline tasks with odd levels only", function()
 
   it("draw 15 stars as a level 8 headline, 29 as an inline task", function()
     local hl = require("tests.helpers.highlighter")
-    config.opts.ui.highlighter = "parser"
     org_buffer(vim.deepcopy(ODD), { 1, 0 })
     ok(hl.has(4, 1, "orgheadlinelevel8"), hl.groups(4, 1))
     ok(not hl.groups(4, 1):find("orginlinetask"), hl.groups(4, 1))

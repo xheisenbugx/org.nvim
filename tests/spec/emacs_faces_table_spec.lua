@@ -4,6 +4,6 @@
 local KNOWN = {}
 
 describe("Emacs faces: tables", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   require("tests.helpers.faces").spec("table", KNOWN)
 end)

@@ -333,7 +333,7 @@ local function foreground(bufnr, row, col)
         end
       end
     end
-    -- the emphasis of ui.highlighter = "parser": ephemeral marks, which
+    -- the emphasis of the parser highlighter: ephemeral marks, which
     -- inspect_pos() doesn't see, drawn over the rest (the deepest last)
     local deco = package.loaded["org.ui.decorations"]
     if deco then
