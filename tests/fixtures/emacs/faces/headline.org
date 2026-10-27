@@ -88,3 +88,8 @@ Its body.
 * Markup in headlines
 ** TODO *bold* /italic/ and a [[https://orgmode.org][link]]          :tag:
 ** DONE =verbatim= in a done headline
+
+* Diary sexps and planning keywords in headlines
+** Birthday <%%(diary-anniversary 10 1 1990)> and more   :tag:
+** DONE Call DEADLINE: and SCHEDULED: in the title
+** TODO [#A] <%%(diary-float t 4 2)>

@@ -25,6 +25,7 @@ end
 local M = {}
 
 local PRIO = require("org.ui.highlight").PRIO
+local D = require("org.ui.highlight.date")
 
 local byte = string.byte
 
@@ -68,55 +69,7 @@ local function property_line(line)
   return line:find("^[ \t]*:[-_%w\128-\255]+%+?:[ \t]") ~= nil or line:find("^[ \t]*:[-_%w\128-\255]+%+?:$") ~= nil
 end
 
--- (org-deadline-string, org-scheduled-string, org-closed-string,
--- org-clock-string)
-local SPECIAL = { "DEADLINE:", "SCHEDULED:", "CLOSED:", "CLOCK:" }
-
---- The byte ranges (1-based, inclusive) of the special keywords of `line`
---- ("\\<SCHEDULED:", ...: org-special-keyword overrides the table and
---- formula faces there), in order.
----@param line string
----@return integer[][]
-local function specials(line)
-  local out = {} ---@type integer[][]
-  for _, word in ipairs(SPECIAL) do
-    local p = line:find(word, 1, true)
-    while p do
-      local b = byte(line, p - 1)
-      -- (at the start of a word: no letter, digit or other word byte before)
-      if not (b and (b >= 128 or (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122))) then
-        out[#out + 1] = { p, p + #word - 1 }
-      end
-      p = line:find(word, p + #word, true)
-    end
-  end
-  table.sort(out, function(x, y)
-    return x[1] < y[1]
-  end)
-  return out
-end
-
---- The parts of [a, e] that no range of `cut` (sorted by start) covers.
----@param a integer
----@param e integer
----@param cut integer[][]
----@return integer[][]
-local function minus(a, e, cut)
-  local out = {} ---@type integer[][]
-  for _, sp in ipairs(cut) do
-    if sp[1] > e then
-      break
-    end
-    if sp[1] > a then
-      out[#out + 1] = { a, sp[1] - 1 }
-    end
-    a = math.max(a, sp[2] + 1)
-  end
-  if a <= e then
-    out[#out + 1] = { a, e }
-  end
-  return out
-end
+local minus = D.minus
 
 --- The byte ranges (1-based, inclusive) of `line` in org-formula, and the
 --- positions of its "|". `row`: whether it is a table row ("^[ \t]*|", the
@@ -213,10 +166,9 @@ function M.paint(ctx)
       if row or (line:find("|", 1, true) and not property_line(line)) then
         spans, bars = formulas(line, row, s)
       end
-      local keys = {} ---@type integer[][]
-      if row and line:find(":", 1, true) then
-        keys = specials(line)
-      end
+      -- (the planning keywords and diary sexps: their faces replace the
+      -- table and formula faces, "\\<SCHEDULED:" ... and "<%%(...>")
+      local keys = row and D.override_spans(line) or {} ---@type integer[][]
       for _, sp in ipairs(spans) do
         for _, r in ipairs(#keys > 0 and minus(sp[1], sp[2], keys) or { sp }) do
           emit(i, r[1] - 1, r[2], { hl_group = "orgTableFormula", priority = part, spell = false })

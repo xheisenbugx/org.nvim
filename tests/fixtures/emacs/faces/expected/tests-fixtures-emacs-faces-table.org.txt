@@ -73,3 +73,5 @@
 104	19:font-lock-comment-face
 106	5:table,2:.
 107	19:.,3:formula,6:.
+109	2:table,23:sexp-date,3:table,1:formula#,7:sexp-date+verbatim,1:formula#,1:formula,5:table
+110	1:table,5:formula,14:sexp-date,5:formula,1:table

@@ -25,6 +25,7 @@ local M = {}
 local byte = string.byte
 
 local H = require("org.ui.highlight")
+local D = require("org.ui.highlight.date")
 local PRIO = H.PRIO
 
 -- (bytes)
@@ -171,20 +172,26 @@ local function headline(ctx, i, line, n, o)
       emit(i, lead, n + 1, { hl_group = group, priority = PRIO.element + 1 })
       emit(i, n + 1, len, { hl_group = "orgHeadlineText", priority = PRIO.element })
     else
-      -- (not on a column cookie after a "|": Emacs's rule for table
-      -- cookies, "| *<[lrc]?[0-9]*>", replaces every face under it,
-      -- in a headline too; the table part draws it)
-      local from = lead
+      -- (not on a column cookie after a "|", a diary sexp or a planning
+      -- keyword: Emacs's rules for them, "| *<[lrc]?[0-9]*>",
+      -- "<%%([^>\n]*?>" and "\\<SCHEDULED:"..., replace every face under
+      -- them, in a headline too; the table and date parts draw them)
+      local cut = D.override_spans(line)
       local at = 1
       while true do
         local bar, cs, ce = line:match("()|[ ]*()<[lrc]?%d*>()", at)
         if not bar then
           break
         end
-        emit(i, from, cs - 1, { hl_group = group, priority = PRIO.element })
-        from, at = ce - 1, ce
+        cut[#cut + 1] = { cs, ce - 1 }
+        at = ce
       end
-      emit(i, from, len, { hl_group = group, priority = PRIO.element })
+      table.sort(cut, function(x, y)
+        return x[1] < y[1]
+      end)
+      for _, r in ipairs(D.minus(lead + 1, len, cut)) do
+        emit(i, r[1] - 1, r[2], { hl_group = group, priority = PRIO.element })
+      end
     end
   end
 
@@ -222,10 +229,13 @@ local function headline(ctx, i, line, n, o)
       be = be - 1
     end
     if be >= bs and bs > ke then
-      if kw.done and ui.fontify_done_headline ~= false then
-        emit(i, bs - 1, be, { hl_group = "orgHeadlineDone", priority = TEXT + up })
-      elseif not kw.done and ui.fontify_todo_headline then
-        emit(i, bs - 1, be, { hl_group = "orgHeadlineTodo", priority = TEXT + up })
+      local text = kw.done and ui.fontify_done_headline ~= false and "orgHeadlineDone"
+        or not kw.done and ui.fontify_todo_headline and "orgHeadlineTodo"
+      if text then
+        -- (not on a planning keyword, which Emacs draws over it)
+        for _, r in ipairs(D.minus(bs, be, D.special_spans(line))) do
+          emit(i, r[1] - 1, r[2], { hl_group = text, priority = TEXT + up })
+        end
       end
     end
   end

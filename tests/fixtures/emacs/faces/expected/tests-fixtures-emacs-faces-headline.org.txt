@@ -73,3 +73,7 @@
 88	21:level-1
 89	3:level-2,4:level-2+todo,1:level-2,1:level-2#,4:bold+level-2,1:level-2#,1:level-2,1:level-2#,6:italic+level-2,1:level-2#,7:level-2,23:level-2+link#,4:level-2+link,2:level-2+link#,10:level-2,5:level-2+tag
 90	3:level-2,4:done+level-2,1:level-2,1:headline-done+level-2#,8:headline-done+level-2+verbatim,1:headline-done+level-2#,19:headline-done+level-2
+92	48:level-1
+93	12:level-2,33:sexp-date,12:level-2,5:level-2+tag
+94	3:level-2,4:done+level-2,1:level-2,5:headline-done+level-2,9:special-keyword,5:headline-done+level-2,10:special-keyword,13:headline-done+level-2
+95	3:level-2,4:level-2+todo,1:level-2,4:level-2+priority,1:level-2,23:sexp-date

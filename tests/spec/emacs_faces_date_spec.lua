@@ -11,7 +11,7 @@ local KNOWN = {
     -- (here the rest of the file, the fixture fontifies it at once; a
     -- jit-lock chunk in a window). An Emacs bug not worth copying:
     -- org.nvim leaves out only that date.
-    [95] = "dates after a date that follows [",
+    [98] = "dates after a date that follows [",
   },
 }
 

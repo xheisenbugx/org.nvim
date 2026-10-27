@@ -91,5 +91,8 @@ Text after an unclosed block <2026-10-01 Thu>.
 :END:
 - State "DONE"       from "TODO"       [2026-09-28 Mon 15:08]
 
+* Planning keywords after non-ASCII characters
+東京SCHEDULED: and «DEADLINE: and —CLOSED: and éCLOCK: and SCHEDULED:「x」.
+
 * After a bracket (last: Emacs stops drawing dates after it)
 In a description [[https://example.com][<2026-10-01 Thu>]] then <2026-10-02 Fri>.

@@ -110,3 +110,15 @@ echo src_sh{z} and <<t>> {{{m}}}
 * Line breaks
 A line that ends with a break \\
 and the next.
+
+* Links after non-ASCII characters
+東京https://orgmode.org and “https://x.org/a” and «https://y.org» and —http://a.b/c… too.
+Not after a word: x'https://x.org, a$https://x.org, éhttps://x.org and éhttps://x.org.
+Paths end before punctuation: file:a.org— and https://x.org/a」 and https://x.org/b、 and https://x.org/ü.
+
+Inline src …src_sh{echo a} and （src_sh{echo b}） and ésrc_sh{echo c} here.
+
+Radio 東京Radio Word東京 and two wordsテキスト and éradio and radioé and «radio».
+
+[fn:a—b] not a definition: "—" is not a word constituent
+Text[fn:東京] and[fn:a—b] and[fn:x$y] here.

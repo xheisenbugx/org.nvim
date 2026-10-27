@@ -86,6 +86,15 @@ local function meta_line(ctx, i, line, s, hidden)
     -- it as a keyword, all of it in org-meta-line (spell checked: to
     -- org-element it's a paragraph, as the syntax engine's comment is)
     emit(i, 0, n, { hl_group = "orgKeyword", priority = H.PRIO.object + 1 })
+    -- (but its links, as flyspell leaves them out)
+    local _, found = E._links(line, ctx.link_types or E.link_types(), function()
+      return 1
+    end, function(x)
+      return x == 1 and 1 or n + 2
+    end)
+    for _, f in ipairs(found) do
+      emit(i, f[1] - 1, f[2], { priority = H.PRIO.object + 1, spell = false })
+    end
     return
   elseif c2 ~= 43 then -- "+"
     return
@@ -173,7 +182,8 @@ local function colon_line(ctx, i, line, s)
     return
   end
   -- org-drawer-regexp: ":NAME:" and blanks
-  local d = line:match("^:[-_%w\128-\255]+:()", s) ---@type integer?
+  local d = E.word_end(line, s + 1) ---@type integer?
+  d = d > s + 1 and byte(line, d) == 58 and d + 1 or nil
   if d and skip_blanks(line, d) > n then
     emit(i, s - 1, d - 1, { hl_group = "orgDrawer", priority = H.PRIO.part, spell = false })
     return
@@ -188,7 +198,13 @@ local function colon_line(ctx, i, line, s)
   local v = skip_blanks(line, w)
   local e = trimmed_end(line, v)
   if e >= v then
-    emit(i, v - 1, e, { hl_group = "orgPropertyValue", priority = H.PRIO.part, spell = false })
+    -- (not on the diary sexps and planning keywords, which Emacs draws
+    -- over it)
+    for _, r in
+      ipairs(require("org.ui.highlight.date").minus(v, e, require("org.ui.highlight.date").override_spans(line)))
+    do
+      emit(i, r[1] - 1, r[2], { hl_group = "orgPropertyValue", priority = H.PRIO.part, spell = false })
+    end
   end
 end
 
