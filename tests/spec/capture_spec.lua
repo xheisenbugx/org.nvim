@@ -376,6 +376,9 @@ describe("capture placement (Emacs parity)", function()
       "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| x |\n| 3 |\n",
     },
     { "text\n* A\n", { type = "table-line", template = "| x |" }, "text\n* A\n|   |\n|---|\n| x |\n" },
+    -- the headline matches without regard to case (case-fold-search)
+    { "* TODO a\n", { headline = "A", template = "* new" }, "* TODO a\n** new\n" },
+    { "* Été\n", { headline = "ÉTÉ", template = "* new" }, "* Été\n** new\n" },
     -- a table-looking line in a block is not a table: a new one goes after
     -- the block, or the line goes to the next real table
     {
