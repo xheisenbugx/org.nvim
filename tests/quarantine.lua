@@ -19,10 +19,6 @@ M.list = {
     reason = "the wait loop RPCs into a child Neovim that may still sit in the capture menu's getchar",
   },
   {
-    file = "syntax_long_lines_spec.lua",
-    reason = "drawing a 20,000-character line can exceed 'redrawtime' on slow macOS runners",
-  },
-  {
     file = "perf_budgets_spec.lua",
     reason = "a linear-growth check can fail when one measurement is slowed by the runner",
   },

@@ -16,7 +16,7 @@ local KNOWN = {
 
 describe("emacs faces: block", function()
   -- (org-fontify-quote-and-verse-blocks nil, as in Emacs and the default)
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   F.spec("block", KNOWN)
 end)
@@ -25,7 +25,7 @@ end)
 -- with org-fontify-quote-and-verse-blocks set (expected-quote/)
 describe("emacs faces: block, fontify_quote_and_verse_blocks", function()
   with_config({
-    ui = { highlighter = "parser", hide_emphasis_markers = true, fontify_quote_and_verse_blocks = true },
+    ui = { hide_emphasis_markers = true, fontify_quote_and_verse_blocks = true },
   })
 
   F.spec("block", KNOWN, "expected-quote")

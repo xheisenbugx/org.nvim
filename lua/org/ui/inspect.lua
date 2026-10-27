@@ -2,8 +2,8 @@
 ---
 --- |:Inspect| (vim.inspect_pos()) lists the syntax groups, tree-sitter
 --- captures and extmarks at a position, but not the ephemeral marks
---- decoration providers draw on each redraw: with ui.highlighter = "parser"
---- that is nearly all of an org buffer's highlighting (org.ui.decorations),
+--- decoration providers draw on each redraw: nearly all of an org buffer's
+--- highlighting (the parser highlighter, org.ui.decorations),
 --- and citations always (org.cite.attach). This lists those too.
 
 local M = {}

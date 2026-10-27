@@ -1,8 +1,7 @@
--- ui.highlighter = "parser": bullets, checkboxes, statistics cookies and
--- description list terms (org.ui.highlight.list). The assertions of the
--- syntax engine's specs (ui_spec.lua, ui_syntax_highlighting_spec.lua,
--- syntax_long_lines_spec.lua), engine-agnostic; what Emacs draws is
--- checked in emacs_faces_list_spec.lua.
+-- The parser highlighter: bullets, checkboxes, statistics cookies and
+-- description list terms (org.ui.highlight.list): the groups, options,
+-- spelling and long lines; what Emacs draws is checked in
+-- emacs_faces_list_spec.lua.
 local hl = require("tests.helpers.highlighter")
 local groups, has = hl.groups, hl.has
 
@@ -26,7 +25,7 @@ local function spans(buf, row, group)
 end
 
 describe("parser highlighter: lists", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("draws no list syntax groups", function()
     org_buffer({ "- [ ] term :: x [1/2]" }, { 1, 0 })

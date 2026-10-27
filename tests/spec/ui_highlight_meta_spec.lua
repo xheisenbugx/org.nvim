@@ -1,6 +1,5 @@
 -- The parser highlighter's keywords, drawers and comments
--- (org.ui.highlight.meta): the groups the syntax engine draws there, with
--- the faces of Emacs (emacs_faces_meta_spec.lua compares them byte by
+-- (org.ui.highlight.meta): the groups drawn there, with the faces of Emacs (emacs_faces_meta_spec.lua compares them byte by
 -- byte), spelling and the time it takes on long lines.
 local hl = require("tests.helpers.highlighter")
 local deco = require("org.ui.decorations")
@@ -37,7 +36,7 @@ local function spells(buf, row)
 end
 
 describe("parser highlighter: keywords, drawers and comments", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("draws keywords as marks, not syntax", function()
     org_buffer({ "#+STARTUP: overview", "  #+FILETAGS: :a:", "#+key without colon" }, { 1, 0 })

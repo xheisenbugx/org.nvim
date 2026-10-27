@@ -281,13 +281,12 @@ end
 
 --- What org.nvim draws on each byte of `buf` (shown in the current
 --- window): per line, per byte, the set of Emacs faces (all families) and
---- whether the byte is hidden. With the parser highlighter the syntax only
---- draws the languages of src blocks: it is asked there only. Citations
+--- whether the byte is hidden. The syntax only draws the languages of src
+--- blocks: it is asked there only. Citations
 --- are org.cite.attach's decoration provider's (org.cite `marks`).
 ---@return { [1]: table<string, boolean>, [2]: boolean }[][]
 function M.nvim_faces(buf)
   local deco = require("org.ui.decorations")
-  local parser = require("org.ui.emphasis").active(buf)
   local out = {}
   vim.api.nvim_buf_call(buf, function()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -305,7 +304,7 @@ function M.nvim_faces(buf)
         marks[#marks + 1] = { c[1], { end_col = c[2], hl_group = c[3] } }
       end
       local row = {}
-      local syntax = not parser or kinds[l] == "none"
+      local syntax = kinds[l] == "none"
       for c = 1, #line do
         local set = {}
         local hidden = false
@@ -395,13 +394,13 @@ end
 local cache = {} ---@type table<string, table>
 
 --- Differences on one fixture: a list of "line: text / emacs / org.nvim".
---- (What org.nvim draws is computed once per fixture and engine.)
+--- (What org.nvim draws is computed once per fixture.)
 ---@param known? table<integer, string> lines left out (line -> reason)
 function M.differences(fx, family, known)
   local expected = {}
   local lines = vim.fn.readfile(input_of(fx.name))
   local ui = require("org.config").opts.ui
-  local key = fx.name .. ":" .. tostring(ui.highlighter) .. ":" .. tostring(ui.fontify_quote_and_verse_blocks)
+  local key = fx.name .. ":" .. tostring(ui.fontify_quote_and_verse_blocks)
   local faces = cache[key]
   if not faces then
     local buf = org_buffer(lines, { 1, 0 })

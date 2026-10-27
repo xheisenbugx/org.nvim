@@ -1,6 +1,6 @@
--- ui.highlighter = "parser" over the life of a buffer: reloading it,
--- turning org off and on, errors while drawing, switching the highlighter
--- with setup() again and the rows kept over editing commands
+-- The parser highlighter over the life of a buffer: reloading it,
+-- turning org off and on, errors while drawing, the removed
+-- ui.highlighter option and the rows kept over editing commands
 -- (org.ui.decorations, org.ui.highlight).
 local deco = require("org.ui.decorations")
 
@@ -27,7 +27,7 @@ local function all_marks(buf, fresh)
 end
 
 --- The groups drawn at byte `col` (0-based) of row `row`: by the
---- decorations, and by the syntax.
+--- decorations, and by the syntax (none outside src blocks).
 local function groups_at(buf, row, col)
   local marks = {}
   for _, m in ipairs(deco.line_marks(buf, row)) do
@@ -44,8 +44,8 @@ local function groups_at(buf, row, col)
   return marks, syn
 end
 
-describe("ui.highlighter = parser, over the life of a buffer", function()
-  with_config({ ui = { highlighter = "parser" } })
+describe("parser highlighter, over the life of a buffer", function()
+  with_config({ ui = {} })
 
   after_each(function()
     pcall(vim.cmd, "silent! %bwipeout!")
@@ -126,61 +126,71 @@ describe("ui.highlighter = parser, over the life of a buffer", function()
   end)
 end)
 
-describe("ui.highlighter switched with setup() again", function()
+-- ui.highlighter was removed (the parser highlighter is the only one): a
+-- config that still sets it gets a warning, not an error.
+describe("the removed ui.highlighter option", function()
   local root = vim.fn.getcwd()
-  local function setup(highlighter)
+  local function setup(ui)
     require("org").setup({
       org_directory = root .. "/tests/fixtures",
       agenda_files = { root .. "/tests/fixtures/*.org" },
-      ui = { highlighter = highlighter },
+      ui = ui,
     })
   end
-
+  local notify
+  before_each(function()
+    notify = vim.notify
+  end)
   after_each(function()
-    setup("parser")
+    vim.notify = notify
+    setup({})
   end)
 
-  it("draws open org buffers with the new highlighter", function()
-    setup("parser")
+  it("warns once, is ignored and draws with the parser highlighter", function()
+    local warnings = {}
+    vim.notify = function(msg, level)
+      if level == vim.log.levels.WARN then
+        warnings[#warnings + 1] = msg
+      end
+    end
+    for _, value in ipairs({ "syntax", "parser", "syntax" }) do
+      ok(pcall(setup, { highlighter = value, hide_emphasis_markers = true }))
+    end
+    eq(1, #warnings, vim.inspect(warnings))
+    ok(warnings[1]:find("ui.highlighter", 1, true) and warnings[1]:find("parser highlighter", 1, true), warnings[1])
+    local opts = require("org.config").opts
+    eq(nil, opts.ui.highlighter)
+    eq(true, opts.ui.hide_emphasis_markers)
     local buf = org_buffer({ "* TODO H", "text *bold* a" }, { 1, 0 })
     vim.cmd("redraw")
     local marks, syn = groups_at(buf, 1, 6)
-    ok(vim.tbl_contains(marks, "orgBold"))
-    eq({}, syn)
-    setup("syntax")
-    vim.cmd("redraw")
-    marks, syn = groups_at(buf, 1, 6)
-    eq({}, marks)
-    ok(vim.tbl_contains(syn, "OrgBold"), vim.inspect(syn))
-    setup("parser")
-    vim.cmd("redraw")
-    marks, syn = groups_at(buf, 1, 6)
-    ok(vim.tbl_contains(marks, "orgBold"))
-    eq({}, syn)
-  end)
-
-  it("draws a buffer opened with the syntax highlighter with the parser one", function()
-    -- (with "syntax" and no other decoration on, the buffer has no
-    -- decorations to draw the parser's marks with)
-    setup("syntax")
-    local buf = org_buffer({ "* TODO H", "text *bold* a" }, { 1, 0 })
-    vim.cmd("redraw")
-    local marks, syn = groups_at(buf, 1, 6)
-    eq({}, marks)
-    ok(vim.tbl_contains(syn, "OrgBold"), vim.inspect(syn))
-    setup("parser")
-    vim.cmd("redraw")
-    marks, syn = groups_at(buf, 1, 6)
     ok(vim.tbl_contains(marks, "orgBold"), vim.inspect(marks))
     eq({}, syn)
+  end)
+
+  it("is listed by :checkhealth org as removed", function()
+    vim.notify = function() end
+    setup({ highlighter = "syntax" })
+    local out = {}
+    local h = {}
+    for _, k in ipairs({ "start", "ok", "info", "warn", "error" }) do
+      h[k] = function(msg, advice)
+        out[#out + 1] = k .. ": " .. msg .. " " .. table.concat(type(advice) == "table" and advice or {}, " ")
+      end
+    end
+    require("org.health").check_options(h)
+    local text = table.concat(out, "\n")
+    ok(text:find("warn: Removed option passed to setup() (ignored): ui.highlighter", 1, true), text)
+    ok(not text:find("Unknown options", 1, true), text)
+    ok(not text:find("every option passed to setup() is known", 1, true), text)
   end)
 end)
 
 -- The rows kept over edits (org.ui.decorations `carried`) after the edits
 -- of Normal mode and Ex commands, not only nvim_buf_set_text: undo and
 -- redo, :substitute, Visual block inserts, joins, puts and deletes.
-describe("ui.highlighter = parser, rows kept over editing commands", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true, pretty_entities = true } })
+describe("parser highlighter, rows kept over editing commands", function()
+  with_config({ ui = { hide_emphasis_markers = true, pretty_entities = true } })
   local fuzz = require("tests.helpers.fuzz")
 
   local OPS = {

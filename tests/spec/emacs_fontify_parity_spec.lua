@@ -1,4 +1,4 @@
--- ui.highlighter = "parser" (org.ui.emphasis) against what Emacs Org 9.8.12
+-- The parser highlighter (org.ui.emphasis) against what Emacs Org 9.8.12
 -- draws: emphasis faces and hidden emphasis markers and link brackets on
 -- every byte of the example files and tests/fixtures/emacs/fontify/*.org,
 -- with org-hide-emphasis-markers on (tests/fixtures/emacs/fontify/
@@ -10,7 +10,7 @@ local hl = require("tests.helpers.highlighter")
 local KNOWN = {}
 
 describe("emacs parity: emphasis faces and hidden text", function()
-  with_config({ ui = { hide_emphasis_markers = true, highlighter = "parser" } })
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   for _, sec in ipairs(P.sections(P.dir .. "/fontify/expected.txt")) do
     it(sec.name, function()
@@ -24,7 +24,7 @@ describe("emacs parity: emphasis faces and hidden text", function()
       local lines = vim.fn.readfile(P.root .. "/" .. sec.name)
       local buf = org_buffer(lines, { 1, 0 })
       vim.wo.conceallevel = 2
-      local got = hl.emacs_codes(buf, "parser")
+      local got = hl.emacs_codes(buf)
       local known = KNOWN[sec.name] or {}
       local diffs = {}
       for i = 1, #lines do

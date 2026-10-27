@@ -1,9 +1,6 @@
--- ui.highlighter = "parser": tables (org.ui.highlight.table), drawn with the
--- groups of the syntax rules (orgTable, orgTableSeparator, orgTableHline,
--- orgTableFormula). The assertions of the syntax specs that cover tables
--- (ui_syntax_highlighting_spec, syntax_long_lines_spec, table_el_spec,
--- ui_spec), engine-agnostic; what Emacs draws on every byte is compared by
--- emacs_faces_table_spec.lua.
+-- The parser highlighter: tables (org.ui.highlight.table), drawn with the
+-- groups orgTable, orgTableSeparator, orgTableHline and orgTableFormula;
+-- what Emacs draws on every byte is compared by emacs_faces_table_spec.lua.
 local hl = require("tests.helpers.highlighter")
 local groups, has = hl.groups, hl.has
 
@@ -18,7 +15,7 @@ local function any_table(l, c)
 end
 
 describe("parser highlighter: tables", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("draws rows, separators and rules", function()
     org_buffer({ "| a | b |", "|---+---|", "  | c | d |  ", "|-" })

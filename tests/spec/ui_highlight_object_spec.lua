@@ -1,8 +1,8 @@
--- ui.highlighter = "parser": links, footnotes, targets, macros, export
+-- The parser highlighter: links, footnotes, targets, macros, export
 -- snippets, inline src blocks and line breaks (org.ui.highlight.object),
--- drawn with the groups of the syntax rules. What Emacs draws is compared
--- in emacs_faces_object_spec.lua; this spec ports what the syntax specs
--- check for these objects, and checks spelling, the options and the time.
+-- and their groups. What Emacs draws is compared in
+-- emacs_faces_object_spec.lua; this spec checks the groups, spelling, the
+-- options and the time.
 local hl = require("tests.helpers.highlighter")
 local groups, has = hl.groups, hl.has
 
@@ -45,8 +45,8 @@ local function nospell(buf, l, c)
   return false
 end
 
-describe("ui.highlighter = parser: objects", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+describe("parser highlighter: objects", function()
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   it("draws objects with marks, not with syntax regions", function()
     org_buffer({ "a [[x][y]] https://x.org [fn:1] <<t>> {{{m}}} @@b:v@@ src_sh{ls} \\\\" }, { 1, 0 })

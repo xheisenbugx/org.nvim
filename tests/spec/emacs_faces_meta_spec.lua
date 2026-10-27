@@ -18,6 +18,6 @@ local KNOWN = {
 }
 
 describe("Emacs faces: keywords, drawers and comments", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   F.spec("meta", KNOWN)
 end)

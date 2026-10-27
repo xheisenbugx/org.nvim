@@ -9,6 +9,6 @@ local KNOWN = {}
 describe("Emacs faces: headline", function()
   -- (inlinetask_min_level: the fixtures are made with org-inlinetask
   -- loaded, whose minimum level is 15)
-  with_config({ inlinetask_min_level = 15, ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ inlinetask_min_level = 15, ui = { hide_emphasis_markers = true } })
   F.spec("headline", KNOWN)
 end)

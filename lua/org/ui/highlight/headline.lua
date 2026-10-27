@@ -292,8 +292,7 @@ local function headline(ctx, i, line, n, o)
       end
     end
     if vim.b[ctx.bufnr].org_beamer_mode then
-      -- org-beamer-mode: the B_env and BMCOL tags in org-beamer-tag (like
-      -- the orgBeamerTag match org.export.beamer_mode adds to the syntax)
+      -- org-beamer-mode: the B_env and BMCOL tags in org-beamer-tag
       local s = ts + 1
       while s < te do
         local e = line:find(":", s, true) or te

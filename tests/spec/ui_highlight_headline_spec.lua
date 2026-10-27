@@ -1,7 +1,6 @@
--- ui.highlighter = "parser": headlines (org.ui.highlight.headline). What it
+-- The parser highlighter: headlines (org.ui.highlight.headline). What it
 -- draws is compared with Emacs in emacs_faces_headline_spec.lua; this spec
--- checks the options, the group names the syntax engine used, spelling
--- and the time it takes.
+-- checks the options, the group names, spelling and the time it takes.
 local hl = require("tests.helpers.highlighter")
 local has, groups = hl.has, hl.groups
 
@@ -27,7 +26,7 @@ local function mark(buf, l, c, group)
 end
 
 describe("parser highlighter: headlines", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   -- org-get-level-face cycles the 8 faces
   it("draws headlines of any depth in their level face", function()
@@ -236,7 +235,7 @@ describe("parser highlighter: headlines", function()
 end)
 
 describe("parser highlighter: headline options", function()
-  with_config({ ui = { highlighter = "parser" } })
+  with_config({ ui = {} })
 
   it("level_color_stars_only colors only the stars", function()
     ui().level_color_stars_only = true

@@ -216,18 +216,6 @@ function M.adapt_indentation(bufnr)
   return cfg.adapt_indentation
 end
 
-local function enabled(ui)
-  return ui.highlighter == "parser"
-    or ui.bullets
-    or ui.hide_leading_stars
-    or ui.checkboxes
-    or ui.indent_mode
-    or ui.pretty_entities
-    or ui.num
-    or next(ui.src_block_faces or {}) ~= nil
-    or require("org.parser").inlinetask_min_level() ~= nil
-end
-
 local EMPH_PRE = "[%s%(%'\"{%-]"
 local EMPH_POST = "[%s%-%.,:!%?;%'\"%)}%[]"
 
@@ -528,9 +516,6 @@ local num_cache = {} ---@type table<integer, { tick: integer, ui: table, nums: t
 function M.compute(bufnr, first, last, ui)
   local rows = {}
   ui = ui or M.ui_options(bufnr)
-  if not enabled(ui) then
-    return rows
-  end
   local n = vim.api.nvim_buf_line_count(bufnr)
   first = math.max(0, first or 0)
   last = math.min(n - 1, last or n - 1)
@@ -780,10 +765,8 @@ function M.compute(bufnr, first, last, ui)
       end
     end
   end
-  if ui.highlighter == "parser" then
-    -- everything the syntax regions draw otherwise (org.ui.highlight)
-    require("org.ui.highlight").add_marks(bufnr, first, last, ui, rows)
-  end
+  -- the faces of the text (org.ui.highlight)
+  require("org.ui.highlight").add_marks(bufnr, first, last, ui, rows)
   -- column view rows stand for the whole line (Emacs turns org-num off)
   local colview = package.loaded["org.columns"]
   for lnum in pairs(colview and colview.overlay_lines(bufnr) or {}) do
@@ -1305,7 +1288,7 @@ end
 --- the `spell` of the marks of rows [srow, erow], as ephemeral marks that
 --- Neovim reads for the words it looks at. (Drawing reads them from
 --- on_line; without this, `]s` would stop on the words the screen doesn't
---- mark, in verbatim, links, tags, ... with ui.highlighter = "parser".)
+--- mark, in verbatim, links, tags, ...)
 local function spell_nav(bufnr, srow, erow)
   local last = vim.api.nvim_buf_line_count(bufnr) - 1
   erow = math.min(math.max(erow or srow, srow), last)
@@ -1527,16 +1510,10 @@ function M.detach(bufnr)
   M.render(bufnr)
 end
 
----@param force? boolean attach even when nothing is enabled (toggles)
+---@param force? boolean attached by a toggle (the modes the buffer starts
+--- with don't run their hooks)
 function M.attach(bufnr, force)
   local ui = M.ui_options(bufnr)
-  if not enabled(ui) and not force then
-    -- (a reload that turned the decorations off: nothing stale stays)
-    if attached[bufnr] then
-      M.detach(bufnr)
-    end
-    return
-  end
   if ui.indent_mode then
     for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
       set_win_opts(bufnr, win)
@@ -1592,8 +1569,7 @@ end
 
 function M.refresh(bufnr)
   if not attached[bufnr] and vim.api.nvim_buf_is_valid(bufnr) and vim.b[bufnr].org_attached then
-    -- (an org buffer with nothing to draw when it was set up, until the
-    -- options changed: setup() again with ui.highlighter = "parser")
+    -- (an org buffer not drawn yet)
     M.attach(bufnr)
     return
   end

@@ -270,10 +270,6 @@ local function open(lines)
   return vim.api.nvim_get_current_buf()
 end
 
-local function syn(l, c)
-  return vim.fn.synIDattr(vim.fn.synID(l, c, 1), "name")
-end
-
 --- Inside a describe: no messages before a test, no buffers after it.
 local function setup()
   before_each(function()
@@ -284,112 +280,16 @@ local function setup()
   end)
 end
 
--- (the syntax engine, the fallback: "perf: long lines with the parser
--- highlighter" below times the default)
 describe("perf: long lines", function()
   setup()
-  with_highlighter("syntax")
-  --- A line of `kind` of `n` characters.
-  local function line(kind, n)
-    return ({
-      prose = gen.prose,
-      marked = gen.marked,
-      markers = gen.markers,
-      bold = function(k)
-        return string.rep("*a* ", math.ceil(k / 4)):sub(1, k)
-      end,
-      list = function(k)
-        return "- " .. gen.prose(k) .. " :: term"
-      end,
-      table = function(k)
-        return "| " .. gen.marked(k) .. " |"
-      end,
-      headline = function(k)
-        return "** TODO " .. gen.marked(k) .. " :tag:"
-      end,
-    })[kind](n)
+  --- A file with a long line of `n` characters of markup between two
+  --- headlines.
+  local function file(n)
+    return { "* Before", gen.marked(n), "* After *bold*" }
   end
-
-  --- A file with one `kind` of long line between two headlines.
-  local function file(kind, n)
-    return { "* Before", line(kind, n), "* After *bold*" }
-  end
-
-  --- Draw the buffer again from scratch (the syntax state of every line
-  --- recomputed).
-  local function redraw_fresh()
-    vim.cmd("syntax clear")
-    vim.b.current_syntax = nil
-    vim.cmd("runtime! syntax/org.lua")
-    vim.cmd("redraw!")
-  end
-
-  for _, kind in ipairs({ "prose", "marked", "markers", "list", "table", "headline" }) do
-    it(kind .. ": 30,000 characters draw in budget, syntax stays on", function()
-      open(file(kind, 30000))
-      vim.cmd("messages clear")
-      budget("draw a 30,000-character " .. kind .. " line", 1000, redraw_fresh)
-      local m = messages()
-      ok(not m:find("redrawtime"), m)
-      ok(not m:find("E363"), m)
-      -- highlighting goes on past the long line (no region leaks into it)
-      eq("OrgHeadlineLevel1", syn(3, 1))
-      eq("OrgBold", syn(3, 11))
-    end)
-  end
-
-  -- How drawing grows with the length of the lines, on a screen of 20 of
-  -- them shorter than 'synmaxcol', where every column is drawn (past it
-  -- nothing more is, so a line twice as long there is no more work). A
-  -- look-behind for a table row on each emphasis marker went back to the
-  -- start of the line: 20 lines of 2,900 characters of bold took 1.4 s to
-  -- draw, 3.7x the time of 1,450.
-  describe("a screen of lines", function()
-    local wrap
-    before_each(function()
-      wrap = vim.wo.wrap
-    end)
-    after_each(function()
-      vim.wo.wrap = wrap
-    end)
-    -- (2n and what a kind adds to a line within 'synmaxcol')
-    local max = math.floor(vim.o.synmaxcol / 2) - 50
-
-    for _, kind in ipairs({ "prose", "marked", "bold", "list", "table", "headline" }) do
-      it(kind .. ": drawing time grows linearly with the lines", function()
-        local buf = open({ "" })
-        -- (a screen row per line: all 20 are drawn)
-        vim.wo.wrap = false
-        local function screen(n)
-          local lines = { "* Before" }
-          for _ = 1, 20 do
-            lines[#lines + 1] = line(kind, n)
-          end
-          lines[#lines + 1] = "* After *bold*"
-          return lines
-        end
-        vim.cmd("messages clear")
-        -- (3 times: n can't grow past 'synmaxcol', the time must be well
-        -- above the timer's noise on a fast machine too)
-        -- (at 2n: n can't grow 4 times within 'synmaxcol')
-        linear("draw 20 " .. kind .. " lines 3x", math.floor(max / 2), function()
-          for _ = 1, 3 do
-            redraw_fresh()
-          end
-        end, function(n)
-          vim.api.nvim_buf_set_lines(buf, 0, -1, false, screen(n))
-        end, max, 2)
-        -- ('redrawtime' caps a drawing that turns syntax off)
-        local m = messages()
-        ok(not m:find("redrawtime"), m)
-        eq("OrgHeadlineLevel1", syn(22, 1))
-        eq("OrgBold", syn(22, 11))
-      end)
-    end
-  end)
 
   it("typing in a 10,000-character line", function()
-    open(file("marked", 10000))
+    open(file(10000))
     vim.api.nvim_win_set_cursor(0, { 2, 100 })
     budget("type 10 chars in a 10,000-character line", 1500, function()
       for _ = 1, 10 do
@@ -417,12 +317,12 @@ describe("perf: long lines", function()
   end)
 end)
 
--- ui.highlighter = "parser" (org.ui.emphasis): emphasis and link brackets
--- from a scan of the lines drawn, with no 'synmaxcol' to stop at, so the
--- lines here are longer than those above and still drawn in full.
+-- The parser highlighter (org.ui.emphasis): emphasis and link brackets
+-- from a scan of the lines drawn, with no 'synmaxcol' to stop at: the
+-- lines are drawn in full.
 describe("perf: long lines with the parser highlighter", function()
   setup()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   local deco = require("org.ui.decorations")
 
   local KINDS = {
@@ -510,7 +410,7 @@ end)
 -- range of rows a window draws (one per closed fold in an overview).
 describe("perf: the parser highlighter", function()
   setup()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+  with_config({ ui = { hide_emphasis_markers = true } })
   local deco = require("org.ui.decorations")
 
   -- the Emacs faces cases: every kind of element the highlighter draws
@@ -1014,7 +914,7 @@ describe("perf: src blocks", function()
   it("tree-sitter: drawing a block grows linearly with its lines", function()
     -- (the highlights of a row in the middle, as the first row drawn: the
     -- block found, read and parsed; not the redraw, whose syntax syncing
-    -- in a long region is the same with either engine)
+    -- in a long region is the same with either src block engine)
     local ts = require("org.ui.src_highlight")
     local parses
     -- (the slower way: with the injected languages, at any size)

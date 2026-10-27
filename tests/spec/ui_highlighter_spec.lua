@@ -1,4 +1,4 @@
--- ui.highlighter = "parser": emphasis and the hidden parts of links drawn
+-- The parser highlighter: emphasis and the hidden parts of links drawn
 -- by the decorations (org.ui.emphasis) instead of syntax regions. What it
 -- draws is checked against Emacs in emacs_fontify_parity_spec.lua; this
 -- spec checks the rest: no syntax regions, no 'synmaxcol' limit, spelling,
@@ -33,8 +33,8 @@ local function has(list, item)
   return vim.tbl_contains(list, item)
 end
 
-describe("ui.highlighter = parser", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+describe("parser highlighter", function()
+  with_config({ ui = { hide_emphasis_markers = true } })
 
   it("defines no emphasis regions and draws the emphasis as marks", function()
     local buf = org_buffer({ "a *bold* and =code= x" }, { 1, 0 })
@@ -223,37 +223,25 @@ describe("ui.highlighter = parser", function()
     eq(3, col())
   end)
 
-  it("is turned on and off by b:org_ui", function()
-    require("org.config").opts.ui.highlighter = "syntax"
-    local buf = org_buffer({ "a *b* c" }, { 1, 0 })
-    hl.use(buf, "syntax")
-    eq({}, marks(buf, 0))
-    local found = false
-    for _, id in ipairs(vim.fn.synstack(1, 4)) do
-      found = found or vim.fn.synIDattr(id, "name"):lower() == "orgbold"
-    end
-    ok(found)
-    vim.cmd("enew!")
-    local b2 = vim.api.nvim_get_current_buf()
-    vim.bo[b2].bufhidden = "wipe"
-    vim.b[b2].org_ui = { highlighter = "parser" }
-    vim.api.nvim_buf_set_lines(b2, 0, -1, false, { "a *b* c" })
-    vim.bo[b2].filetype = "org"
-    ok(has(marks(b2, 0), "orgBold@3-4"), vim.inspect(marks(b2, 0)))
-    require("org.config").opts.ui.highlighter = "parser"
-  end)
-
-  it("leaves the syntax regions to a buffer with only the org syntax (drill)", function()
+  it("draws a buffer with only the org syntax (drill) with the parser highlighter", function()
     vim.cmd("enew!")
     local b = vim.api.nvim_get_current_buf()
     vim.bo[b].bufhidden = "wipe"
-    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "A *bold* word" })
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "A *bold* word, [[https://example.org][a link]] <2024-01-02 Tue>" })
     vim.bo[b].filetype = "org_drill"
     vim.bo[b].syntax = "org"
-    local names = vim.tbl_map(function(id)
-      return vim.fn.synIDattr(id, "name"):lower()
-    end, vim.fn.synstack(1, 4))
-    ok(vim.tbl_contains(names, "orgbold"), vim.inspect(names))
+    eq("org", vim.b[b].current_syntax)
+    ok(has(marks(b, 0), "orgBold@3-7"), vim.inspect(marks(b, 0)))
+    ok(hl.has(1, 5, "orgbold"), hl.groups(1, 5))
+    local link = vim.fn.getline(1):find("a link", 1, true)
+    ok(hl.has(1, link, "orglink"), hl.groups(1, link))
+    local ts = vim.fn.getline(1):find("<2024", 1, true)
+    ok(hl.has(1, ts, "orgtimestamp"), hl.groups(1, ts))
+    -- (no syntax regions: synstack() reports no org groups there)
+    eq({}, vim.fn.synstack(1, 5))
+    -- another syntax: no longer drawn
+    vim.bo[b].syntax = "text"
+    eq({}, marks(b, 0))
   end)
 
   it("gives a LaTeX preview with foreground auto the emphasis color", function()
@@ -264,7 +252,6 @@ describe("ui.highlighter = parser", function()
     require("org.config").opts.ui.latex_preview = nil
   end)
 
-  -- (structure_features_spec.lua checks the syntax engine's regions)
   it("spans emphasis over one newline, not two, and not after [", function()
     org_buffer({ "x *multi", "line* y", "[*x*] z", "x *a", "b", "c* d", "*b /it/ c*" }, { 1, 0 })
     ok(hl.has(1, 5, "orgbold"), hl.groups(1, 5))
@@ -274,7 +261,6 @@ describe("ui.highlighter = parser", function()
     ok(hl.has(7, 5, "orgitalic") and hl.has(7, 5, "orgbold"), hl.groups(7, 5))
   end)
 
-  -- (ui_spec.lua checks the syntax engine's)
   it("shows only the description of a link, or its target without one", function()
     local function shown(text)
       org_buffer({ text }, { 1, 0 })
@@ -292,19 +278,10 @@ describe("ui.highlighter = parser", function()
     eq("| cell H | b |", shown("| cell [[*Heading][H]] | b |"))
     eq("no desc https://example.com end", shown("no desc [[https://example.com]] end"))
   end)
-
-  it("the test helper sees the same on both sides of a plain case", function()
-    local buf = org_buffer({ "*a* /b/ =c=" }, { 1, 0 })
-    vim.wo.conceallevel = 2
-    eq(hl.emacs_codes(buf, "syntax"), hl.emacs_codes(buf, "parser"))
-    hl.use(buf, "parser")
-  end)
 end)
 
--- The emphasis cases of ui_syntax_highlighting_spec.lua ("ui syntax:
--- emphasis", the syntax engine), with the parser highlighter.
-describe("ui.highlighter = parser: emphasis", function()
-  with_highlighter("parser")
+-- Emphasis (org-do-emphasis-faces) cases.
+describe("parser highlighter: emphasis", function()
   before_each(function()
     require("org.config").opts.ui.hide_emphasis_markers = true
   end)
@@ -393,11 +370,9 @@ describe("ui.highlighter = parser: emphasis", function()
   end)
 end)
 
--- What syntax_long_lines_spec.lua checks of the syntax engine on long
--- lines, with the parser highlighter: the same faces, and none of the
--- limits ('synmaxcol', 'maxmempattern', 'redrawtime').
-describe("ui.highlighter = parser: long lines", function()
-  with_highlighter("parser")
+-- Long lines: the same faces as on short ones, and none of the limits of
+-- Vim's syntax ('synmaxcol', 'maxmempattern', 'redrawtime').
+describe("parser highlighter: long lines", function()
   local gen = require("tests.helpers.gen")
   local mmp, rdt, smc
   before_each(function()
@@ -509,10 +484,9 @@ end)
 -- Typing keeps the marks of the rows an edit can't change
 -- (org.ui.decorations `carried`): after every edit, each row must be drawn
 -- as a fresh scan of the buffer draws it.
-describe("ui.highlighter = parser, after an edit inside a line", function()
+describe("parser highlighter, after an edit inside a line", function()
   with_config({
     ui = {
-      highlighter = "parser",
       hide_emphasis_markers = true,
       indent_mode = true,
       pretty_entities = true,
@@ -826,8 +800,8 @@ end)
 -- Neovim redraws only the lines an edit changed (and those below, when it
 -- adds or removes lines), while the marks of a row can change with the text
 -- of another: the screen after an edit must be the screen drawn anew.
-describe("ui.highlighter = parser, the screen after an edit", function()
-  with_config({ ui = { highlighter = "parser", hide_emphasis_markers = false } })
+describe("parser highlighter, the screen after an edit", function()
+  with_config({ ui = { hide_emphasis_markers = false } })
 
   --- The attributes of the screen's first `n` rows, one string per row.
   local function screen(n)
@@ -880,8 +854,8 @@ describe("ui.highlighter = parser, the screen after an edit", function()
   end)
 end)
 
-describe("ui.highlighter = parser, rows past the last one Neovim expects", function()
-  with_config({ ui = { highlighter = "parser", indent_mode = true } })
+describe("parser highlighter, rows past the last one Neovim expects", function()
+  with_config({ ui = { indent_mode = true } })
 
   --- The attributes of the screen's rows, one string per row.
   local function screen()

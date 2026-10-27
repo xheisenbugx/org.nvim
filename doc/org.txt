@@ -6825,8 +6825,6 @@ Options under `ui`:
                          zindex = 20 }
   conceal_links          show only link descriptions (conceallevel=2)
   hide_emphasis_markers  hide * / _ = ~ + around emphasized text
-  highlighter            what draws org buffers: "parser" (default) or
-                         "syntax", deprecated (|org-highlighter|)
   hide_leading_stars     show only the last star of each headline
                          (#+STARTUP: hidestars / showstars)
   bullets                list of symbols replacing the stars, per level
@@ -7238,67 +7236,57 @@ Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
 break, and bold, italic, underline and strike-through can nest.
 
-Two highlighters can draw org buffers, chosen with `ui.highlighter`:
                                                           *org-highlighter*
-  "parser"   (the default) the decoration provider, from a scan of the
-             lines on screen (org.ui.highlight and its parts, emphasis
-             and hidden link parts in org.ui.emphasis). Vim |:syntax|
-             only draws the languages of src blocks, as regions.
-  "syntax"   Vim |:syntax| regions for everything, defined per buffer:
-             the old engine, deprecated and kept for a release or two as
-             a fallback. It approximates Emacs (far more lines differ),
-             draws nothing past 'synmaxcol' and has the other limits of
-             regions below.
+Org buffers are drawn by the parser highlighter: the decoration provider,
+from a scan of the lines on screen (org.ui.highlight and its parts,
+emphasis and hidden link parts in org.ui.emphasis). Vim |:syntax| only
+draws the languages of src and export blocks that tree-sitter doesn't
+(|org-src-highlight|), as regions over their bodies. (The old highlighter
+of Vim syntax regions for everything, `ui.highlighter = "syntax"`, was
+removed: setting `ui.highlighter` now only warns that it is ignored.)
 
-"parser" ports Emacs's own fontification (org-set-font-lock-defaults:
+It ports Emacs's own fontification (org-set-font-lock-defaults:
 org-fontify-meta-lines-and-blocks, org-do-emphasis-faces,
-org-activate-links, ...) instead of approximating it with regions. On the
-example files and the fixtures of hard cases (26,503 lines), it draws
-the faces Emacs Org 9.8.12 draws on every byte of all but 9 lines, each a
-known difference with its reason (tests/spec/emacs_faces_*_spec.lua,
-against tests/fixtures/emacs/faces/); "syntax" differs from Emacs on
-4,388 lines of the same files. Every marker that can open emphasis is tried on its
-own, so markup may overlap the way it does in Emacs (`*a /b* c/` is bold
-and italic), markup in link descriptions, macros, property values and
-comment blocks is drawn, and verbatim and code show the link brackets and
-markers inside them. Its scan takes time linear in the length of a line,
-so it has none of the limits of regions: everything is drawn past
-'synmaxcol' (3000) and markup over two lines however long the first is, a
-long line full of markers can't run out of 'maxmempattern' (E363) and
-turn highlighting off, and an emphasis or block whose end can't be found
-never runs on over the lines below. Typing computes again only the rows
-an edit inside a line can change (an edit of a headline's text too, not
-of its stars), however much of the file was drawn before, so a keystroke
-in a file of 10,000 headlines costs less than with "syntax". Loading it
-sets LuaJIT's `sizemcode` (the size of each machine code area) to 256 KB:
-on arm64, a new area of the default size often couldn't be placed once a
-large file was open, and every compiled trace was thrown away each time.
+org-activate-links, ...). On the example files and the fixtures of hard
+cases (26,503 lines), it draws the faces Emacs Org 9.8.12 draws on every
+byte of all but 9 lines, each a known difference with its reason
+(tests/spec/emacs_faces_*_spec.lua, against tests/fixtures/emacs/faces/).
+Every marker that can open emphasis is tried on its own, so markup may
+overlap the way it does in Emacs (`*a /b* c/` is bold and italic), nested
+and overlapping faces combine (bold inside a headline keeps the headline's
+color), markup in link descriptions, macros, property values and comment
+blocks is drawn, and verbatim and code show the link brackets and markers
+inside them. Its scan takes time linear in the length of a line, so it has
+none of the limits of syntax regions: everything is drawn past 'synmaxcol'
+and markup over two lines however long the first is, a long line full of
+markers can't run out of 'maxmempattern' (E363) and turn highlighting
+off, and an emphasis or block whose end can't be found never runs on over
+the lines below. Typing computes again only the rows an edit inside a line
+can change (an edit of a headline's text too, not of its stars), however
+much of the file was drawn before. Loading it sets LuaJIT's `sizemcode`
+(the size of each machine code area) to 256 KB: on arm64, a new area of
+the default size often couldn't be placed once a large file was open, and
+every compiled trace was thrown away each time.
 
-Both use the same highlight groups (`OrgBold`, `OrgVerbatim`, ... below, and
-the `org...` syntax group names linked to them, so a colorscheme that sets
-either keeps working) and follow `ui.hide_emphasis_markers`,
+It draws with the highlight groups below (`OrgBold`, `OrgVerbatim`, ...,
+and the `org...` group names linked to them, so a colorscheme that sets
+either keeps working) and follows `ui.hide_emphasis_markers`,
 `ui.conceal_links`, toggle_link_display and the cursor rules of
-|org-conceal-cursor|. Differences: with "parser", nested and overlapping faces
-combine (bold inside a headline keeps the headline's color, as in Emacs) where
-"syntax" draws the innermost group only; what it draws isn't a syntax group,
-so `synID()`, `synstack()` and |:Inspect| don't report it (plugins that ask
-the syntax what is under the cursor see plain text there, except in src
-blocks; `:Org inspect` lists it), only org buffers are drawn by it (a buffer
-that just sets 'syntax' to org, like the drill window, keeps the regions),
-verbatim and code are left out of spell checking with extmarks instead of
-|:syn-spell| clusters (|org-highlighter-spell|), and
-`ui.highlight_latex_and_related` "native" draws fragments with marks of Vim's
-tex groups (|org-highlighter-latex|). To go back to the old engine while it
-is kept: >lua
-    ui = { highlighter = "syntax" }
-<
-Calling `setup()` again with another `ui.highlighter` draws the org buffers
-already open with it. An error raised while drawing (a bug: please report
-it) is shown once, and the window it happened in is drawn without the
-highlighting while the error lasts.
+|org-conceal-cursor|. What it draws isn't a syntax group, so `synID()`,
+`synstack()` and |:Inspect| don't report it (plugins that ask the syntax
+what is under the cursor see plain text there, except in src blocks;
+`:Org inspect` lists it). A buffer that sets 'syntax' to org without being
+an org buffer, like the drill window, is drawn by it too, until its
+'syntax' changes. Verbatim and code are left out of spell checking with
+extmarks (|org-highlighter-spell|), and `ui.highlight_latex_and_related`
+"native" draws fragments with marks of Vim's tex groups
+(|org-highlighter-latex|). Calling `setup()` again draws the org buffers
+already open with the new options. An error raised while drawing (a bug:
+please report it) is shown once, and the window it happened in is drawn
+without the highlighting while the error lasts.
                                                 *org-highlighter-spell*
-With 'spell' set, both highlighters check the same words, and `]s`, `[s`,
-|z=| and |spellbadword()| skip what the screen leaves out. Checked:
+With 'spell' set, `]s`, `[s`, |z=| and |spellbadword()| skip what the
+screen leaves out. Checked:
 paragraphs, headline titles, list items, comments, quote and verse
 blocks, the text of bold, italic, underline and strike-through (in table
 rows too, where nothing else is checked). Not checked: the TODO
@@ -7308,9 +7296,9 @@ export blocks (but what the language's syntax checks, such as its
 comments), tables, drawer lines and properties, planning and clock lines,
 timestamps, links (their description too: Emacs removes flyspell's marks
 from links), footnote labels, targets, macros, inline src blocks,
-export snippets, LaTeX, verbatim and code. Where "parser" differs from
-"syntax", it follows what Emacs's flyspell checks (org-mode-flyspell-
-verify, which asks org-element): it checks the body of comment blocks and
+export snippets, LaTeX, verbatim and code. It follows what Emacs's
+flyspell checks (org-mode-flyspell-verify, which asks org-element): it
+checks the body of comment blocks and
 the text of `#+CAPTION:` (not its links and timestamps), and the footnotes,
 targets and inline src blocks of a comment; it doesn't check the
 emphasis in a list item's tag, a link over two lines, or keyword and
@@ -7346,8 +7334,7 @@ Quote and verse block contents are highlighted as ordinary Org (lists,
 tables, timestamps, markup), on top of OrgQuoteBlock (quote) and
 OrgVerseBlock (verse, linked to OrgQuoteBlock) only with
 `ui.fontify_quote_and_verse_blocks` (off by default, as Emacs's
-org-fontify-quote-and-verse-blocks; the deprecated "syntax" highlighter
-draws both on OrgQuoteBlock); center, special
+org-fontify-quote-and-verse-blocks); center, special
 (`#+begin_note`...) and dynamic (`#+BEGIN:`) blocks highlight only their
 delimiter lines. Every block ends at the next headline, whether or not it
 has its `#+end` line. `#+begin_export LANG` blocks get LANG's syntax, as
@@ -7359,7 +7346,7 @@ OrgStatistic (org-checkbox-statistics-done/-todo); OrgSexpDate is diary
 sexps (`<%%(...)>`, `%%(...)` lines) and OrgArchived the text of headlines
 tagged ARCHIVE.
 
-With the "parser" highlighter, the body of a `#+begin_src org` block (and of
+The body of a `#+begin_src org` block (and of
 `#+begin_export org` and `#+begin_example org`, as Emacs fontifies them
 too) is drawn as Org text on OrgBlock, the way Emacs's
 org-src-fontify-natively draws it: as if the body were a buffer of its own
@@ -7373,10 +7360,9 @@ markers and link brackets show, the markers without the emphasis face when
 case and all, through `src_lang_modes` (a language mapped to "org" is drawn
 the same); `ui.src_highlight = false` leaves the body plain OrgBlock. The
 body is never drawn with a tree-sitter org parser or a Vim syntax for org,
-even when one is installed: this drawing wins. "syntax" draws such bodies
-as plain OrgBlock.
+even when one is installed: this drawing wins.
 
-With the "parser" highlighter, an inline src block (`src_LANG{BODY}`) is
+An inline src block (`src_LANG{BODY}`) is
 drawn wherever its text is, as Emacs's org-fontify-inline-src-blocks does:
 in a headline, a table, a list term, a link description, a comment, a
 keyword line, or the body of a block. Its braces and body don't take the
@@ -7388,9 +7374,9 @@ under the braces (a decoration can't take a syntax group's attributes
 off, so `<b>src_sh{x}</b>` in an html export block keeps its bold).
 
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
-Both highlighters draw with the `org...` group names (`orgHeadlineLevel1`,
-`orgTodo`, ...) linked to these; the default one, "parser"
-(|org-highlighter|), draws them as decorations, not syntax groups.
+The parser highlighter (|org-highlighter|) draws with the `org...` group
+names (`orgHeadlineLevel1`, `orgTodo`, ...) linked to these, as
+decorations, not syntax groups.
   - `OrgHeadlineLevel1..8` (linked to the colorscheme's markdown
     headings)
   - `OrgTodo`, `OrgDone`, `OrgHeadlineDone`, `OrgHeadlineComment`,
@@ -9158,15 +9144,7 @@ Differences from Emacs:
   `}}}`, or a footnote reference whose closing bracket, comes after the
   next headline is not drawn (Emacs's font-lock paints it over the
   headline and the lines up to its end): the rows of a window are drawn
-  from the lines back to the headline above them at most. With
-  `ui.highlighter = "syntax"` (deprecated; the default "parser" has none
-  of these limits, |org-highlighter|), Vim draws syntax
-  up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
-  ends before that column, so a long line can't leave the lines below it
-  bold. Emphasis over two lines is highlighted only when its part on the
-  first line is at most 'synmaxcol' characters long: looking further for
-  the end of every marker would make drawing a long line take time
-  quadratic in its length.
+  from the lines back to the headline above them at most.
 
 - Inline tasks: promoting one at the minimum level is refused. With odd
   levels only, Emacs compares the new stars with org-inlinetask-min-level

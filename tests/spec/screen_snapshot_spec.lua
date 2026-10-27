@@ -8,8 +8,7 @@ local Screen = require("tests.screen")
 
 local screen
 
---- A child Neovim of `width` x `height` with org set up with `setup`
---- (the default highlighter, "parser", unless it names `ui.highlighter`).
+--- A child Neovim of `width` x `height` with org set up with `setup`.
 local function new(setup, width, height, now)
   setup = setup or {}
   screen = Screen.new({ width = width or 60, height = height or 12, setup = setup, now = now })
@@ -82,16 +81,16 @@ describe("screen snapshot", function()
     screen:expect("emphasis_bullets_hidden")
   end)
 
-  -- ui.highlighter = "parser" (|org-highlighter|): the same groups, drawn
-  -- by the decorations over the headline faces
+  -- (|org-highlighter|): the emphasis groups drawn by the decorations over
+  -- the headline faces
   it("emphasis drawn by the parser highlighter", function()
-    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
+    new({ ui = { hide_emphasis_markers = true } })
     screen:org(EMPHASIS)
     screen:expect("emphasis_parser_hidden")
   end)
 
   it("links, overlapping markup and verbatim drawn by the parser highlighter", function()
-    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } }, 60, 8)
+    new({ ui = { hide_emphasis_markers = true } }, 60, 8)
     screen:org({
       "See [[https://orgmode.org][the *Org* site]] and *[[a]]*.",
       "Overlap: *a /b* c/ and =v *no*= raw.",
@@ -105,7 +104,7 @@ describe("screen snapshot", function()
   end)
 
   it("markup past 'synmaxcol' drawn by the parser highlighter", function()
-    new({ ui = { highlighter = "parser" } }, 60, 6)
+    new({ ui = {} }, 60, 6)
     screen:org({ string.rep("x", 3100) .. " *bold* end", "next line *bold*" })
     screen:cmd("setlocal nowrap")
     screen:input("$")
@@ -115,7 +114,7 @@ describe("screen snapshot", function()
   -- the body of an org src block drawn as Org on the block's face, with
   -- nothing hidden (org-src-font-lock-fontify-block with org-mode)
   it("an org src block drawn as Org by the parser highlighter", function()
-    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } }, 60, 10)
+    new({ ui = { hide_emphasis_markers = true } }, 60, 10)
     screen:org({
       "#+begin_src org",
       ",* TODO An escaped headline",
@@ -157,14 +156,7 @@ describe("screen snapshot", function()
     "SCHEDULED: <2026-10-02 Fri>",
   }
 
-  -- the syntax engine (the fallback) stops at 'synmaxcol' on the long lines
-  it("highlights after a 2000-character line (syntax engine)", function()
-    new({ ui = { highlighter = "syntax" } }, 60, 10)
-    screen:org(LONG_LINES)
-    screen:expect("long_line")
-  end)
-
-  -- the parser highlighter draws the long lines whole: their ends too
+  -- the long lines are drawn whole: their ends too
   it("highlights a 2000-character line and after it", function()
     new(nil, 60, 10)
     screen:org(LONG_LINES)
@@ -178,15 +170,6 @@ describe("screen snapshot", function()
     "plain text",
     "* Next *bold*",
   }
-
-  -- markup that ends past a 'synmaxcol' lowered after the syntax was set
-  -- up isn't drawn, and doesn't go on over the lines below
-  it("follows a lowered 'synmaxcol' (syntax engine)", function()
-    new({ ui = { highlighter = "syntax" } }, 60, 8)
-    screen:org(SYNMAXCOL_LINES)
-    screen:cmd("setlocal synmaxcol=110")
-    screen:expect("synmaxcol_lowered")
-  end)
 
   -- the parser highlighter doesn't stop at 'synmaxcol'
   it("draws markup past a lowered 'synmaxcol'", function()
