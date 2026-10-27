@@ -608,6 +608,14 @@ function Date:normalize()
   if t.hour == self.hour and t.min == min and t.day == self.day then
     return self
   end
+  -- only forward, out of a gap (encode-time); a C library that maps the
+  -- time to an earlier one (the Windows runtime) leaves it as written
+  local moved = (M.days_from_civil(t.year, t.month, t.day) - self:days()) * 1440
+    + (t.hour * 60 + t.min)
+    - (self.hour * 60 + min)
+  if moved <= 0 then
+    return self
+  end
   local c = self:clone({ year = t.year, month = t.month, day = t.day, hour = t.hour, min = t.min })
   if self.end_hour then
     local delta = (t.hour * 60 + t.min) - (self.hour * 60 + min)
