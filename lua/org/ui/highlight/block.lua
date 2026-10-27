@@ -29,8 +29,9 @@
 --- buffer's `#+OPTIONS: ^:`) in orgLatexScript, found left to right the
 --- way Emacs's combined regexp finds them, none spell checked. As with the
 --- syntax engine, `\(`, `\[` and `$$` fragments don't go over an empty line
---- and nothing goes over a headline. "native" draws like "latex" (the tex
---- syntax isn't included with this highlighter).
+--- and nothing goes over a headline. With "native", what is found (entities
+--- and scripts too, as in Emacs) is drawn by Vim's tex syntax over
+--- orgSrcBlock instead (org.ui.highlight.native).
 
 -- Not compiled by the JIT, like org.ui.highlight (see the comment there).
 if jit then
@@ -50,6 +51,24 @@ local BLOCK_LOOK = 3000
 --- How far up the begin line of a LaTeX environment open before the lines
 --- drawn is looked for, and down its end.
 local LOOK = 1000
+--- The priority of the tex groups of a fragment drawn natively: over
+--- emphasis (101 and up), whose faces Emacs takes off it.
+local TEX_PRIO = 120
+
+--- The groups of org-code, org-verbatim, underline and org-special-keyword
+--- (see `protected` in `paint_latex`).
+local PROTECTED = {
+  orgVerbatim = true,
+  orgVerbatimDelimiter = true,
+  orgCode = true,
+  orgCodeDelimiter = true,
+  orgUnderline = true,
+  orgUnderlineDelimiter = true,
+  orgPropertyKey = true,
+  orgPlanning = true,
+  orgClock = true,
+  orgHeadlineComment = true,
+}
 
 -- Blocks --------------------------------------------------------------------
 
@@ -327,11 +346,20 @@ local function alnum(c)
   return c ~= nil and (alpha(c) or (c >= 48 and c <= 57))
 end
 
+--- The ASCII bytes that are punctuation, brackets or a string quote in
+--- Org's syntax table (`\s.`, `\s(`, `\s)`, `\s"`), and "'": `% & * + - /
+--- = \ _ | ~` are symbol or word constituents there, and `$` a word one.
+local AFTER_DOLLAR = {}
+for c in ([[!#,.:;?@^`()<>[]{}"']]):gmatch(".") do
+  AFTER_DOLLAR[c:byte()] = true
+end
+
 --- What may follow the closing `$` of an inline fragment: punctuation, a
---- blank, a bracket or a quote, or the end of the line.
+--- blank, a bracket or a quote, or the end of the line (in Org's syntax
+--- table: "$x$*" is no fragment).
 ---@param c? integer
 local function after_dollar(c)
-  return c == nil or c == 10 or blank(c) or (c > 32 and c < 128 and c ~= 36 and not alnum(c))
+  return c == nil or c == 10 or blank(c) or AFTER_DOLLAR[c] == true
 end
 
 --- Bytes that can't start an inline `$` fragment's text ([^ \t\n,;.$]).
@@ -429,6 +457,7 @@ end
 
 ---@class org.ui.highlight.block.Latex
 ---@field fragments boolean "latex" or "native"
+---@field native boolean "native": what is found is drawn by the tex syntax
 ---@field entities boolean
 ---@field scripts boolean|string false, true or "{}"
 
@@ -453,7 +482,7 @@ local function latex_options(ui)
   if not (fragments or set.entities or scripts) then
     return nil
   end
-  return { fragments = fragments, entities = set.entities == true, scripts = scripts }
+  return { fragments = fragments, native = set.native == true, entities = set.entities == true, scripts = scripts }
 end
 
 --- The name of the environment a line begins (`\begin{NAME}` after
@@ -476,7 +505,12 @@ local function paint_latex(ctx, o)
   local lines, kinds, roles = ctx.lines, ctx.kinds, ctx.roles
   local n = #lines
   local s = table.concat(lines, "\n")
-  if not (find(s, "\\", 1, true) or (o.fragments and find(s, "$", 1, true)) or (o.scripts and find(s, "[_^]"))) then
+  -- (lines without a backslash can still be in an environment open above
+  -- them that ends below them)
+  if
+    not (find(s, "\\", 1, true) or (o.fragments and find(s, "$", 1, true)) or (o.scripts and find(s, "[_^]")))
+    and not (o.fragments and ctx.row0 > ctx.top)
+  then
     return
   end
   local starts = {} ---@type integer[]
@@ -540,6 +574,112 @@ local function paint_latex(ctx, o)
     end
   end
 
+  -- "native": the text found drawn by Vim's tex syntax
+  -- (org-src-font-lock-fontify-block "latex"), over org-block (orgSrcBlock,
+  -- like the body of a src block a syntax draws), or org-block alone when
+  -- there is no tex syntax (no latex-mode)
+  local N = o.native and require("org.ui.highlight.native") or nil
+  local tex = N and N.available()
+  local BASE = { hl_group = tex and "orgSrcBlock" or "orgBlock", priority = prio, spell = false }
+  local groups = {} ---@type table<string, org.ui.highlight.MarkOpts>
+  if N then
+    N.watch(ctx.bufnr)
+  end
+  --- Draw bytes [a, b) of `s` natively. `pre`: the lines of the text above
+  --- the lines (an environment open before them), each ending with "\n";
+  --- `post`: the text below them (an environment that ends past them).
+  local function native(a, b, pre, post)
+    mark(a, b, BASE)
+    if not tex then
+      return
+    end
+    local fl = line_at(a)
+    local ll = line_at(math.max(a, b - 1))
+    local pre_rows = pre and select(2, pre:gsub("\n", "")) or 0
+    local text = (pre or "") .. s:sub(a, math.min(b - 1, #s)) .. (post or "")
+    -- (the row of the text's first line, and the column it starts at)
+    local fs = ctx.row0 + fl - 1 - pre_rows
+    local c0 = pre and 0 or a - starts[fl]
+    local r0 = math.max(ctx.first, ctx.row0 + fl - 1) - fs
+    local r1 = math.min(ctx.last, ctx.row0 + ll - 1) - fs
+    if r1 < r0 then
+      return
+    end
+    local rows = assert(N).spans(ctx.bufnr, text, r0, r1)
+    for r = r0, r1 do
+      local i = fs + r - ctx.row0 + 1
+      local spans = rows[r]
+      if spans and scanned[i] then
+        local off = r == 0 and c0 or 0
+        for _, sp in ipairs(spans) do
+          local g = groups[sp[3]]
+          if not g then
+            g = { hl_group = sp[3], priority = TEX_PRIO, spell = false }
+            groups[sp[3]] = g
+          end
+          ctx.emit(i, sp[1] + off, sp[2] + off, g)
+        end
+      end
+    end
+  end
+  --- Whether byte `q` of `s` is drawn in verbatim, code, underline or
+  --- org-special-keyword: Emacs leaves a match alone when the byte after
+  --- its start has one of those faces (org-do-latex-and-related).
+  --- (per line, the spans of those marks, sorted, found at the first
+  --- question: they were drawn before this part)
+  local spans_of = {} ---@type table<integer, { [1]: integer, [2]: integer }[]>
+  local function protected(q)
+    local l = line_at(q)
+    local col = q - starts[l]
+    local sp = spans_of[l]
+    if not sp then
+      sp = {}
+      for _, m in ipairs(ctx.marks and ctx.marks(l) or {}) do
+        if PROTECTED[m[2].hl_group or ""] then
+          sp[#sp + 1] = { m[1], m[2].end_col or m[1] + 1 }
+        end
+      end
+      table.sort(sp, function(x, y)
+        return x[1] < y[1]
+      end)
+      -- (merged: a marker and the text next to it are two marks)
+      local merged = {} ---@type { [1]: integer, [2]: integer }[]
+      for _, x in ipairs(sp) do
+        local last = merged[#merged]
+        if last and x[1] <= last[2] then
+          last[2] = math.max(last[2], x[2])
+        else
+          merged[#merged + 1] = { x[1], x[2] }
+        end
+      end
+      sp = merged
+      spans_of[l] = sp
+    end
+    -- (the last span starting at or before `col`)
+    local lo, hi = 1, #sp
+    while lo <= hi do
+      local mid = math.floor((lo + hi) / 2)
+      if sp[mid][1] <= col then
+        lo = mid + 1
+      else
+        hi = mid - 1
+      end
+    end
+    return hi >= 1 and col < sp[hi][2]
+  end
+  --- Draw bytes [a, b) of `s` found as `opts`, unless byte `q` is
+  --- `protected`.
+  local function draw(a, b, opts, pre, post, q)
+    if q and protected(q) then
+      return
+    end
+    if N then
+      native(a, b, pre, post)
+    else
+      mark(a, b, opts)
+    end
+  end
+
   -- The next match of a plain string at or after a byte, kept while the
   -- bytes asked for grow: the scan stays linear however many openers find
   -- no closer.
@@ -586,21 +726,46 @@ local function paint_latex(ctx, o)
     below[name] = v
     return v
   end
+  --- The text of environment NAME below the lines, up to its `\end{NAME}`
+  --- (closed there: `closed_below`), each line after a "\n".
+  local function text_below(name)
+    local needle = "\\end{" .. name .. "}"
+    local row = ctx.row0 + n
+    local stop = math.min(ctx.bottom, row + LOOK)
+    local out = {} ---@type string[]
+    while row < stop do
+      for _, line in ipairs(ctx.get_lines(row, math.min(stop, row + 256))) do
+        local e = find(line, needle, 1, true)
+        out[#out + 1] = e and line:sub(1, e + #needle - 1) or line
+        if e then
+          return "\n" .. table.concat(out, "\n")
+        end
+      end
+      row = row + 256
+    end
+    return "\n" .. table.concat(out, "\n")
+  end
   --- The end of the environment NAME whose `\begin{NAME}` ends before byte
-  --- `from` (the byte after its `\end{NAME}` and the blanks after that),
-  --- when it closes before byte `stop` (or below the lines).
+  --- `from`, when it closes before byte `stop` (or below the lines): the
+  --- byte after its `\end{NAME}` and the blanks after it, which the match
+  --- takes (`[ \t]*\n?`), and the byte it is drawn to: the blanks are
+  --- left out but before the end of the line (Emacs skips back over the
+  --- blanks only, and the match took the newline).
+  ---@return integer?, integer?
   local function env_end(name, from, stop)
     local needle = "\\end{" .. name .. "}"
     local e = find(s, needle, from + 1, true)
     if e and e + #needle <= stop then
-      e = e + #needle
+      local d = e + #needle
+      e = d
       while blank(byte(s, e)) do
         e = e + 1
       end
-      return e
+      -- (past the lines: the next line follows, whose newline it takes)
+      return e, (e > #s or byte(s, e) == 10) and e or d
     end
     if stop > #s and closed_below(name) then
-      return #s + 1
+      return #s + 1, #s + 1
     end
   end
 
@@ -612,11 +777,12 @@ local function paint_latex(ctx, o)
     local h = ctx.star_above(ctx.row0, LOOK)
     local above = ctx.get_lines(h and h + 1 or ctx.row0 - LOOK, ctx.row0)
     local open ---@type string?
+    local from ---@type integer?
     for k = #above, 1, -1 do
       local line = above[k]
       local name, after = env_begin(line)
       if name then
-        open = name
+        open, from = name, k
         -- (whether it is closed before the lines)
         if find(line, "\\end{" .. name .. "}", after, true) then
           open = nil
@@ -632,9 +798,10 @@ local function paint_latex(ctx, o)
       end
     end
     if open then
-      local e = env_end(open, 0, env_stop[1])
-      if e then
-        mark(1, e, LATEX)
+      local e, d = env_end(open, 0, env_stop[1])
+      if e and d then
+        local pre = N and table.concat(above, "\n", from) .. "\n" or nil
+        draw(1, d, LATEX, pre, N and e > #s and text_below(open) or nil)
         p = e
       end
     end
@@ -661,7 +828,7 @@ local function paint_latex(ctx, o)
         if o.scripts and t > p and b and b ~= 10 and not blank(b) then
           done = script_body(s, t + 1, o.scripts == "{}")
           if done then
-            mark(t, done, SCRIPT)
+            draw(t, done, SCRIPT, nil, nil, t)
           end
         end
       elseif c == 36 then
@@ -687,14 +854,21 @@ local function paint_latex(ctx, o)
             end
           end
           if done then
-            mark(t, done, LATEX)
+            -- (the match takes the byte before, and the punctuation,
+            -- bracket or quote after: org-latex-regexps; a blank after is
+            -- left out with the trailing blanks)
+            local f = byte(s, done)
+            if f and f ~= 10 and not blank(f) then
+              done = done + 1
+            end
+            draw((b and b ~= 10) and t - 1 or t, done, LATEX, nil, nil, t)
           end
         end
         if not done and o.fragments and c2 == 36 then
           local e = next_of("$$", t + 2)
           if e and e + 2 <= stop then
             done = e + 2
-            mark(t, done, LATEX)
+            draw(t, done, LATEX, nil, nil, t + 1)
           end
         end
       else
@@ -704,9 +878,10 @@ local function paint_latex(ctx, o)
           -- \begin{NAME} at the start of the line, from the line's start
           local name, after = env_begin(lines[l])
           if name and ls + #lines[l]:match("^[ \t]*") == t then
-            done = env_end(name, ls + after - 1, env_stop[l])
-            if done then
-              mark(ls, done, LATEX)
+            local d
+            done, d = env_end(name, ls + after - 1, env_stop[l])
+            if done and d then
+              draw(ls, d, LATEX, nil, N and done > #s and text_below(name) or nil, ls + 1)
             end
           end
         end
@@ -714,13 +889,13 @@ local function paint_latex(ctx, o)
           local e = next_of(c2 == 40 and "\\)" or "\\]", t + 2)
           if e and e + 2 <= stop then
             done = e + 2
-            mark(t, done, LATEX)
+            draw(t, done, LATEX, nil, nil, t + 1)
           end
         end
         if not done and o.entities and c2 and c2 < 128 and alpha(c2) then
           done = entity(s, t)
           if done then
-            mark(t, done, ENTITY)
+            draw(t, done, ENTITY, nil, nil, t + 1)
           end
         end
       end
@@ -730,7 +905,7 @@ local function paint_latex(ctx, o)
         if c2 == 94 or c2 == 95 then
           done = script_body(s, t + 2, o.scripts == "{}")
           if done then
-            mark(t + 1, done, SCRIPT)
+            draw(t + 1, done, SCRIPT, nil, nil, t + 1)
           end
         end
       end

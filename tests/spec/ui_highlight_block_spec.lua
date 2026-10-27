@@ -364,7 +364,8 @@ describe("parser highlighter: latex", function()
     eq({ "0-18" }, spans(2, "orgLatex"))
     eq({ "0-5" }, spans(3, "orgLatex"))
     eq({ "0-5" }, spans(5, "orgLatex"))
-    eq({ "0-15" }, spans(6, "orgLatex"))
+    -- (without the blank after "\\end{equation}", which the match takes)
+    eq({ "0-14" }, spans(6, "orgLatex"))
     eq({ "0-17" }, spans(7, "orgLatex"))
   end)
 
@@ -392,8 +393,10 @@ describe("parser highlighter: latex", function()
       "$x",
       "y$ over two lines",
     })
-    -- (not "$ no$", "$no $", "$5 $" nor "$a$b")
-    eq({ "2-5", "27-32", "8-13" }, spans(1, "orgLatex"))
+    -- (not "$ no$", "$no $", "$5 $" nor "$a$b"; with the byte before and
+    -- the punctuation after, which the match takes: Emacs draws " $x$"
+    -- and " $x+y$," in org-latex-and-related)
+    eq({ "1-5", "27-32", "7-14" }, spans(1, "orgLatex"))
     eq({ "0-2" }, spans(2, "orgLatex"))
     eq({ "0-2" }, spans(3, "orgLatex"))
   end)
@@ -467,11 +470,11 @@ describe("parser highlighter: highlight_latex_and_related", function()
     org_buffer(text)
     n = names()
     eq({ "", "orglatexscript", "orglatexscript" }, { n[17], n[18], n[19] })
-    -- native: like latex
+    -- native: the tex syntax over org-block (ui_highlight_latex_native_spec)
     opts.highlight_latex_and_related = { "native" }
     org_buffer(text)
-    n = names()
-    eq({ "orglatex", "orglatex" }, { n[3], n[7] })
+    ok(groups(1, 3):find("orgsrcblock") and groups(1, 3):find("tex"), groups(1, 3))
+    ok(not groups(1, 3):find("orglatex"), groups(1, 3))
   end)
 
   it("follows ui.use_sub_superscripts and #+OPTIONS: ^:", function()
