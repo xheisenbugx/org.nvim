@@ -178,6 +178,12 @@ local function paint_blocks(ctx)
           break
         end
       end
+      if not begin and block.line then
+        -- (the block open before the lines: org.ui.highlight `window` found
+        -- its begin line, which a line like it in the body above the lines
+        -- isn't)
+        begin = block.line
+      end
       if not begin and roles[1] and roles[1].block == block and roles[1].role ~= "begin" then
         local above = ctx.get_lines(ctx.row0 - BLOCK_LOOK, ctx.row0)
         for j = #above, 1, -1 do

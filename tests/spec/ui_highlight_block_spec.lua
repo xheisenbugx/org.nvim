@@ -443,3 +443,22 @@ describe("parser highlighter: highlight_latex_and_related", function()
     eq({ "1-6", "12-20", "34-37", "39-43", "8-10" }, spans(1, "orgLatexScript"))
   end)
 end)
+
+describe("parser highlighter: a block open above the rows drawn", function()
+  with_config({ ui = { highlighter = "parser" } })
+
+  it("draws its body by its own begin line, not by a begin line in the body", function()
+    -- (a "#+begin_src lua" in the body of an org block, above a blank line
+    -- the scan of the rows below it starts at: they are drawn as Org, as
+    -- in a scan of the whole buffer, not as lua)
+    local buf = org_buffer({ "* H", "#+begin_src org", "#+begin_src lua", "x", "", "y", "z", "w", "#+end_src" })
+    local opts = deco.ui_options(buf)
+    local all = deco.compute(buf, 0, 8, opts)
+    for row = 3, 7 do
+      local alone = deco.compute(buf, row, row, opts)[row]
+      eq(vim.inspect(all[row]), vim.inspect(alone), "row " .. row)
+    end
+    eq({ "0-1" }, spans(7, "orgBlock"))
+    eq({}, spans(7, "orgSrcBlock"))
+  end)
+end)
