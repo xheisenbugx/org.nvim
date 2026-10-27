@@ -102,6 +102,40 @@ describe("ui decorations: pretty entities", function()
     eq("α x²", s[2])
     eq("\\beta", s[5])
   end)
+
+  -- org-fontify-entities tries \there4, \sup1-3 and \frac12-style names
+  -- before a run of letters, when no letter follows them
+  it("shows \\sup2, \\there4 and \\frac12 before the letters of the name", function()
+    local s = render({ "\\sup2 \\sup1x \\there4 \\frac12 \\frac34{} \\frac32", "" })
+    eq("² ⊃1x ∴ ½ ¾ \\frac32", s[1])
+  end)
+
+  -- org-fontify-entities skips comment lines only (org-at-comment-p)
+  it("shows entities in emphasis, verbatim, link descriptions, keywords and property drawers", function()
+    local s = render({
+      "* H \\alpha",
+      ":PROPERTIES:",
+      ":P_\\beta: x",
+      ":END:",
+      "#+TITLE: \\alpha",
+      "*\\alpha* and /x \\beta y/ =\\gamma=",
+      "[[https://x.org][\\gamma]] and [[https://x.org/\\alpha][d]]",
+      "# \\alpha",
+      "",
+    })
+    eq("* H α", s[1])
+    eq(":P_β: x", s[3])
+    eq("#+TITLE: α", s[5])
+    eq("*α* and /x β y/ =γ=", s[6])
+    ok(s[7]:find("γ", 1, true) and not s[7]:find("α", 1, true), s[7])
+    eq("# \\alpha", s[8])
+  end)
+
+  it("measures entities in link descriptions and verbatim as their character", function()
+    local buf = edit({ "x" })
+    local o = vim.tbl_extend("force", require("org.ui").conceal_opts(buf), { entities = true, emphasis = true })
+    eq("γ and α ² ⊃", require("org.ui").visible_text("[[https://x.org][\\gamma]] and =\\alpha= \\sup2 \\sup", o))
+  end)
 end)
 
 describe("ui decorations: indent mode", function()

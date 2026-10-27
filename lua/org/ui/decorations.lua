@@ -336,6 +336,28 @@ local function protected_ranges(line)
 end
 M._protected_ranges = protected_ranges
 
+--- Byte ranges of `line` hidden as the path of a described bracket link
+--- ("[[" to "]["), where no entity is displayed.
+local function link_paths(line)
+  local out = {}
+  local init = 1
+  while true do
+    local s = line:find("[[", init, true)
+    if not s then
+      return out
+    end
+    local e = line:find("]]", s + 2, true)
+    if not e then
+      return out
+    end
+    local d = line:find("][", s + 2, true)
+    if d and d < e then
+      out[#out + 1] = { s, d + 1 }
+    end
+    init = e + 2
+  end
+end
+
 local function in_ranges(ranges, pos)
   for _, r in ipairs(ranges) do
     if pos >= r[1] and pos <= r[2] then
@@ -680,87 +702,77 @@ function M.compute(bufnr, first, last, ui)
         end
       end
     end
-    -- (not in keywords and comments: org-at-comment-p)
-    if ui.pretty_entities and not in_block and not line:match("^%s*#[%s+]") and not line:match("^%s*#$") then
-      local protected = protected_ranges(line)
-      -- \name, \name{} (org-fontify-entities)
-      local init = 1
-      while true do
-        local s, e, name = line:find("\\(%a+)", init)
-        if not s then
-          break
-        end
-        local nm = name
-        local sym = require("org.entities").utf8(nm)
-        if not sym then
-          -- \sup1, \frac12 and the like end in digits
-          local w = line:match("^\\(%a+%d%d?)", s)
-          if w then
-            sym = require("org.entities").utf8(w)
-            if sym then
-              e = s + #w
-            end
-          end
-        end
-        local after = line:sub(e + 1, e + 1)
-        -- only one-character replacements are shown (org-fontify-entities
-        -- skips \sin, \deg-like operators and other multi-character UTF-8)
-        if sym and vim.fn.strchars(sym) == 1 and not after:match("%a") and not in_ranges(protected, s) then
-          local stop = e
-          if line:sub(e + 1, e + 2) == "{}" then
-            stop = e + 2
-          end
-          set(row, s - 1, { end_col = stop, conceal = sym })
-        end
-        init = e + 1
-      end
-      if scripts then
-        -- x^2, a_{i} (org-raise-scripts)
-        local pos = 2
-        while pos <= #line do
-          local s = line:find("[_^]", pos)
+    -- \name, \name{} (org-fontify-entities): everywhere but in comment
+    -- lines (org-at-comment-p), keywords, emphasis, link descriptions and
+    -- property drawers too; not in the hidden path of a described link
+    local hash = ui.pretty_entities and not in_block and line:find("^%s*#")
+    if ui.pretty_entities and not in_block and line:find("\\", 1, true) then
+      if not (hash and (line:find("^%s*# ") or line:find("^%s*#$"))) then
+        local paths = link_paths(line)
+        local init = 1
+        while true do
+          local s = line:find("\\", init, true)
           if not s then
             break
           end
-          local base = line:sub(s - 1, s - 1)
-          local mark = line:sub(s, s)
-          local body, body_s, body_e, braces
-          if line:sub(s + 1, s + 1) == "{" then
-            local close = line:find("}", s + 2, true)
-            if close then
-              body, body_s, body_e, braces = line:sub(s + 2, close - 1), s + 2, close - 1, true
-            end
-          elseif not braces_only then
-            local b = line:match("^%*", s + 1) or line:match("^[+-]?[%w.,\\]*%w", s + 1)
-            if b then
-              body, body_s, body_e = b, s + 1, s + #b
-            end
-          end
-          if body and s > 1 and base:match("%S") and body ~= "" and not in_ranges(protected, s) then
-            local map = mark == "^" and SUPER or SUB
-            local all = true
-            for ch in body:gmatch(".") do
-              if not map[ch] then
-                all = false
-              end
-            end
-            set(row, s - 1, { end_col = s, conceal = "" })
-            if braces then
-              set(row, s, { end_col = s + 1, conceal = "" })
-              set(row, body_e, { end_col = body_e + 1, conceal = "" })
-            end
-            local grp = mark == "^" and "OrgSuperscript" or "OrgSubscript"
-            if all then
-              for k = body_s, body_e do
-                set(row, k - 1, { end_col = k, conceal = map[line:sub(k, k)] })
-              end
-            else
-              set(row, body_s - 1, { end_col = body_e, hl_group = grp })
-            end
-            pos = (braces and body_e + 2 or body_e + 1)
+          local sym, stop = require("org.entities").pretty_at(line, s)
+          if sym and stop and not in_ranges(paths, s) then
+            set(row, s - 1, { end_col = stop, conceal = sym })
+            init = stop + 1
           else
-            pos = s + 1
+            init = s + 1
           end
+        end
+      end
+    end
+    -- (scripts not in keywords and comments: org-raise-scripts)
+    if scripts and not in_block and not (hash and (line:find("^%s*#[%s+]") or line:find("^%s*#$"))) then
+      local protected = protected_ranges(line)
+      -- x^2, a_{i} (org-raise-scripts)
+      local pos = 2
+      while pos <= #line do
+        local s = line:find("[_^]", pos)
+        if not s then
+          break
+        end
+        local base = line:sub(s - 1, s - 1)
+        local mark = line:sub(s, s)
+        local body, body_s, body_e, braces
+        if line:sub(s + 1, s + 1) == "{" then
+          local close = line:find("}", s + 2, true)
+          if close then
+            body, body_s, body_e, braces = line:sub(s + 2, close - 1), s + 2, close - 1, true
+          end
+        elseif not braces_only then
+          local b = line:match("^%*", s + 1) or line:match("^[+-]?[%w.,\\]*%w", s + 1)
+          if b then
+            body, body_s, body_e = b, s + 1, s + #b
+          end
+        end
+        if body and s > 1 and base:match("%S") and body ~= "" and not in_ranges(protected, s) then
+          local map = mark == "^" and SUPER or SUB
+          local all = true
+          for ch in body:gmatch(".") do
+            if not map[ch] then
+              all = false
+            end
+          end
+          set(row, s - 1, { end_col = s, conceal = "" })
+          if braces then
+            set(row, s, { end_col = s + 1, conceal = "" })
+            set(row, body_e, { end_col = body_e + 1, conceal = "" })
+          end
+          local grp = mark == "^" and "OrgSuperscript" or "OrgSubscript"
+          if all then
+            for k = body_s, body_e do
+              set(row, k - 1, { end_col = k, conceal = map[line:sub(k, k)] })
+            end
+          else
+            set(row, body_s - 1, { end_col = body_e, hl_group = grp })
+          end
+          pos = (braces and body_e + 2 or body_e + 1)
+        else
+          pos = s + 1
         end
       end
     end

@@ -6864,7 +6864,10 @@ Options under `ui`:
                          characters have one, else the script is
                          highlighted with OrgSuperscript / OrgSubscript and
                          only the markers are hidden (Neovim cannot raise
-                         text). Not in blocks, code, verbatim or links.
+                         text). Entities are shown everywhere but in
+                         comment lines and src, example, export and
+                         comment blocks (|org-differences|); scripts not
+                         in keyword lines, code, verbatim or links.
   num                    number headlines with virtual text like
                          org-num-mode (#+STARTUP: num / nonum); num_max_level,
                          num_skip_commented, num_skip_footnotes,
@@ -9161,7 +9164,11 @@ Differences from Emacs:
   `}}}`, or a footnote reference whose closing bracket, comes after the
   next headline is not drawn (Emacs's font-lock paints it over the
   headline and the lines up to its end): the rows of a window are drawn
-  from the lines back to the headline above them at most.
+  from the lines back to the headline above them at most. With
+  `ui.pretty_entities`, entities aren't shown as their character in src,
+  example, export and comment blocks, where they are code (Emacs shows
+  them there too, like everywhere but in comment lines), nor in the
+  hidden target of a described link.
 
 - Inline tasks: promoting one at the minimum level is refused. With odd
   levels only, Emacs compares the new stars with org-inlinetask-min-level
