@@ -416,6 +416,23 @@ describe("merge extension: structural merge", function()
     eq({ "* Note", "ONE", "* Note", "TWO" }, res.lines)
   end)
 
+  it("matches same-title headlines by content when one side deletes one", function()
+    local base = { "* Note", "one", "* Note", "two" }
+    local ours = { "* Note", "one", "* Note", "two edited" }
+    local theirs = { "* Note", "two" }
+    local res = merge(base, ours, theirs)
+    eq(0, res.conflicts)
+    eq({ "* Note", "two edited" }, res.lines)
+    -- and the other way round
+    res = merge(base, theirs, ours)
+    eq(0, res.conflicts)
+    eq({ "* Note", "two edited" }, res.lines)
+    -- one added on one side, the other edited on the other
+    res = merge(base, { "* Note", "zero", "* Note", "one", "* Note", "two" }, { "* Note", "one", "* Note", "TWO" })
+    eq(0, res.conflicts)
+    eq({ "* Note", "zero", "* Note", "one", "* Note", "TWO" }, res.lines)
+  end)
+
   it("writes a CRLF file without a final newline without a stray CR", function()
     local d = tmpdir()
     local function put(name, s)

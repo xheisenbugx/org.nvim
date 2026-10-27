@@ -10973,7 +10973,10 @@ entry renamed on one side is still recognised when the rest of it did not
 change, when its text stayed similar (`rename_similarity`: that share of
 its lines, drawers and child titles is unchanged), or, for a headline
 without text, when it sits between the same two neighbours. An entry that
-got an `ID` on one side (as org-roam does) is matched by its title. Then:
+got an `ID` on one side (as org-roam does) is matched by its title.
+Siblings with the same title are told apart by their text (the same text,
+else the most similar, else their order), so deleting one of them on one
+side and editing another on the other doesn't conflict. Then:
 
   - Changes to different entries never conflict, even on adjacent lines.
   - An entry moved or refiled to another parent (by ID) or reordered is
