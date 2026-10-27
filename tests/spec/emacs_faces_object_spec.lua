@@ -10,11 +10,6 @@ local KNOWN = {
     -- loaded, which org doesn't do by default
     [456] = "man: links",
   },
-  ["examples-17-babel.org"] = {
-    -- a json src block: Vim's json syntax conceals the quotes
-    -- (g:vim_json_conceal), Emacs shows them
-    [574] = "the json syntax",
-  },
   ["tests-fixtures-emacs-faces-object.org"] = {
     -- after a macro with no "}}}" before an empty line, org-fontify-macros
     -- returns nil and font-lock stops looking for macros in the region it

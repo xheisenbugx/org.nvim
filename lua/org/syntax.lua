@@ -409,6 +409,10 @@ local function emphasis(in_table, conceal_emph, synmaxcol)
   end
 end
 
+-- The variables that turn off the concealing of the syntax files of src
+-- block languages (syntax/json.vim, syntax/markdown.vim)
+local NO_CONCEAL = { "vim_json_conceal", "markdown_syntax_conceal" }
+
 --- The vim syntax of a src block language: src_lang_modes
 --- (org-src-lang-modes) first, then the built-in aliases.
 local function syntax_of(lang)
@@ -589,9 +593,21 @@ local function src_regions(bufnr, config, block_stop, delimiter)
         if how == "syntax" then
           local saved = vim.b.current_syntax
           vim.b.current_syntax = nil
+          -- Emacs shows a block as typed: no concealing from the language's
+          -- syntax (json hides the quotes of strings, markdown the markers
+          -- of emphasis). Off only while it is included here, so files of
+          -- that language keep the user's setting.
+          local conceal = {}
+          for _, var in ipairs(NO_CONCEAL) do
+            conceal[var] = vim.g[var]
+            vim.g[var] = 0
+          end
           local ok = pcall(cmd, string.format("syntax include @%s syntax/%s.vim", cluster, syn))
           if not ok then
             pcall(cmd, string.format("syntax include @%s syntax/%s.lua", cluster, syn))
+          end
+          for _, var in ipairs(NO_CONCEAL) do
+            vim.g[var] = conceal[var]
           end
           vim.b.current_syntax = saved
           -- an included file's `syntax case ignore` would make the org rules
