@@ -37,6 +37,13 @@
 -- org.ui.emphasis, whose scans run over whole long lines, is compiled.
 if jit then
   jit.off(true, true)
+  -- (machine code in larger areas, so fewer are allocated: on arm64
+  -- (macOS), with a large file loaded, a new area often couldn't be, and
+  -- each time every trace was flushed; org.ui.emphasis and the rest were
+  -- compiled again at every keystroke, which typed 4 times slower)
+  pcall(function()
+    require("jit.opt").start("sizemcode=256")
+  end)
 end
 
 local M = {}

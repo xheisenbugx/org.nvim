@@ -851,6 +851,9 @@ local attached = {} ---@type table<integer, boolean>
 ---@field wlo table<integer, integer> per row done, the first row its computation read
 ---@field whi table<integer, integer> and the last
 ---@field spans table<integer, boolean> per row done, whether its computation read the start of a macro or a footnote reference
+---@field ndone integer how many rows are done
+---@field reach { [1]: integer, [2]: integer } how far above and below its row the first and last rows a row done depends on are, at most
+---@field wreach { [1]: integer, [2]: integer } likewise for the rows its computation read
 ---@field file? org.File|false the parse org.ui.highlight drew with (false: more than one)
 ---@field bvars string the buffer variables the drawing follows
 ---@field before? org.ui.decorations.Before what the rows drew before the edits since the last tick drawn
@@ -885,9 +888,10 @@ end
 -- such a start: one opened or closed there runs on over rows whose scan
 -- didn't read the line) are computed again and the others keep theirs,
 -- when the line before and after the edit holds nothing the scans read
--- from further away: no headline or line of stars (levels, where blocks
--- end), no `#` line (block delimiters, keywords), no backslash (LaTeX
--- environments) and the same paragraph separation; and the rest is as it
+-- from further away: no line of stars (levels, where blocks end) but a
+-- headline that keeps its stars and the blank after them, no `#` line
+-- (block delimiters, keywords), no backslash (LaTeX environments) and the
+-- same paragraph separation; and the rest is as it
 -- was: the same `ui` options, buffer variables and parse (in-buffer
 -- settings, radio targets), no numbering (it counts every headline above)
 -- and no column view. Anything else computes the rows again.
@@ -895,8 +899,10 @@ end
 -- (the rows whose inline marks are placed, see `sync_inline` below)
 local inline_synced = {} ---@type table<integer, { tick: integer, ui: table, rows: table<integer, boolean> }>
 
---- (how many times rows were kept over an edit, for the specs)
+--- (how many times rows were kept over an edit, and how many rows done
+--- were looked at to keep them, for the specs)
 M._carried = 0
+M._carried_rows = 0
 ---@class org.ui.decorations.Edits
 ---@field since integer the changedtick of the cache the edits follow
 ---@field tick integer the changedtick after the last of them
@@ -957,8 +963,14 @@ end
 --- Whether an edit that turned line `old` into `new` changes only the
 --- rows whose scan reads it (see above).
 local function local_edit(old, new)
+  -- (a headline that keeps its stars and the blank after them: the rows
+  -- after it read only its level and that it is one)
+  local stars = old:match("^%*+[ \t]")
+  if stars and (stars ~= new:match("^%*+[ \t]") or old:find("^%*+[ \t]*$") or new:find("^%*+[ \t]*$")) then
+    return false
+  end
   for _, l in ipairs({ old, new }) do
-    if l:byte(1) == 42 or l:find("^%s*#") or l:find("\\", 1, true) then
+    if (not stars and l:byte(1) == 42) or l:find("^%s*#") or l:find("\\", 1, true) then
       return false
     end
   end
@@ -1013,17 +1025,39 @@ local function carried(bufnr, c, tick, ui)
   end
   -- (what the rows dropped drew, see `redraw_changed`)
   local before = { rows = {}, done = {}, edits = e } ---@type org.ui.decorations.Before
-  for row in pairs(c.done) do
+  local function drop(row)
+    M._carried_rows = M._carried_rows + 1
     for edited in pairs(e.rows) do
       if row >= below or (lo[row] - up <= edited and edited <= hi[row]) then
         before.rows[row], before.done[row] = c.rows[row], true
         c.rows[row], c.done[row], c.text[row] = nil, nil, nil
         c.lo[row], c.hi[row], c.wlo[row], c.whi[row], c.spans[row] = nil, nil, nil, nil, nil
+        c.ndone = c.ndone - 1
         if synced then
           synced.rows[row] = nil
         end
-        break
+        return
       end
+    end
+  end
+  -- (only the rows whose reads can reach an edited row, unless every row
+  -- below one is dropped: the rows done grow with every screen drawn since
+  -- the cache was made, all the rows of the file once scrolled through)
+  local reach = together and c.wreach or c.reach
+  local min, max = math.huge, -1
+  for edited in pairs(e.rows) do
+    min, max = math.min(min, edited), math.max(max, edited)
+  end
+  local from, to = min - reach[2], max + reach[1] + up
+  if below == math.huge and to - from <= 4 * c.ndone then
+    for row = from, to do
+      if c.done[row] then
+        drop(row)
+      end
+    end
+  else
+    for row in pairs(c.done) do
+      drop(row)
     end
   end
   if synced then
@@ -1138,6 +1172,9 @@ local function rows_for(bufnr, top, bot)
         wlo = {},
         whi = {},
         spans = {},
+        ndone = 0,
+        reach = { 0, 0 },
+        wreach = { 0, 0 },
         bvars = bvars(bufnr),
         before = old and before_edits(bufnr, old) or nil,
       }
@@ -1172,10 +1209,17 @@ local function rows_for(bufnr, top, bot)
     local spans = hl and hl.last_spans or false
     for k, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, s, e + 1, false)) do
       local row = s + k - 1
+      if not c.done[row] then
+        c.ndone = c.ndone + 1
+      end
       c.done[row], c.text[row] = true, line
       local wlo, whi = read and read[1] or row, read and read[2] or row
+      local rlo, rhi = reads and reads.lo[row] or wlo, reads and reads.hi[row] or whi
       c.wlo[row], c.whi[row], c.spans[row] = wlo, whi, spans
-      c.lo[row], c.hi[row] = reads and reads.lo[row] or wlo, reads and reads.hi[row] or whi
+      c.lo[row], c.hi[row] = rlo, rhi
+      local reach, wreach = c.reach, c.wreach
+      reach[1], reach[2] = math.max(reach[1], row - rlo), math.max(reach[2], rhi - row)
+      wreach[1], wreach[2] = math.max(wreach[1], row - wlo), math.max(wreach[2], whi - row)
     end
     local file = hl and hl.file_in_use(bufnr) or nil
     if c.file == nil then
