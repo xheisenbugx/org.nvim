@@ -9756,8 +9756,10 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
                |vim.health|. Keep it fast and quiet: look for programs
                with |executable()|, stat paths, bound any file scan; no
                network, no prompts, no slow commands
-  `teardown`   `function()`, undoes `setup` when a later `setup()` turns
-               the extension off or sets it up again
+  `teardown`   `function(again)`, undoes `setup` when a later `setup()`
+               turns the extension off or sets it up again (`again` is
+               true then); `require("org.extensions").opts(name)` still
+               gives the options it was set up with
   `stability`  `"stable"` or `"experimental"`, as above. A built-in
                extension without it is experimental; `:checkhealth org`
                shows it for a third-party extension that sets it
@@ -10659,8 +10661,10 @@ starts the break.
 The running pomodoro is kept in `state_file`, so a Neovim started while it
 still runs (or is paused, or in overtime) goes on with it; one that ended
 in the meantime is dropped, and one another Neovim is running is left to
-it. The clock is not touched then (see `clock.persist`, |org-clock|); after
-a second `setup()` in the same Neovim a running pomodoro clocks in again.
+it. The clock is not touched then (see `clock.persist`, |org-clock|). A
+second `setup()` in the same Neovim that keeps the extension on goes on
+with the pomodoro and its clock; one that turns it off clocks out, and
+turning it on again clocks back in.
 
 Each phase change is announced through the clock's notifier
 (`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a

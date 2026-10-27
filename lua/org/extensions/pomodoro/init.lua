@@ -799,7 +799,8 @@ function M.setup(o)
   torn_down = nil
 end
 
-function M.teardown()
+---@param again? boolean set up again right after (the clock keeps running)
+function M.teardown(again)
   if augroup then
     pcall(vim.api.nvim_del_augroup_by_id, augroup)
     augroup = nil
@@ -808,7 +809,9 @@ function M.teardown()
     -- kept in state_file: a following setup() goes on with it
     pcall(save)
     stop_timer()
-    if (M.state.phase == "work" or M.state.phase == "overtime") and not M.state.paused_at then
+    -- set up again (the config sourced again): the next setup() goes on
+    -- with the session and its clock, which is not split
+    if not again and (M.state.phase == "work" or M.state.phase == "overtime") and not M.state.paused_at then
       pcall(clock_out)
     end
     M.state = nil
