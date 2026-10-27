@@ -947,6 +947,9 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
       break
     end
     local line = lines[i]
+    -- the line's clock (false: none), parsed once
+    ---@type table|false|nil
+    local clock
     if tail then
       if i > verbatim_end and line:find("^%s*#%+") then
         verbatim_end = M.verbatim_block_end(lines, i, to) or verbatim_end
@@ -994,7 +997,8 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
       elseif not (line:find("^%s*[#:]") and no_objects(line)) then
         -- text, in a drawer too (LOGBOOK notes, :org-gcal:); a CLOCK
         -- line's timestamps are the clock's
-        local is_clock = line:find(":", 1, true) and M.parse_clock_line(line)
+        clock = line:find(":", 1, true) and M.parse_clock_line(line) or false
+        local is_clock = clock
         if not (is_clock and in_drawer) then
           for _, item in ipairs(object_stamps(line)) do
             if not item.date.active and not hl.first_inactive and not is_clock then
@@ -1018,12 +1022,16 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
     end
     -- a CLOCK line in a block or a LaTeX environment is text, not a clock
     -- (org-clock-sum only counts clock elements)
-    local clock = i > verbatim_end and line:find(":", 1, true) and M.parse_clock_line(line)
-    if clock then
-      clock.line = i
-      hl.clocks[#hl.clocks + 1] = clock
-    elseif i > verbatim_end and line:find("=>", 1, true) then
-      hl.naked_clock_minutes = hl.naked_clock_minutes + (M.parse_naked_clock(line) or 0)
+    if i > verbatim_end then
+      if clock == nil then
+        clock = line:find(":", 1, true) and M.parse_clock_line(line) or false
+      end
+      if clock then
+        clock.line = i
+        hl.clocks[#hl.clocks + 1] = clock
+      elseif line:find("=>", 1, true) then
+        hl.naked_clock_minutes = hl.naked_clock_minutes + (M.parse_naked_clock(line) or 0)
+      end
     end
     i = i + 1
   end
