@@ -165,7 +165,11 @@ function M.paste_subtree(opts)
   local cur_level = parser.outline_level(line)
   local level_indicator
   local force
-  if (not numeric) and line:match("^%*+[ \t]*$") and pos[2] >= #line:match("^%*+") then
+  -- point after the stars; in Normal mode the cursor on the last character
+  -- stands for the end of the line (|org-structure-differences|)
+  local after_stars = pos[2] >= #(line:match("^%*+") or "")
+    or (not opts.pos and pos[2] >= #line - 1 and vim.api.nvim_get_mode().mode:sub(1, 1) ~= "i")
+  if (not numeric) and line:match("^%*+[ \t]*$") and after_stars then
     level_indicator = #line:match("^%*+")
     force = level_indicator
   elseif arg == 4 then
@@ -227,7 +231,13 @@ function M.paste_subtree(opts)
   end
   local shift = new_level - old_level
   local new = shift ~= 0 and relevel(lines, shift, file.settings.todo) or lines
-  insert_lines(bufnr, at, new)
+  if vim.api.nvim_buf_line_count(bufnr) == 1 and get_lines(bufnr, 1, 1)[1] == "" then
+    -- an empty buffer has no line to keep (Emacs pastes at its start)
+    set_lines(bufnr, 1, 1, new)
+    at = 1
+  else
+    insert_lines(bufnr, at, new)
+  end
   local first = at
   while first < at + #new - 1 and is_blank(get_lines(bufnr, first, first)[1]) do
     first = first + 1

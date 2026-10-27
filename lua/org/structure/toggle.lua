@@ -4,7 +4,6 @@
 ---
 --- Part of org.structure, which loads it.
 
-local edit = require("org.edit")
 local files = require("org.files")
 local parser = require("org.parser")
 local utils = require("org.utils")
@@ -26,6 +25,9 @@ local start_insert = shared.start_insert
 -- Toggles
 ---------------------------------------------------------------------------
 
+--- org-toggle-comment: insert COMMENT after the stars, TODO keyword and
+--- priority, or remove it, changing nothing else on the line (the tags
+--- are not realigned).
 function M.toggle_comment()
   local bufnr = buf()
   local hl = current_headline()
@@ -33,7 +35,30 @@ function M.toggle_comment()
     utils.warn("Not on a headline")
     return
   end
-  edit.update_headline(bufnr, hl.line, { commented = not hl.commented })
+  local line = get_lines(bufnr, hl.line, hl.line)[1]
+  local todo_cfg = files.get_buffer(bufnr).settings.todo
+  -- the end of the stars, keyword and priority (org-complex-heading-regexp)
+  local pos = #line:match("^%*+")
+  local word, after = line:match("^[ \t]+(%S+)()", pos + 1)
+  if word and todo_cfg:is_keyword(word) and line:sub(after, after):match("^[ \t]?$") then
+    pos = after - 1
+  end
+  local prio_end = line:match("^[ \t]+%[#[^%]]%]()", pos + 1)
+  if prio_end then
+    pos = prio_end - 1
+  end
+  local q = pos + #line:match("^[ \t]*", pos + 1)
+  local head, rest = line:sub(1, q), line:sub(q + 1)
+  if not head:match("[ \t]$") then
+    head = head .. " "
+  end
+  if hl.commented then
+    -- up to the next space and the blanks after it
+    rest = rest:match("^%S* [ \t]*(.*)$") or ""
+  else
+    rest = "COMMENT" .. (rest ~= "" and " " .. rest or "")
+  end
+  set_lines(bufnr, hl.line, hl.line, { head .. rest })
 end
 
 --- org-toggle-heading (C-c *): headlines become text; list items become

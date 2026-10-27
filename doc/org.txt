@@ -9513,6 +9513,9 @@ Differences from Emacs:
     <prefix>nb and <prefix>ne. Narrowing edits the region in a separate
     buffer instead of hiding the rest of the buffer.
   - A count repeats promote / demote (<M-h>, <<); Emacs ignores it.
+  - Pasting a subtree on a line of bare stars (`***`) pastes it at that
+    many stars, as org-paste-subtree's documentation says; Emacs takes the
+    level of the headline above when no space follows the stars.
   - Element commands work on whole lines.
   - Speed commands work in Insert mode at the start of a headline (where
     Emacs would insert the letter); Normal mode keeps Vim's letters.
