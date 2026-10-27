@@ -456,7 +456,7 @@ local function rounded_minutes(min, n)
   return min, dm * (n > 0 and 1 or n < 0 and -1 or 0)
 end
 
-local function shift_component(d, comp, n)
+local function shift_component_civil(d, comp, n)
   if comp == "minute" and d.min then
     local min, step = rounded_minutes(d.min, n)
     local r = d:add(min - d.min + step, "min")
@@ -476,6 +476,12 @@ local function shift_component(d, comp, n)
     return d:add(n, "h")
   end
   return d:add(n, "d")
+end
+
+--- `d` with `comp` shifted by `n`, a time skipped by a daylight saving
+--- change normalised like Emacs's encode-time.
+local function shift_component(d, comp, n)
+  return shift_component_civil(d, comp, n):normalize()
 end
 
 --- Shift the component under the cursor by `n` (org-timestamp-change). On

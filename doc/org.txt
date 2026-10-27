@@ -1636,6 +1636,10 @@ Timestamps:
                 On a repeater or warning, the number never goes below 1
                 (warning: 0) and the unit letter cycles d, w, m, y. Only
                 `+N` repeaters and `-N` warnings are changed, like Emacs.
+                A time that doesn't exist locally (skipped by a daylight
+                saving change) becomes the one after the gap, as Emacs's
+                encode-time makes it (02:30 -> 03:30); so do clones and
+                repeaters.
 <S-Up/Down>     (ctx) Same as <C-a> / <C-x>. On minutes, step by the
                 second value of `time_stamp_rounding_minutes` (5) and
                 round to it; a count steps by exactly that many minutes.
