@@ -577,6 +577,19 @@ describe("screen snapshot", function()
     screen:expect("context_sticky_headlines")
   end)
 
+  -- the first org buffer of a session: org.ui.highlight loads with the
+  -- first rows drawn, and what those rows read must be known for an edit
+  -- of another line to draw them again (the bold of line 2 ends with the
+  -- opener deleted on line 1)
+  it("draws again a row whose markup an edit of the line above ended, in the first buffer", function()
+    new(nil, 30, 4)
+    eq(false, screen:lua([[return package.loaded["org.ui.highlight"] ~= nil]]))
+    screen:org({ "a *b", "c* d" })
+    screen:snapshot()
+    screen:input("llx")
+    screen:expect("edit_first_buffer_redraws_row_below")
+  end)
+
   it("fails with a diff when the screen differs, and on a missing golden file", function()
     local dir, update = Screen.dir, vim.env.ORG_UPDATE_SNAPSHOTS
     Screen.dir = vim.fn.tempname()

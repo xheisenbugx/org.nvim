@@ -1182,6 +1182,9 @@ local function rows_for(bufnr, top, bot)
     for row, marks in pairs(M.compute(bufnr, s, e, ui)) do
       c.rows[row] = marks
     end
+    -- (`compute` loads org.ui.highlight the first time: what it read is
+    -- known from then on, the rows of the first buffer drawn too)
+    hl = hl or package.loaded["org.ui.highlight"]
     if c.before then
       redraw_changed(bufnr, c, s, e)
     end
