@@ -14,7 +14,12 @@ local function marks(buf, row)
   local out = {}
   for _, m in ipairs(deco.line_marks(buf, row)) do
     local o = m[2]
-    for _, name in ipairs({ o.hl_group or false, o.conceal == "" and "conceal" or false }) do
+    -- (orgSrcBlock: the block part's mark under a src block's body, with
+    -- no attributes; this spec is about emphasis and links)
+    for _, name in ipairs({
+      o.hl_group ~= "orgSrcBlock" and o.hl_group or false,
+      o.conceal == "" and "conceal" or false,
+    }) do
       if name then
         out[#out + 1] = string.format("%s@%d-%d", name, m[1], o.end_col or m[1] + 1)
       end

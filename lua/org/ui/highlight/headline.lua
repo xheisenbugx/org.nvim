@@ -166,7 +166,20 @@ local function headline(ctx, i, line, n, o)
       emit(i, lead, n + 1, { hl_group = group, priority = PRIO.element + 1 })
       emit(i, n + 1, len, { hl_group = "orgHeadlineText", priority = PRIO.element })
     else
-      emit(i, lead, len, { hl_group = group, priority = PRIO.element })
+      -- (not on a column cookie after a "|": Emacs's rule for table
+      -- cookies, "| *<[lrc]?[0-9]*>", replaces every face under it,
+      -- in a headline too; the table part draws it)
+      local from = lead
+      local at = 1
+      while true do
+        local bar, cs, ce = line:match("()|[ ]*()<[lrc]?%d*>()", at)
+        if not bar then
+          break
+        end
+        emit(i, from, cs - 1, { hl_group = group, priority = PRIO.element })
+        from, at = ce - 1, ce
+      end
+      emit(i, from, len, { hl_group = group, priority = PRIO.element })
     end
   end
 

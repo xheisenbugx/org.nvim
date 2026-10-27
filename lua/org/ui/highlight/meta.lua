@@ -120,14 +120,13 @@ local function meta_line(ctx, i, line, s, hidden)
   end
   if key:sub(1, 7) == "caption" then
     -- "#+caption", an optional "[short caption]" and a colon in
-    -- org-meta-line, the caption in org-block (anything else after
-    -- "#+caption": the whole line in org-meta-line)
+    -- org-meta-line; the caption itself is org-block, drawn by the block
+    -- part (anything else after "#+caption": the whole line in
+    -- org-meta-line)
     local e = line:match("^#%+[cC][aA][pP][tT][iI][oO][nN]:()", s)
       or line:match("^#%+[cC][aA][pP][tT][iI][oO][nN]%[.*%]:()", s)
     if e then
       emit(i, 0, e - 1, { hl_group = "orgKeyword", priority = H.PRIO.object + 1, spell = false })
-      local v = skip_blanks(line, e)
-      emit(i, v - 1, n, { hl_group = "orgBlock", priority = H.PRIO.object + 1, spell = false })
       return
     end
   end

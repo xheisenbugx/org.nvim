@@ -4,7 +4,6 @@
 -- byte by byte (tests/helpers/faces.lua, tests/fixtures/emacs/faces/;
 -- tests/fixtures/emacs/faces/block.org holds the hard cases).
 local F = require("tests.helpers.faces")
-local P = require("tests.emacs_parity")
 
 -- fixture -> { [line] = why it differs }
 local KNOWN = {
@@ -13,15 +12,13 @@ local KNOWN = {
     -- hidden byte shows no face
     [574] = "json syntax conceal",
   },
+  ["tests-fixtures-emacs-faces-object.org"] = {
+    -- "src_sh{z}" in the body of a sh src block: Emacs's inline src
+    -- fontification runs there too and takes org-block off the braces;
+    -- org.nvim sees no inline src block in a src block
+    [103] = "inline src block in a src block's body",
+  },
 }
-
---- Lines owned by another part, left out until the parts are merged:
---- inline src blocks (`src_LANG{...}`, the object part), whose body Emacs
---- draws in org-block (org-fontify-inline-src-blocks-1 fontifies it as a
---- src block).
-local function other_part(line)
-  return line:find("src_[^ \t\n[{]+[[{]") ~= nil
-end
 
 describe("emacs faces: block", function()
   with_config({ ui = { highlighter = "parser", hide_emphasis_markers = true } })
@@ -40,22 +37,5 @@ describe("emacs faces: block", function()
     F.FACE_OF.orgquoteblock = saved
   end)
 
-  local known = {}
-  for _, fx in ipairs(F.fixtures()) do
-    local k = vim.deepcopy(KNOWN[fx.name] or {})
-    for _, dir in ipairs({ "examples", "tests/fixtures/emacs/fontify", "tests/fixtures/emacs/faces" }) do
-      local prefix = dir:gsub("/", "-") .. "-"
-      if fx.name:sub(1, #prefix) == prefix then
-        local path = P.root .. "/" .. dir .. "/" .. fx.name:sub(#prefix + 1)
-        for i, line in ipairs(vim.fn.readfile(path)) do
-          if other_part(line) then
-            k[i] = k[i] or "inline src block (object part)"
-          end
-        end
-        break
-      end
-    end
-    known[fx.name] = k
-  end
-  F.spec("block", known)
+  F.spec("block", KNOWN)
 end)

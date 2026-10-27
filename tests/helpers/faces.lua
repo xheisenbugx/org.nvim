@@ -14,7 +14,8 @@ local M = {}
 local P = require("tests.emacs_parity")
 
 --- org.nvim group (lowercase: syntax groups and the groups of marks are
---- matched without case) -> the Emacs face it stands for.
+--- matched without case) -> the Emacs face it stands for (or a list of
+--- them).
 M.FACE_OF = {
   -- headlines
   orgheadlinelevel1 = "level-1",
@@ -53,9 +54,6 @@ M.FACE_OF = {
   orgplanning = "special-keyword",
   orgclock = "special-keyword",
   orgsexpdate = "sexp-date",
-  -- (the COMMENT keyword of a headline: org-special-keyword, prepended
-  -- last in org-set-font-lock-defaults)
-  orgheadlinecomment = "special-keyword",
   -- keywords, drawers, comments
   orgkeyword = "meta-line",
   orgkeywordvalue = "meta-line",
@@ -98,7 +96,9 @@ M.FACE_OF = {
   orgmacromarker = "macro",
   orginlinesrc = "inline-src-block",
   orginlinesrcmarker = "inline-src-block",
-  orginlinesrclang = "inline-src-block",
+  -- (Emacs draws the language of an inline src block in org-meta-line on
+  -- top of org-inline-src-block)
+  orginlinesrclang = { "inline-src-block", "meta-line" },
   orginlinesrcheader = "inline-src-block",
   -- (the body is fontified natively: org-src-font-lock-fontify-block takes
   -- the faces of src_LANG{...} off it and appends org-block, which
@@ -168,6 +168,16 @@ M.FAMILIES = {
   object = { "link", "footnote", "target", "macro", "inline-src-block", "cite", "#" },
   emphasis = { "bold", "italic", "underline", "strike-through", "verbatim", "code", "#" },
 }
+
+--- The Emacs faces of org.nvim group `group`.
+---@return string[]
+local function faces_of(group)
+  local f = M.FACE_OF[group:lower()]
+  if type(f) == "table" then
+    return f
+  end
+  return f and { f } or {}
+end
 
 local function set_of(list)
   local t = {}
@@ -261,8 +271,7 @@ function M.nvim_faces(buf)
         local hidden = false
         if syntax then
           for _, id in ipairs(vim.fn.synstack(l, c)) do
-            local f = M.FACE_OF[vim.fn.synIDattr(id, "name"):lower()]
-            if f then
+            for _, f in ipairs(faces_of(vim.fn.synIDattr(id, "name"))) do
               set[f] = true
             end
           end
@@ -272,9 +281,9 @@ function M.nvim_faces(buf)
       end
       for _, m in ipairs(marks) do
         local o = m[2]
-        local f = o.hl_group and M.FACE_OF[o.hl_group:lower()]
+        local fs = o.hl_group and faces_of(o.hl_group) or {}
         for c = m[1] + 1, math.min(#line, o.end_col or m[1] + 1) do
-          if f then
+          for _, f in ipairs(fs) do
             row[c][1][f] = true
           end
           if o.conceal == "" then
