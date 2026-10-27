@@ -354,6 +354,38 @@ describe("ui.highlighter = parser: objects", function()
     end)
   end)
 
+  it("draws man: as a link in brackets only, and opens it plain too", function()
+    -- (Emacs knows man: only with ol-man, not in the default org-modules)
+    local buf = org_buffer({ "see man:printf(3) and <man:ls(1)> and [[man:ls]]" }, { 1, 0 })
+    eq({}, marks_of(buf, 0, "orgLinkPlain"))
+    eq(1, #marks_of(buf, 0, "orgLink"))
+    eq(col(1, "[[man") - 1, marks_of(buf, 0, "orgLink")[1][1])
+    local found = require("org.links").parse_links("see man:printf(3) and")
+    eq("man:printf(3)", found[1] and found[1].raw)
+    -- (a type of `links.types` named man is a link type again)
+    local opts = require("org.config").opts.links
+    local types = opts.types
+    opts.types = { man = { follow = function() end } }
+    deco.render(buf)
+    local plain = false
+    for _, m in ipairs(deco.line_marks(buf, 0)) do
+      plain = plain or (m[1] == col(1, "man:") - 1 and (m[2].hl_group or ""):find("^orgLink") ~= nil)
+    end
+    opts.types = types
+    deco.render(buf)
+    ok(plain)
+  end)
+
+  it("draws a macro or a footnote over a #+TITLE: line in the blanks after the keyword", function()
+    local buf = org_buffer({ "a {{{m(b", "#+TITLE:  title", "c)}}} [fn:: d", "#+AUTHOR: me", "e]" }, { 1, 0 })
+    local m = marks_of(buf, 1, "orgMacro")
+    eq(1, #m)
+    eq({ 8, 10 }, { m[1][1], m[1][2].end_col })
+    local f = marks_of(buf, 3, "orgFootnote")
+    eq(1, #f)
+    eq({ 9, 10 }, { f[1][1], f[1][2].end_col })
+  end)
+
   it("leaves objects out of spell checking, but not the text of inline footnotes", function()
     local buf = org_buffer({
       "[[https://teh.org][teh]] https://teh.org <<teh>> {{{teh}}} @@teh:x@@ src_teh{teh} [fn:teh] [fn:: teh note] \\\\",

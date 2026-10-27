@@ -850,6 +850,7 @@ local attached = {} ---@type table<integer, boolean>
 ---@field hi table<integer, integer> and the last
 ---@field wlo table<integer, integer> per row done, the first row its computation read
 ---@field whi table<integer, integer> and the last
+---@field spans table<integer, boolean> per row done, whether its computation read the start of a macro or a footnote reference
 ---@field file? org.File|false the parse org.ui.highlight drew with (false: more than one)
 ---@field bvars string the buffer variables the drawing follows
 ---@field before? org.ui.decorations.Before what the rows drew before the edits since the last tick drawn
@@ -879,7 +880,10 @@ end
 -- `last_reads`: those a scan of the row alone reads, the paragraphs around
 -- it and the lines that bound them; all the rows the scan of the rows
 -- computed together read, `last_read`, when the line holds what draws rows
--- together) are computed again and the others keep theirs,
+-- together; and every row below a line that holds, or held, the start of
+-- a macro or a footnote reference, or a bracket or quote when its scan read
+-- such a start: one opened or closed there runs on over rows whose scan
+-- didn't read the line) are computed again and the others keep theirs,
 -- when the line before and after the edit holds nothing the scans read
 -- from further away: no headline or line of stars (levels, where blocks
 -- end), no `#` line (block delimiters, keywords), no backslash (LaTeX
@@ -981,7 +985,11 @@ local function carried(bufnr, c, tick, ui)
   end
   -- (whether an edited line holds what draws rows together, and whether
   -- the scan of the lines after it reads it differently)
+  -- (and the first row from which on every row is dropped: a macro or a
+  -- footnote reference opened, or closed, there can run on over any row
+  -- below, whatever it read)
   local together, above = false, false
+  local below = math.huge
   local E = package.loaded["org.ui.emphasis"]
   for row in pairs(e.rows) do
     local old = c.text[row]
@@ -989,7 +997,11 @@ local function carried(bufnr, c, tick, ui)
     if not (old and new and local_edit(old, new)) then
       return nil
     end
-    together = together or hl ~= nil and (hl.spans_paragraphs(old) or hl.spans_paragraphs(new))
+    local spans = hl ~= nil and (hl.spans_paragraphs(old) or hl.spans_paragraphs(new))
+    together = together or spans
+    if spans or (c.spans[row] and (old:find('[][(){}<>"]') or new:find('[][(){}<>"]'))) then
+      below = math.min(below, row)
+    end
     above = above or E ~= nil and E.line_above(old) ~= E.line_above(new)
   end
   local lo, hi = together and c.wlo or c.lo, together and c.whi or c.hi
@@ -1003,10 +1015,10 @@ local function carried(bufnr, c, tick, ui)
   local before = { rows = {}, done = {}, edits = e } ---@type org.ui.decorations.Before
   for row in pairs(c.done) do
     for edited in pairs(e.rows) do
-      if lo[row] - up <= edited and edited <= hi[row] then
+      if row >= below or (lo[row] - up <= edited and edited <= hi[row]) then
         before.rows[row], before.done[row] = c.rows[row], true
         c.rows[row], c.done[row], c.text[row] = nil, nil, nil
-        c.lo[row], c.hi[row], c.wlo[row], c.whi[row] = nil, nil, nil, nil
+        c.lo[row], c.hi[row], c.wlo[row], c.whi[row], c.spans[row] = nil, nil, nil, nil, nil
         if synced then
           synced.rows[row] = nil
         end
@@ -1125,6 +1137,7 @@ local function rows_for(bufnr, top, bot)
         hi = {},
         wlo = {},
         whi = {},
+        spans = {},
         bvars = bvars(bufnr),
         before = old and before_edits(bufnr, old) or nil,
       }
@@ -1144,7 +1157,7 @@ local function rows_for(bufnr, top, bot)
   if s <= e then
     local hl = package.loaded["org.ui.highlight"]
     if hl then
-      hl.last_read, hl.last_reads = nil, nil
+      hl.last_read, hl.last_reads, hl.last_spans = nil, nil, false
     end
     for row, marks in pairs(M.compute(bufnr, s, e, ui)) do
       c.rows[row] = marks
@@ -1156,11 +1169,12 @@ local function rows_for(bufnr, top, bot)
     -- org.ui.highlight scanned for them; and those each row depends on)
     local read = hl and hl.last_read
     local reads = read and hl.last_reads
+    local spans = hl and hl.last_spans or false
     for k, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, s, e + 1, false)) do
       local row = s + k - 1
       c.done[row], c.text[row] = true, line
       local wlo, whi = read and read[1] or row, read and read[2] or row
-      c.wlo[row], c.whi[row] = wlo, whi
+      c.wlo[row], c.whi[row], c.spans[row] = wlo, whi, spans
       c.lo[row], c.hi[row] = reads and reads.lo[row] or wlo, reads and reads.hi[row] or whi
     end
     local file = hl and hl.file_in_use(bufnr) or nil

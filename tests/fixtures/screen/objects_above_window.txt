@@ -1,0 +1,15 @@
+screen 60x6
+|{1:-}{2: item 3}|
+|{1:-}{2: b)}{3:\}\}\}} and {4:[fn:: c}|
+|{5:#+KEY:}{6: v}|
+|{7:-}{4: item d]} e|
+|plain man:printf(3) and {8:man:ls}|
+
+{1} OrgListBullet -> Special | OrgMacro -> PreProc
+{2} OrgMacro -> PreProc
+{3} OrgMacro -> PreProc | orgMacroMarker -> OrgMacro -> PreProc
+{4} OrgFootnote -> Underlined [underline]
+{5} OrgKeyword -> PreProc
+{6} OrgKeywordValue -> String
+{7} OrgListBullet -> Special | OrgFootnote -> Underlined [underline]
+{8} OrgLink -> @markup.link [underline]

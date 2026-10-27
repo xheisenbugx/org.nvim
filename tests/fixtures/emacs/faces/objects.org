@@ -1,0 +1,42 @@
+Macros and footnote references that run on over lines that separate
+paragraphs, and the link types plain links have, for the faces parity
+fixture (the object family): each paragraph is a case, and the blank
+lines keep one from going on into the next.
+
+A macro {{{m(over
+#+TITLE: a keyword line
+and on)}}} after it.
+
+- a macro {{{m(over
+- the items
+- of a list)}}} here
+- and after
+
+A reference [fn:: over
+#+KEY: a keyword line
+- and an item] after it.
+
+A reference [fn:x: over a
+| table |
+and on] here.
+
+* A headline {{{m(on
+its lines)}}} and [fn:: a
+reference] too
+
+Plain man:printf(3) and <man:ls(1)> and [[man:ls]] and [[man:ls][desc]].
+Plain help:org and info:emacs#Top and shell:ls and help:vi and elisp:(+ 1 2).
+Plain attachment:a.txt and doi:10.1000/1 and news:comp.emacs and irc:host/chan.
+Plain docview:a.pdf and eww:https://x.org and w3m:https://x.org.
+Plain bibtex:a.bib and file+sys:a.txt and file+emacs:a.txt and id:abc.
+Plain rmail:xy and mhe:xy and gnus:xy and bbdb:xy and shortdoc:xy.
+Plain nope:xy and ftp:x.org and mailto:a@b.c and https://x.org.
+
+Over a headline {{{m(a and [fn:: b
+* Another headline
+c)}}} d] e.
+
+The last case: after a macro with no "}}}" before an empty line, Emacs
+looks for no more macros {{{m(a
+
+b)}}} here.
