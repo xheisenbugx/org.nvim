@@ -1083,9 +1083,10 @@
 ---Hide `*`, `/`, `_`, `=`, `~`, `+` around emphasized text.
 ---(Emacs `org-hide-emphasis-markers`, default: `false`)
 ---@field hide_emphasis_markers? boolean
----What draws emphasis and hides link brackets: `"syntax"` (Vim `:syntax`
----regions) or `"parser"` (the decoration provider, from a scan of the
----lines on screen). See `:h org-highlighter`. (default: `"syntax"`)
+---What draws org buffers: `"parser"` (the decoration provider, from a
+---scan of the lines on screen, as Emacs Org draws them) or `"syntax"` (Vim
+---`:syntax` regions; deprecated, kept for a release or two). See
+---`:h org-highlighter`. (default: `"parser"`)
 ---@field highlighter? "syntax"|"parser"
 ---Show only the last star of each headline.
 ---(Emacs `org-hide-leading-stars`, default: `false`)

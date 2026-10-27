@@ -61,12 +61,12 @@ local defaults = {
     conceal_links = true,
     --- Hide *, /, _, =, ~, + around emphasized text (org-hide-emphasis-markers).
     hide_emphasis_markers = false,
-    --- What draws emphasis (*bold*, /italic/, =verbatim=, ...) and hides
-    --- link brackets: "syntax" = Vim `:syntax` regions; "parser" = the
-    --- decoration provider, from a scan of the lines on screen (no
-    --- 'synmaxcol' limit, never turned off on long lines). See
-    --- `:h org-highlighter`.
-    highlighter = "syntax",
+    --- What draws org buffers: "parser" = the decoration provider, from a
+    --- scan of the lines on screen, as Emacs Org draws them (no 'synmaxcol'
+    --- limit, never turned off on long lines); "syntax" = Vim `:syntax`
+    --- regions, the old engine, deprecated and kept for a release or two.
+    --- See `:h org-highlighter`.
+    highlighter = "parser",
     --- Show only the last star of each headline (org-hide-leading-stars;
     --- #+STARTUP: hidestars / showstars).
     hide_leading_stars = false,

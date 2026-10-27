@@ -59,12 +59,12 @@ describe("tree-sitter src blocks", function()
       vim.opt.runtimepath:append(parser_dir)
     end
     local ui = require("org.config").opts.ui
-    saved_ui = { ui.src_highlight, ui.src_highlight_engine }
+    saved_ui = { ui.src_highlight, ui.src_highlight_engine, ui.highlighter }
     saved_inject_max = ts.inject_max
   end)
   after_each(function()
     local ui = require("org.config").opts.ui
-    ui.src_highlight, ui.src_highlight_engine = saved_ui[1], saved_ui[2]
+    ui.src_highlight, ui.src_highlight_engine, ui.highlighter = saved_ui[1], saved_ui[2], saved_ui[3]
     vim.o.runtimepath = saved_rtp
     ts.inject_max = saved_inject_max
   end)
@@ -90,6 +90,9 @@ describe("tree-sitter src blocks", function()
   end)
 
   it("doesn't include the lua syntax: the body is a plain region", function()
+    -- (the syntax engine's groups; ui_highlight_block_spec.lua checks the
+    -- parser highlighter's delimiter lines)
+    set_ui({ highlighter = "syntax" })
     org_buffer({ "* H", "#+begin_src lua", "local x = 1", "#+end_src" })
     eq("orgsrcblock_lua", groups(3, 1))
     eq("orgsrcblock_lua orgblockdelimiter", groups(2, 1))
@@ -272,7 +275,9 @@ describe("tree-sitter src blocks", function()
     if has_parser("fstab") then
       return
     end
-    set_ui({ src_highlight_engine = "treesitter" })
+    -- (the syntax engine's groups: ui_highlight_block_spec.lua checks the
+    -- parser highlighter's)
+    set_ui({ src_highlight_engine = "treesitter", highlighter = "syntax" })
     org_buffer({
       "#+begin_src fstab",
       "UUID=1234 / ext4 defaults 0 1",
@@ -286,7 +291,9 @@ describe("tree-sitter src blocks", function()
   end)
 
   it("src_highlight = false turns both off", function()
-    set_ui({ src_highlight = false })
+    -- (the syntax engine's groups: ui_highlight_block_spec.lua checks the
+    -- parser highlighter's)
+    set_ui({ src_highlight = false, highlighter = "syntax" })
     org_buffer({ "#+begin_src lua", "local x = 1", "#+end_src" })
     eq({}, hls(2))
     eq("orgblock", groups(2, 1))

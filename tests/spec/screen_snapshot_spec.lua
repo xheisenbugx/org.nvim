@@ -9,7 +9,11 @@ local Screen = require("tests.screen")
 local screen
 
 --- A child Neovim of `width` x `height` with org set up with `setup`.
+--- (The golden files were recorded with the syntax engine: the cases that
+--- don't name `ui.highlighter` keep it until they are recorded again with
+--- the default parser highlighter.)
 local function new(setup, width, height, now)
+  setup = vim.tbl_deep_extend("keep", setup or {}, { ui = { highlighter = "syntax" } })
   screen = Screen.new({ width = width or 60, height = height or 12, setup = setup, now = now })
   return screen
 end

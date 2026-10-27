@@ -153,6 +153,18 @@ describe("parser highlighter: blocks", function()
     require("org.config").opts.ui.src_highlight = nil
   end)
 
+  -- (ui_src_treesitter_spec.lua checks the syntax engine's)
+  it('draws in orgBlock a language src_highlight_engine = "treesitter" has no parser for', function()
+    if pcall(vim.treesitter.language.add, "fstab") and vim.treesitter.language.add("fstab") then
+      return
+    end
+    require("org.config").opts.ui.src_highlight_engine = "treesitter"
+    org_buffer({ "#+begin_src fstab", "UUID=1234 / ext4 defaults 0 1", "#+end_src" })
+    eq({ "0-29" }, spans(2, "orgBlock"))
+    ok(has(1, 1, "orgblockdelimiter"), groups(1, 1))
+    require("org.config").opts.ui.src_highlight_engine = nil
+  end)
+
   it("highlights quote and verse contents as Org text on orgQuoteBlock", function()
     org_buffer({
       "#+begin_quote",

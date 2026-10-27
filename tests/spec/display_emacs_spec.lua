@@ -595,6 +595,9 @@ describe("font-lock options", function()
   after_each(function()
     config.opts.ui = saved_ui
   end)
+  -- (the syntax engine's groups: the parser highlighter's are checked in
+  -- ui_highlight_*_spec.lua)
+  with_highlighter("syntax")
 
   --- Syntax group (lower case: group names ignore case) at column `c`.
   local function syn(l, c)

@@ -557,9 +557,11 @@ describe("src_block_faces", function()
     local rows = deco.compute(buf, 0, 6, deco.ui_options(buf))
     config.opts.ui.src_block_faces = {}
     local hl = require("org.highlights")
+    -- (the src block face's mark: the parser highlighter draws the
+    -- delimiter lines with marks too)
     local function group(row)
       for _, m in ipairs(rows[row] or {}) do
-        if m[2].hl_group then
+        if m[2].hl_group and m[2].hl_group:find("^orgSrcBlockFace_") then
           return m[2].hl_group
         end
       end

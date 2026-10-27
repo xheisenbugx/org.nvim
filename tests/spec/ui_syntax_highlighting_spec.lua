@@ -1,5 +1,8 @@
 -- Syntax highlighting, concealing and decorations, checked against Emacs
--- Org 9.8.10 font-lock (org-set-font-lock-defaults).
+-- Org 9.8.10 font-lock (org-set-font-lock-defaults). The "ui syntax"
+-- describes are about the syntax engine (ui.highlighter = "syntax", the
+-- deprecated fallback); ui_highlight_*_spec.lua port them to the parser
+-- highlighter.
 
 --- Lowercase syntax group names at line l, column c (1-based), joined by " ".
 local function groups(l, c)
@@ -55,11 +58,13 @@ local function screen(n)
   return out
 end
 
+--- The ui options with `over`, drawn by the syntax engine.
 local function ui(over)
-  return vim.tbl_extend("force", vim.deepcopy(require("org.config").opts.ui), over)
+  return vim.tbl_extend("force", vim.deepcopy(require("org.config").opts.ui), { highlighter = "syntax" }, over)
 end
 
 describe("ui syntax: blocks", function()
+  with_highlighter("syntax")
   -- Emacs: a headline always ends a block (org-fontify-meta-lines-and-blocks-1)
   it("ends blocks, closed or not, at a headline", function()
     org_buffer({
@@ -305,6 +310,7 @@ describe("ui syntax: emphasis", function()
 end)
 
 describe("ui syntax: headlines", function()
+  with_highlighter("syntax")
   it("highlights COMMENT only after the stars, a keyword and a priority", function()
     org_buffer({ "* TODO [#A] COMMENT Task", "* DONE COMMENT Old", "* Foo COMMENT bar", "* COMMENT-x foo", "* COMMENT" })
     ok(has(1, 13, "orgheadlinecomment"), groups(1, 13))
@@ -351,6 +357,7 @@ describe("ui syntax: headlines", function()
 end)
 
 describe("ui syntax: links", function()
+  with_highlighter("syntax")
   it("conceals a bracket link whose description wraps to the next line", function()
     org_buffer({ "see [[https://example.com][a long", "description]] here" })
     vim.wo.conceallevel = 2
@@ -401,6 +408,7 @@ describe("ui syntax: links", function()
 end)
 
 describe("ui syntax: timestamps and objects", function()
+  with_highlighter("syntax")
   it("highlights timestamps inside other objects and elements", function()
     org_buffer({
       "* H",
@@ -490,6 +498,7 @@ describe("ui syntax: latex", function()
 end)
 
 describe("ui syntax: lists", function()
+  with_highlighter("syntax")
   it("highlights a checkbox after a counter, not [x] or a box without a blank", function()
     org_buffer({ "- [@3] [X] counter box", "1. [@start:2] [ ] start", "- [ ]no space", "- [x] lower", "a. [ ] alpha" })
     ok(has(1, 8, "orgcheckboxchecked"), groups(1, 8))

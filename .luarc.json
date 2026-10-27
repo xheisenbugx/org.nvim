@@ -17,6 +17,7 @@
     "org_buffer",
     "buf_lines",
     "with_config",
+    "with_highlighter",
     "fake_exe",
     "path_prepend",
     "skip_on_windows",

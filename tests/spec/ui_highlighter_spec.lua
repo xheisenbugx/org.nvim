@@ -246,10 +246,243 @@ describe("ui.highlighter = parser", function()
     require("org.config").opts.ui.latex_preview = nil
   end)
 
+  -- (structure_features_spec.lua checks the syntax engine's regions)
+  it("spans emphasis over one newline, not two, and not after [", function()
+    org_buffer({ "x *multi", "line* y", "[*x*] z", "x *a", "b", "c* d", "*b /it/ c*" }, { 1, 0 })
+    ok(hl.has(1, 5, "orgbold"), hl.groups(1, 5))
+    ok(hl.has(2, 2, "orgbold"), hl.groups(2, 2))
+    eq("", hl.groups(3, 3))
+    eq("", hl.groups(4, 4))
+    ok(hl.has(7, 5, "orgitalic") and hl.has(7, 5, "orgbold"), hl.groups(7, 5))
+  end)
+
+  -- (ui_spec.lua checks the syntax engine's)
+  it("shows only the description of a link, or its target without one", function()
+    local function shown(text)
+      org_buffer({ text }, { 1, 0 })
+      vim.wo.conceallevel = 2
+      local out = {}
+      for c = 1, #text do
+        if not hl.has(1, c, "conceal") then
+          out[#out + 1] = text:sub(c, c)
+        end
+      end
+      return table.concat(out)
+    end
+    eq("3. this is something else", shown("3. this is [[https://www.google.com][something else]]"))
+    eq("* TODO see Link :tag:", shown("* TODO see [[file:a.org::*x][Link]] :tag:"))
+    eq("| cell H | b |", shown("| cell [[*Heading][H]] | b |"))
+    eq("no desc https://example.com end", shown("no desc [[https://example.com]] end"))
+  end)
+
   it("the test helper sees the same on both sides of a plain case", function()
     local buf = org_buffer({ "*a* /b/ =c=" }, { 1, 0 })
     vim.wo.conceallevel = 2
     eq(hl.emacs_codes(buf, "syntax"), hl.emacs_codes(buf, "parser"))
     hl.use(buf, "parser")
   end)
+end)
+
+-- The emphasis cases of ui_syntax_highlighting_spec.lua ("ui syntax:
+-- emphasis", the syntax engine), with the parser highlighter.
+describe("ui.highlighter = parser: emphasis", function()
+  with_highlighter("parser")
+  before_each(function()
+    require("org.config").opts.ui.hide_emphasis_markers = true
+  end)
+  after_each(function()
+    require("org.config").opts.ui.hide_emphasis_markers = false
+  end)
+
+  local function col(l, s)
+    return assert(vim.fn.getline(l):find(s, 1, true), s)
+  end
+
+  -- org-emphasis-regexp-components: only blanks are forbidden borders
+  it("allows quotes and commas at the borders", function()
+    org_buffer({ [[~'symbol~ and ="quoted"= and =,= and *'q'*]] }, { 1, 0 })
+    vim.wo.conceallevel = 2
+    ok(hl.has(1, 2, "orgcode"), hl.groups(1, 2))
+    ok(hl.has(1, col(1, '"quoted') + 1, "orgverbatim"), hl.groups(1, 16))
+    ok(hl.has(1, col(1, "=,=") + 1, "orgverbatim"), hl.groups(1, col(1, "=,=") + 1))
+    ok(hl.has(1, col(1, "*'q") + 1, "orgbold"), hl.groups(1, col(1, "*'q") + 1))
+    ok(hl.has(1, 1, "conceal"), hl.groups(1, 1))
+  end)
+
+  -- org-element-paragraph-separate
+  it("doesn't continue onto a list item, table row or keyword line", function()
+    org_buffer({ "some *text", "- item* more", "", "other /text", "| x/ y |", "", "x _a", "#+KEY: b_ c" }, { 1, 0 })
+    ok(not hl.has(1, 7, "orgbold"), hl.groups(1, 7))
+    ok(not hl.has(2, 3, "orgbold"), hl.groups(2, 3))
+    ok(not hl.has(4, 8, "orgitalic"), hl.groups(4, 8))
+    ok(not hl.has(7, 4, "orgunderline"), hl.groups(7, 4))
+    ok(not hl.has(1, 6, "conceal"), hl.groups(1, 6))
+  end)
+
+  it("continues onto the next line of the paragraph", function()
+    org_buffer({ "para *bold", "continues here* ok" }, { 1, 0 })
+    ok(hl.has(1, 7, "orgbold"), hl.groups(1, 7))
+    ok(hl.has(2, 1, "orgbold"), hl.groups(2, 1))
+  end)
+
+  -- org-emph-re needs a non-empty text: "==" is no empty markup
+  it("doesn't make an empty emphasis of doubled markers", function()
+    org_buffer({ "Compare a == b and later x =y= z.", "A // comment and later a/b/ c" }, { 1, 0 })
+    ok(not hl.has(1, 11, "orgverbatim") and not hl.has(1, 12, "conceal"), hl.groups(1, 12))
+    ok(hl.has(1, 14, "orgverbatim"), hl.groups(1, 14))
+    ok(hl.has(2, 5, "orgitalic"), hl.groups(2, 5))
+  end)
+
+  it("highlights all markup in list terms", function()
+    org_buffer({ "- term +s+ _u_ :: def", "- [[https://example.com][Example]] :: def", "- =v= :: d" }, { 1, 0 })
+    ok(hl.has(1, 9, "orgstrikethrough"), hl.groups(1, 9))
+    ok(hl.has(1, 13, "orgunderline"), hl.groups(1, 13))
+    ok(hl.has(2, 30, "orglistterm"), hl.groups(2, 30))
+    ok(hl.has(3, 4, "orglistterm") and hl.has(3, 4, "orgverbatim"), hl.groups(3, 4))
+  end)
+
+  -- Emacs refontifies multi-line emphasis (font-lock-multiline)
+  it("redraws the line above when a two-line emphasis is closed", function()
+    local buf = org_buffer({ "para *bold", "continues here", "third" }, { 1, 0 })
+    vim.wo.conceallevel = 2
+    vim.cmd("redraw")
+    local before = vim.fn.screenattr(1, 7)
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    vim.api.nvim_buf_set_text(buf, 1, 14, 1, 14, { "*" })
+    vim.cmd("redraw")
+    local a, s = vim.fn.screenattr(1, 6), vim.fn.screenstring(1, 6)
+    ok(a ~= before, "the first line is drawn bold")
+    vim.cmd("redraw!")
+    eq(vim.fn.screenattr(1, 6), a)
+    eq(vim.fn.screenstring(1, 6), s)
+  end)
+
+  -- E363 / 'redrawtime' on paragraph lines with many unclosed markers
+  it("draws long lines full of markers quickly", function()
+    local msgs = {}
+    for _, line in ipairs({ string.rep("/x ", 320), string.rep("*a *b ", 100), string.rep("call *args and **kw, ", 50) }) do
+      org_buffer({ "* Head", line, "after *bold* text", "* TODO second *bold*" }, { 1, 0 })
+      vim.cmd("messages clear")
+      local t = vim.uv.hrtime()
+      local okr, err = pcall(vim.cmd, "redraw!")
+      ok(okr, tostring(err))
+      ok((vim.uv.hrtime() - t) / 1e6 < 500, "slow redraw")
+      ok(hl.has(4, 3, "orgtodo"), hl.groups(4, 3))
+      ok(hl.has(3, 8, "orgbold"), hl.groups(3, 8))
+      msgs[#msgs + 1] = vim.api.nvim_exec2("messages", { output = true }).output
+    end
+    ok(not table.concat(msgs):find("redrawtime"))
+  end)
+end)
+
+-- What syntax_long_lines_spec.lua checks of the syntax engine on long
+-- lines, with the parser highlighter: the same faces, and none of the
+-- limits ('synmaxcol', 'maxmempattern', 'redrawtime').
+describe("ui.highlighter = parser: long lines", function()
+  with_highlighter("parser")
+  local gen = require("tests.helpers.gen")
+  local mmp, rdt, smc
+  before_each(function()
+    mmp, rdt, smc = vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol
+    vim.o.maxmempattern = 1000
+    vim.o.redrawtime = 500
+  end)
+  after_each(function()
+    vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol = mmp, rdt, smc
+  end)
+
+  --- Group `group` (or nothing, "") is drawn at line l, column c.
+  local function is(group, l, c)
+    local at = ("line %d, col %d: %s"):format(l, c, hl.groups(l, c))
+    if group == "" then
+      eq("", hl.groups(l, c), at)
+    else
+      ok(hl.has(l, c, group), at)
+    end
+  end
+
+  local function draw()
+    vim.cmd("messages clear")
+    local okr, err = pcall(vim.cmd, "redraw!")
+    ok(okr, tostring(err))
+    local m = vim.api.nvim_exec2("messages", { output = true }).output
+    ok(not m:find("E363") and not m:find("redrawtime"), m)
+  end
+
+  it("highlights description terms, not the blanks around the bullet", function()
+    local prose = gen.prose(5000)
+    org_buffer({
+      "- term :: desc",
+      "  - [X] boxed *bold* term :: d",
+      "1. ordered :: not a term",
+      "- " .. prose .. " :: long term",
+      "#+begin_quote",
+      "+ quoted :: x",
+      "#+end_quote",
+      "- " .. prose,
+    }, { 1, 0 })
+    draw()
+    is("orgListBullet", 1, 1)
+    is("", 1, 2)
+    is("orgListTerm", 1, 3)
+    -- (Emacs draws the blank and the "::" after a term in org-list-dt)
+    is("orgListTerm", 1, 7)
+    is("", 1, 10)
+    is("orgCheckboxChecked", 2, 5)
+    -- (and the term starts after the bullet's blanks, the checkbox in it)
+    is("orgListTerm", 2, 8)
+    is("orgListTerm", 2, 9)
+    is("orgBold", 2, 16)
+    is("orgListTerm", 4, 3)
+    is("orgListTerm", 4, 4990)
+    is("orgQuoteBlock", 6, 2)
+    is("orgListTerm", 6, 3)
+    is("", 8, 3)
+  end)
+
+  -- (a padded table: ui_highlight_table_spec.lua)
+
+  it("dims a long headline tagged ARCHIVE", function()
+    org_buffer({ "** TODO plain " .. gen.marked(1500) .. " :work:ARCHIVE:", "* Next" }, { 1, 0 })
+    draw()
+    is("orgHeadlineArchived", 1, 10)
+    is("orgHeadlineLevel1", 2, 1)
+  end)
+
+  it("highlights markup past 'synmaxcol', and it never runs on below", function()
+    vim.go.synmaxcol = 110
+    org_buffer({
+      gen.prose(96) .. " *starts here and* ends after",
+      "plain text",
+      "* Next",
+      "text *b*",
+      gen.prose(5000) .. " ~starts far~ out",
+    }, { 1, 0 })
+    draw()
+    is("orgBold", 1, 100)
+    is("", 2, 1)
+    is("orgHeadlineLevel1", 3, 1)
+    is("orgBold", 4, 7)
+    is("orgCode", 5, #vim.fn.getline(5) - 8)
+  end)
+
+  it("highlights markup over two lines, after a long first line too", function()
+    org_buffer({ "some *bold", "text* and /it/", "", gen.prose(5000) .. " *bold", "text* x" }, { 1, 0 })
+    draw()
+    is("orgBold", 1, 7)
+    is("orgBold", 2, 2)
+    is("orgItalic", 2, 12)
+    is("orgBold", 4, #vim.fn.getline(4) - 1)
+    is("orgBold", 5, 2)
+  end)
+
+  for _, kind in ipairs({ "prose", "marked", "markers", "blob" }) do
+    it("draws a 20,000-character line of " .. kind .. " and the lines after it", function()
+      org_buffer({ "* H", gen[kind](20000), "* After *bold*", "- term :: x" }, { 1, 0 })
+      draw()
+      is("orgHeadlineLevel1", 3, 1)
+      is("orgBold", 3, 11)
+      is("orgListTerm", 4, 3)
+    end)
+  end
 end)
