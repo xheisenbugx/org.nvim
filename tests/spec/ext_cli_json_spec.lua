@@ -1038,6 +1038,92 @@ describe("cli: saving the changed files", function()
   end)
 end)
 
+describe("cli: writes at the same time", function()
+  local function lock_file(dir)
+    return dir .. "/xdg-state/" .. (vim.fn.has("win32") == 1 and "nvim-data" or "nvim") .. "/org/cli-write.lock"
+  end
+
+  it("runs parallel captures one after the other, losing none", function()
+    local dir = workspace()
+    vim.fn.writefile({ "* Inbox" }, dir .. "/inbox.org")
+    local jobs = {}
+    for i = 1, 6 do
+      local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua", "--json", "capture" }
+      cmd[#cmd + 1] = "Parallel " .. i
+      jobs[i] = vim.system(cmd, { text = true, stdin = false, env = env(dir), cwd = dir })
+    end
+    for i, job in ipairs(jobs) do
+      local res = job:wait(60000)
+      eq(0, res.code, res.stdout .. res.stderr)
+      local e = vim.json.decode(res.stdout)
+      ok(e.ok, res.stdout)
+      ok(not res.stdout:find("WARNING", 1, true), res.stdout)
+      jobs[i] = e
+    end
+    local text = table.concat(read(dir .. "/inbox.org"), "\n")
+    for i = 1, 6 do
+      ok(text:find("TODO Parallel " .. i, 1, true), text)
+    end
+    eq(false, vim.uv.fs_stat(lock_file(dir)) ~= nil)
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("waits for the write lock, fails with file_busy after lock_timeout, takes over a stale one", function()
+    local dir = workspace({ "  extensions = { cli = { lock_timeout = 0.3 } }," })
+    local lock = lock_file(dir)
+    vim.fn.mkdir(vim.fs.dirname(lock), "p")
+    -- held by a live process (this Neovim)
+    vim.fn.writefile({ tostring(vim.fn.getpid()) }, lock)
+    local code, e = json(dir, { "set", "todo", "Buy milk", "DONE" })
+    eq(4, code)
+    eq("file_busy", e.errors[1].code)
+    eq(lock, vim.fs.normalize(e.errors[1].details.lock))
+    eq({ "* TODO Buy milk :errand:", "* Projects", "** Garden" }, read(dir .. "/home.org"))
+    -- reading needs no lock
+    code = json(dir, { "headlines" })
+    eq(0, code)
+    -- left by a process that is gone
+    local gone = vim.system({ vim.v.progpath, "--clean", "--headless", "+qa!" })
+    gone:wait()
+    vim.fn.writefile({ tostring(gone.pid) }, lock)
+    code, e = json(dir, { "set", "todo", "Buy milk", "DONE" })
+    eq(0, code, vim.inspect(e))
+    ok(read(dir .. "/home.org")[1]:find("^%* DONE Buy milk"))
+    eq(false, vim.uv.fs_stat(lock) ~= nil)
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("fails with file_changed and writes nothing over a file another program wrote meanwhile", function()
+    local dir = workspace()
+    vim.fn.writefile({ "* Inbox" }, dir .. "/inbox.org")
+    -- the template's hook writes the target between org reading it and
+    -- writing it, as another program would
+    vim.fn.writefile({
+      "local dir = " .. vim.inspect(dir),
+      "return { org_directory = dir, agenda_files = { dir .. '/work.org' },",
+      "  capture = { templates = { t = { description = 'Task', target = dir .. '/inbox.org',",
+      "    template = '* TODO %?', before_finalize = function()",
+      "      local fh = io.open(dir .. '/inbox.org', 'ab'); fh:write('* Written meanwhile\\n'); fh:close()",
+      "    end } } } }",
+    }, dir .. "/cfg.lua")
+    local code, e = json(dir, { "capture", "Lost?" })
+    eq(4, code)
+    eq("file_changed", e.errors[1].code)
+    ok(same_path(dir .. "/inbox.org", e.errors[1].details.file), vim.inspect(e))
+    eq({}, e.warnings)
+    eq({ "* Inbox", "* Written meanwhile" }, read(dir .. "/inbox.org"))
+    -- in text mode: one message, and no Vim prompt on stdout
+    local out, err
+    code, out, err = run(dir, { "capture", "Lost?" })
+    eq(4, code)
+    eq("", out)
+    local _, n = err:gsub("changed on disk", "")
+    eq(1, n, err)
+    ok(not err:find("capture buffer", 1, true), err)
+    vim.fn.delete(dir, "rf")
+  end)
+end)
+
 describe("cli json: org-crypt", function()
   local dir, gpg
   local JOURNAL = {

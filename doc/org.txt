@@ -11550,7 +11550,8 @@ Writing (each saves the files it changed):
 Every command writes its result to stdout and messages to stderr (`-v`
 adds org.nvim's own messages, `-q` hides warnings). Exit codes: 0 done,
 1 failed or nothing found (`search`, `clock out` without a clock), 2 bad
-usage, 3 input needed, 4 the file has unsaved changes in a running Neovim.
+usage, 3 input needed, 4 the file is busy (unsaved changes in a running
+Neovim, another `org` writing) or changed on disk while the command ran.
 
 A write refuses a file that a running Neovim has unsaved changes in (its
 swap file says so), and `--force` writes anyway. Every file a command
@@ -11565,6 +11566,17 @@ exit code 3 and writes nothing, so give `crypt.key` (or `CRYPTKEY`) a
 public key for writes from the shell. Every write, a capture too,
 touches the clock stamp file, so a Neovim with the extension enabled
 rereads the files (see below).
+
+Write commands run one at a time: each holds a lock
+(`stdpath("state")/org/cli-write.lock`) while it reads and writes, so
+parallel calls (a script capturing in a loop, an agent's tools) wait for
+each other and none loses another's change. One that waits longer than
+`lock_timeout` seconds fails with `file_busy` (exit 4); a lock left by
+an `org` that is gone is taken over. A file another program writes
+while a command changes it (Neovim saving it, a sync tool) is not
+written over: the command fails with `file_changed` (exit 4) and you run
+it again. Without the session server only; with it, the commands run in
+its Neovim one after the other anyway.
 
 JSON                                                *org-extensions-cli-json*
 `--json` makes every command print one JSON object, the envelope:
@@ -11597,7 +11609,11 @@ the exit code of the error:
                          with `--field`; a confirmation or a passphrase
                          can't be answered)
   `file_busy` (4)        unsaved changes in a running Neovim:
-                         `details.file`, `details.pid`
+                         `details.file`, `details.pid`; or another `org`
+                         kept the write lock: `details.lock`
+  `file_changed` (4)     another program wrote `details.file` while the
+                         command changed it; it was not written, run the
+                         command again
 
 In JSON mode stdout holds nothing but that object and stderr stays empty
 unless `-v`, so `2>&1` is safe. A command that finds nothing exits 0
@@ -11800,6 +11816,8 @@ Options (`extensions.cli`) ~
   `capture_template`   template key of `org capture` without `-t` (nil)
   `status_format`      format of `org clock status --short` ("%e %t")
   `watch_clock`        a running Neovim follows the shell's clock (true)
+  `lock_timeout`       seconds a write waits for another `org` writing
+                       before it fails with `file_busy` (10)
   `mcp.read_only`      `org mcp` lists only the tools that don't change
                        files, as `--read-only` (false)
 

@@ -114,6 +114,12 @@ function M.headless()
       level = level or vim.log.levels.INFO
       msg = tostring(msg)
       state.messages[#state.messages + 1] = { msg = msg, level = level }
+      if state.disk_reason and msg:find(state.disk_reason, 1, true) then
+        -- a write the file's change on disk stopped: the command fails
+        -- with `file_changed`, which says so (what org.nvim says, such as
+        -- "the text is kept in the capture buffer", is not so here)
+        return
+      end
       if level >= vim.log.levels.WARN then
         state.warnings[#state.warnings + 1] = msg
       end

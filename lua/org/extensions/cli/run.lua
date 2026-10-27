@@ -339,7 +339,7 @@ function M.main(argv, opts)
   state.cwd = opts.cwd
   local command
   local saved_write = io.write
-  local restore
+  local restore, unwatch
   local ok, code = pcall(function()
     -- a quick look for --json, so that argument errors are JSON too
     for _, a in ipairs(argv or {}) do
@@ -435,8 +435,20 @@ function M.main(argv, opts)
       if forwarded then
         return forwarded
       end
+      -- one write command at a time: two that edit the same file would
+      -- each write it over the other's change
+      if cmd.writes then
+        M.lock_writes()
+      end
     end
-    local res = M.COMMANDS[command](rest, flags) or {}
+    unwatch = M.watch_disk()
+    local cok, res = pcall(M.COMMANDS[command], rest, flags)
+    -- a write that didn't happen is the failure, whatever came of it
+    M.check_disk_changed()
+    if not cok then
+      error(res, 0)
+    end
+    res = res or {}
     if state.machine then
       emit(command, res, flags)
       return 0
@@ -451,6 +463,10 @@ function M.main(argv, opts)
     return res.code or 0
   end)
   io.write = saved_write
+  if unwatch then
+    unwatch()
+  end
+  M.unlock_writes()
   if restore then
     restore()
   end
