@@ -261,6 +261,19 @@ local function headline(ctx, i, line, n, o)
         s = e + 1
       end
     end
+    if vim.b[ctx.bufnr].org_beamer_mode then
+      -- org-beamer-mode: the B_env and BMCOL tags in org-beamer-tag (like
+      -- the orgBeamerTag match org.export.beamer_mode adds to the syntax)
+      local s = ts + 1
+      while s < te do
+        local e = line:find(":", s, true) or te
+        local tag = line:sub(s, e - 1)
+        if tag == "BMCOL" or tag:find("^B_%l+$") then
+          emit(i, s - 1, e - 1, { hl_group = "orgBeamerTag", priority = PRIO.part + 2 + up })
+        end
+        s = e + 1
+      end
+    end
   end
 
   -- ARCHIVE anywhere after the stars and blank: the rest of the line

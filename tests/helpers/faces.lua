@@ -106,7 +106,11 @@ M.FACE_OF = {
   orginlinesrcbody = "block",
   orgexportsnippetmarker = "font-lock-comment-face",
   orgexportsnippetbackend = "tag",
+  -- (org.cite.attach's marks: org-cite-basic-activate draws the keys of
+  -- the bibliography in org-cite-key, the others in error)
   orgcite = "cite",
+  orgcitekey = "cite-key",
+  orgcitekeyunknown = "error",
   -- emphasis
   orgbold = "bold",
   orgbolddelimiter = "bold",
@@ -165,7 +169,7 @@ M.FAMILIES = {
   },
   table = { "table", "formula" },
   block = { "block", "block-delimiter", "quote", "verse", "latex-and-related" },
-  object = { "link", "footnote", "target", "macro", "inline-src-block", "cite", "#" },
+  object = { "link", "footnote", "target", "macro", "inline-src-block", "cite", "cite-key", "error", "#" },
   emphasis = { "bold", "italic", "underline", "strike-through", "verbatim", "code", "#" },
 }
 
@@ -253,7 +257,8 @@ end
 --- What org.nvim draws on each byte of `buf` (shown in the current
 --- window): per line, per byte, the set of Emacs faces (all families) and
 --- whether the byte is hidden. With the parser highlighter the syntax only
---- draws the languages of src blocks: it is asked there only.
+--- draws the languages of src blocks: it is asked there only. Citations
+--- are org.cite.attach's decoration provider's (org.cite `marks`).
 ---@return { [1]: table<string, boolean>, [2]: boolean }[][]
 function M.nvim_faces(buf)
   local deco = require("org.ui.decorations")
@@ -262,8 +267,18 @@ function M.nvim_faces(buf)
   vim.api.nvim_buf_call(buf, function()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local kinds = require("org.ui.emphasis").kinds(lines)
+    local cites = {} ---@type table<integer, table[]>
+    for _, line in ipairs(lines) do
+      if line:find("[cite", 1, true) then
+        cites = require("org.cite").marks(buf, 0, #lines - 1)
+        break
+      end
+    end
     for l, line in ipairs(lines) do
       local marks = deco.line_marks(buf, l - 1)
+      for _, c in ipairs(cites[l - 1] or {}) do
+        marks[#marks + 1] = { c[1], { end_col = c[2], hl_group = c[3] } }
+      end
       local row = {}
       local syntax = not parser or kinds[l] == "none"
       for c = 1, #line do

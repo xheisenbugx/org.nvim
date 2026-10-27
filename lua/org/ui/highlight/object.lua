@@ -45,8 +45,10 @@ local P = {
 -- org-fontify-meta-lines-and-blocks), nor src, example and export blocks
 -- (fontified natively).
 local DRAWN = { text = true, table = true, fixed = true, qcomment = true }
--- Lines where only the spelling of an object is left out (Emacs removes the
--- flyspell overlays of links before the line's face is put over them).
+-- Lines where only the spelling of a link is left out (Emacs removes the
+-- flyspell overlays of links before the line's face is put over them; the
+-- other objects of a comment are spell checked, as flyspell and the syntax
+-- engine check all of a comment).
 local NOSPELL = { comment = true, info = true }
 
 --- The highlight group of the custom link type `name` with face `face`
@@ -395,6 +397,18 @@ function M.paint(ctx)
   local native = {} ---@type table<integer, boolean>
   local inline = {} ---@type { [1]: integer, [2]: integer, [3]: string }[]
 
+  -- whether line l is a `#+CAPTION:` (spell checked, but not its links,
+  -- org--flyspell-object-check-p)
+  local captions = {} ---@type table<integer, boolean>
+  local function caption_line(l)
+    local v = captions[l]
+    if v == nil then
+      v = lines[l]:find("^[ \t]*#%+[cC][aA][pP][tT][iI][oO][nN]") ~= nil
+      captions[l] = v
+    end
+    return v
+  end
+
   --- Mark bytes [a, b] of s, line by line, on the lines that draw objects
   --- (`any`: every line), not on what inline src blocks draw (`over`: on
   --- it too).
@@ -406,7 +420,11 @@ function M.paint(ctx)
       local k = kinds[l] or "none"
       local opts = o ---@type org.ui.highlight.MarkOpts?
       if not any and not DRAWN[k] then
-        opts = NOSPELL[k] and o.spell == false and { spell = false, priority = o.priority } or nil
+        local nospell = o.link and (NOSPELL[k] or caption_line(l))
+        opts = nospell and { spell = false, priority = o.priority } or nil
+      elseif (k == "comment" or k == "qcomment") and o.spell == false and not o.link then
+        -- (all of a comment is spell checked but its links)
+        opts = { hl_group = o.hl_group, priority = o.priority, conceal = o.conceal }
       end
       if opts and e >= a then
         local x = a
@@ -537,7 +555,7 @@ function M.paint(ctx)
     end
     if not skip then
       local group = (t and groups[t]) or (style == "bracket" and "orgLink" or "orgLinkPlain")
-      span(a, b, { hl_group = group, priority = P.link, spell = false })
+      span(a, b, { hl_group = group, priority = P.link, spell = false, link = true })
     end
   end
 
@@ -546,7 +564,7 @@ function M.paint(ctx)
     local targets = ctx.file and radio_targets(ctx.file) or {}
     if #targets > 0 then
       for _, r in ipairs(radio_links(s, targets)) do
-        span(r[1], r[2], { hl_group = "orgRadioLink", priority = P.link, spell = false })
+        span(r[1], r[2], { hl_group = "orgRadioLink", priority = P.link, spell = false, link = true })
       end
     end
   end

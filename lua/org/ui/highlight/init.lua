@@ -324,6 +324,7 @@ end
 ---@field priority? integer (see `M.PRIO`)
 ---@field spell? boolean false: not spell checked (like a syntax group without @Spell)
 ---@field conceal? string
+---@field link? boolean (org.ui.highlight.object) a link: left out of spell checking on comment lines too
 
 --- Whether the body of the block that `line` begins is drawn as Org text
 --- (org-src-font-lock-fontify-block with org-mode, `:h org-highlighter`):

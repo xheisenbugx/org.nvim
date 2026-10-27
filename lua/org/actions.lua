@@ -291,6 +291,7 @@ group("Navigation & elements", {
     toggle = true,
   },
   context_goto = { "org.ui.context", "goto_context", desc = "Go to a headline of the sticky context (count: levels)" },
+  inspect = { "org.ui.inspect", "show", desc = "Show the highlighting under the cursor, like :Inspect" },
   entities_help = { "org.entities", "help", desc = "List all entities", global = true },
   inlinetask_insert = { "org.inlinetask", "insert", desc = "Insert inline task" },
   goto_parent = { "org.structure", "goto_parent", desc = "Go to parent heading" },

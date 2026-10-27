@@ -956,12 +956,16 @@ function M.marks(lines, row0, first, last, opts, rows)
           end
           if x <= e then
             made = true
+            local spell = o.spell
+            if o.table_spell and k == "table" then
+              spell = true
+            end
             add(row0 + l - 1, x - starts[l], {
               end_col = y - starts[l] + 1,
               hl_group = o.hl_group,
               conceal = o.conceal,
               priority = o.priority,
-              spell = o.spell,
+              spell = spell,
               ephemeral = true,
             })
           end
@@ -1009,14 +1013,27 @@ function M.marks(lines, row0, first, last, opts, rows)
   -- mark per run (many openings with one far closing marker would put as
   -- many marks over the same bytes).
   local runs = {} ---@type table<string, { [1]: integer, [2]: integer, [3]: integer }>
+  -- Spelling follows the objects of the element parser (what flyspell's
+  -- org-mode-flyspell-verify asks), not the faces: verbatim and code are
+  -- left out of spell checking where org-element finds them, left to right
+  -- with nothing inside one starting another. (Font-lock tries every
+  -- marker, so a verbatim's closing marker can open another one that runs
+  -- on over plain text: `=a "b"=, the rest=` draws ", the rest" as
+  -- verbatim, which org-element, flyspell and the syntax engine check.)
+  -- In table rows, which aren't spell checked, the text of the other
+  -- emphasis is (like the syntax engine's emphasis groups, with @Spell).
+  local nospell_end = 0
+  for _, r in ipairs(regions) do
+    if (r.m == "=" or r.m == "~") and r.open > nospell_end then
+      nospell_end = r.close
+      span(r.open, r.close, { spell = false, priority = 150 }, true)
+    end
+  end
   local function flush(m)
     local run = runs[m]
     if run then
-      local spell ---@type boolean?
-      if m == "=" or m == "~" then
-        spell = false -- (like the syntax regions: no @Spell)
-      end
-      span(run[1], run[2], { hl_group = M.GROUPS[m], priority = run[3], spell = spell }, true)
+      local verb = m == "=" or m == "~"
+      span(run[1], run[2], { hl_group = M.GROUPS[m], priority = run[3], table_spell = not verb or nil }, true)
       runs[m] = nil
     end
   end
@@ -1037,16 +1054,12 @@ function M.marks(lines, row0, first, last, opts, rows)
       flush(r.m)
       runs[r.m] = { r.open + 1, r.close - 1, prio }
     end
-    local spell ---@type boolean?
-    if r.m == "=" or r.m == "~" then
-      spell = false
-    end
     for _, b in ipairs({ r.open, r.close }) do
       -- markers have the face when shown, and the delimiter face where the
       -- cursor line shows them (not when verbatim showed them again); a
       -- hidden one is hidden by the same mark
       if not opts.hide_markers or hidden[b] then
-        local delim = { hl_group = group .. "Delimiter", priority = prio, spell = spell }
+        local delim = { hl_group = group .. "Delimiter", priority = prio }
         delim.conceal = hidden[b] and "" or nil
         if span(b, b, delim, true) and hidden[b] then
           covered[b] = true

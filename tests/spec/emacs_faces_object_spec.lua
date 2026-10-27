@@ -3,10 +3,6 @@
 -- targets, macros, inline src blocks, citations and hidden text
 -- (tests/helpers/faces.lua, tests/fixtures/emacs/faces/expected/).
 
--- Citations are drawn by org.cite.attach's own decoration provider, which
--- the comparison doesn't read (it reads the syntax and org.ui.decorations).
-local CITE = "citations, drawn by org.cite.attach"
-
 -- Known differences: fixture -> { [line] = reason }.
 local KNOWN = {
   ["examples-13-links.org"] = {
@@ -18,16 +14,6 @@ local KNOWN = {
     -- a json src block: Vim's json syntax conceals the quotes
     -- (g:vim_json_conceal), Emacs shows them
     [574] = "the json syntax",
-  },
-  ["examples-19-export.org"] = {
-    [1762] = CITE,
-    [1763] = CITE,
-    [1764] = CITE,
-    [1778] = CITE,
-    [1779] = CITE,
-    [1805] = CITE,
-    [1806] = CITE,
-    [1807] = CITE,
   },
   ["tests-fixtures-emacs-faces-object.org"] = {
     -- after a macro with no "}}}" before an empty line, org-fontify-macros

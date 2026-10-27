@@ -83,8 +83,9 @@ local function meta_line(ctx, i, line, s, hidden)
     return
   elseif c2 == 9 then
     -- "#" and a tab: not a comment (org-comment-regexp), but Emacs draws
-    -- it as a keyword, all of it in org-meta-line
-    emit(i, 0, n, { hl_group = "orgKeyword", priority = H.PRIO.object + 1, spell = false })
+    -- it as a keyword, all of it in org-meta-line (spell checked: to
+    -- org-element it's a paragraph, as the syntax engine's comment is)
+    emit(i, 0, n, { hl_group = "orgKeyword", priority = H.PRIO.object + 1 })
     return
   elseif c2 ~= 43 then -- "+"
     return
@@ -92,6 +93,11 @@ local function meta_line(ctx, i, line, s, hidden)
   -- "#+" letters, an optional colon, an optional "_" and letters
   local key_end = line:match("^#%+%a+()", s) ---@type integer?
   if not key_end then
+    -- (no face, but a keyword to org-element, "#+1x: ...": not spell
+    -- checked, like the syntax engine's orgKeyword)
+    if line:find("^#%+%S+:", s) then
+      emit(i, 0, n, { priority = H.PRIO.object + 1, spell = false })
+    end
     return
   end
   local key = line:sub(s + 2, key_end - 1):lower()
@@ -136,10 +142,19 @@ local function meta_line(ctx, i, line, s, hidden)
     end
   end
   -- any other keyword: the whole line in org-meta-line (the keyword, up to
-  -- the last colon of its first word, in orgKeyword, like the syntax)
-  local k = line:match("^#%+%S+:()", s) or n + 1
-  emit(i, 0, k - 1, { hl_group = "orgKeyword", priority = H.PRIO.object + 1, spell = false })
-  emit(i, k - 1, n, { hl_group = "orgKeywordValue", priority = H.PRIO.object + 1, spell = false })
+  -- the last colon of its first word, in orgKeyword, like the syntax), not
+  -- spell checked. A line with no colon after its first word ("#+key
+  -- text") isn't a keyword to org-element but a paragraph, spell checked
+  -- (by flyspell and the syntax engine), unless it is a block line, such
+  -- as an end line that closes nothing.
+  local k = line:match("^#%+%S+:()", s)
+  local spell ---@type boolean?
+  if k or E.block_line(line) then
+    spell = false
+  end
+  k = k or n + 1
+  emit(i, 0, k - 1, { hl_group = "orgKeyword", priority = H.PRIO.object + 1, spell = spell })
+  emit(i, k - 1, n, { hl_group = "orgKeywordValue", priority = H.PRIO.object + 1, spell = spell })
 end
 
 --- A line starting with ":" after its indentation (at `s`): a drawer line,
