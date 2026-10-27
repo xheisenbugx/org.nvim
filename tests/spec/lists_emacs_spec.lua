@@ -369,6 +369,25 @@ describe("lists: statistics cookies (make difftest, commands oracle)", function(
     eq({ "* G [/]", "** P [100%]", "- [ ] box", "*** DONE a" }, buf_lines(buf))
   end)
 
+  it("updating every cookie (C-u C-c #) gives TODO counts to entries with child headlines", function()
+    -- org-update-checkbox-count over the buffer, then
+    -- org-update-parent-todo-statistics on every headline
+    local cases = {
+      { { "* P [/]", "- [ ] x", "- [X] y", "- [X] z", "** TODO a", "** TODO b" }, "* P [0/2]" },
+      { { "* P [/]", "- [X] x", "** plain" }, "* P [0/0]" },
+      { { "* P [/]", "- [X] x", "- [ ] y", "* Q [%]", "text" }, "* P [1/2]" },
+      { { "* P [/]", ":PROPERTIES:", ":COOKIE_DATA: checkbox", ":END:", "- [X] x", "** TODO a" }, "* P [1/1]" },
+    }
+    for _, c in ipairs(cases) do
+      local buf = org_buffer(c[1], { 1, 0 })
+      lists.update_all_statistics(buf)
+      eq(c[2], buf_lines(buf)[1])
+    end
+    local buf = org_buffer({ "* G [/]", "** P [/]", "- [X] x", "*** TODO a", "*** DONE b", "** TODO c" }, { 1, 0 })
+    lists.update_all_statistics(buf)
+    eq({ "* G [0/1]", "** P [1/2]" }, vim.list_slice(buf_lines(buf), 1, 2))
+  end)
+
   it("realigns the tags after a cookie changed", function()
     local buf = org_buffer({ "* P [/] :x:", "** TODO a" }, { 2, 0 })
     require("org.todo").select_or_cycle()
