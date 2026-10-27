@@ -1,0 +1,22 @@
+screen 60x10
+|{1:* }{2:TODO}{1: Long lines }{3::tag:}|
+||
+|I would like the board to be set to a certain color. {4:*}{5:ok}{4:*} I|
+||
+|{6:-} I would like the board to be set to a certain color. {4:*}{5:ok}{4:*}|
+||
+|{7:** Prompt }{8:*}{9:bold}{8:*}{7: }{10:link}|
+|{11:SCHEDULED:} {12:<2026-10-02 Fri>}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgHeadlineLevel1 -> Title | OrgTodo -> @comment.error [bold]
+{3} OrgHeadlineLevel1 -> Title | OrgTags -> @property [bold]
+{4} orgBoldDelimiter -> OrgBold [bold]
+{5} OrgBold [bold]
+{6} OrgListBullet -> Special
+{7} OrgHeadlineLevel2 -> Constant
+{8} OrgHeadlineLevel2 -> Constant | orgBoldDelimiter -> OrgBold [bold]
+{9} OrgHeadlineLevel2 -> Constant | OrgBold [bold]
+{10} OrgHeadlineLevel2 -> Constant | OrgLink -> @markup.link [underline]
+{11} OrgPlanning -> @keyword [bold]
+{12} OrgTimestamp -> Underlined [underline]

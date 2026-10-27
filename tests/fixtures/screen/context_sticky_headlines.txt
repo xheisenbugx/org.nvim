@@ -1,24 +1,27 @@
 screen 60x10
 |{1:  1 }{2:* }{3:TODO}{2: }{4:[#A]}{2: Project }{5::work:}{6:                              }|
-|{1:  2 }{7:** }{3:NEXT}{7: Design }{8:spec}{7: }{5::home:}{6:                              }|
-|{9:  3 }{10:*** }{11:DONE}{10: Sketch}{12:                                         }|
-|{13: 11 }Sketch note 8|
-|{13: 12 }Sketch note 9|
-|{13: 13 }Sketch note 10|
-|{13: 14 }Sketch note 11|
-|{13: 15 }Sketch note 12|
-|{13: 16 }Sketch note 13|
+|{1:  2 }{7:** }{8:NEXT}{7: Design }{9:spec}{7: }{10::home:}{6:                              }|
+|{11:  3 }{12:*** }{13:DONE}{12: }{14:Sketch}{15:                                         }|
+|{16: 11 }Sketch note 8|
+|{16: 12 }Sketch note 9|
+|{16: 13 }Sketch note 10|
+|{16: 14 }Sketch note 11|
+|{16: 15 }Sketch note 12|
+|{16: 16 }Sketch note 13|
 
 {1} NormalFloat | OrgContextLineNumber -> LineNr
 {2} NormalFloat | OrgHeadlineLevel1 -> Title [bold]
-{3} NormalFloat | OrgTodo -> @comment.error
-{4} NormalFloat | OrgPriorityA -> DiagnosticError
-{5} NormalFloat | OrgTags -> @property
+{3} NormalFloat | OrgHeadlineLevel1 -> Title | OrgTodo -> @comment.error [bold]
+{4} NormalFloat | OrgHeadlineLevel1 -> Title | OrgPriorityA -> DiagnosticError [bold]
+{5} NormalFloat | OrgHeadlineLevel1 -> Title | OrgTags -> @property [bold]
 {6} NormalFloat
 {7} NormalFloat | OrgHeadlineLevel2 -> Constant
-{8} NormalFloat | OrgLink -> @markup.link [underline]
-{9} NormalFloat | OrgContextLineNumber -> LineNr | OrgContextBottom [underline]
-{10} NormalFloat | OrgHeadlineDone -> Comment | OrgContextBottom [underline]
-{11} NormalFloat | OrgDone -> @comment.note | OrgContextBottom [underline]
-{12} NormalFloat | OrgContextBottom [underline]
-{13} LineNr
+{8} NormalFloat | OrgHeadlineLevel2 -> Constant | OrgTodo -> @comment.error
+{9} NormalFloat | OrgHeadlineLevel2 -> Constant | OrgLink -> @markup.link [underline]
+{10} NormalFloat | OrgHeadlineLevel2 -> Constant | OrgTags -> @property
+{11} NormalFloat | OrgContextLineNumber -> LineNr | OrgContextBottom [underline]
+{12} NormalFloat | OrgHeadlineLevel3 -> Identifier | OrgContextBottom [underline]
+{13} NormalFloat | OrgHeadlineLevel3 -> Identifier | OrgDone -> @comment.note | OrgContextBottom [underline]
+{14} NormalFloat | OrgHeadlineLevel3 -> Identifier | OrgHeadlineDone -> Comment | OrgContextBottom [underline]
+{15} NormalFloat | OrgContextBottom [underline]
+{16} LineNr

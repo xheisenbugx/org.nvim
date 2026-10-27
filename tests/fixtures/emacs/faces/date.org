@@ -1,0 +1,98 @@
+#+TODO: TODO NEXT | DONE
+#+DATE: <2026-10-01 Thu>
+#+TITLE: Dates and planning <2026-10-02 Fri>
+
+* Timestamps <2026-10-05 Mon> in a headline
+Active <2026-10-01 Thu>, inactive [2026-10-01 Thu], bare <2026-10-01> and [2026-10-01].
+With times <2026-10-01 Thu 10:00>, <2026-10-01 Thu 10:00-11:30> and [2026-10-01 Thu 10:00].
+Repeaters <2026-10-01 Thu +1w>, <2026-10-01 Thu .+2d -3d>, <2026-10-01 Thu ++1m/3m>.
+Ranges <2026-10-01 Thu>--<2026-10-03 Sat>, [2026-10-01 Thu]--[2026-10-03 Sat].
+One dash <2026-10-01 Thu>-<2026-10-03 Sat>, three <2026-10-01 Thu>---<2026-10-03 Sat>.
+Four dashes <2026-10-01 Thu>----<2026-10-03 Sat> and mixed <2026-10-01 Thu>--[2026-10-03 Sat].
+Mismatched brackets <2026-10-01 Thu] and [2026-10-01 Thu>.
+No space <2026-10-01Thu> and <2026-10-01  Thu> with two spaces.
+Unclosed <2026-10-01 Thu and a later > closes it.
+Unclosed [2026-10-01 Thu with nothing after
+Short year <226-10-01 Thu>, short month <2026-1-01 Thu>, letters <2026-ab-01>.
+Inside words x<2026-10-01 Thu>y and (<2026-10-01 Thu>).
+In markup =<2026-10-01 Thu>=, ~[2026-10-01 Thu]~, *<2026-10-01 Thu>* and /x [2026-10-01 Thu] y/.
+In a link [[https://example.com][x <2026-10-01 Thu>]] and <2026-10-01 Thu>[[x]].
+Two on a line <2026-10-01 Thu><2026-10-02 Fri> and [2026-10-01 Thu][2026-10-02 Fri].
+Range then text <2026-10-01 Thu>--<2026-10-03 Sat>-- and <2026-10-01 Thu>--x.
+
+* Planning
+SCHEDULED: <2026-10-01 Thu> DEADLINE: <2026-10-05 Mon -2d> CLOSED: [2026-09-30 Wed 12:00]
+  SCHEDULED: <2026-10-01 Thu>
+Mid text SCHEDULED: and DEADLINE: and CLOSED: and CLOCK: anywhere.
+Glued xSCHEDULED: 1DEADLINE: _CLOSED: $CLOCK: 'SCHEDULED: -DEADLINE: (CLOSED:)
+Lowercase scheduled: Deadline: and SCHEDULED without a colon.
+éSCHEDULED: after a non-ASCII letter.
+- item SCHEDULED: <2026-10-01 Thu>
+| SCHEDULED: | <2026-10-01 Thu> | CLOCK: |
+
+* Clocks
+:LOGBOOK:
+CLOCK: [2026-09-23 Wed 09:30]--[2026-09-23 Wed 11:00] =>  1:30
+  CLOCK: [2026-09-24 Thu 23:30]--[2026-09-25 Fri 00:30] => 1:00
+CLOCK: [2026-09-28 Mon 08:00]
+CLOCK: [2026-09-28 Mon 08:00]--[2026-09-28 Mon 09:00] =>-0:30
+CLOCK: => 12:05 and => 3:00
+:END:
+Not a clock line => 1:30 here.
+
+* Diary sexps
+%%(diary-anniversary 10 1 2000) Birthday
+&%%(diary-float t 4 2) Meeting
+  %%(diary-date 1 1 t) indented
+<%%(diary-float t 4 2)> and <%%(org-calendar-holiday)> in text.
+<%%(memq (calendar-day-of-week date) '(1 2))> with a > inside.
+%%(diary) *bold* and <2026-10-01 Thu> in it.
+Text then %%(diary) not a sexp line.
+
+* COMMENT A commented headline
+* TODO COMMENT With a keyword
+* NEXT [#A] COMMENT With a priority
+* [#B] COMMENT Priority only
+* [#42] COMMENT Two-digit priority
+* COMMENTS is a longer word
+* comment lowercase
+* Text COMMENT later
+*  COMMENT two spaces
+* COMMENT
+* WAITING COMMENT unknown keyword
+
+* Lines that draw no date
+# A comment <2026-10-01 Thu> SCHEDULED: and %%(diary)
+#+CAPTION: Made on [2026-10-01 Thu]
+#+NAME: <2026-10-01 Thu>
+: fixed width <2026-10-01 Thu> SCHEDULED: [2026-10-01 Thu]
+#+begin_quote <2026-10-01 Thu>
+Quoted <2026-10-01 Thu> SCHEDULED: <2026-10-02 Fri>.
+# a comment in a quote <2026-10-01 Thu>
+#+end_quote
+#+begin_src emacs-lisp
+(setq x "<2026-10-01 Thu>") ; SCHEDULED:
+#+end_src
+#+begin_example
+<2026-10-01 Thu> CLOCK: [2026-10-01 Thu]
+#+end_example
+#+begin_center
+Centered [2026-10-01 Thu].
+#+end_center
+#+begin_note
+Special <2026-10-01 Thu>.
+#+end_note
+#+begin_verse <2026-10-01 Thu> no end
+Text after an unclosed block <2026-10-01 Thu>.
+
+* Drawers and properties
+:PROPERTIES:
+:LAST_REPEAT: [2026-09-28 Mon 15:08]
+:END:
+- State "DONE"       from "TODO"       [2026-09-28 Mon 15:08]
+
+* Planning keywords after non-ASCII characters
+東京SCHEDULED: and «DEADLINE: and —CLOSED: and éCLOCK: and SCHEDULED:「x」.
+
+* After a bracket (last: Emacs stops drawing dates after it)
+In a description [[https://example.com][<2026-10-01 Thu>]] then <2026-10-02 Fri>.

@@ -30,6 +30,79 @@ M.GROUPS = {
   ["~"] = "orgCode",
 }
 
+local chars = require("org.ui.chars")
+
+-- Org's word constituents among the ASCII characters (letters, digits and
+-- $ % ')
+local WORD = {} ---@type table<integer, boolean>
+for c = 48, 57 do
+  WORD[c] = true
+end
+for c = 65, 90 do
+  WORD[c] = true
+  WORD[c + 32] = true
+end
+WORD[36], WORD[37], WORD[39] = true, true, true
+M.WORD = WORD
+
+--- Whether "\\<" matches before the Latin letter at byte i of s: the
+--- character before it isn't a word constituent, or is one of another
+--- script (org.ui.chars).
+---@param s string
+---@param i integer
+function M.word_start(s, i)
+  local b = byte(s, i - 1)
+  if b == nil then
+    return true
+  elseif b < 128 then
+    return not WORD[b]
+  end
+  local cp = chars.before(s, i - 1)
+  return cp ~= nil and (chars.syntax(cp) ~= "w" or chars.word_start_after(cp))
+end
+
+--- The byte after the run of word constituents, "-" and "_" at byte i of
+--- s ([-_[:word:]]*: a drawer's name, a footnote's label), i when there is
+--- none.
+---@param s string
+---@param i integer
+---@return integer
+function M.word_end(s, i)
+  while true do
+    local b = byte(s, i)
+    if b == nil then
+      return i
+    elseif b < 128 then
+      if not (WORD[b] or b == 45 or b == 95) then
+        return i
+      end
+      i = i + 1
+    else
+      local cp, e = chars.at(s, i)
+      if not (cp and e and chars.syntax(cp) == "w") then
+        return i
+      end
+      i = e + 1
+    end
+  end
+end
+
+--- Whether "\\_<" matches at byte i of s (the character before it is
+--- neither a word nor a symbol constituent).
+---@param s string
+---@param i integer
+---@param symbol table<integer, boolean> the ASCII symbol constituents and word characters but letters and digits
+function M.symbol_start(s, i, symbol)
+  local b = byte(s, i - 1)
+  if b == nil then
+    return true
+  elseif b < 128 then
+    return not (symbol[b] or s:sub(i - 1, i - 1):find("%w"))
+  end
+  local cp = chars.before(s, i - 1)
+  return cp ~= nil and chars.syntax(cp) == "."
+end
+
 local MARKERS = {} ---@type table<integer, string>
 for m in pairs(M.GROUPS) do
   MARKERS[byte(m)] = m
@@ -123,6 +196,12 @@ local function classify(line)
     if c2 == nil or c2 == 32 then
       return "comment" -- org-comment-regexp
     end
+    if c2 == 9 then
+      -- "#" and a tab: a paragraph to org-element, but a keyword to
+      -- org-fontify-meta-lines-and-blocks, which puts org-meta-line over
+      -- the whole line and shows what is hidden there
+      return "none"
+    end
     -- a meta line: "#+" and letters (org-fontify-meta-lines-and-blocks)
     if c2 == 43 and line:find("^#%+%a", s) then
       local key = line:match("^#%+(%a+):", s)
@@ -155,8 +234,14 @@ M._classify = classify
 -- break, "$" at the end of the part; case-sensitive, as font-lock
 -- matches). Emphasis or a link whose text holds one isn't drawn.
 local function separates(s)
-  if s:find("^%*+ ") or s:find("^%[fn:[-_%w\128-\255]+%]") or s:find("^%%%%%(") then
+  if s:find("^%*+ ") or s:find("^%%%%%(") then
     return true
+  end
+  if s:find("^%[fn:") then
+    local e = M.word_end(s, 5)
+    if e > 5 and byte(s, e) == 93 then
+      return true
+    end
   end
   local i = s:match("^[ \t]*()") ---@type integer
   local c = byte(s, i)
@@ -177,7 +262,11 @@ local function separates(s)
       and (s:find("^#%+BEGIN_%S", i) ~= nil or s:find("^#%+%S+:", i) ~= nil or s:find("^#%+%S+%[.*%]:", i) ~= nil)
   elseif c == 58 then
     local c2 = byte(s, i + 1)
-    return c2 == nil or c2 == 32 or s:find("^:[-_%w\128-\255]+:[ \t]*$", i) ~= nil
+    if c2 == nil or c2 == 32 then
+      return true
+    end
+    local e = M.word_end(s, i + 1)
+    return e > i + 1 and byte(s, e) == 58 and s:find("^[ \t]*$", e + 1) ~= nil
   elseif c == 45 and s:find("^%-%-%-%-%-+[ \t]*$", i) then
     return true
   elseif c == 92 and s:find("^\\begin{[%w*]+}", i) then
@@ -198,6 +287,7 @@ local function separates(s)
     or s:find("^%d+[.)]$", i) ~= nil
 end
 M._separates = separates
+M.separates = separates
 
 --- Whether `line` ends the search for a block's end line: a headline or a
 --- line of stars only (Emacs: "^\*+[[:space:]]").
@@ -218,9 +308,19 @@ local function block_line(line)
   end
   local e
   name, e = line:match("^[ \t]*#%+[eE][nN][dD]_(%a+)()")
-  local b = name and byte(line, e)
-  -- (word characters in Org's syntax table: letters, digits, $ % ')
-  if name and not (b and (b >= 128 or b == 36 or b == 37 or b == 39 or (b >= 48 and b <= 57))) then
+  if not name then
+    return
+  end
+  -- (not followed by a word constituent, "\\>": letters, digits, $ % ',
+  -- and non-ASCII word constituents of the Latin script; 東京 starts
+  -- another word)
+  local b = byte(line, e)
+  local word = b ~= nil and WORD[b]
+  if b and b >= 128 then
+    local cp = chars.at(line, e)
+    word = cp == nil or (chars.syntax(cp) == "w" and not chars.word_start_after(cp))
+  end
+  if not word then
     return name:lower(), false
   end
 end
@@ -228,17 +328,24 @@ end
 ---@class org.ui.emphasis.Block
 ---@field name string
 ---@field verbatim boolean src, example or export (nothing drawn in it)
+---@field row? integer 0-based row of its begin line (when found above the lines drawn)
+---@field line? string its begin line (likewise)
+
+---@class org.ui.emphasis.Role
+---@field block org.ui.emphasis.Block the block the line is in
+---@field role "begin"|"body"|"end"
 
 --- What each of `lines` holds, from the block state of the line before
 --- them (`block`). A `#+begin_NAME` opens a block when a `#+end_NAME` or a
 --- line of stars follows (`closed_after`: whether one follows the last of
 --- `lines`). In a src, example or export block nothing is drawn; in other
 --- blocks the lines aren't keywords or comments (Emacs draws their body as
---- text), and their begin and end lines are drawn like info keywords.
+--- text), and their begin and end lines are drawn like info keywords. The
+--- second result: per line in a block, which block and its role there.
 ---@param lines string[]
 ---@param block? org.ui.emphasis.Block|false
 ---@param closed_after? fun(name: string): boolean
----@return org.ui.emphasis.Kind[]
+---@return org.ui.emphasis.Kind[], table<integer, org.ui.emphasis.Role>
 function M.kinds(lines, block, closed_after)
   local n = #lines
   -- the next line of stars, and the end lines by name
@@ -276,6 +383,7 @@ function M.kinds(lines, block, closed_after)
   end
 
   local kinds = {} ---@type org.ui.emphasis.Kind[]
+  local roles = {} ---@type table<integer, org.ui.emphasis.Role>
   local cur = block or false ---@type org.ui.emphasis.Block|false
   if cur and not closed(0, cur.name) then
     cur = false
@@ -289,10 +397,13 @@ function M.kinds(lines, block, closed_after)
     elseif cur then
       if name == cur.name and not begins then
         kind = cur.verbatim and "none" or "info"
+        roles[i] = { block = cur, role = "end" }
         cur = false
       elseif cur.verbatim then
         kind = "none"
+        roles[i] = { block = cur, role = "body" }
       else
+        roles[i] = { block = cur, role = "body" }
         local k = classify(line)
         kind = (k == "none" or k == "info") and "text" or k == "comment" and "qcomment" or k
       end
@@ -300,6 +411,7 @@ function M.kinds(lines, block, closed_after)
       if closed(i, name) then
         cur = { name = name, verbatim = VERBATIM_BLOCKS[name] == true }
         kind = cur.verbatim and "none" or "info"
+        roles[i] = { block = cur, role = "begin" }
       else
         -- (no end: no block, and its line is text)
         kind = "text"
@@ -309,8 +421,12 @@ function M.kinds(lines, block, closed_after)
     end
     kinds[i] = kind
   end
-  return kinds
+  return kinds, roles
 end
+
+M.star_line = star_line
+M.block_line = block_line
+M.VERBATIM_BLOCKS = VERBATIM_BLOCKS
 
 -- The scan ------------------------------------------------------------------
 
@@ -358,6 +474,9 @@ end
 local PATH_STOP = set_of(" \t\n[]()<>")
 local OPEN_GROUP = set_of("(<[")
 local CLOSE_GROUP = set_of(")>]")
+-- [%w] and [%w_+%-] (a link type), by byte
+local ALNUM = set_of("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+local TYPE_CHAR = set_of("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_+-")
 local PUNCT = set_of([=[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]=])
 
 --- The bracket links of `s` and the ends of its angle and plain links, as
@@ -365,15 +484,18 @@ local PUNCT = set_of([=[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]=])
 --- plain link that runs into a bracket link takes it in), as the byte
 --- ranges of bracket links descriptive display hides: "[[target][" and
 --- "]]", or "[[" and "]]". A link whose text holds the start of a
---- paragraph after a line break isn't one.
+--- paragraph after a line break isn't one. The second result: the links
+--- found, as { first byte, last byte, style } ("bracket", "angle" or
+--- "plain"), for org.ui.highlight.object.
 ---@param s string
 ---@param types table<string, boolean>
 ---@param line_of fun(i: integer): integer
 ---@param line_start fun(l: integer): integer
----@return integer[][]
+---@return integer[][], { [1]: integer, [2]: integer, [3]: string }[]
 local function links(s, types, line_of, line_start)
   local n = #s
   local out = {}
+  local found = {} ---@type { [1]: integer, [2]: integer, [3]: string }[]
   local find_bracket = finder(s, "[[")
   local find_angle = finder(s, "<")
   local find_colon = finder(s, ":")
@@ -493,6 +615,17 @@ local function links(s, types, line_of, line_start)
           break
         end
         last, j = e, e + 1
+      elseif b >= 0xC0 then
+        -- (a multibyte character: [[:punct:]] unless a word constituent)
+        local cp, e = chars.at(s, j)
+        if cp and e then
+          if chars.syntax(cp) == "w" then
+            last = e
+          end
+          j = e + 1
+        else
+          j = j + 1
+        end
       elseif not PATH_STOP[b] then
         if not (PUNCT[b] or SPACE[b]) or b == 47 or b == 45 then
           last = j
@@ -505,9 +638,8 @@ local function links(s, types, line_of, line_start)
     return last
   end
 
-  local function word_start(x)
-    local b = byte(s, x - 1)
-    return b == nil or not (b >= 128 or s:sub(x - 1, x - 1):find("%w"))
+  local word_start = function(x)
+    return M.word_start(s, x)
   end
 
   -- the next start of each kind at or after a position
@@ -544,7 +676,7 @@ local function links(s, types, line_of, line_start)
         end
         -- the leftmost link type ending at the colon, at a word start
         local r = c
-        while r > i and r > c - 24 and s:sub(r - 1, r - 1):find("[%w_+%-]") do
+        while r > i and r > c - 24 and TYPE_CHAR[byte(s, r - 1)] do
           r = r - 1
         end
         local found
@@ -575,6 +707,7 @@ local function links(s, types, line_of, line_start)
       e = plain(next_p_path)
     end
     if e and one_paragraph(p, e) then
+      found[#found + 1] = { p, e, p == next_b and "bracket" or p == next_a and "angle" or "plain" }
       for _, h in ipairs(hide or {}) do
         out[#out + 1] = h
       end
@@ -583,8 +716,9 @@ local function links(s, types, line_of, line_start)
       i = p + 1
     end
   end
-  return out
+  return out, found
 end
+M._links = links
 
 --- The inline src blocks of `s` (src_LANG[HEADERS]{BODY}), drawn natively
 --- in Emacs: no emphasis faces on their braces and body, byte -> true.
@@ -623,8 +757,7 @@ local function inline_src(s)
       return out
     end
     i = p + 4
-    local b = byte(s, p - 1)
-    if b == nil or not (b >= 128 or symbol[b] or s:sub(p - 1, p - 1):find("%w")) then
+    if M.symbol_start(s, p, symbol) then
       local e = s:match("^src_[^ \t\n%[{]+()", p)
       if e and byte(s, e) == 91 then
         local h = matching(e, 91, 93, 0)
@@ -639,6 +772,25 @@ local function inline_src(s)
       end
     end
   end
+end
+
+--- Whether `line` is a table row, for a marker on the line after it.
+local function table_row(line)
+  return line:find("^[ \t]*|") ~= nil
+end
+
+--- Whether `line` is a table rule (|---+---| or +---+---+), likewise.
+local function table_rule(line)
+  return line:find("^[ \t]*|[-+]+|?[ \t]*$") ~= nil or line:find("^[ \t]*%+[-+]+%+[ \t]*$") ~= nil
+end
+
+--- What the scan of the lines after `line` reads of it (it is the line
+--- before them, `opts.prev` of `M.marks`): whether it is a table row or
+--- a table rule.
+---@param line string
+---@return integer
+function M.line_above(line)
+  return (table_row(line) and 1 or 0) + (table_rule(line) and 2 or 0)
 end
 
 ---@class org.ui.emphasis.Region
@@ -750,7 +902,7 @@ local function emphasis(s, line_of, line_start, line_text)
           if tl == 0 and text == nil then
             tl, text = l, line_text(l)
           end
-          if ok and text and text:find("^[ \t]*|") then
+          if ok and text and table_row(text) then
             -- not over a "|" in a table row
             local bar = find_bar(p + 1)
             ok = not (bar and bar < c)
@@ -759,7 +911,7 @@ local function emphasis(s, line_of, line_start, line_text)
             -- a table rule (|---+---| or +---+---+)
             local r = rule[tl]
             if r == nil then
-              r = text:find("^[ \t]*|[-+]+|?[ \t]*$") ~= nil or text:find("^[ \t]*%+[-+]+%+[ \t]*$") ~= nil
+              r = table_rule(text)
               rule[tl] = r
             end
             ok = not r
@@ -774,13 +926,17 @@ local function emphasis(s, line_of, line_start, line_text)
   return out
 end
 
+M._emphasis = emphasis
+
 ---@class org.ui.emphasis.MarksOpts
 ---@field hide_markers boolean ui.hide_emphasis_markers
 ---@field conceal_links boolean ui.conceal_links (descriptive links)
+---@field reveal? boolean hide nothing, the markers that would be hidden drawn as text (the body of an org src block: Emacs copies only the faces of the Org buffer it fontifies it in)
 ---@field block? org.ui.emphasis.Block|false the block open before `lines`
 ---@field prev? string the line before `lines`
 ---@field closed_after? fun(name: string): boolean (see `M.kinds`)
 ---@field types? table<string, boolean> link types (default `M.link_types()`)
+---@field kinds? org.ui.emphasis.Kind[] `M.kinds` of the lines, when already known
 
 --- Emphasis and link marks for `lines`, buffer lines from row `row0`
 --- (0-based) on, in the block state `opts.block` (see `M.kinds`), after
@@ -793,8 +949,9 @@ end
 ---@param last integer
 ---@param opts org.ui.emphasis.MarksOpts
 ---@param rows table<integer, table[]>
+---@return { [1]: integer, [2]: integer, [3]: string }[]? links the links of the lines (`links`), when found to hide them
 function M.marks(lines, row0, first, last, opts, rows)
-  local kinds = M.kinds(lines, opts.block, opts.closed_after)
+  local kinds = opts.kinds or M.kinds(lines, opts.block, opts.closed_after)
 
   local s = table.concat(lines, "\n")
   local starts = {}
@@ -835,8 +992,11 @@ function M.marks(lines, row0, first, last, opts, rows)
   -- part of a link or a marker. Lines that draw nothing (src blocks,
   -- keywords) and fixed-width lines show everything.
   local link_hidden = {} ---@type table<integer, boolean>
+  local found ---@type { [1]: integer, [2]: integer, [3]: string }[]?
   if opts.conceal_links then
-    for _, r in ipairs(links(s, opts.types or M.link_types(), line_of, line_start)) do
+    local hide
+    hide, found = links(s, opts.types or M.link_types(), line_of, line_start)
+    for _, r in ipairs(hide) do
       for x = r[1], r[2] do
         link_hidden[x] = true
       end
@@ -887,6 +1047,10 @@ function M.marks(lines, row0, first, last, opts, rows)
     end
   end
 
+  if opts.reveal then
+    hidden = {}
+  end
+
   -- marks on the rows asked for
   local function add(row, col, o)
     if row < first or row > last then
@@ -922,12 +1086,16 @@ function M.marks(lines, row0, first, last, opts, rows)
           end
           if x <= e then
             made = true
+            local spell = o.spell
+            if o.table_spell and k == "table" then
+              spell = true
+            end
             add(row0 + l - 1, x - starts[l], {
               end_col = y - starts[l] + 1,
               hl_group = o.hl_group,
               conceal = o.conceal,
               priority = o.priority,
-              spell = o.spell,
+              spell = spell,
               ephemeral = true,
             })
           end
@@ -975,14 +1143,27 @@ function M.marks(lines, row0, first, last, opts, rows)
   -- mark per run (many openings with one far closing marker would put as
   -- many marks over the same bytes).
   local runs = {} ---@type table<string, { [1]: integer, [2]: integer, [3]: integer }>
+  -- Spelling follows the objects of the element parser (what flyspell's
+  -- org-mode-flyspell-verify asks), not the faces: verbatim and code are
+  -- left out of spell checking where org-element finds them, left to right
+  -- with nothing inside one starting another. (Font-lock tries every
+  -- marker, so a verbatim's closing marker can open another one that runs
+  -- on over plain text: `=a "b"=, the rest=` draws ", the rest" as
+  -- verbatim, which org-element, flyspell and the syntax engine check.)
+  -- In table rows, which aren't spell checked, the text of the other
+  -- emphasis is (like the syntax engine's emphasis groups, with @Spell).
+  local nospell_end = 0
+  for _, r in ipairs(regions) do
+    if (r.m == "=" or r.m == "~") and r.open > nospell_end then
+      nospell_end = r.close
+      span(r.open, r.close, { spell = false, priority = 150 }, true)
+    end
+  end
   local function flush(m)
     local run = runs[m]
     if run then
-      local spell ---@type boolean?
-      if m == "=" or m == "~" then
-        spell = false -- (like the syntax regions: no @Spell)
-      end
-      span(run[1], run[2], { hl_group = M.GROUPS[m], priority = run[3], spell = spell }, true)
+      local verb = m == "=" or m == "~"
+      span(run[1], run[2], { hl_group = M.GROUPS[m], priority = run[3], table_spell = not verb or nil }, true)
       runs[m] = nil
     end
   end
@@ -1003,16 +1184,12 @@ function M.marks(lines, row0, first, last, opts, rows)
       flush(r.m)
       runs[r.m] = { r.open + 1, r.close - 1, prio }
     end
-    local spell ---@type boolean?
-    if r.m == "=" or r.m == "~" then
-      spell = false
-    end
     for _, b in ipairs({ r.open, r.close }) do
       -- markers have the face when shown, and the delimiter face where the
       -- cursor line shows them (not when verbatim showed them again); a
       -- hidden one is hidden by the same mark
       if not opts.hide_markers or hidden[b] then
-        local delim = { hl_group = group .. "Delimiter", priority = prio, spell = spell }
+        local delim = { hl_group = group .. "Delimiter", priority = prio }
         delim.conceal = hidden[b] and "" or nil
         if span(b, b, delim, true) and hidden[b] then
           covered[b] = true
@@ -1037,88 +1214,21 @@ function M.marks(lines, row0, first, last, opts, rows)
       b = b + 1
     end
   end
+  return found
 end
 
 -- The buffer ----------------------------------------------------------------
 
---- How far back the scan looks for the headline above (the blocks open
---- there), and ahead for the end line of a block.
-local LOOKBACK = 3000
---- How far the scan goes on over a paragraph around the rows drawn.
-local PARAGRAPH = 50
-
 --- Emphasis and link marks of rows `first` to `last` (0-based) of buffer
---- `bufnr`, added to `rows` (the format of org.ui.decorations `compute`).
+--- `bufnr`, added to `rows` (the format of org.ui.decorations `compute`),
+--- from the window org.ui.highlight scans for them.
 ---@param bufnr integer
 ---@param first integer
 ---@param last integer
 ---@param ui table the buffer's `ui` options
 ---@param rows table<integer, table[]>
 function M.add_marks(bufnr, first, last, ui, rows)
-  local n = vim.api.nvim_buf_line_count(bufnr)
-  -- Markup can start on the line above the first one asked for, and a
-  -- link's text goes on over the lines of its paragraph: the scan covers
-  -- the paragraphs around the rows (PARAGRAPH lines at most each way), so
-  -- a row drawn alone gets what a whole buffer draws there.
-  local scan_row = math.max(0, first - 2)
-  local up = vim.api.nvim_buf_get_lines(bufnr, math.max(0, scan_row - PARAGRAPH), scan_row + 1, false)
-  for k = #up, 2, -1 do
-    if separates(up[k]) then
-      break
-    end
-    scan_row = scan_row - 1
-  end
-  local stop = math.min(n, last + 2)
-  local down = vim.api.nvim_buf_get_lines(bufnr, stop, math.min(n, stop + PARAGRAPH), false)
-  for _, line in ipairs(down) do
-    if separates(line) then
-      break
-    end
-    stop = stop + 1
-  end
-  -- the block open there: from the headline above (or LOOKBACK lines up)
-  local start = math.max(0, scan_row - LOOKBACK)
-  local before = vim.api.nvim_buf_get_lines(bufnr, start, scan_row, false)
-  local h = 0
-  for k = #before, 1, -1 do
-    if star_line(before[k]) then
-      h = k
-      break
-    end
-  end
-  local block = false ---@type org.ui.emphasis.Block|false
-  for j = h + 1, #before do
-    local name, begins = block_line(before[j])
-    if name then
-      if block and not begins and name == block.name then
-        block = false
-      elseif not block and begins then
-        -- (whether it has an end line is found out by `M.kinds`)
-        block = { name = name, verbatim = VERBATIM_BLOCKS[name] == true }
-      end
-    end
-  end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, scan_row, stop, false)
-  -- whether an end line for a block (or a line of stars) comes after
-  -- `lines`: a block is one only when it has an end
-  local function closed_after(name)
-    local from = stop
-    while from < math.min(n, stop + LOOKBACK) do
-      local chunk = vim.api.nvim_buf_get_lines(bufnr, from, math.min(n, from + 256), false)
-      for _, line in ipairs(chunk) do
-        if star_line(line) then
-          return true
-        end
-        local nm, begins = block_line(line)
-        if nm == name and not begins then
-          return true
-        end
-      end
-      from = from + #chunk
-    end
-    -- (beyond LOOKBACK lines: taken as closed)
-    return from < n
-  end
+  local w = require("org.ui.highlight").window(bufnr, first, last)
   local b = vim.b[bufnr]
   local hide = ui.hide_emphasis_markers and true or false
   if b.org_hide_emphasis_markers ~= nil then
@@ -1128,12 +1238,12 @@ function M.add_marks(bufnr, first, last, ui, rows)
   if b.org_link_descriptive ~= nil then
     conceal_links = b.org_link_descriptive and true or false
   end
-  M.marks(lines, scan_row, first, last, {
+  M.marks(w.lines, w.row0, first, last, {
     hide_markers = hide,
     conceal_links = conceal_links,
-    block = block,
-    prev = scan_row > 0 and vim.api.nvim_buf_get_lines(bufnr, scan_row - 1, scan_row, false)[1] or nil,
-    closed_after = closed_after,
+    block = w.block,
+    prev = w.prev,
+    closed_after = w.closed_after,
   }, rows)
 end
 

@@ -3,6 +3,9 @@ local function syn(l, c)
 end
 
 describe("syntax", function()
+  -- (the syntax engine's groups: ui_highlight_*_spec.lua check the parser
+  -- highlighter's)
+  with_highlighter("syntax")
   it("highlights core elements", function()
     org_buffer({
       "#+TODO: TODO WAIT | DONE",
@@ -311,6 +314,9 @@ describe("decorations", function()
 end)
 
 describe("link conceal", function()
+  -- (the syntax engine's conceal: ui_highlighter_spec.lua checks the
+  -- parser highlighter's)
+  with_highlighter("syntax")
   local function rendered(text)
     org_buffer({ text })
     local s, line, last = "", vim.fn.getline(1), nil

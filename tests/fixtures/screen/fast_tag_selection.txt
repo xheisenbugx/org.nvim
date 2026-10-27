@@ -14,8 +14,8 @@ screen 100x14
 {1} OrgKeyword -> PreProc
 {2} OrgKeywordValue -> String
 {3} OrgHeadlineLevel1 -> Title [bold]
-{4} OrgTodo -> @comment.error
-{5} OrgTags -> @property
+{4} OrgHeadlineLevel1 -> Title | OrgTodo -> @comment.error [bold]
+{5} OrgHeadlineLevel1 -> Title | OrgTags -> @property [bold]
 {6} NonText
 {7} FloatBorder
 {8} FloatTitle [bold]

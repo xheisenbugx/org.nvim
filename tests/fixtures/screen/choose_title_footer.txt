@@ -1,5 +1,5 @@
 screen 60x14
-|{1:#+TITLE:}{2: Hello}|
+|{1:#+TITLE:} {2:Hello}|
 ||
 |{3:* A}        {4:╭───────}{5: Insert export template }{4:───────╮}|
 |{6:           }{4:│}{7:  }{8:1}{7:  default                          }{4:│}|

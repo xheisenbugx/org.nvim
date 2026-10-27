@@ -14,7 +14,7 @@ screen 72x16
 
 {1} OrgHeadlineLevel1 -> Title [bold]
 {2} OrgHeadlineLevel2 -> Constant
-{3} OrgTodo -> @comment.error
+{3} OrgHeadlineLevel2 -> Constant | OrgTodo -> @comment.error
 {4} OrgTimestampInactive -> Comment
 {5} StatusLineNC | StatusLine
 {6} WinBar [bold]

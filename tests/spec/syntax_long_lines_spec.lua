@@ -19,6 +19,10 @@ local function draw()
 end
 
 describe("syntax on long lines", function()
+  -- (the syntax engine, ui.highlighter = "syntax": the parser highlighter
+  -- has no 'synmaxcol' limit, ui_highlighter_spec.lua and the "linear
+  -- time" tests of ui_highlight_*_spec.lua check it on long lines)
+  with_highlighter("syntax")
   local mmp, rdt, smc
   before_each(function()
     mmp, rdt, smc = vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol

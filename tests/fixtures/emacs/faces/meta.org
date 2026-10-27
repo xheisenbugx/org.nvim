@@ -1,0 +1,113 @@
+#+TITLE: Keywords, drawers and comments
+#+subtitle: hard cases of the meta faces
+#+Author: Someone
+#+email: someone@example.org
+#+DATE:
+  #+title: indented title
+#+TITLE:   spaced title   
+#+title: a [[https://orgmode.org][link]] and *bold* in a title
+#+author:no space
+#+title_x: not an info keyword
+#+titles: not either
+#+STARTUP: overview
+  #+FILETAGS: :a:b:
+#+foo-bar: dash in the name
+#+key without a colon
+#+KEY:
+#+PROPERTY: header-args:lua :results output
+#+key:with:colons: value
+#+1x: digits first
+#+: nothing
+#+
+#+end_quote
+#+end_src stray
+#+begin without an underscore
+#+caption: A caption
+#+CAPTION[short]: long caption
+#+caption[a]b]: two brackets
+#+captions: not a caption
+#+caption:
+#+caption[unclosed: x
+#+name: tbl
+
+* Comments
+# a comment
+#
+   # an indented comment
+#	a tab after the hash
+#	a *bold* [[https://orgmode.org][link]], <2026-10-01 Thu>, [1/2] and {{{m}}} after a tab
+#x not a comment
+# a comment with [[https://orgmode.org][a link]] and *bold* and ~code~
+Text # not a comment
+
+* Drawers and properties
+:PROPERTIES:
+:ID:       abc-123
+  :header-args:lua: :var x=1
+:a.b:
+:KEY:   value with trailing blanks   
+:EMPTY:
+:::
+::
+:k:v
+:p: [[https://orgmode.org][link]] *bold*
+:WHEN: every <%%(diary-float t 4 2)> or DEADLINE: soon
+:END:
+  :LOGBOOK:  
+  :END:
+:my-drawer_1:
+:dräwer:
+:»:
+:a$b:
+:x—y:
+:a b:
+:NAME: a property outside a drawer
+
+* Fixed width and rules
+: fixed width
+:
+  : indented fixed width
+:	a tab after the colon
+: fixed with *bold* and [[https://orgmode.org][link]]
+-----
+  ------  
+----
+
+* Inside blocks
+#+begin_quote
+#+TITLE: a title in a quote
+#+STARTUP: indent
+# a comment in a quote
+:PROPERTIES:
+:ID: q
+: fixed in a quote
+-----
+#+end_quote
+#+begin_comment
+#+STARTUP: indent
+# comment in a comment block
+:ID: c
+#+end_comment
+#+begin_example
+#+STARTUP: indent
+# comment in an example
+:ID: e
+: fixed in an example
+#+end_example
+#+begin_src emacs-lisp
+# not a comment
+:ID: s
+#+end_src
+#+begin_verse
+#+author: in a verse
+:LOGBOOK:
+#+end_verse
+#+BEGIN: clocktable :scope file
+#+CAPTION: Clock summary
+#+END:
+#+begin_center
+#+date: no end line, then a headline
+* After an unterminated block
+#+begin_note
+#+STARTUP: after an unterminated begin
+# last comment

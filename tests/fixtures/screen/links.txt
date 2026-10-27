@@ -4,7 +4,7 @@ screen 60x12
 |A bare {2:https://neovim.io} link.|
 |A plain {3:https://example.com/path} link.|
 |A {2:file link} and {4:<<target>>}.|
-|A footnote{5:[fn:1]} and a {6:radio} {4:<<<radio>>>} target.|
+|A footnote{5:[fn:1]} and a {6:radio} {4:<<<}{7:radio}{4:>>>} target.|
 
 {1} OrgHeadlineLevel1 -> Title [bold]
 {2} OrgLink -> @markup.link [underline]
@@ -12,3 +12,4 @@ screen 60x12
 {4} OrgTarget -> Underlined [underline]
 {5} OrgFootnote -> Underlined [underline]
 {6} orgRadioLink -> OrgLink -> @markup.link [underline]
+{7} orgRadioLink -> OrgLink -> @markup.link | OrgTarget -> Underlined [underline]

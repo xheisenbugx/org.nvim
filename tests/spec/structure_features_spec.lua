@@ -159,6 +159,9 @@ describe("structure: headline syntax", function()
 end)
 
 describe("structure: emphasis highlighting", function()
+  -- (the syntax engine's regions: ui_highlighter_spec.lua checks the
+  -- parser highlighter's)
+  with_highlighter("syntax")
   local function group(l, c)
     return vim.fn.synIDattr(vim.fn.synID(l, c, 1), "name"):lower()
   end

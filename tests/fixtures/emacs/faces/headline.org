@@ -1,0 +1,97 @@
+#+TODO: TODO NEXT WAIT(w@) | DONE KILL(k!)
+Headline cases for the faces parity fixture: levels, keywords, priority
+cookies, tags, COMMENT, ARCHIVE and inline tasks.
+
+* Level one
+** Level two
+*** Level three
+**** Level four
+***** Level five
+****** Level six
+******* Level seven
+******** Level eight
+********* Level nine cycles to one
+********** Level ten cycles to two
+* 
+*
+**
+*	Not a headline: a tab after the star
+*bold* is not a headline either
+
+* TODO Plain keyword
+* NEXT Custom keyword from the file
+* WAIT Waiting with a log flag
+* DONE Done keyword
+* KILL Killed keyword
+* TODO
+* TODO	
+* TODO	text after a tab
+* TODOX is no keyword
+* todo is no keyword
+* Text then TODO is no keyword
+* DONE   Done with blanks before the text   
+* DONE Done with tags                                             :a:b:
+** DONE [#A] Done with a priority and tags                         :x:
+
+* [#A] Priority A
+* [#B] Priority B
+* [#C] Priority C
+* [#D] Priority D
+* [#1] Priority one
+* [#10] Priority ten
+* [#64] Priority sixty-four
+* [#65] Not a priority
+* [#a] Not a priority
+* [#AB] Not a priority
+* TODO [#A] Keyword and priority
+* Cookie in the middle [#B] of the title
+* Two cookies [#A] and [#B]: only the first
+* Cookie at the end [#C]
+*Note:* a paragraph starting with a star [#A] has one too
+Not after a star: [#A] has none
+
+* Tags                                                           :work:
+* Several tags                                              :a:b:c_d@e#f%:
+* Double colons                                                ::a::b::
+* Colons only                                                       :::
+* Not tags                                                           ::
+* Tags with trailing blanks                                     :tag:   
+* Tags after a tab	:tab:
+* Unicode tags                                                    :café:
+* :only:tags:
+* Not tags:a: glued to the text
+* :mid: tags-like word in the middle
+* TODO [#B] Everything at once                                :one:two:
+
+* COMMENT Commented
+* TODO COMMENT Commented with a keyword
+* TODO [#A] COMMENT Commented with a keyword and priority
+* [#A] COMMENT Commented with a priority
+* COMMENT
+* COMMENTED is not the keyword
+* Text then COMMENT is not the keyword
+* DONE COMMENT Done and commented                                   :x:
+
+* Archived                                                     :ARCHIVE:
+* TODO [#A] Archived task                                 :work:ARCHIVE:
+* An :ARCHIVE: tag in the middle
+* COMMENT Archived and commented                               :ARCHIVE:
+
+* Inline tasks
+*************** TODO Inline task
+Its body.
+*************** END
+**************** DONE Deeper inline task                           :tag:
+*************** [#A] Inline task with a priority
+*************** COMMENT Commented inline task
+
+* Markup in headlines
+** TODO *bold* /italic/ and a [[https://orgmode.org][link]]          :tag:
+** DONE =verbatim= in a done headline
+
+* Diary sexps and planning keywords in headlines
+** Birthday <%%(diary-anniversary 10 1 1990)> and more   :tag:
+** DONE Call DEADLINE: and SCHEDULED: in the title
+** TODO [#A] <%%(diary-float t 4 2)>
+** Not tags: an emoji is not alnum   :🎉:work:
+** Tags in other scripts :日本:é:Ελλ:

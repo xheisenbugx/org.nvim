@@ -1,0 +1,5 @@
+screen 60x8
+| w {1:*}{2:starts here and}{1:*} ends after|
+
+{1} orgBoldDelimiter -> OrgBold [bold]
+{2} OrgBold [bold]

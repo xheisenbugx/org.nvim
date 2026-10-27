@@ -8,8 +8,10 @@ local Screen = require("tests.screen")
 
 local screen
 
---- A child Neovim of `width` x `height` with org set up with `setup`.
+--- A child Neovim of `width` x `height` with org set up with `setup`
+--- (the default highlighter, "parser", unless it names `ui.highlighter`).
 local function new(setup, width, height, now)
+  setup = setup or {}
   screen = Screen.new({ width = width or 60, height = height or 12, setup = setup, now = now })
   return screen
 end
@@ -96,6 +98,23 @@ describe("screen snapshot", function()
     screen:expect("emphasis_parser_long_line")
   end)
 
+  -- the body of an org src block drawn as Org on the block's face, with
+  -- nothing hidden (org-src-font-lock-fontify-block with org-mode)
+  it("an org src block drawn as Org by the parser highlighter", function()
+    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } }, 60, 10)
+    screen:org({
+      "#+begin_src org",
+      ",* TODO An escaped headline",
+      "#+TITLE: A title",
+      "Some *bold* and [[https://orgmode.org][a link]].",
+      "- [X] done <2026-10-01 Thu>",
+      "| a | b |",
+      "#+end_src",
+      "Some *bold* and [[https://orgmode.org][a link]].",
+    })
+    screen:expect("org_src_parser")
+  end)
+
   -- #119: a closed fold keeps the faces of its headline
   it("folded headlines keep their keyword, priority and tag faces", function()
     new({ todo_keywords = { "TODO", "NEXT", "|", "DONE" } })
@@ -112,33 +131,56 @@ describe("screen snapshot", function()
   end)
 
   -- #121: highlighting goes on after a line of thousands of characters
-  it("highlights after a 2000-character line", function()
-    new(nil, 60, 10)
-    local prose = string.rep("I would like the board to be set to a certain color. *ok* ", 40):sub(1, 2000)
-    screen:org({
-      "* TODO Long lines :tag:",
-      "",
-      prose,
-      "",
-      "- " .. prose .. ":: term",
-      "",
-      "** Prompt *bold* [[https://orgmode.org][link]]",
-      "SCHEDULED: <2026-10-02 Fri>",
-    })
+  local LONG_PROSE = string.rep("I would like the board to be set to a certain color. *ok* ", 40):sub(1, 2000)
+  local LONG_LINES = {
+    "* TODO Long lines :tag:",
+    "",
+    LONG_PROSE,
+    "",
+    "- " .. LONG_PROSE .. ":: term",
+    "",
+    "** Prompt *bold* [[https://orgmode.org][link]]",
+    "SCHEDULED: <2026-10-02 Fri>",
+  }
+
+  -- the syntax engine (the fallback) stops at 'synmaxcol' on the long lines
+  it("highlights after a 2000-character line (syntax engine)", function()
+    new({ ui = { highlighter = "syntax" } }, 60, 10)
+    screen:org(LONG_LINES)
     screen:expect("long_line")
   end)
 
+  -- the parser highlighter draws the long lines whole: their ends too
+  it("highlights a 2000-character line and after it", function()
+    new(nil, 60, 10)
+    screen:org(LONG_LINES)
+    screen:expect("long_line_parser")
+    screen:cmd("normal! 3G1930|zs")
+    screen:expect("long_line_parser_end")
+  end)
+
+  local SYNMAXCOL_LINES = {
+    string.rep("word ", 20):sub(1, 96) .. " *starts here and* ends after",
+    "plain text",
+    "* Next *bold*",
+  }
+
   -- markup that ends past a 'synmaxcol' lowered after the syntax was set
   -- up isn't drawn, and doesn't go on over the lines below
-  it("follows a lowered 'synmaxcol'", function()
-    new(nil, 60, 8)
-    screen:org({
-      string.rep("word ", 20):sub(1, 96) .. " *starts here and* ends after",
-      "plain text",
-      "* Next *bold*",
-    })
+  it("follows a lowered 'synmaxcol' (syntax engine)", function()
+    new({ ui = { highlighter = "syntax" } }, 60, 8)
+    screen:org(SYNMAXCOL_LINES)
     screen:cmd("setlocal synmaxcol=110")
     screen:expect("synmaxcol_lowered")
+  end)
+
+  -- the parser highlighter doesn't stop at 'synmaxcol'
+  it("draws markup past a lowered 'synmaxcol'", function()
+    new(nil, 60, 8)
+    screen:org(SYNMAXCOL_LINES)
+    screen:cmd("setlocal synmaxcol=110")
+    screen:input("$")
+    screen:expect("synmaxcol_lowered_parser")
   end)
 
   it("conceals link brackets and targets", function()

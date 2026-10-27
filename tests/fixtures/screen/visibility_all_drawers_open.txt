@@ -2,7 +2,7 @@ screen 60x12
 |{1:#+STARTUP:}{2: overview nohidedrawers}|
 |{3:* Headline}|
 |{4::PROPERTIES:}|
-|{5::VISIBILITY:}{6: all}|
+|{5::VISIBILITY:} {6:all}|
 |{4::END:}|
 |{4::LOGBOOK:}|
 |{7:-} Note taken on {8:[2026-10-01 Thu 09:00]}|

@@ -312,6 +312,9 @@ describe("properties: Emacs parity", function()
 end)
 
 describe("priority and tag faces", function()
+  -- (the syntax engine's groups: ui_highlight_headline_spec.lua checks the
+  -- parser highlighter's)
+  with_highlighter("syntax")
   it("ui.priority_faces / ui.tag_faces highlight cookies and tags", function()
     local ui = require("org.config").opts.ui
     local saved_p, saved_t = ui.priority_faces, ui.tag_faces
