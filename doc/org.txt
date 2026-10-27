@@ -881,9 +881,12 @@ They are not entries of their own (the text around them belongs to the
 entry), fold up to END with <Tab>, promote / demote together with their END
 line (never below the minimum level) and show only their last two stars
 (also the first one, as a marker, with `inlinetask_show_first_star`,
-org-inlinetask-show-first-star). In the agenda, a timestamp in the text
-after an END line (up to the next headline) shows as an entry titled "END",
-with the inline task's tags, as in Emacs.
+org-inlinetask-show-first-star). With odd levels only (`#+STARTUP: odd`,
+`odd_levels_only`) an inline task needs 2 * `inlinetask_min_level` - 1
+stars, as in Emacs: 29 for 15, and 15 stars is then a level 8 headline. In
+the agenda, a timestamp in the text after an END line (up to the next
+headline) shows as an entry titled "END", with the inline task's tags, as
+in Emacs.
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.
@@ -9114,6 +9117,10 @@ Differences from Emacs:
   the end of every marker would make drawing a long line take time
   quadratic in its length.
 
+- Inline tasks: promoting one at the minimum level is refused. With odd
+  levels only, Emacs compares the new stars with org-inlinetask-min-level
+  itself and so promotes a 29 stars inline task to 27 stars, a headline
+  (its END line becoming a headline too).
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or
   cancelled (Emacs changes the entry first and opens the note buffer

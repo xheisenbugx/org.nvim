@@ -1,0 +1,18 @@
+screen 60x8
+|{1:#+STARTUP:}{2: odd}|
+|{3:* Level one}|
+|{4:*************** }{5:TODO}{4: Level eight}|
+|{6:                           }{7:** }{8:TODO}{7: Task }{9::t:}|
+|Task body.|
+|{6:                           }{7:** END}|
+|Text.|
+
+{1} OrgKeyword -> PreProc
+{2} OrgKeywordValue -> String
+{3} OrgHeadlineLevel1 -> Title [bold]
+{4} OrgHeadlineLevel8 -> Function
+{5} OrgHeadlineLevel8 -> Function | OrgTodo -> @comment.error
+{6} OrgHiddenStars -> Conceal
+{7} OrgInlinetask -> Comment
+{8} OrgInlinetask -> Comment | OrgTodo -> @comment.error
+{9} OrgInlinetask -> Comment | OrgTags -> @property
