@@ -1,6 +1,7 @@
 -- ui.highlighter = "parser" over the life of a buffer: reloading it,
--- turning org off and on, errors while drawing and the rows kept over
--- editing commands (org.ui.decorations, org.ui.highlight).
+-- turning org off and on, errors while drawing, switching the highlighter
+-- with setup() again and the rows kept over editing commands
+-- (org.ui.decorations, org.ui.highlight).
 local deco = require("org.ui.decorations")
 
 local dir = vim.fn.tempname()
@@ -122,6 +123,40 @@ describe("ui.highlighter = parser, over the life of a buffer", function()
     vim.api.nvim_buf_set_text(buf, 1, 0, 1, 0, { "x" })
     vim.cmd("redraw!")
     ok(vim.tbl_contains((groups_at(buf, 1, 10)), "orgBold"))
+  end)
+end)
+
+describe("ui.highlighter switched with setup() again", function()
+  local root = vim.fn.getcwd()
+  local function setup(highlighter)
+    require("org").setup({
+      org_directory = root .. "/tests/fixtures",
+      agenda_files = { root .. "/tests/fixtures/*.org" },
+      ui = { highlighter = highlighter },
+    })
+  end
+
+  after_each(function()
+    setup("parser")
+  end)
+
+  it("draws open org buffers with the new highlighter", function()
+    setup("parser")
+    local buf = org_buffer({ "* TODO H", "text *bold* a" }, { 1, 0 })
+    vim.cmd("redraw")
+    local marks, syn = groups_at(buf, 1, 6)
+    ok(vim.tbl_contains(marks, "orgBold"))
+    eq({}, syn)
+    setup("syntax")
+    vim.cmd("redraw")
+    marks, syn = groups_at(buf, 1, 6)
+    eq({}, marks)
+    ok(vim.tbl_contains(syn, "OrgBold"), vim.inspect(syn))
+    setup("parser")
+    vim.cmd("redraw")
+    marks, syn = groups_at(buf, 1, 6)
+    ok(vim.tbl_contains(marks, "orgBold"))
+    eq({}, syn)
   end)
 end)
 

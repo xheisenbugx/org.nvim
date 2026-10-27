@@ -7272,6 +7272,10 @@ tex syntax isn't included in them). To go back to the old engine while it is
 kept: >lua
     ui = { highlighter = "syntax" }
 <
+Calling `setup()` again with another `ui.highlighter` draws the org buffers
+already open with it. An error raised while drawing (a bug: please report
+it) is shown once, and the window it happened in is drawn without the
+highlighting while the error lasts.
                                                 *org-highlighter-spell*
 With 'spell' set, both highlighters check the same words, and `]s`, `[s`,
 |z=| and |spellbadword()| skip what the screen leaves out. Checked:

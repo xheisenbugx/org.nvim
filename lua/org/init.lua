@@ -79,6 +79,12 @@ function M.setup(opts)
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then
       if vim.b[b].org_attached then
         require("org.mappings").attach(b)
+        -- ui.highlighter changed: the syntax is defined again for it (the
+        -- decorations follow the new options by themselves)
+        local syntax = package.loaded["org.syntax"]
+        if syntax and syntax.stale(b) then
+          require("org.buffer").refresh(b)
+        end
       else
         require("org.buffer").attach(b)
       end
