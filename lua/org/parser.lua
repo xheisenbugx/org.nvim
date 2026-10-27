@@ -32,6 +32,7 @@ local M = {}
 ---@field drawers { name: string, start: integer, ["end"]: integer }[]
 ---@field logbook { start: integer, ["end"]: integer }|nil
 ---@field clocks { start: table, ["end"]: table|nil, minutes: integer|nil, line: integer }[]
+---@field naked_clock_minutes integer minutes of `CLOCK: => H:MM` lines without timestamps
 ---@field timestamps { date: table, line: integer, start_col: integer, end_col: integer, in_title?: boolean, in_property?: boolean }[]
 ---@field block_ranges { date: table, line: integer, start_col: integer, end_col: integer }[] active date
 --- ranges that are no timestamp objects (in a block other than a src block,
@@ -63,6 +64,7 @@ local SECTION_FIELDS = {
   drawers = true,
   logbook = true,
   clocks = true,
+  naked_clock_minutes = true,
   timestamps = true,
   block_ranges = true,
   first_inactive = true,
@@ -581,16 +583,24 @@ local function parse_property_drawer(lines, from, to)
   return drawer
 end
 
-M.CLOCK_CLOSED_PATTERN = "^%s*CLOCK:%s*(%[[^%]]+%])%-%-(%[[^%]]+%])%s*=>%s*(%-?%d+):(%d+)"
-M.CLOCK_OPEN_PATTERN = "^%s*CLOCK:%s*(%[[^%]]+%])%s*$"
+-- org-element-clock-line-re: "CLOCK:" (any case), blanks, then an inactive
+-- timestamp, a range with a duration or a range alone; nothing after it.
+-- Anything else (text after the duration, no blank after "CLOCK:") is a
+-- paragraph, whose time no clock sum counts.
+local CLOCK_PREFIX = "^%s*[Cc][Ll][Oo][Cc][Kk]:[ \t]+()"
+M.CLOCK_CLOSED_PATTERN = "^(%[[^%]]+%])%-%-(%[[^%]]+%])[ \t]+=>[ \t]+(%-?%d+):(%d%d)[ \t]*$"
+M.CLOCK_OPEN_PATTERN = "^(%[[^%]]+%])[ \t]*$"
 
 --- Parse a CLOCK line.
+---@param line string
 ---@return table|nil { start, end?, minutes? }
 function M.parse_clock_line(line)
-  if not line:find("CLOCK:", 1, true) then
+  local at = line:match(CLOCK_PREFIX)
+  if not at then
     return nil
   end
-  local s, e, h, m = line:match(M.CLOCK_CLOSED_PATTERN)
+  local rest = line:sub(at)
+  local s, e, h, m = rest:match(M.CLOCK_CLOSED_PATTERN)
   if s then
     local ds, de = date.parse(s), date.parse(e)
     if not ds or not de then
@@ -603,14 +613,14 @@ function M.parse_clock_line(line)
     return { start = ds, ["end"] = de, minutes = mins }
   end
   -- closed clock without "=>" duration
-  s, e = line:match("^%s*CLOCK:%s*(%[[^%]]+%])%-%-(%[[^%]]+%])%s*$")
+  s, e = rest:match("^(%[[^%]]+%])%-%-(%[[^%]]+%])[ \t]*$")
   if s then
     local ds, de = date.parse(s), date.parse(e)
     if ds and de then
       return { start = ds, ["end"] = de, minutes = date.elapsed_minutes(ds, de) }
     end
   end
-  s = line:match(M.CLOCK_OPEN_PATTERN)
+  s = rest:match(M.CLOCK_OPEN_PATTERN)
   if s then
     local ds = date.parse(s)
     if ds then
@@ -618,6 +628,16 @@ function M.parse_clock_line(line)
     end
   end
   return nil
+end
+
+--- The minutes of a "naked" clock line, `CLOCK: => H:MM` with no
+--- timestamps, which org-clock-sum adds to the entry whatever the report's
+--- time range (its regexp, not org-element's: text after the time is fine).
+---@param line string
+---@return integer|nil
+function M.parse_naked_clock(line)
+  local h, m = line:match("^%s*[Cc][Ll][Oo][Cc][Kk]:[ \t]*=>[ \t]+(%d+):(%d+)")
+  return h and tonumber(h) * 60 + tonumber(m) or nil
 end
 
 M.parse_planning = parse_planning
@@ -818,6 +838,7 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
   hl.property_base = {}
   hl.drawers = {}
   hl.clocks = {}
+  hl.naked_clock_minutes = 0
   hl.timestamps = {}
   hl.block_ranges = {}
 
@@ -973,7 +994,7 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
       elseif not (line:find("^%s*[#:]") and no_objects(line)) then
         -- text, in a drawer too (LOGBOOK notes, :org-gcal:); a CLOCK
         -- line's timestamps are the clock's
-        local is_clock = line:find("CLOCK:", 1, true) and line:match("^%s*CLOCK:")
+        local is_clock = line:find(":", 1, true) and M.parse_clock_line(line)
         if not (is_clock and in_drawer) then
           for _, item in ipairs(object_stamps(line)) do
             if not item.date.active and not hl.first_inactive and not is_clock then
@@ -997,10 +1018,12 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
     end
     -- a CLOCK line in a block or a LaTeX environment is text, not a clock
     -- (org-clock-sum only counts clock elements)
-    local clock = i > verbatim_end and line:find("CLOCK:", 1, true) and M.parse_clock_line(line)
+    local clock = i > verbatim_end and line:find(":", 1, true) and M.parse_clock_line(line)
     if clock then
       clock.line = i
       hl.clocks[#hl.clocks + 1] = clock
+    elseif i > verbatim_end and line:find("=>", 1, true) then
+      hl.naked_clock_minutes = hl.naked_clock_minutes + (M.parse_naked_clock(line) or 0)
     end
     i = i + 1
   end
@@ -1841,6 +1864,8 @@ end
 function Headline:clocked_minutes(from_min, to_min, include_children)
   local total = 0
   local function sum(h)
+    -- a naked `CLOCK: => H:MM` counts whatever the range (org-clock-sum)
+    total = total + (h.naked_clock_minutes or 0)
     for _, c in ipairs(h.clocks) do
       if c.minutes then
         local s = c.start:minutes()

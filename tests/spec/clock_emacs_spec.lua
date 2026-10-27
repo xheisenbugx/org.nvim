@@ -939,3 +939,51 @@ describe("clock sums with inline tasks (Emacs)", function()
     }, vim.list_slice(buf_lines(buf), 3, 11))
   end)
 end)
+
+describe("clock line recognition (Emacs)", function()
+  -- Org 9.8.10: org-element-clock-line-re (any case, nothing after the
+  -- duration, a blank after CLOCK:) decides what is a clock; org-clock-sum
+  -- also adds a naked `CLOCK: => H:MM` whatever the line holds after it.
+  -- Minutes below are the :org-clock-minutes org-clock-sum puts on each.
+  it("sums the clocks org-element and org-clock-sum recognise", function()
+    local buf = org_buffer({
+      "* A",
+      "CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13] =>  0:13 extra",
+      "* B",
+      "clock: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:17] =>  0:17",
+      "* C",
+      "CLOCK: => 2:00 trailing",
+      "* D",
+      "clock: => 1:00",
+      "* G",
+      "  CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:20]   =>  0:20   ",
+      "* H",
+      "CLOCK: =>  0:05",
+      "* I",
+      "CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13]",
+      "* K",
+      "CLOCK: [2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13] junk",
+      "* L",
+      "CLOCK:[2026-09-29 Tue 10:00]--[2026-09-29 Tue 10:13] =>  0:13",
+      "* M",
+      "CLOCK: =>2:00",
+    }, { 1, 0 })
+    local got = {}
+    for _, hl in ipairs(files.get_buffer(buf).headlines) do
+      got[#got + 1] = hl.title .. "=" .. clock.sum_minutes(hl) .. "/" .. hl:clocked_minutes(nil, nil, true)
+    end
+    eq({ "A=0/0", "B=17/17", "C=120/120", "D=60/60", "G=20/20", "H=5/5", "I=13/13", "K=0/0", "L=0/0", "M=0/0" }, got)
+  end)
+
+  it("counts a naked clock in a clock report whatever its range", function()
+    local buf = org_buffer({
+      "#+BEGIN: clocktable :scope file :maxlevel 1 :block 2026-09-29",
+      "#+END:",
+      "* Task",
+      "CLOCK: [2026-09-29 Tue 12:00]--[2026-09-29 Tue 12:01] =>  0:01",
+      "CLOCK: => 2:00",
+    }, { 1, 0 })
+    clock.clock_report()
+    ok(vim.tbl_contains(buf_lines(buf), "| Task         | 2:01   |"), table.concat(buf_lines(buf), "\n"))
+  end)
+end)

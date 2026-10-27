@@ -1843,6 +1843,11 @@ Clock lines go into the LOGBOOK drawer: >org
     CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 11:30] =>  1:30
     :END:
 <
+As in Emacs, a clock line has nothing after its duration (`CLOCK:` in
+any case); a line with text after it is a paragraph and its time is not
+counted. A naked `CLOCK: => 2:00` adds two hours to the entry's clock
+sums, whatever their time range.
+
 The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
 for none, a number N for "once there are N clock lines"), then
 `clock.into_drawer`, then the log drawer. With `log_note_clock_out` (or
@@ -9254,7 +9259,10 @@ Differences from Emacs:
   own input, so time spent in other applications counts as idle there.
   The mode line entry is the |org-api| statusline component; a click
   handler pops up the clock menu (|org-clock-menu|). Timers use counts, so a countdown's C-u (default timer)
-  has no count form: a count is always minutes.
+  has no count form: a count is always minutes. A naked clock line
+  (`CLOCK: => 2:00`, no timestamps) inside a source or example block is
+  text, not time (Emacs's org-clock-sum finds it with a regexp and adds
+  it to the entry).
 - Citations (|org-cite|): keys are chosen with `vim.ui.select`, and
   cancelling it is Emacs' empty input; `basic_complete_key_crm_separator`
   is a Vim regexp read at an `input()` prompt (Emacs uses

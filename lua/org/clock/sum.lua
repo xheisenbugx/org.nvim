@@ -77,7 +77,8 @@ local function clock_sum(roots, ts, te, pred)
   end
   local ts_s, te_s = clip_bounds(ts, te)
   local function own(hl)
-    local t = 0
+    -- org-clock-sum adds a naked `CLOCK: => H:MM` whatever the range
+    local t = hl.naked_clock_minutes or 0
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
         t = t + clipped_clock_minutes(c.start, c["end"], ts_s, te_s)
@@ -131,7 +132,7 @@ end
 ---@param own_only? boolean exclude children
 function M.sum_minutes(hl, from_min, to_min, own_only)
   if own_only then
-    local total = 0
+    local total = hl.naked_clock_minutes or 0
     local from_s, to_s = clip_bounds(from_min, to_min)
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
