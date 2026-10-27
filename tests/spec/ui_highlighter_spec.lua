@@ -51,12 +51,19 @@ describe("ui.highlighter = parser", function()
     for c = 1, 31 do
       eq(0, vim.fn.synconcealed(1, c)[1])
     end
-    eq({ "conceal@25-27", "conceal@4-21" }, marks(buf, 0))
+    -- (the link's face is a mark too: org.ui.highlight.object)
+    local function hidden()
+      return vim.tbl_filter(function(m)
+        return m:find("^conceal@") ~= nil
+      end, marks(buf, 0))
+    end
+    eq({ "conceal@25-27", "conceal@4-21" }, hidden())
+    ok(has(marks(buf, 0), "orgLink@4-27"))
     -- org-toggle-link-display: shown literally
     require("org.links").toggle_link_display()
-    eq({}, marks(buf, 0))
+    eq({}, hidden())
     require("org.links").toggle_link_display()
-    eq({ "conceal@25-27", "conceal@4-21" }, marks(buf, 0))
+    eq({ "conceal@25-27", "conceal@4-21" }, hidden())
   end)
 
   it("draws markup past 'synmaxcol' and on very long lines", function()

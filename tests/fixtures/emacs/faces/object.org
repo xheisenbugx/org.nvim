@@ -1,0 +1,112 @@
+Links, footnotes, targets, macros, export snippets and inline src blocks
+for the faces parity fixture (the object family): each paragraph is a
+case, and the blank lines keep one from going on into the next.
+
+* Links [[https://orgmode.org][in a headline]] and https://x.org :tag:
+Bracket [[https://orgmode.org][desc]], [[target]] and [[file:a.org]].
+
+Plain https://orgmode.org/manual/, mailto:me@x.org, file:a.org. and
+doi:10.1000/182; (https://x.org/a_(b)) and https://x.org/a(b)c.
+
+Angle <https://orgmode.org/a b> and <file:my notes.org> and <nope:x>.
+
+Plain after - and _: text-https://a.org _https://b.org xhttps://c.org.
+
+A link over a line break [[https://orgmode.org][a long
+description]] here.
+
+In =verbatim [[https://x.org]]= and ~code https://y.org~ too.
+
+# [[https://orgmode.org][in a comment]] and https://x.org
+#+TITLE: Title [[https://orgmode.org][in the title]]
+#+NAME: https://x.org
+
+: fixed [[https://orgmode.org][in fixed width]] https://x.org
+
+| [[https://orgmode.org][in a table]] | https://x.org |
+
+#+begin_quote
+Quoted [[https://orgmode.org][link]] and https://x.org.
+#+end_quote
+
+#+begin_src sh
+echo https://x.org [[https://orgmode.org][in src]]
+#+end_src
+
+* Radio targets
+This defines <<<Radio Word>>> and <<<two words>>> here.
+
+A radio word, RADIO WORD and Radio
+Word over a line; radio words and xradio word are not; two  words are.
+
+A =<<<not radio>>>= in verbatim; not radio here.
+
+* Footnotes
+Text[fn:1], named[fn:name] and inline[fn:: an /inline/ note] here.
+
+Nested[fn:: with [brackets] and (parens) inside] and[fn:n2: named inline].
+
+A string[fn:: with "a ] quote" in it] and an angle[fn:: a > b] here.
+
+Unclosed[fn:: never closed
+and on the next line too.
+
+Link [[fn:1]] and \ref[fn:2] and [fn:bad label] and [fn:] here.
+
+[fn:1] A definition at the start of a line.
+  [fn:2] An indented one.
+[fn:3]: odd and [fn:4] later.
+
+# [fn:5] in a comment
+: [fn:6] in fixed width
+
+#+begin_comment
+[fn:7] in a comment block
+#+end_comment
+
+* Targets
+A <<target>>, <<<radio>>>, << spaced>>, <<spaced >> and <<a<b>> and <<x>>>.
+
+| <<cell>> | =<<= | @<<$>> |
+
+* Macros
+A {{{macro}}}, {{{macro(a, b)}}} and {{{1bad}}} and {{{m-x_y(z)}}}.
+
+A {{{macro(over
+a line)}}} and done.
+
+A {{{open
+with no end
+
+and later {{{after}}} it.
+
+* Export snippets
+A @@html:<b>@@ bold @@html:</b>@@ and @@latex:\x@@ and @@HTML:no@@.
+
+A @@html:over
+a line@@ no.
+
+* Inline src blocks
+Run src_sh{echo hi} and src_python[:results raw]{print(1)} now.
+
+Bare src_sh and src_sh[:x] and SRC_sh{x} and xsrc_sh{x} and _src_sh{x}.
+
+Nested src_sh{a {b} c} and empty src_sh{} and src_sh{over
+a line} done.
+
+A link in src_sh{https://x.org [fn:1]} body.
+
+# a comment with src_sh{x} in it
+#+NAME: src_sh{y}
+
+#+begin_src sh
+echo src_sh{z} and <<t>> {{{m}}}
+#+end_src
+
+#+begin_quote
+# src_sh{q} in a quote's comment, [fn:1] and <<t>>
+#+end_quote
+
+* Line breaks
+A line that ends with a break \\
+and the next.

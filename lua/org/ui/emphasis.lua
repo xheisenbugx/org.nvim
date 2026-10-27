@@ -380,15 +380,18 @@ local PUNCT = set_of([=[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]=])
 --- plain link that runs into a bracket link takes it in), as the byte
 --- ranges of bracket links descriptive display hides: "[[target][" and
 --- "]]", or "[[" and "]]". A link whose text holds the start of a
---- paragraph after a line break isn't one.
+--- paragraph after a line break isn't one. The second result: the links
+--- found, as { first byte, last byte, style } ("bracket", "angle" or
+--- "plain"), for org.ui.highlight.object.
 ---@param s string
 ---@param types table<string, boolean>
 ---@param line_of fun(i: integer): integer
 ---@param line_start fun(l: integer): integer
----@return integer[][]
+---@return integer[][], { [1]: integer, [2]: integer, [3]: string }[]
 local function links(s, types, line_of, line_start)
   local n = #s
   local out = {}
+  local found = {} ---@type { [1]: integer, [2]: integer, [3]: string }[]
   local find_bracket = finder(s, "[[")
   local find_angle = finder(s, "<")
   local find_colon = finder(s, ":")
@@ -590,6 +593,7 @@ local function links(s, types, line_of, line_start)
       e = plain(next_p_path)
     end
     if e and one_paragraph(p, e) then
+      found[#found + 1] = { p, e, p == next_b and "bracket" or p == next_a and "angle" or "plain" }
       for _, h in ipairs(hide or {}) do
         out[#out + 1] = h
       end
@@ -598,8 +602,9 @@ local function links(s, types, line_of, line_start)
       i = p + 1
     end
   end
-  return out
+  return out, found
 end
+M._links = links
 
 --- The inline src blocks of `s` (src_LANG[HEADERS]{BODY}), drawn natively
 --- in Emacs: no emphasis faces on their braces and body, byte -> true.
@@ -788,6 +793,8 @@ local function emphasis(s, line_of, line_start, line_text)
   end
   return out
 end
+
+M._emphasis = emphasis
 
 ---@class org.ui.emphasis.MarksOpts
 ---@field hide_markers boolean ui.hide_emphasis_markers
