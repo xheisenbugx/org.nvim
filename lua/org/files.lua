@@ -117,6 +117,15 @@ function M.cached_buffer(bufnr)
   end
 end
 
+--- The last parse of a buffer, even of older text (nil if it was never
+--- parsed): for settings read when Org starts, like #+STARTUP: odd.
+---@param bufnr integer
+---@return org.File|nil
+function M.last_buffer(bufnr)
+  local c = buf_cache[bufnr]
+  return c and c.file
+end
+
 --- The cached parse of the file at `path` (expanded), when it is still
 --- that of the file whose fs_stat is `st`.
 ---@param path string

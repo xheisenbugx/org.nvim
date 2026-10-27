@@ -50,6 +50,20 @@ describe("screen snapshot", function()
     "Body with *bold*, /italic/ and =verbatim=.",
   }
 
+  it("inline tasks with #+STARTUP: odd (29 stars; 15 stars is a level 8 headline)", function()
+    new({ inlinetask_min_level = 15 }, 60, 8)
+    screen:org({
+      "#+STARTUP: odd",
+      "* Level one",
+      string.rep("*", 15) .. " TODO Level eight",
+      string.rep("*", 29) .. " TODO Task :t:",
+      "Task body.",
+      string.rep("*", 29) .. " END",
+      "Text.",
+    })
+    screen:expect("inlinetask_odd")
+  end)
+
   it("emphasis next to headline stars", function()
     new()
     screen:org(EMPHASIS)

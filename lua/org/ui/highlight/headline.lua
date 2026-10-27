@@ -351,7 +351,7 @@ function M.paint(ctx)
     local line = lines[i]
     if byte(line, 1) == STAR then
       if not o then
-        local min_inline = require("org.parser").inlinetask_min_level()
+        local min_inline = require("org.parser").inlinetask_min_level(ctx.file or ctx.bufnr)
         o = {
           todo = ctx.file and ctx.file.settings and ctx.file.settings.todo,
           odd = odd_levels(ctx),

@@ -196,16 +196,21 @@ end
 ---@param stack? integer[] the stars of the headlines containing `lines[1]`
 --- (outermost first)
 ---@param at_eof? boolean whether `lines` ends the buffer (default true)
+---@param min_inline? integer|false the fewest stars of an inline task
+--- (default: the current buffer's, parser.inlinetask_min_level; false:
+--- inline tasks are off)
 ---@return table levels
 ---@return table regions list of {start, end, kind}
 ---@return table stars line -> stars of each outline headline
-function M.compute(lines, stack, at_eof)
+function M.compute(lines, stack, at_eof, min_inline)
   local levels, regions, stars = {}, {}, {}
   stack = stack and vim.list_slice(stack) or {}
   local cur = #stack
   local n = #lines
   local depth, item_start = item_depths(lines)
-  local min_inline = parser.inlinetask_min_level()
+  if min_inline == nil then
+    min_inline = parser.inlinetask_min_level()
+  end
   local i = 1
   while i <= n do
     local line = lines[i]
@@ -331,11 +336,12 @@ end
 local tracked = {} -- bufnr -> true while on_bytes reports its changes
 
 --- Options the levels depend on; a change forces a full recompute.
-local function signature()
+local function signature(bufnr)
   return table.concat({
     tostring(config.opts.cycle_include_plain_lists),
     tostring(config.opts.cycle_separator_lines),
-    tostring(parser.inlinetask_min_level()),
+    -- (with odd levels, from the buffer's #+STARTUP)
+    tostring(parser.inlinetask_min_level(bufnr)),
   }, "\0")
 end
 
@@ -442,7 +448,7 @@ local function on_bytes(_, bufnr, tick, start_row, start_col, _, old_rows, old_c
   -- The fewest stars of a headline the edit removed, added or changed:
   -- the depth of the headlines after it can change down to the next one
   -- with as few stars (see `update`).
-  local min_inline = parser.inlinetask_min_level()
+  local min_inline = parser.inlinetask_min_level(bufnr)
   local mstars = c.mstars or math.huge
   local new_lines = vim.api.nvim_buf_get_lines(
     bufnr,
@@ -584,7 +590,7 @@ end
 --- Recompute the levels of the sections around the dirty lines.
 local function update(bufnr, c)
   local n = c.n
-  local min_inline = parser.inlinetask_min_level()
+  local min_inline = parser.inlinetask_min_level(bufnr)
   local ds = math.max(1, math.min(c.dirty[1], n))
   local de = math.max(ds, math.min(c.dirty[2], n))
   local mstars = c.mstars
@@ -609,7 +615,8 @@ local function update(bufnr, c)
       he = headline_below(bufnr, he, n, min_inline)
     end
   end
-  local part, _, pstars = M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false), stack_at(c, hs), he >= n)
+  local part, _, pstars =
+    M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false), stack_at(c, hs), he >= n, min_inline or false)
   local levels, stars = c.levels, c.stars
   -- the rows whose levels changed, whose folds `flush_stale` updates
   local cs, ce
@@ -650,7 +657,7 @@ local function get(bufnr)
   if c and c.tick == tick then
     return c
   end
-  local sig = signature()
+  local sig = signature(bufnr)
   if
     c
     and not c.late
@@ -667,7 +674,7 @@ local function get(bufnr)
   end
   track(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local levels, regions, stars = M.compute(lines)
+  local levels, regions, stars = M.compute(lines, nil, nil, parser.inlinetask_min_level(bufnr) or false)
   local fresh = { tick = tick, expect = tick, n = #lines, levels = levels, stars = stars, sig = sig }
   if c and not c.dirty and c.sig == sig then
     -- after an undo or a redo: the folds of the rows between the levels
@@ -801,11 +808,11 @@ local function regions(bufnr, s, e)
   s, e = math.max(1, s or 1), math.min(n, e or n)
   if s > 1 or e < n then
     -- only the sections around the range, like `update`
-    local min_inline = parser.inlinetask_min_level()
+    local min_inline = parser.inlinetask_min_level(bufnr)
     local hs = headline_above(bufnr, s, min_inline)
     local he = headline_below(bufnr, e, n, min_inline)
     if hs > 1 or he < n then
-      local _, r = M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false), nil, he >= n)
+      local _, r = M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false), nil, he >= n, min_inline or false)
       for _, reg in ipairs(r) do
         reg.start = reg.start + hs - 1
         reg["end"] = reg["end"] and reg["end"] + hs - 1
@@ -813,7 +820,8 @@ local function regions(bufnr, s, e)
       return r
     end
   end
-  local _, r = M.compute(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+  local _, r =
+    M.compute(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), nil, nil, parser.inlinetask_min_level(bufnr) or false)
   c.regions, c.regions_tick = r, c.tick
   return r
 end

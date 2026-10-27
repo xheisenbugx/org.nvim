@@ -151,6 +151,10 @@ function export_as(backend, lines, opts)
   local file0 = parser_mod.parse(lines, filename)
   local todo = file0.settings.todo
   M.display_custom_times = custom_times_p(opts.bufnr, file0)
+  -- the fewest stars of an inline task: org-inlinetask-min-level, 2 * that
+  -- - 1 with odd levels only (org-element--current-element)
+  local min_inline = c.inlinetask_min_level or 15
+  min_inline = parser_mod.odd_levels(file0) and 2 * min_inline - 1 or min_inline
   local hooks = c.hooks or {}
   -- before-processing hook (org-export-before-processing-functions)
   for _, f in ipairs(M.as_list(hooks.before_processing)) do
@@ -275,7 +279,7 @@ function export_as(backend, lines, opts)
     end
     local mopts = {
       todo = todo,
-      inlinetask_min_level = c.inlinetask_min_level or 15,
+      inlinetask_min_level = min_inline,
       alpha = require("org.lists").opt("allow_alphabetical"),
       term = ({ ["."] = "%.", [")"] = "%)" })[require("org.lists").opt("ordered_item_terminator")],
       parsed_keywords = parsed,
@@ -360,7 +364,7 @@ function export_as(backend, lines, opts)
     macro = expander,
     no_final_newline = opts.no_final_newline,
     footnote_section = c.footnote_section or require("org.config").opts.footnote_section,
-    inlinetask_min_level = c.inlinetask_min_level or 15,
+    inlinetask_min_level = min_inline,
     alpha = require("org.lists").opt("allow_alphabetical"),
     term = ({ ["."] = "%.", [")"] = "%)" })[require("org.lists").opt("ordered_item_terminator")],
   }

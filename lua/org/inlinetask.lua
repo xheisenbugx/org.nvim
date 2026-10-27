@@ -22,23 +22,22 @@ local utils = require("org.utils")
 
 local M = {}
 
---- The minimum inline task level, or nil when inline tasks are off.
-function M.min_level()
-  return parser.inlinetask_min_level()
+--- The fewest stars of an inline task in buffer `bufnr` (default: the
+--- current one), or nil when inline tasks are off: `inlinetask_min_level`,
+--- or 2 * that - 1 with odd levels only (org-inlinetask-outline-regexp).
+---@param bufnr? integer
+function M.min_level(bufnr)
+  return parser.inlinetask_min_level(bufnr)
 end
 
---- The number of stars of a new inline task.
+--- The number of stars of a new inline task (org-inlinetask-insert-task).
 local function stars_count()
-  local min = M.min_level()
-  if require("org.structure").odd_levels_only() then
-    return 2 * min - 1
-  end
-  return min
+  return M.min_level()
 end
 
 --- The inline task containing `lnum`, or nil.
 function M.task_at(bufnr, lnum)
-  if not M.min_level() then
+  if not M.min_level(bufnr) then
     return nil
   end
   local hl = files.get_buffer(bufnr or 0):headline_at(lnum)
@@ -95,7 +94,10 @@ end
 --- Promote (-1) or demote (1) the inline task `hl` and its END line
 --- (org-inlinetask-promote / org-inlinetask-demote).
 function M.change_level(bufnr, hl, delta)
-  local min = M.min_level()
+  -- (Emacs compares the new stars with org-inlinetask-min-level itself,
+  -- so with odd levels it turns the task into a headline: see
+  -- org-differences)
+  local min = M.min_level(bufnr)
   local step = require("org.structure").level_increment(bufnr)
   local new = hl.level + delta * step
   if new < min then

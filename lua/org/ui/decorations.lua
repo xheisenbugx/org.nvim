@@ -358,7 +358,7 @@ local function in_ranges(ranges, pos)
 end
 
 --- Headline numbering (org-num-mode): row -> text.
-local function numbering(lines, ui)
+local function numbering(lines, ui, bufnr)
   local out = {}
   local nums
   local skip_level
@@ -366,7 +366,7 @@ local function numbering(lines, ui)
   local parser = require("org.parser")
   local footnote_section = cfg.footnote_section
   for i, line in ipairs(lines) do
-    local level = parser.outline_level(line)
+    local level = parser.outline_level(line, bufnr)
     local p = level and parser.parse_headline_line(line)
     if level and p then
       local skip = false
@@ -543,7 +543,7 @@ function M.compute(bufnr, first, last, ui)
     end
     r[#r + 1] = { col, opts, persist }
   end
-  local min_inline = require("org.parser").inlinetask_min_level()
+  local min_inline = require("org.parser").inlinetask_min_level(bufnr)
   local src_faces = src_face_groups(ui)
   local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   local level, in_block, src_lang = 0, false, nil
@@ -560,7 +560,7 @@ function M.compute(bufnr, first, last, ui)
     local tick = vim.api.nvim_buf_get_changedtick(bufnr)
     local nc = num_cache[bufnr]
     if not nc or nc.tick ~= tick or nc.ui ~= ui then
-      nc = { tick = tick, ui = ui, nums = numbering(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), ui) }
+      nc = { tick = tick, ui = ui, nums = numbering(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), ui, bufnr) }
       num_cache[bufnr] = nc
     end
     nums = nc.nums
