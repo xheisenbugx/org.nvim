@@ -750,6 +750,36 @@ describe("agenda levels with #+STARTUP: odd", function()
   end)
 end)
 
+describe("agenda diary sexp entries sorting", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10: org-agenda-get-sexps sets no priority or urgency, so a
+  -- sexp entry sorts as 0, after an upcoming deadline and after the time
+  -- grid line of its time
+  it("gives sexp entries urgency 0", function()
+    open({
+      "* Sexps",
+      "%%(org-cyclic 1 2020 1 1) 10:00 Daily with time",
+      "%%(org-cyclic 1 2020 1 1) Daily",
+      "* TODO Soon",
+      "  DEADLINE: " .. ts(1),
+    }, {
+      agenda = {
+        time_grid = { daily = true, require_timed = false, times = { 1000 } },
+        show_current_time_in_grid = false,
+      },
+    })
+    eq({
+      "              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
+      "  skip:       10:00 ┄┄┄┄┄ Daily with time",
+      "  skip:       In   1 d.:  TODO Soon",
+      "  skip:       Daily",
+    }, vim.list_slice(buf_text(), 3))
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()

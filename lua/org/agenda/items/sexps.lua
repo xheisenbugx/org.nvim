@@ -127,6 +127,9 @@ function shared.add_sexps(ctx, hl, file, first, last)
             }
             local item = hl and new_item(hl, fields) or file_item(file, i, fields)
             item.todo, item.priority, item.done = nil, nil, false
+            -- org-agenda-get-sexps gives no priority or urgency (0 when
+            -- sorting), whatever the entry's priority cookie
+            item.prio, item.urgency = 0, 0
             set_time(item, nil, acfg)
             add(d, item)
           end
