@@ -229,6 +229,8 @@ end
 ---@class org.ui.emphasis.Block
 ---@field name string
 ---@field verbatim boolean src, example or export (nothing drawn in it)
+---@field row? integer 0-based row of its begin line (when found above the lines drawn)
+---@field line? string its begin line (likewise)
 
 ---@class org.ui.emphasis.Role
 ---@field block org.ui.emphasis.Block the block the line is in
@@ -799,6 +801,7 @@ M._emphasis = emphasis
 ---@class org.ui.emphasis.MarksOpts
 ---@field hide_markers boolean ui.hide_emphasis_markers
 ---@field conceal_links boolean ui.conceal_links (descriptive links)
+---@field reveal? boolean hide nothing, the markers that would be hidden drawn as text (the body of an org src block: Emacs copies only the faces of the Org buffer it fontifies it in)
 ---@field block? org.ui.emphasis.Block|false the block open before `lines`
 ---@field prev? string the line before `lines`
 ---@field closed_after? fun(name: string): boolean (see `M.kinds`)
@@ -912,6 +915,10 @@ function M.marks(lines, row0, first, last, opts, rows)
         hidden[x] = true
       end
     end
+  end
+
+  if opts.reveal then
+    hidden = {}
   end
 
   -- marks on the rows asked for

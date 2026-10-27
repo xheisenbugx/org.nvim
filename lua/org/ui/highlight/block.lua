@@ -83,7 +83,13 @@ local function drawn_by(lang)
     v = false
     if engine ~= "syntax" and ts.ts_lang_of_syntax(syn) then
       v = "treesitter"
-    elseif engine ~= "treesitter" and syn ~= "" and syn ~= "org" and syn:match("^[%w_]+$") and has_syntax(syn) then
+    elseif
+      engine ~= "treesitter"
+      and syn ~= ""
+      and syn:lower() ~= "org"
+      and syn:match("^[%w_]+$")
+      and has_syntax(syn)
+    then
       v = "syntax"
     end
     drawn_cache[syn] = v
@@ -167,8 +173,7 @@ local function paint_blocks(ctx)
         end
       end
       if not begin and roles[1] and roles[1].block == block and roles[1].role ~= "begin" then
-        local from = math.max(0, ctx.row0 - BLOCK_LOOK)
-        local above = vim.api.nvim_buf_get_lines(ctx.bufnr, from, ctx.row0, false)
+        local above = ctx.get_lines(ctx.row0 - BLOCK_LOOK, ctx.row0)
         for j = #above, 1, -1 do
           local name, begins = E.block_line(above[j])
           if name == block.name and begins then
@@ -475,9 +480,9 @@ local function paint_latex(ctx, o)
     v = false
     local needle = "\\end{" .. name .. "}"
     local row = ctx.row0 + n
-    local stop = math.min(vim.api.nvim_buf_line_count(ctx.bufnr), row + LOOK)
+    local stop = math.min(ctx.bottom, row + LOOK)
     while row < stop do
-      local chunk = vim.api.nvim_buf_get_lines(ctx.bufnr, row, math.min(stop, row + 256), false)
+      local chunk = ctx.get_lines(row, math.min(stop, row + 256))
       local found = nil ---@type boolean?
       for _, line in ipairs(chunk) do
         if E.star_line(line) then
@@ -518,10 +523,10 @@ local function paint_latex(ctx, o)
   local p = 1
   -- An environment open before the lines: its begin line is above them,
   -- after the headline above.
-  if o.fragments and ctx.row0 > 0 and not star[1] then
+  if o.fragments and ctx.row0 > ctx.top and not star[1] then
     -- (the lines after the headline above: read up to it only)
-    local h = H.star_above(ctx.bufnr, ctx.row0, LOOK)
-    local above = vim.api.nvim_buf_get_lines(ctx.bufnr, h and h + 1 or math.max(0, ctx.row0 - LOOK), ctx.row0, false)
+    local h = ctx.star_above(ctx.row0, LOOK)
+    local above = ctx.get_lines(h and h + 1 or ctx.row0 - LOOK, ctx.row0)
     local open ---@type string?
     for k = #above, 1, -1 do
       local line = above[k]

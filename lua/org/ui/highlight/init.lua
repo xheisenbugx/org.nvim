@@ -22,6 +22,11 @@
 --- same way): the line of an element (`M.PRIO.element`) under its parts
 --- (`M.PRIO.part`) under the objects in it (`M.PRIO.object`) under
 --- emphasis (101 and up).
+---
+--- The body of an org src block (`M.org_body`) is drawn by the same parts
+--- as a text of its own, the way Emacs fontifies it in an Org buffer that
+--- holds only the body (org-src-font-lock-fontify-block): its lines as
+--- typed (",* x" is no headline), nothing hidden, over the block's orgBlock.
 
 -- The parts (and this module) are not compiled by the JIT: they ran 3 to 6
 -- times faster interpreted (the marks of a screen of 10,000 headlines in
@@ -69,48 +74,65 @@ local LOOKBACK = 3000
 local PARAGRAPH = 50
 
 ---@class org.ui.highlight.Window
----@field lines string[] buffer lines from `row0` on
+---@field lines string[] lines of the text from `row0` on
 ---@field row0 integer 0-based row of lines[1]
 ---@field block org.ui.emphasis.Block|false the block open before lines[1]
 ---@field prev? string the line before lines[1] (nil at the top)
 ---@field closed_after fun(name: string): boolean whether a block's end line follows the lines
+---@field end_after fun(name: string): integer? the row of the first line after the lines that ends a block `name` (its end line or a line of stars; LOOKBACK lines on at most, then the row the search stopped at), nil when none does
 
--- What the lookbacks and lookaheads of the scans found, per buffer at one
+---@class org.ui.highlight.Text
+---@field top integer 0-based row of the text's first line
+---@field bottom integer 0-based row after its last line
+---@field get fun(s: integer, e: integer): string[] the lines of rows [s, e) (within [top, bottom))
+---@field memo org.ui.highlight.Memo what its lookbacks and lookaheads found
+
+---@class org.ui.highlight.Memo
+---@field tick? integer
+---@field star table<integer, integer|false>
+---@field block table<integer, org.ui.emphasis.Block|false>
+---@field ends table<string, integer|false>
+
+-- What the lookbacks and lookaheads of the scans of a buffer found, at one
 -- changedtick. A redraw scans one window per range of rows drawn (one per
 -- closed fold in an overview), so the same lines would be read again for
 -- each range otherwise, up to LOOKBACK of them.
-local memos = {} ---@type table<integer, { tick: integer, star: table<integer, integer|false>, block: table<integer, org.ui.emphasis.Block|false>, closed: table<string, boolean> }>
+local memos = {} ---@type table<integer, org.ui.highlight.Memo>
+
+---@return org.ui.highlight.Memo
+local function new_memo(tick)
+  return { tick = tick, star = {}, block = {}, ends = {} }
+end
 
 local function memo_of(bufnr)
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
   local m = memos[bufnr]
   if not m or m.tick ~= tick then
-    m = { tick = tick, star = {}, block = {}, closed = {} }
+    m = new_memo(tick)
     memos[bufnr] = m
   end
   return m
 end
 
 --- The 0-based row of the nearest line of stars (`E.star_line`) above row
---- `row` of `bufnr`, `max` lines up at most, or false. Read back in chunks
---- (the headline above is usually near), kept per changedtick.
----@param bufnr integer
+--- `row` of `text`, `max` lines up at most (and within it), or false. Read
+--- back in chunks (the headline above is usually near).
+---@param text org.ui.highlight.Text
 ---@param row integer
 ---@param max integer
 ---@return integer|false
-function M.star_above(bufnr, row, max)
-  local m = memo_of(bufnr)
+local function star_above(text, row, max)
   local key = row * 8192 + max
-  local v = m.star[key]
+  local v = text.memo.star[key]
   if v ~= nil then
     return v
   end
   v = false
-  local stop = math.max(0, row - max)
+  local stop = math.max(text.top, row - max)
   local e, size = row, 64
   while e > stop do
     local s = math.max(stop, e - size)
-    local chunk = vim.api.nvim_buf_get_lines(bufnr, s, e, false)
+    local chunk = text.get(s, e)
     for k = #chunk, 1, -1 do
       if E.star_line(chunk[k]) then
         v = s + k - 1
@@ -122,70 +144,137 @@ function M.star_above(bufnr, row, max)
     end
     e, size = s, math.min(2 * size, 1024)
   end
-  m.star[key] = v
+  text.memo.star[key] = v
   return v
 end
 
---- The block open at the start of row `row` (0-based): from the headline
---- above (or LOOKBACK lines up).
+--- The block open at the start of row `row` (0-based) of `text`: from the
+--- headline above (or LOOKBACK lines up).
+---@param text org.ui.highlight.Text
 ---@return org.ui.emphasis.Block|false
-local function block_before(bufnr, row)
-  local m = memo_of(bufnr)
-  local v = m.block[row]
+local function block_before(text, row)
+  local v = text.memo.block[row]
   if v ~= nil then
     return v
   end
-  local h = M.star_above(bufnr, row, LOOKBACK)
-  local from = h and h + 1 or math.max(0, row - LOOKBACK)
+  local h = star_above(text, row, LOOKBACK)
+  local from = h and h + 1 or math.max(text.top, row - LOOKBACK)
   local block = false ---@type org.ui.emphasis.Block|false
-  for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, from, row, false)) do
+  for j, line in ipairs(text.get(from, row)) do
     local name, begins = E.block_line(line)
     if name then
       if block and not begins and name == block.name then
         block = false
       elseif not block and begins then
         -- (whether it has an end line is found out by `E.kinds`)
-        block = { name = name, verbatim = E.VERBATIM_BLOCKS[name] == true }
+        block = { name = name, verbatim = E.VERBATIM_BLOCKS[name] == true, row = from + j - 1, line = line }
       end
     end
   end
-  m.block[row] = block
+  text.memo.block[row] = block
   return block
 end
 
---- Whether a line of stars, or the end line of block `name`, follows row
---- `stop` (0-based, excluded) of `bufnr` within LOOKBACK lines (beyond
---- them: taken as closed).
-local function closed_from(bufnr, stop, name)
-  local m = memo_of(bufnr)
+--- The row of the first line from row `stop` (0-based) of `text` on that
+--- ends a block `name` (its end line or a line of stars; LOOKBACK lines on
+--- at most, then the row the search stopped at), nil when none does.
+---@param text org.ui.highlight.Text
+---@return integer?
+local function end_from(text, stop, name)
   local key = name .. ":" .. stop
-  local known = m.closed[key]
-  if known ~= nil then
-    return known
+  local v = text.memo.ends[key]
+  if v ~= nil then
+    return v or nil
   end
-  local n = vim.api.nvim_buf_line_count(bufnr)
+  v = false
+  local bottom = text.bottom
   local from = stop
-  local v ---@type boolean?
-  while v == nil and from < math.min(n, stop + LOOKBACK) do
-    local chunk = vim.api.nvim_buf_get_lines(bufnr, from, math.min(n, from + 256), false)
-    for _, line in ipairs(chunk) do
-      if E.star_line(line) then
-        v = true
-        break
-      end
+  while not v and from < math.min(bottom, stop + LOOKBACK) do
+    local chunk = text.get(from, math.min(bottom, from + 256))
+    for k, line in ipairs(chunk) do
       local nm, begins = E.block_line(line)
-      if nm == name and not begins then
-        v = true
+      if E.star_line(line) or (nm == name and not begins) then
+        v = from + k - 1
         break
       end
     end
     from = from + #chunk
   end
-  if v == nil then
-    v = from < n
+  -- (beyond LOOKBACK lines: taken as closed there)
+  if not v and from < bottom then
+    v = from
   end
-  m.closed[key] = v
-  return v
+  text.memo.ends[key] = v
+  return v or nil
+end
+
+--- The lines rows `first` to `last` (0-based) of `text` are drawn from
+--- (see `M.window`).
+---@param text org.ui.highlight.Text
+---@return org.ui.highlight.Window
+local function window_of(text, first, last)
+  local top, bottom, get = text.top, text.bottom, text.get
+  local separates = E.separates
+  local scan_row = math.max(top, first - 2)
+  local up = get(math.max(top, scan_row - PARAGRAPH), scan_row + 1)
+  for k = #up, 2, -1 do
+    if separates(up[k]) then
+      break
+    end
+    scan_row = scan_row - 1
+  end
+  local stop = math.min(bottom, last + 2)
+  local down = get(stop, math.min(bottom, stop + PARAGRAPH))
+  for _, line in ipairs(down) do
+    if separates(line) then
+      break
+    end
+    stop = stop + 1
+  end
+  local lines = get(scan_row, stop)
+  local prev ---@type string?
+  if scan_row > top then
+    -- (the line before the window: in `up` unless the window starts above it)
+    local k = scan_row - math.max(top, math.max(top, first - 2) - PARAGRAPH)
+    prev = up[k] or get(scan_row - 1, scan_row)[1]
+  end
+  local function end_after(name)
+    return end_from(text, stop, name)
+  end
+  return {
+    lines = lines,
+    row0 = scan_row,
+    block = block_before(text, scan_row),
+    prev = prev,
+    closed_after = function(name)
+      return end_after(name) ~= nil
+    end,
+    end_after = end_after,
+  }
+end
+
+--- The text of buffer `bufnr`, rows `top` to `bottom - 1` (default: all;
+--- what the lookbacks of the whole buffer find is kept per changedtick).
+---@return org.ui.highlight.Text
+local function buffer_text(bufnr, top, bottom)
+  return {
+    top = top or 0,
+    bottom = bottom or vim.api.nvim_buf_line_count(bufnr),
+    get = function(s, e)
+      return vim.api.nvim_buf_get_lines(bufnr, s, e, false)
+    end,
+    memo = top and new_memo() or memo_of(bufnr),
+  }
+end
+
+--- The 0-based row of the nearest line of stars above row `row` of `bufnr`,
+--- `max` lines up at most, or false (kept per changedtick).
+---@param bufnr integer
+---@param row integer
+---@param max integer
+---@return integer|false
+function M.star_above(bufnr, row, max)
+  return star_above(buffer_text(bufnr), row, max)
 end
 
 --- The lines the rows `first` to `last` (0-based) of `bufnr` are drawn
@@ -195,40 +284,7 @@ end
 --- is drawn as in a scan of the whole buffer.
 ---@return org.ui.highlight.Window
 function M.window(bufnr, first, last)
-  local n = vim.api.nvim_buf_line_count(bufnr)
-  local separates = E.separates
-  local scan_row = math.max(0, first - 2)
-  local up = vim.api.nvim_buf_get_lines(bufnr, math.max(0, scan_row - PARAGRAPH), scan_row + 1, false)
-  for k = #up, 2, -1 do
-    if separates(up[k]) then
-      break
-    end
-    scan_row = scan_row - 1
-  end
-  local stop = math.min(n, last + 2)
-  local down = vim.api.nvim_buf_get_lines(bufnr, stop, math.min(n, stop + PARAGRAPH), false)
-  for _, line in ipairs(down) do
-    if separates(line) then
-      break
-    end
-    stop = stop + 1
-  end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, scan_row, stop, false)
-  local prev ---@type string?
-  if scan_row > 0 then
-    -- (the line before the window: in `up` unless the window starts above it)
-    local k = scan_row - math.max(0, math.max(0, first - 2) - PARAGRAPH)
-    prev = up[k] or vim.api.nvim_buf_get_lines(bufnr, scan_row - 1, scan_row, false)[1]
-  end
-  return {
-    lines = lines,
-    row0 = scan_row,
-    block = block_before(bufnr, scan_row),
-    prev = prev,
-    closed_after = function(name)
-      return closed_from(bufnr, stop, name)
-    end,
-  }
+  return window_of(buffer_text(bufnr), first, last)
 end
 
 --- The last parse of each buffer seen (its #+TODO keywords and other
@@ -257,7 +313,11 @@ end
 ---@field link_types? table<string, boolean> org.ui.emphasis `link_types()`
 ---@field links? { [1]: integer, [2]: integer, [3]: string }[] the links of `lines` (org.ui.emphasis `_links`), when known
 ---@field emit fun(i: integer, col: integer, end_col: integer, opts: org.ui.highlight.MarkOpts) mark bytes [col, end_col) (0-based) of lines[i]
----@field get_line fun(row: integer): string? any line of the buffer, by 0-based row
+---@field get_line fun(row: integer): string? any line of the text drawn, by 0-based row
+---@field top integer 0-based first row of the text drawn: 0, or the first line of the body of an org src block drawn as Org (`M.org_body`)
+---@field bottom integer 0-based row after its last line
+---@field get_lines fun(s: integer, e: integer): string[] the lines of rows [s, e) of the text drawn (kept within `top` and `bottom`)
+---@field star_above fun(row: integer, max: integer): integer|false the row of the nearest line of stars above `row` in the text drawn, `max` lines up at most
 
 ---@class org.ui.highlight.MarkOpts
 ---@field hl_group? string a syntax group name (orgTodo, ...)
@@ -265,20 +325,44 @@ end
 ---@field spell? boolean false: not spell checked (like a syntax group without @Spell)
 ---@field conceal? string
 
---- Marks of rows `first` to `last` (0-based) of buffer `bufnr`, added to
---- `rows` (the format of org.ui.decorations `compute`):
---- `{ [row] = { { col, opts, nil, "parser" }, ... } }`.
----@param bufnr integer
----@param first integer
----@param last integer
----@param ui table the buffer's `ui` options
----@param rows table<integer, table[]>
-function M.add_marks(bufnr, first, last, ui, rows)
-  local w = M.window(bufnr, first, last)
-  -- (the rows read: the window, the line above it and the line below it,
-  -- which ended it; org.ui.decorations keeps the marks of rows an edit
-  -- elsewhere can't change)
-  M.last_read = { w.row0 - 1, w.row0 + #w.lines }
+--- Whether the body of the block that `line` begins is drawn as Org text
+--- (org-src-font-lock-fontify-block with org-mode, `:h org-highlighter`):
+--- a src, export or example block whose language (the word after
+--- `#+begin_NAME`, case-sensitive, through `src_lang_modes`) is "org", while
+--- src blocks are drawn natively (`ui.src_highlight`).
+---@param line string a `#+begin_` line
+---@return boolean
+function M.org_body(line)
+  local name, lang = line:match("^[ \t]*#%+[bB][eE][gG][iI][nN]_(%a+)[ \t]+([^ \t]+)")
+  if not name then
+    return false
+  end
+  name = name:lower()
+  if name ~= "src" and name ~= "export" and name ~= "example" then
+    return false
+  end
+  local ui = require("org.config").opts.ui or {}
+  if ui.src_highlight == false then
+    return false
+  end
+  return require("org.syntax").syntax_of(lang) == "org"
+end
+
+--- A file with no settings and no radio targets, for the body of an org
+--- src block (its own buffer to Emacs; it has no headlines, a line of stars
+--- ends the block).
+local BODY_FILE = { settings = {}, lines = {} }
+
+--- Marks of rows `first` to `last` of `text` (in buffer `bufnr`), added to
+--- `rows` (see `M.add_marks`); `body`: the text is the body of an org src
+--- block, drawn as Org with nothing hidden (Emacs copies only the faces
+--- of the Org buffer it fontifies the body in).
+---@param text org.ui.highlight.Text
+---@param file org.File
+---@param body boolean
+---@return org.ui.highlight.Window, org.ui.emphasis.Kind[], table<integer, org.ui.emphasis.Role>
+local function paint(bufnr, text, first, last, ui, rows, file, body)
+  local w = window_of(text, first, last)
   local b = vim.b[bufnr]
   local hide = ui.hide_emphasis_markers and true or false
   if b.org_hide_emphasis_markers ~= nil then
@@ -292,16 +376,20 @@ function M.add_marks(bufnr, first, last, ui, rows)
   local types = E.link_types()
   local found = E.marks(w.lines, w.row0, first, last, {
     hide_markers = hide,
-    conceal_links = conceal_links,
+    conceal_links = conceal_links and not body,
+    reveal = body,
     block = w.block,
     prev = w.prev,
     closed_after = w.closed_after,
     kinds = kinds,
     types = types,
   }, rows)
-
-  local file = M.file_in_use(bufnr) or require("org.files").get_buffer(bufnr)
-  parses[bufnr] = file
+  -- (the rows read: the window, the line above it and the line below it,
+  -- which ended it; org.ui.decorations keeps the marks of rows an edit
+  -- elsewhere can't change)
+  local read = M.last_read
+  local r0, r1 = w.row0 - 1, w.row0 + #w.lines
+  M.last_read = read and { math.min(read[1], r0), math.max(read[2], r1) } or { r0, r1 }
   local row0 = w.row0
   ---@type org.ui.highlight.Ctx
   local ctx = {
@@ -317,9 +405,14 @@ function M.add_marks(bufnr, first, last, ui, rows)
     prev = w.prev,
     link_types = types,
     links = found,
+    top = text.top,
+    bottom = text.bottom,
     emit = function(i, col, end_col, o)
       local row = row0 + i - 1
       if row < first or row > last or end_col <= col then
+        return
+      end
+      if body and not o.hl_group then
         return
       end
       local t = rows[row]
@@ -334,7 +427,7 @@ function M.add_marks(bufnr, first, last, ui, rows)
           hl_group = o.hl_group,
           priority = o.priority,
           spell = o.spell,
-          conceal = o.conceal,
+          conceal = (not body) and o.conceal or nil,
           ephemeral = true,
         },
         nil,
@@ -342,11 +435,102 @@ function M.add_marks(bufnr, first, last, ui, rows)
       }
     end,
     get_line = function(row)
-      return vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
+      if row < text.top or row >= text.bottom then
+        return nil
+      end
+      return text.get(row, row + 1)[1]
+    end,
+    get_lines = function(s, e)
+      s, e = math.max(s, text.top), math.min(e, text.bottom)
+      if e <= s then
+        return {}
+      end
+      return text.get(s, e)
+    end,
+    star_above = function(row, max)
+      return star_above(text, row, max)
     end,
   }
   for _, part in ipairs(M.PARTS) do
     require("org.ui.highlight." .. part).paint(ctx)
+  end
+  return w, kinds, roles
+end
+
+--- The row after the body of `block`, found from line `i` of the window
+--- `w` on: its end line or a line of stars (see `Window.end_after`).
+---@param w org.ui.highlight.Window
+---@param roles table<integer, org.ui.emphasis.Role>
+---@param block org.ui.emphasis.Block
+---@return integer
+local function body_bottom(w, roles, block, i)
+  local lines = w.lines
+  for j = i, #lines do
+    local r = roles[j]
+    if not r or r.block ~= block or r.role ~= "body" then
+      return w.row0 + j - 1
+    end
+  end
+  -- (an open block is closed below the lines: `E.kinds` asked)
+  return w.end_after(block.name) or w.row0 + #lines
+end
+
+--- Marks of rows `first` to `last` (0-based) of buffer `bufnr`, added to
+--- `rows` (the format of org.ui.decorations `compute`):
+--- `{ [row] = { { col, opts, nil, "parser" }, ... } }`.
+---
+--- The body of an org src block (`M.org_body`) is drawn as its own text:
+--- the rows of it drawn are scanned like those of a buffer that holds only
+--- the body (the window around them, within the body), on top of the
+--- block's orgBlock.
+---@param bufnr integer
+---@param first integer
+---@param last integer
+---@param ui table the buffer's `ui` options
+---@param rows table<integer, table[]>
+function M.add_marks(bufnr, first, last, ui, rows)
+  M.last_read = nil
+  local file = M.file_in_use(bufnr) or require("org.files").get_buffer(bufnr)
+  parses[bufnr] = file
+  local w, _, roles = paint(bufnr, buffer_text(bufnr), first, last, ui, rows, file, false)
+
+  -- the bodies of org src blocks among the rows drawn
+  local lines, row0 = w.lines, w.row0
+  local i = math.max(1, first - row0 + 1)
+  local to = math.min(#lines, last - row0 + 1)
+  while i <= to do
+    local r = roles[i]
+    local block = r and r.role == "body" and r.block.verbatim and r.block
+    local top, begin ---@type integer?, string?
+    if block then
+      -- its begin line: in the lines, or above them (the window's block)
+      for j = i - 1, 1, -1 do
+        local rj = roles[j]
+        if not rj or rj.block ~= block then
+          break
+        end
+        if rj.role == "begin" then
+          begin, top = lines[j], row0 + j
+          break
+        end
+      end
+      if not begin and block == w.block and block.row then
+        begin, top = block.line, block.row + 1
+      end
+    end
+    if block and top and begin and M.org_body(begin) then
+      local bottom = body_bottom(w, roles, block, i)
+      local text = buffer_text(bufnr, top, bottom)
+      paint(bufnr, text, math.max(first, top), math.min(last, bottom - 1), ui, rows, BODY_FILE, true)
+      i = bottom - row0 + 1
+    elseif block then
+      -- (the rest of a block that isn't Org)
+      while i <= to and roles[i] and roles[i].block == block do
+        i = i + 1
+      end
+    else
+      i = i + 1
+    end
   end
 end
 

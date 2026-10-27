@@ -56,7 +56,9 @@ function M.ts_lang_of_syntax(syn)
   local v = ts_of_syntax[syn]
   if v == nil then
     v = false
-    if syn ~= "" and syn ~= "org" and syn:match("^[%w_]+$") then
+    -- (not org, in any case: org.ui.highlight draws org bodies as Org, over
+    -- a tree-sitter org parser if one is installed)
+    if syn ~= "" and syn:lower() ~= "org" and syn:match("^[%w_]+$") then
       local okl, l = pcall(vim.treesitter.language.get_lang, syn)
       local lang = okl and l or syn
       local oka, added = pcall(vim.treesitter.language.add, lang)

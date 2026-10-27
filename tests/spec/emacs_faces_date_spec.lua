@@ -4,13 +4,6 @@
 local F = require("tests.helpers.faces")
 
 local KNOWN = {
-  ["examples-19-export.org"] = {
-    -- The body of a "#+begin_src org" block: Emacs draws it natively, in
-    -- an Org buffer where the escaped ",#+DATE:" isn't a keyword and its
-    -- date is drawn; org.nvim draws src block bodies with the syntax of
-    -- their language (no part of the parser highlighter).
-    [382] = "native fontification of an org src block",
-  },
   ["tests-fixtures-emacs-faces-date.org"] = {
     -- A date right after "[" (a link's description "[<2026-...>]"): the
     -- matcher of org-activate-dates then returns nil, which ends the

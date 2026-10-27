@@ -357,14 +357,22 @@ function M.differences(fx, family, known)
     faces = M.nvim_faces(buf)
     cache = { [key] = faces }
   end
-  local kinds = require("org.ui.emphasis").kinds(lines)
+  local kinds, roles = require("org.ui.emphasis").kinds(lines)
+  -- the blocks whose body is drawn as Org (org.ui.highlight `org_body`):
+  -- every face of it counts
+  local org = {}
+  for i, r in pairs(roles) do
+    if r.role == "begin" and require("org.ui.highlight").org_body(lines[i]) then
+      org[r.block] = true
+    end
+  end
   for _, l in ipairs(P.lines(P.read(fx.expected))) do
     local n, r = l:match("^(%d+)\t(.*)$")
     if n then
       n = tonumber(n)
       -- (a src, example or export block's body: "none" lines that aren't
       -- its begin or end line)
-      local native = kinds[n] == "none" and not lines[n]:find("^%s*#%+")
+      local native = kinds[n] == "none" and not lines[n]:find("^%s*#%+") and not (roles[n] and org[roles[n].block])
       expected[n] = M.emacs_line(r, family, native)
     end
   end

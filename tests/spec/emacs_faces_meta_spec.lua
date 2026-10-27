@@ -5,14 +5,6 @@ local F = require("tests.helpers.faces")
 
 --- Fixture name -> { [line] = reason }: lines left out on purpose.
 local KNOWN = {
-  ["examples-14-footnotes.org"] = {
-    -- (#+STARTUP in an org src block: Emacs's native fontification of
-    -- the block, another highlighter's)
-    [418] = "native fontification",
-    [430] = "native fontification",
-    [454] = "native fontification",
-    [480] = "native fontification",
-  },
   ["tests-fixtures-emacs-faces-meta.org"] = {
     -- After a #+begin_ line with no end line and no headline below,
     -- Emacs draws no keyword or comment to the end of what it fontifies

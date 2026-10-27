@@ -100,6 +100,23 @@ describe("screen snapshot", function()
     screen:expect("emphasis_parser_long_line")
   end)
 
+  -- the body of an org src block drawn as Org on the block's face, with
+  -- nothing hidden (org-src-font-lock-fontify-block with org-mode)
+  it("an org src block drawn as Org by the parser highlighter", function()
+    new({ ui = { highlighter = "parser", hide_emphasis_markers = true } }, 60, 10)
+    screen:org({
+      "#+begin_src org",
+      ",* TODO An escaped headline",
+      "#+TITLE: A title",
+      "Some *bold* and [[https://orgmode.org][a link]].",
+      "- [X] done <2026-10-01 Thu>",
+      "| a | b |",
+      "#+end_src",
+      "Some *bold* and [[https://orgmode.org][a link]].",
+    })
+    screen:expect("org_src_parser")
+  end)
+
   -- #119: a closed fold keeps the faces of its headline
   it("folded headlines keep their keyword, priority and tag faces", function()
     new({ todo_keywords = { "TODO", "NEXT", "|", "DONE" } })

@@ -1,0 +1,86 @@
+#+TITLE: Org src blocks
+
+* Org src blocks are drawn as Org
+
+#+begin_src org
+,* TODO An escaped headline :tag:
+,** DONE [#A] Level two
+,#+TITLE: An escaped title
+,#+begin_src sh
+echo *not bold*
+,#+end_src
+#+STARTUP: overview
+#+TODO: TODO NEXT | DONE
+#+TITLE: A title in the body
+#+AUTHOR: Someone
+# a comment with *bold*
+Text with *bold*, /italic/, =verbatim=, ~code~ and +strike+.
+A [[https://orgmode.org][link]], <2026-10-01 Thu> and [2026-10-02 Fri].
+SCHEDULED: <2026-10-03 Sat> DEADLINE: <2026-10-04 Sun>
+- [X] a checkbox [1/2]
+- term :: a description
+1. [ ] a numbered item
+| a | b |
+|---+---|
+| 1 | 2 |
+#+TBLFM: $2=$1
+:PROPERTIES:
+:ID: abc
+:END:
+: fixed width
+A footnote[fn:1] and a {{{macro(x)}}} and <<target>>.
+[fn:1] A definition.
+$x^2$ and \alpha and src_sh{echo hi}.
+#+begin_quote
+Quoted *bold*.
+#+end_quote
+#+begin_example
+in an example, *not bold*
+#+end_example
+  * not a headline
+  ,* escaped and indented
+,,* two commas
+,*bold at the start*
+#+end_src
+
+#+begin_src org :results silent
+  Indented *body* with [[https://x.org][a link]]
+  | a | table |
+#+end_src
+
+#+BEGIN_SRC org
+Upper case *begin*.
+#+END_SRC
+
+#+begin_src ORG
+Upper case *language*.
+#+end_src
+
+#+begin_export org
+An export *block* of org, #+KEYWORD: x
+#+TITLE: exported
+#+end_export
+
+#+begin_example org
+An example *block* of org.
+#+end_example
+
+#+begin_src org
+#+end_src
+
+#+begin_src org
+Unclosed {{{macro(
+#+end_src
+
+#+begin_src org
+After the unclosed one: {{{macro(y)}}}
+#+end_src
+
+#+begin_src org
+#+begin_src sh
+echo "nested, unescaped"
+#+end_src
+After the nested block, *bold*.
+#+end_src
+
+Outside again: *bold*.
