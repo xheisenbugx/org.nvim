@@ -172,7 +172,7 @@ function M.lock_writes()
     return
   end
   local path = M.lock_path()
-  vim.fn.mkdir(vim.fs.dirname(path), "p")
+  require("org.utils").mkdir_p(vim.fs.dirname(path))
   local me = vim.fn.getpid()
   local timeout = tonumber(shared.cli_opts().lock_timeout) or 10
   local deadline = vim.uv.hrtime() + timeout * 1e9

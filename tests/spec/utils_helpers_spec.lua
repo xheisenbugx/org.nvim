@@ -48,3 +48,23 @@ describe("utils small helpers", function()
     os.remove(empty)
   end)
 end)
+
+describe("utils.mkdir_p", function()
+  it("takes a directory another process made at the same time", function()
+    local dir = vim.fn.tempname() .. "/a/b"
+    local real = vim.fn.mkdir
+    -- the other process wins the race: the directory appears, then
+    -- mkdir() fails with E739
+    vim.fn.mkdir = function(d, flags)
+      real(d, flags)
+      error("Vim:E739: Cannot create directory " .. d .. ": file already exists")
+    end
+    local ok, err = pcall(require("org.utils").mkdir_p, dir)
+    vim.fn.mkdir = real
+    assert(ok, err)
+    eq(1, vim.fn.isdirectory(dir))
+    -- and there already: nothing to do
+    require("org.utils").mkdir_p(dir)
+    vim.fn.delete(vim.fs.dirname(vim.fs.dirname(dir)), "rf")
+  end)
+end)

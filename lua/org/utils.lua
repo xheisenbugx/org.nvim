@@ -767,8 +767,21 @@ function M.split_content(content)
   return require("org.agenda.index.thread").split_content(content)
 end
 
+--- Make directory `dir` and its parents. Another process making the same
+--- directory at the same time (parallel `org` commands) makes mkdir() fail
+--- with E739 although the directory is there: that isn't an error.
+---@param dir string
+function M.mkdir_p(dir)
+  if vim.fn.isdirectory(dir) == 1 then
+    return
+  end
+  if not pcall(vim.fn.mkdir, dir, "p") and vim.fn.isdirectory(dir) == 0 then
+    vim.fn.mkdir(dir, "p")
+  end
+end
+
 function M.writefile(path, lines)
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+  M.mkdir_p(vim.fn.fnamemodify(path, ":h"))
   local fd, err = io.open(path, "wb")
   if not fd then
     error("org: cannot write " .. path .. ": " .. tostring(err))
