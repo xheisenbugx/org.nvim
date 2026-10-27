@@ -7338,6 +7338,17 @@ body is never drawn with a tree-sitter org parser or a Vim syntax for org,
 even when one is installed: this drawing wins. "syntax" draws such bodies
 as plain OrgBlock.
 
+With the "parser" highlighter, an inline src block (`src_LANG{BODY}`) is
+drawn wherever its text is, as Emacs's org-fontify-inline-src-blocks does:
+in a headline, a table, a list term, a link description, a comment, a
+keyword line, or the body of a block. Its braces and body don't take the
+face of what they are in (OrgInlineSrcMarker and OrgInlineSrc alone, no
+headline, table, link or OrgBlock colour under them), while `src_LANG` and
+`[HEADERS]` keep it under their own. What a link hides stays hidden. In
+the body of a src or export block, the language's Vim syntax still draws
+under the braces (a decoration can't take a syntax group's attributes
+off, so `<b>src_sh{x}</b>` in an html export block keeps its bold).
+
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
 Both highlighters draw with the `org...` group names (`orgHeadlineLevel1`,
 `orgTodo`, ...) linked to these; the default one, "parser"

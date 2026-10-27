@@ -270,6 +270,23 @@ describe("screen snapshot", function()
     screen:expect("table")
   end)
 
+  -- (org-fontify-inline-src-blocks: the braces and body of an inline src
+  -- block don't take the faces of the headline, table, comment or block
+  -- they are in)
+  it("inline src blocks", function()
+    new()
+    screen:org({
+      "* TODO Run src_sh{echo hi} now :tag:",
+      "| a | src_sh{in a table} | b |",
+      "- term src_sh{x} :: a description",
+      "# a comment src_sh{y} here",
+      "#+begin_example",
+      "an example src_sh{z} body",
+      "#+end_example",
+    })
+    screen:expect("inline_src")
+  end)
+
   it("source blocks", function()
     new()
     screen:org({

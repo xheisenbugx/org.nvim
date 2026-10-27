@@ -45,6 +45,15 @@ local KNOWN = {
     [94] = FACES,
     [96] = FACES,
   },
+  -- (bare src_LANG, over a line break, and in the body of a src or export
+  -- block, where the syntax engine finds no inline src block)
+  ["tests/fixtures/emacs/faces/inlinesrc.org"] = {
+    [24] = FACES,
+    [25] = FACES,
+    [26] = FACES,
+    [47] = FACES,
+    [51] = FACES,
+  },
   ["tests/fixtures/emacs/faces/list.org"] = { [32] = TAG, [65] = COMMENT_BLOCK },
   ["tests/fixtures/emacs/faces/meta.org"] = {
     [47] = FACES,

@@ -1,0 +1,31 @@
+screen 60x12
+|{1:* }{2:TODO}{1: Run }{3:src_}{4:sh}{5:\{}{6:echo hi}{5:\}}{1: now }{7::tag:}|
+|{8:|}{9: a }{8:|}{9: }{10:src_}{11:sh}{5:\{}{6:in a table}{5:\}}{9: }{8:|}{9: b }{8:|}|
+|{12:-} {13:term }{14:src_}{15:sh}{5:\{}{6:x}{5:\}}{13: ::} a description|
+|{16:# a comment }{17:src_}{18:sh}{5:\{}{6:y}{5:\}}{16: here}|
+|{19:#+begin_example}|
+|{20:an example }{21:src_}{22:sh}{5:\{}{6:z}{5:\}}{20: body}|
+|{19:#+end_example}|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} OrgHeadlineLevel1 -> Title | OrgTodo -> @comment.error [bold]
+{3} OrgHeadlineLevel1 -> Title | OrgInlineSrcMarker -> OrgBlockDelimiter -> Comment [bold]
+{4} OrgHeadlineLevel1 -> Title | OrgInlineSrcLang -> OrgKeyword -> PreProc [bold]
+{5} OrgInlineSrcMarker -> OrgBlockDelimiter -> Comment
+{6} orgInlineSrcBody -> OrgInlineSrc -> OrgBlock -> String
+{7} OrgHeadlineLevel1 -> Title | OrgTags -> @property [bold]
+{8} OrgTable -> Normal | OrgTableSeparator -> Delimiter
+{9} OrgTable -> Normal
+{10} OrgTable -> Normal | OrgInlineSrcMarker -> OrgBlockDelimiter -> Comment
+{11} OrgTable -> Normal | OrgInlineSrcLang -> OrgKeyword -> PreProc
+{12} OrgListBullet -> Special
+{13} OrgListTerm [bold]
+{14} OrgListTerm | OrgInlineSrcMarker -> OrgBlockDelimiter -> Comment [bold]
+{15} OrgListTerm | OrgInlineSrcLang -> OrgKeyword -> PreProc [bold]
+{16} OrgComment -> Comment
+{17} OrgComment -> Comment | OrgInlineSrcMarker -> OrgBlockDelimiter -> Comment
+{18} OrgComment -> Comment | OrgInlineSrcLang -> OrgKeyword -> PreProc
+{19} OrgBlockDelimiter -> Comment
+{20} OrgBlock -> String
+{21} OrgBlock -> String | OrgInlineSrcMarker -> OrgBlockDelimiter -> Comment
+{22} OrgBlock -> String | OrgInlineSrcLang -> OrgKeyword -> PreProc

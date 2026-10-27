@@ -15,14 +15,6 @@ local KNOWN = {
     [112] = "Emacs stops at an unterminated block",
     [113] = "Emacs stops at an unterminated block",
   },
-  ["tests-fixtures-emacs-faces-object.org"] = {
-    -- An inline src block in a comment or a keyword line: Emacs's inline
-    -- src fontification (org-fontify-inline-src-blocks-1) takes the
-    -- comment and meta-line faces off its braces and body; org.nvim
-    -- keeps the line's face there, as on the rest of the line.
-    [99] = "inline src block in a comment",
-    [100] = "inline src block in a keyword",
-  },
 }
 
 describe("Emacs faces: keywords, drawers and comments", function()

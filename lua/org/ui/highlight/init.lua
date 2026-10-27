@@ -438,6 +438,7 @@ end
 ---@field link_types? table<string, boolean> org.ui.emphasis `link_types()`
 ---@field links? { [1]: integer, [2]: integer, [3]: string }[] the links of `lines` (org.ui.emphasis `_links`), when known
 ---@field emit fun(i: integer, col: integer, end_col: integer, opts: org.ui.highlight.MarkOpts) mark bytes [col, end_col) (0-based) of lines[i]
+---@field cancel fun(i: integer, col: integer, end_col: integer) take the faces of every other mark off bytes [col, end_col) (0-based) of lines[i] (see `cancel_faces`)
 ---@field get_line fun(row: integer): string? any line of the text drawn, by 0-based row
 ---@field top integer 0-based first row of the text drawn: 0, or the first line of the body of an org src block drawn as Org (`M.org_body`)
 ---@field bottom integer 0-based row after its last line
@@ -487,7 +488,8 @@ local BODY_FILE = { settings = {}, lines = {} }
 ---@param file org.File
 ---@param body boolean
 ---@return org.ui.highlight.Window, org.ui.emphasis.Kind[], table<integer, org.ui.emphasis.Role>
-local function paint(bufnr, text, first, last, ui, rows, file, body)
+---@param cancels table<integer, integer[]> (see `cancel_faces`)
+local function paint(bufnr, text, first, last, ui, rows, file, body, cancels)
   local w = window_of(text, first, last)
   local b = vim.b[bufnr]
   local hide = ui.hide_emphasis_markers and true or false
@@ -562,6 +564,19 @@ local function paint(bufnr, text, first, last, ui, rows, file, body)
         "parser",
       }
     end,
+    cancel = function(i, col, end_col)
+      local row = row0 + i - 1
+      if row < first or row > last or end_col <= col then
+        return
+      end
+      local t = cancels[row]
+      if not t then
+        t = {}
+        cancels[row] = t
+      end
+      t[#t + 1] = col
+      t[#t + 1] = end_col
+    end,
     get_line = function(row)
       if row < text.top or row >= text.bottom then
         return nil
@@ -603,6 +618,71 @@ local function body_bottom(w, roles, block, i)
   return w.end_after(block.name) or w.row0 + #lines
 end
 
+--- Take the faces off the bytes of `cancels` (row -> { col, end_col, ... },
+--- 0-based, end excluded): org-fontify-inline-src-blocks removes the faces
+--- of everything drawn before it from the braces and body of an inline src
+--- block, wherever it is (a headline, a table, a comment, a block's body).
+--- Every mark of those rows with a highlight group but the inline src
+--- block's own (orgInlineSrc*) is cut around them; what it hides or leaves
+--- out of spell checking stays (Emacs removes the face property only).
+---@param rows table<integer, table[]>
+---@param cancels table<integer, integer[]>
+local function cancel_faces(rows, cancels)
+  for row, t in pairs(cancels) do
+    local marks = rows[row]
+    if marks then
+      local out = {}
+      for _, m in ipairs(marks) do
+        local col, o = m[1], m[2]
+        local e = o.end_col
+        local g = o.hl_group
+        local hit = false
+        if g and e and not (type(g) == "string" and g:find("^orgInlineSrc")) then
+          for k = 1, #t, 2 do
+            if t[k] < e and t[k + 1] > col then
+              hit = true
+              break
+            end
+          end
+        end
+        if not hit then
+          out[#out + 1] = m
+        else
+          -- the bytes of the mark, each in a cancelled range or not
+          local cut = {} ---@type table<integer, boolean>
+          for k = 1, #t, 2 do
+            for x = math.max(col, t[k]), math.min(e, t[k + 1]) - 1 do
+              cut[x] = true
+            end
+          end
+          local keep = o.conceal ~= nil or o.spell ~= nil
+          local x = col
+          while x < e do
+            local c = cut[x] == true
+            local y = x + 1
+            while y < e and (cut[y] == true) == c do
+              y = y + 1
+            end
+            if not c or keep then
+              local p = {}
+              for key, v in pairs(o) do
+                p[key] = v
+              end
+              p.end_col = y
+              if c then
+                p.hl_group = nil
+              end
+              out[#out + 1] = { x, p, m[3], m[4] }
+            end
+            x = y
+          end
+        end
+      end
+      rows[row] = out
+    end
+  end
+end
+
 --- Marks of rows `first` to `last` (0-based) of buffer `bufnr`, added to
 --- `rows` (the format of org.ui.decorations `compute`):
 --- `{ [row] = { { col, opts, nil, "parser" }, ... } }`.
@@ -620,7 +700,8 @@ function M.add_marks(bufnr, first, last, ui, rows)
   M.last_read, M.last_reads = nil, nil
   local file = M.file_in_use(bufnr) or require("org.files").get_buffer(bufnr)
   parses[bufnr] = file
-  local w, _, roles = paint(bufnr, buffer_text(bufnr), first, last, ui, rows, file, false)
+  local cancels = {} ---@type table<integer, integer[]>
+  local w, _, roles = paint(bufnr, buffer_text(bufnr), first, last, ui, rows, file, false, cancels)
 
   -- the bodies of org src blocks among the rows drawn
   local lines, row0 = w.lines, w.row0
@@ -649,7 +730,7 @@ function M.add_marks(bufnr, first, last, ui, rows)
     if block and top and begin and M.org_body(begin) then
       local bottom = body_bottom(w, roles, block, i)
       local text = buffer_text(bufnr, top, bottom)
-      paint(bufnr, text, math.max(first, top), math.min(last, bottom - 1), ui, rows, BODY_FILE, true)
+      paint(bufnr, text, math.max(first, top), math.min(last, bottom - 1), ui, rows, BODY_FILE, true, cancels)
       i = bottom - row0 + 1
     elseif block then
       -- (the rest of a block that isn't Org)
@@ -659,6 +740,9 @@ function M.add_marks(bufnr, first, last, ui, rows)
     else
       i = i + 1
     end
+  end
+  if next(cancels) then
+    cancel_faces(rows, cancels)
   end
 end
 

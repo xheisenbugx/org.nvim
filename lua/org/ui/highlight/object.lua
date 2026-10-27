@@ -445,7 +445,7 @@ function M.paint(ctx)
   -- blocks removes the faces of the objects found before it from their
   -- braces and body): byte -> true.
   local native = {} ---@type table<integer, boolean>
-  local inline = {} ---@type { [1]: integer, [2]: integer, [3]: string }[]
+  local inline = {} ---@type { [1]: integer, [2]: integer, [3]: string, [4]: boolean? }[] (4: the braces and body)
 
   -- whether line l is a `#+CAPTION:` (spell checked, but not its links,
   -- org--flyspell-object-check-p)
@@ -562,11 +562,11 @@ function M.paint(ctx)
               for x = pt, c do
                 native[x] = true
               end
-              inline[#inline + 1] = { pt, pt, "orgInlineSrcMarker" }
+              inline[#inline + 1] = { pt, pt, "orgInlineSrcMarker", true }
               if c > pt + 1 then
-                inline[#inline + 1] = { pt + 1, c - 1, "orgInlineSrcBody" }
+                inline[#inline + 1] = { pt + 1, c - 1, "orgInlineSrcBody", true }
               end
-              inline[#inline + 1] = { c, c, "orgInlineSrcMarker" }
+              inline[#inline + 1] = { c, c, "orgInlineSrcMarker", true }
               pt = c + 1
             end
           end
@@ -793,8 +793,22 @@ function M.paint(ctx)
 
   -- inline src blocks last (they come after the meta lines: drawn on every
   -- line)
+  -- (their braces and body lose the faces of everything else: in Emacs
+  -- org-fontify-inline-src-blocks removes them, org.ui.highlight
+  -- `cancel_faces`)
   for _, r in ipairs(inline) do
     span(r[1], r[2], { hl_group = r[3], priority = P.inline_src, spell = false }, true, true)
+    if r[4] then
+      local a, b = r[1], r[2]
+      while a <= b do
+        local l = line_of(a)
+        local e = math.min(b, line_start(l + 1) - 2)
+        if e >= a then
+          ctx.cancel(l, a - starts[l], e - starts[l] + 1)
+        end
+        a = line_start(l + 1)
+      end
+    end
   end
 end
 
