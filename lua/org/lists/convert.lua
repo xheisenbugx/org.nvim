@@ -282,17 +282,39 @@ function M.make_subtree()
     utils.warn("Not in a list")
     return
   end
-  local file = files.get_buffer(bufnr)
-  local hl = file:headline_at(struct.first)
-  local level = hl and hl.level + 1 or 1
-  local out = M.list_to_subtree(bufnr, struct, level)
+  local out = M.list_to_subtree(bufnr, struct, M.subtree_start_level(bufnr, struct.first))
   set_lines(bufnr, struct.first, struct.last, out)
   vim.api.nvim_win_set_cursor(0, { math.min(struct.first + #out, vim.api.nvim_buf_line_count(bufnr)), 0 })
 end
 
---- Headline lines for the items of `struct` (org-list-to-subtree).
+--- The level, counted without odd levels (org-reduced-level), of the
+--- headlines a list at `lnum` becomes: one below the entry's, 1 before the
+--- first headline (org-list-make-subtree, org-toggle-heading).
+---@param bufnr integer
+---@param lnum integer
+---@return integer
+function M.subtree_start_level(bufnr, lnum)
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  while hl and hl.inlinetask do
+    hl = hl.parent
+  end
+  if not hl then
+    return 1
+  end
+  local odd = require("org.structure").odd_levels_only(bufnr)
+  return (odd and math.floor((hl.level + 1) / 2) or hl.level) + 1
+end
+
+--- Headline lines for the items of `struct` (org-list-to-subtree): a top
+--- item at `level` (counted without odd levels, see `subtree_start_level`)
+--- and each sub-list one level deeper; with odd levels only, level n has
+--- 2n - 1 stars.
 ---@param items? org.ListItem[] only these top items (default: all)
 function M.list_to_subtree(bufnr, struct, level, items)
+  local odd = require("org.structure").odd_levels_only(bufnr)
+  local function stars(n)
+    return string.rep("*", odd and 2 * n - 1 or n)
+  end
   local todo_cfg = files.get_buffer(bufnr).settings.todo
   local done_kw = todo_cfg:done_names()[1] or "DONE"
   local todo_kw = todo_cfg:todo_names()[1] or "TODO"
@@ -312,7 +334,7 @@ function M.list_to_subtree(bufnr, struct, level, items)
     elseif it.checkbox then
       kw = todo_kw .. " "
     end
-    out[#out + 1] = (string.rep("*", level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
+    out[#out + 1] = (stars(level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
     for l = it.lnum + 1, it.end_lnum do
       if owners[l] == it and not is_blank(lines[l - struct.first + 1]) then
         out[#out + 1] = vim.trim(lines[l - struct.first + 1])

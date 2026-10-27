@@ -75,8 +75,9 @@ function M.toggle_heading()
     set_lines(bufnr, s, e, vim.list_slice(lines, s, e))
   elseif lists.item_on(bufnr, s) then
     local struct = lists.struct_at(bufnr, s)
-    local hl = file:headline_at(s)
-    local level = hl and hl.level + 1 or 1
+    -- counted without odd levels (org-list-to-subtree)
+    local level = lists.subtree_start_level(bufnr, s)
+    local odd = M.odd_levels_only(bufnr)
     local stop = math.min(struct.last, e)
     local sel = {}
     for _, it in ipairs(struct.items) do
@@ -107,7 +108,8 @@ function M.toggle_heading()
         text = " " .. (term or "") .. " " .. (desc or "")
       end
       local kw = it.checkbox == "X" and (done_kw .. " ") or it.checkbox and (todo_kw .. " ") or ""
-      out[#out + 1] = (string.rep("*", level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
+      local n = level + depth - 1
+      out[#out + 1] = (string.rep("*", odd and 2 * n - 1 or n) .. " " .. kw .. text):gsub("%s+$", "")
       if region then
         for l = it.lnum + 1, math.min(it.end_lnum, stop) do
           local owner

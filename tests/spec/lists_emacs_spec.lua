@@ -446,3 +446,20 @@ describe("lists: tab indentation (current-indentation, tab-width 8)", function()
     eq(1, lists.parse_item_line("\t- b").ind_len)
   end)
 end)
+
+describe("lists: list to headings with odd levels (org-list-to-subtree)", function()
+  -- one level below the entry, counted without odd levels: under a level
+  -- 3 headline (reduced level 2) items get 5 stars, sub-items 7
+  local O = { "#+STARTUP: odd", "* A", "*** B", "- item", "  - sub", "text" }
+  it("C-c * turns the item into a level 5 headline", function()
+    local buf = org_buffer(O, { 4, 0 })
+    require("org.actions").run("ctrl_c_star")
+    eq({ "#+STARTUP: odd", "* A", "*** B", "***** item", "  - sub", "text" }, buf_lines(buf))
+  end)
+
+  it("list_make_subtree uses odd levels for sub-lists", function()
+    local buf = org_buffer(O, { 4, 0 })
+    require("org.actions").run("list_make_subtree")
+    eq({ "#+STARTUP: odd", "* A", "*** B", "***** item", "******* sub", "text" }, buf_lines(buf))
+  end)
+end)
