@@ -855,6 +855,53 @@ describe("babel parity: tangling", function()
     }, vim.fn.readfile(dir .. "/nw.sh"))
   end)
 
+  it(":comments noweb: unnamed end comments, and links after a :noweb-ref scan (Org 9.8.10)", function()
+    -- the :noweb-ref lookup rebuilds Emacs' reference cache, so the second
+    -- <<helper>> links to the helper block again; a block without a name
+    -- ends with "# ends here" (Emacs output, line for line)
+    local dir = tangle({
+      "* Code",
+      "#+NAME: helper",
+      "#+begin_src sh",
+      "echo helper",
+      "#+end_src",
+      "",
+      "#+begin_src sh :noweb yes :tangle c.sh :comments noweb",
+      "<<helper>>",
+      "  <<part>>",
+      'echo "<<helper>> inline"',
+      "#+end_src",
+      "",
+      "#+begin_src sh :noweb-ref part",
+      "echo part1",
+      "#+end_src",
+      "",
+      "#+begin_src sh :noweb-ref part",
+      "echo part2",
+      "#+end_src",
+    })
+    eq({
+      "# [[file:t.org::*Code][Code:2]]",
+      "# [[file:t.org::helper][helper]]",
+      "echo helper",
+      "# helper ends here",
+      "",
+      "  # [[file:t.org::*Code][]]",
+      "  echo part1",
+      "  # ends here",
+      "  ",
+      "  # [[file:t.org::*Code][]]",
+      "  echo part2",
+      "  # ends here",
+      "  ",
+      'echo "# [[file:t.org::helper][helper]]',
+      'echo "echo helper',
+      'echo "# helper ends here',
+      'echo " inline"',
+      "# Code:2 ends here",
+    }, vim.fn.readfile(dir .. "/c.sh"))
+  end)
+
   it("interprets :tangle-mode like org-babel-interpret-file-mode", function()
     skip_on_windows("Windows has no Unix file modes")
     local dir = tangle({
