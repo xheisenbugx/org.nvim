@@ -188,6 +188,10 @@ local function formulas(line, row, s)
   return spans, bars
 end
 
+-- (what a line without formulas or special keywords has of them: not
+-- changed)
+local NONE = {}
+
 --- Paint the rows of `ctx` (see org.ui.highlight `Ctx`).
 ---@param ctx org.ui.highlight.Ctx
 function M.paint(ctx)
@@ -209,11 +213,11 @@ function M.paint(ctx)
         -- (no @Spell in orgTable: the rows aren't spell checked)
         emit(i, 0, #line, { spell = false, priority = element })
       end
-      local spans, bars = {}, {} ---@type integer[][], integer[]
+      local spans, bars = NONE, NONE ---@type integer[][], integer[]
       if row or (line:find("|", 1, true) and not property_line(line)) then
         spans, bars = formulas(line, row, s)
       end
-      local keys = {} ---@type integer[][]
+      local keys = NONE ---@type integer[][]
       if row and line:find(":", 1, true) then
         keys = specials(line)
       end

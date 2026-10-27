@@ -375,6 +375,9 @@ end
 local PATH_STOP = set_of(" \t\n[]()<>")
 local OPEN_GROUP = set_of("(<[")
 local CLOSE_GROUP = set_of(")>]")
+-- [%w] and [%w_+%-] (a link type), by byte
+local ALNUM = set_of("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+local TYPE_CHAR = set_of("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_+-")
 local PUNCT = set_of([=[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]=])
 
 --- The bracket links of `s` and the ends of its angle and plain links, as
@@ -527,7 +530,7 @@ local function links(s, types, line_of, line_start)
 
   local function word_start(x)
     local b = byte(s, x - 1)
-    return b == nil or not (b >= 128 or s:sub(x - 1, x - 1):find("%w"))
+    return b == nil or not (b >= 128 or ALNUM[b])
   end
 
   -- the next start of each kind at or after a position
@@ -564,7 +567,7 @@ local function links(s, types, line_of, line_start)
         end
         -- the leftmost link type ending at the colon, at a word start
         local r = c
-        while r > i and r > c - 24 and s:sub(r - 1, r - 1):find("[%w_+%-]") do
+        while r > i and r > c - 24 and TYPE_CHAR[byte(s, r - 1)] do
           r = r - 1
         end
         local found
@@ -661,6 +664,25 @@ local function inline_src(s)
       end
     end
   end
+end
+
+--- Whether `line` is a table row, for a marker on the line after it.
+local function table_row(line)
+  return line:find("^[ \t]*|") ~= nil
+end
+
+--- Whether `line` is a table rule (|---+---| or +---+---+), likewise.
+local function table_rule(line)
+  return line:find("^[ \t]*|[-+]+|?[ \t]*$") ~= nil or line:find("^[ \t]*%+[-+]+%+[ \t]*$") ~= nil
+end
+
+--- What the scan of the lines after `line` reads of it (it is the line
+--- before them, `opts.prev` of `M.marks`): whether it is a table row or
+--- a table rule.
+---@param line string
+---@return integer
+function M.line_above(line)
+  return (table_row(line) and 1 or 0) + (table_rule(line) and 2 or 0)
 end
 
 ---@class org.ui.emphasis.Region
@@ -772,7 +794,7 @@ local function emphasis(s, line_of, line_start, line_text)
           if tl == 0 and text == nil then
             tl, text = l, line_text(l)
           end
-          if ok and text and text:find("^[ \t]*|") then
+          if ok and text and table_row(text) then
             -- not over a "|" in a table row
             local bar = find_bar(p + 1)
             ok = not (bar and bar < c)
@@ -781,7 +803,7 @@ local function emphasis(s, line_of, line_start, line_text)
             -- a table rule (|---+---| or +---+---+)
             local r = rule[tl]
             if r == nil then
-              r = text:find("^[ \t]*|[-+]+|?[ \t]*$") ~= nil or text:find("^[ \t]*%+[-+]+%+[ \t]*$") ~= nil
+              r = table_rule(text)
               rule[tl] = r
             end
             ok = not r

@@ -45,6 +45,14 @@ local M = {}
 ---@type { [1]: integer, [2]: integer }?
 M.last_read = nil
 
+--- Per row the last `add_marks` drew, the rows (0-based, first and last)
+--- its marks depend on: those a scan of that row alone reads (see
+--- `M.window`), within `last_read`, but the line before them, of which
+--- the scan reads only `E.line_above`. Nil when they are all of
+--- `last_read`.
+---@type { lo: table<integer, integer>, hi: table<integer, integer> }?
+M.last_reads = nil
+
 local E = require("org.ui.emphasis")
 
 --- The parts, in the order they paint (the order doesn't decide which
@@ -129,7 +137,7 @@ local function star_above(text, row, max)
   end
   v = false
   local stop = math.max(text.top, row - max)
-  local e, size = row, 64
+  local e, size = row, 16
   while e > stop do
     local s = math.max(stop, e - size)
     local chunk = text.get(s, e)
@@ -146,33 +154,6 @@ local function star_above(text, row, max)
   end
   text.memo.star[key] = v
   return v
-end
-
---- The block open at the start of row `row` (0-based) of `text`: from the
---- headline above (or LOOKBACK lines up).
----@param text org.ui.highlight.Text
----@return org.ui.emphasis.Block|false
-local function block_before(text, row)
-  local v = text.memo.block[row]
-  if v ~= nil then
-    return v
-  end
-  local h = star_above(text, row, LOOKBACK)
-  local from = h and h + 1 or math.max(text.top, row - LOOKBACK)
-  local block = false ---@type org.ui.emphasis.Block|false
-  for j, line in ipairs(text.get(from, row)) do
-    local name, begins = E.block_line(line)
-    if name then
-      if block and not begins and name == block.name then
-        block = false
-      elseif not block and begins then
-        -- (whether it has an end line is found out by `E.kinds`)
-        block = { name = name, verbatim = E.VERBATIM_BLOCKS[name] == true, row = from + j - 1, line = line }
-      end
-    end
-  end
-  text.memo.block[row] = block
-  return block
 end
 
 --- The row of the first line from row `stop` (0-based) of `text` on that
@@ -208,35 +189,118 @@ local function end_from(text, stop, name)
   return v or nil
 end
 
+--- The block open at the start of row `row` (0-based) of `text`: from the
+--- headline above (or LOOKBACK lines up). A begin line opens a block when
+--- an end line of its name follows before a line of stars (`E.kinds`):
+--- one that doesn't is text, and a block can begin after it.
+---@param text org.ui.highlight.Text
+---@return org.ui.emphasis.Block|false
+local function block_before(text, row)
+  local v = text.memo.block[row]
+  if v ~= nil then
+    return v
+  end
+  local h = star_above(text, row, LOOKBACK)
+  local from = h and h + 1 or math.max(text.top, row - LOOKBACK)
+  local lines = text.get(from, row)
+  -- the end lines by name (no line of stars is among the lines)
+  local ends = {} ---@type table<string, integer[]>
+  for j, line in ipairs(lines) do
+    local name, begins = E.block_line(line)
+    if name and not begins then
+      local t = ends[name] or {}
+      t[#t + 1] = j
+      ends[name] = t
+    end
+  end
+  local at = {} ---@type table<string, integer>
+  local block = false ---@type org.ui.emphasis.Block|false
+  for j, line in ipairs(lines) do
+    local name, begins = E.block_line(line)
+    if name then
+      if block and not begins and name == block.name then
+        block = false
+      elseif not block and begins then
+        local t, k = ends[name] or {}, at[name] or 1
+        while t[k] and t[k] <= j do
+          k = k + 1
+        end
+        at[name] = k
+        if t[k] or end_from(text, row, name) then
+          block = { name = name, verbatim = E.VERBATIM_BLOCKS[name] == true, row = from + j - 1, line = line }
+        end
+      end
+    end
+  end
+  text.memo.block[row] = block
+  return block
+end
+
+-- Whether a line separates paragraphs (`E.separates`), by its text: the
+-- scans of the rows drawn after each keystroke ask it of the same lines.
+local seps, nseps = {}, 0 ---@type table<string, boolean>, integer
+
+---@param line string
+---@return boolean
+local function separates(line)
+  local v = seps[line]
+  if v == nil then
+    if nseps >= 20000 then
+      seps, nseps = {}, 0
+    end
+    v = E.separates(line)
+    seps[line], nseps = v, nseps + 1
+  end
+  return v
+end
+
 --- The lines rows `first` to `last` (0-based) of `text` are drawn from
 --- (see `M.window`).
 ---@param text org.ui.highlight.Text
 ---@return org.ui.highlight.Window
 local function window_of(text, first, last)
   local top, bottom, get = text.top, text.bottom, text.get
-  local separates = E.separates
+  -- up from two lines above to the line that separates paragraphs (not
+  -- the PARAGRAPH-th line up, which starts the window anyway), and down
+  -- from two lines below to it; read in chunks that grow (it is usually
+  -- near)
   local scan_row = math.max(top, first - 2)
-  local up = get(math.max(top, scan_row - PARAGRAPH), scan_row + 1)
-  for k = #up, 2, -1 do
-    if separates(up[k]) then
+  local lb = math.max(top, scan_row - PARAGRAPH)
+  local prev ---@type string?
+  local e, size = scan_row + 1, 8
+  while e > lb + 1 do
+    local s = math.max(lb + 1, e - size)
+    local chunk = get(s, e)
+    local k = #chunk
+    while k >= 1 and not separates(chunk[k]) do
+      k = k - 1
+    end
+    if k >= 1 then
+      scan_row, prev = s + k - 1, chunk[k - 1]
       break
     end
-    scan_row = scan_row - 1
+    e, size = s, size * 2
+    scan_row = lb
   end
   local stop = math.min(bottom, last + 2)
-  local down = get(stop, math.min(bottom, stop + PARAGRAPH))
-  for _, line in ipairs(down) do
-    if separates(line) then
+  local limit = math.min(bottom, stop + PARAGRAPH)
+  size = 8
+  while stop < limit do
+    local chunk = get(stop, math.min(limit, stop + size))
+    local k = 1
+    while chunk[k] and not separates(chunk[k]) do
+      k = k + 1
+    end
+    stop = stop + k - 1
+    if chunk[k] or #chunk == 0 then
       break
     end
-    stop = stop + 1
+    size = size * 2
   end
   local lines = get(scan_row, stop)
-  local prev ---@type string?
-  if scan_row > top then
-    -- (the line before the window: in `up` unless the window starts above it)
-    local k = scan_row - math.max(top, math.max(top, first - 2) - PARAGRAPH)
-    prev = up[k] or get(scan_row - 1, scan_row)[1]
+  if scan_row > top and not prev then
+    -- (the line before the window)
+    prev = get(scan_row - 1, scan_row)[1]
   end
   local function end_after(name)
     return end_from(text, stop, name)
@@ -251,6 +315,65 @@ local function window_of(text, first, last)
     end,
     end_after = end_after,
   }
+end
+
+--- Whether `s` can hold an object that runs on over the start of a
+--- paragraph (a macro, an inline footnote: a scan of rows together draws
+--- it over the lines of a list, a scan of one row alone doesn't).
+---@param s string
+---@return boolean
+function M.spans_paragraphs(s)
+  return s:find("{{{", 1, true) ~= nil or s:find("[fn:", 1, true) ~= nil
+end
+
+--- The rows each of rows `first` to `last` of the window `w` depends on:
+--- those its own window reads (`window_of` for that row alone: from the
+--- paragraph that starts two lines up to the line below the one that ends
+--- two lines down; and `E.line_above` of the line before), nil when the
+--- window holds what draws rows together (`M.spans_paragraphs`).
+---@param w org.ui.highlight.Window
+---@return { lo: table<integer, integer>, hi: table<integer, integer> }?
+local function row_reads(w, top, bottom, first, last)
+  local lines, row0 = w.lines, w.row0
+  local n = #lines
+  -- per line, the nearest separating line at or above it, and at or below
+  local up, down = {}, {} ---@type table<integer, integer|false>, table<integer, integer|false>
+  local is_sep = {} ---@type boolean[]
+  local at = false ---@type integer|false
+  for k = 1, n do
+    local line = lines[k]
+    if M.spans_paragraphs(line) then
+      return nil
+    end
+    local sep = separates(line)
+    is_sep[k] = sep
+    if sep then
+      at = row0 + k - 1
+    end
+    up[k] = at
+  end
+  at = false
+  for k = n, 1, -1 do
+    if is_sep[k] then
+      at = row0 + k - 1
+    end
+    down[k] = at
+  end
+  local hi_all = row0 + n
+  local lo, hi = {}, {}
+  for r = first, last do
+    local x = math.max(top, r - 2)
+    local lb = math.max(top, x - PARAGRAPH)
+    local sx = up[x - row0 + 1]
+    local scan = (sx and sx > lb) and sx or lb
+    lo[r] = scan
+    local y = math.min(bottom, r + 2)
+    local ub = math.min(bottom, y + PARAGRAPH)
+    local sy = down[y - row0 + 1]
+    local stop = sy and math.min(sy, ub) or math.min(ub, hi_all)
+    hi[r] = math.min(hi_all, stop)
+  end
+  return { lo = lo, hi = hi }
 end
 
 --- The text of buffer `bufnr`, rows `top` to `bottom - 1` (default: all;
@@ -391,6 +514,8 @@ local function paint(bufnr, text, first, last, ui, rows, file, body)
   local read = M.last_read
   local r0, r1 = w.row0 - 1, w.row0 + #w.lines
   M.last_read = read and { math.min(read[1], r0), math.max(read[2], r1) } or { r0, r1 }
+  -- (each row's own: the rows of the bodies of org src blocks have all)
+  M.last_reads = not read and not body and row_reads(w, text.top, text.bottom, first, last) or nil
   local row0 = w.row0
   ---@type org.ui.highlight.Ctx
   local ctx = {
@@ -490,7 +615,7 @@ end
 ---@param ui table the buffer's `ui` options
 ---@param rows table<integer, table[]>
 function M.add_marks(bufnr, first, last, ui, rows)
-  M.last_read = nil
+  M.last_read, M.last_reads = nil, nil
   local file = M.file_in_use(bufnr) or require("org.files").get_buffer(bufnr)
   parses[bufnr] = file
   local w, _, roles = paint(bufnr, buffer_text(bufnr), first, last, ui, rows, file, false)
