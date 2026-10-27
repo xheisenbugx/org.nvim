@@ -76,6 +76,10 @@ M.FACE_OF = {
   orgtableformula = "formula",
   -- blocks and LaTeX
   orgblock = "block",
+  -- (a mark without attributes on the body of a src or export block whose
+  -- language an included syntax or tree-sitter draws: Emacs appends
+  -- org-block under the language's faces)
+  orgsrcblock = "block",
   orgquoteblock = "quote",
   orgverseblock = "verse",
   orgblockdelimiter = "block-delimiter",
