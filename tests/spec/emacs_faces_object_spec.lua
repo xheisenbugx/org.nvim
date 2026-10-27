@@ -5,10 +5,17 @@
 
 -- Known differences: fixture -> { [line] = reason }.
 local KNOWN = {
-  ["examples-13-links.org"] = {
-    -- man: is an org.nvim link type; Emacs knows it only with ol-man
-    -- loaded, which org doesn't do by default
-    [456] = "man: links",
+  ["tests-fixtures-emacs-faces-objects.org"] = {
+    -- a macro with no "}}}" before the next headline, and a footnote
+    -- reference with no closing bracket before it: Emacs's font-lock
+    -- paints them over the headline and on (org-fontify-macros stops only
+    -- at an empty line, scan-sexps not even there); org.nvim ends them
+    -- before the line of stars, so that a row is drawn from a window that
+    -- reads back no further than the headline above it (`:h
+    -- org-differences`)
+    [35] = "a macro and a footnote reference over a headline",
+    [36] = "a macro and a footnote reference over a headline",
+    [37] = "a macro and a footnote reference over a headline",
   },
   ["tests-fixtures-emacs-faces-object.org"] = {
     -- after a macro with no "}}}" before an empty line, org-fontify-macros

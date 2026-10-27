@@ -1,0 +1,16 @@
+screen 60x8
+|{1:* Math}|
+|Inline {2:$}{3:x}{4:^}{3:2 + y}{4:_}{3:1}{2:$}, {2:\\(}{5:\\frac}{2:\{}{3:a}{2:\}\{}{3:b}{2:\}\\)} and {5:\\alpha} here.|
+|{5:\\begin}{2:\{}{3:equation}{2:\}}|
+|{3:E }{4:=}{3: mc}{4:^}{3:2 }{6:% energy}|
+|{5:\\end}{2:\{}{3:equation}{2:\}}|
+|Not in {7:=}{8:$verbatim$}{7:=}.|
+
+{1} OrgHeadlineLevel1 -> Title [bold]
+{2} Delimiter
+{3} Special
+{4} Operator
+{5} Statement [bold]
+{6} Comment
+{7} orgVerbatimDelimiter -> OrgVerbatim -> String
+{8} OrgVerbatim -> String

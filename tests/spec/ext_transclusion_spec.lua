@@ -462,6 +462,20 @@ describe("transclusion highlight", function()
     eq({ { { "a       b" } } }, highlight.code({ "a\tb" }, nil))
   end)
 
+  -- (org-fontify-quote-and-verse-blocks)
+  it("draws quote and verse bodies as Org text, on their group with fontify_quote_and_verse_blocks", function()
+    local lines = { "#+begin_quote", "a *b*", "#+end_quote", "#+begin_verse", "v", "#+end_verse" }
+    local c = highlight.org(lines)
+    eq({ { "a ", nil }, { "*b*", "OrgBold" } }, c[2])
+    eq({ { "v", nil } }, c[5])
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
+    c = highlight.org(lines)
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
+    eq({ { "a ", "OrgQuoteBlock" }, { "*b*", "OrgBold" } }, c[2])
+    eq({ { "v", "OrgVerseBlock" } }, c[5])
+    eq("OrgBlockDelimiter", c[6][1][2])
+  end)
+
   it("marks up emphasis only at word boundaries", function()
     local c = highlight.inline("a*b* and *bold* 2*3", nil)
     local found = {}

@@ -881,9 +881,12 @@ They are not entries of their own (the text around them belongs to the
 entry), fold up to END with <Tab>, promote / demote together with their END
 line (never below the minimum level) and show only their last two stars
 (also the first one, as a marker, with `inlinetask_show_first_star`,
-org-inlinetask-show-first-star). In the agenda, a timestamp in the text
-after an END line (up to the next headline) shows as an entry titled "END",
-with the inline task's tags, as in Emacs.
+org-inlinetask-show-first-star). With odd levels only (`#+STARTUP: odd`,
+`odd_levels_only`) an inline task needs 2 * `inlinetask_min_level` - 1
+stars, as in Emacs: 29 for 15, and 15 stars is then a level 8 headline. In
+the agenda, a timestamp in the text after an END line (up to the next
+headline) shows as an entry titled "END", with the inline task's tags, as
+in Emacs.
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.
@@ -3797,6 +3800,11 @@ Targets:
                                       is called interactively there
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
+                                      (as in Emacs, where ol-man isn't
+                                      loaded by default, it is drawn as
+                                      a link only in brackets:
+                                      `[[man:printf(3)]]`; <CR> opens it
+                                      either way)
   info:emacs#Top                      the `info` program in a terminal
                                       (exported to HTML as a link to the
                                       manual's URL in
@@ -6854,6 +6862,10 @@ Options under `ui`:
   fontify_done_headline  dim DONE headlines
   fontify_todo_headline  highlight the text of TODO headlines with
                          OrgHeadlineTodo (org-fontify-todo-headline)
+  fontify_quote_and_verse_blocks  the bodies of quote and verse blocks
+                         on OrgQuoteBlock / OrgVerseBlock, under their
+                         Org text (org-fontify-quote-and-verse-blocks);
+                         false by default like Emacs: Org text only
   level_color_stars_only the level color on the stars only
                          (org-level-color-stars-only)
   hidden_keywords        keywords shown without their "#+KEYWORD:" part:
@@ -6865,11 +6877,10 @@ Options under `ui`:
                          (org-highlight-latex-and-related), none by
                          default like Emacs: "latex" (fragments $..$,
                          \(..\), \[..\], $$..$$ and \begin{..}
-                         environments, OrgLatex), "native" (the same with
-                         Vim's tex syntax inside; with the default
-                         |org-highlighter| like "latex"), "script" (x^2,
-                         a_{i}),
-                         "entities" (\alpha)
+                         environments, OrgLatex), "native" (the same
+                         drawn by Vim's tex syntax, with the entities and
+                         scripts listed; |org-highlighter-latex|),
+                         "script" (x^2, a_{i}), "entities" (\alpha)
   src_highlight          highlight src blocks in their language
                          (org-src-fontify-natively); false: plain text
   src_highlight_engine   "auto" (default): with tree-sitter when Neovim
@@ -7242,11 +7253,11 @@ Two highlighters can draw org buffers, chosen with `ui.highlighter`:
 "parser" ports Emacs's own fontification (org-set-font-lock-defaults:
 org-fontify-meta-lines-and-blocks, org-do-emphasis-faces,
 org-activate-links, ...) instead of approximating it with regions. On the
-example files and the fixtures of hard cases (26,264 lines), it draws
-the faces Emacs Org 9.8.12 draws on every byte of all but 83 lines, most
-of them known differences (tests/spec/emacs_faces_*_spec.lua, against
-tests/fixtures/emacs/faces/); "syntax" differs from Emacs on 4,373 lines
-of the same files. Every marker that can open emphasis is tried on its
+example files and the fixtures of hard cases (26,503 lines), it draws
+the faces Emacs Org 9.8.12 draws on every byte of all but 9 lines, each a
+known difference with its reason (tests/spec/emacs_faces_*_spec.lua,
+against tests/fixtures/emacs/faces/); "syntax" differs from Emacs on
+4,388 lines of the same files. Every marker that can open emphasis is tried on its
 own, so markup may overlap the way it does in Emacs (`*a /b* c/` is bold
 and italic), markup in link descriptions, macros, property values and
 comment blocks is drawn, and verbatim and code show the link brackets and
@@ -7255,7 +7266,13 @@ so it has none of the limits of regions: everything is drawn past
 'synmaxcol' (3000) and markup over two lines however long the first is, a
 long line full of markers can't run out of 'maxmempattern' (E363) and
 turn highlighting off, and an emphasis or block whose end can't be found
-never runs on over the lines below.
+never runs on over the lines below. Typing computes again only the rows
+an edit inside a line can change (an edit of a headline's text too, not
+of its stars), however much of the file was drawn before, so a keystroke
+in a file of 10,000 headlines costs less than with "syntax". Loading it
+sets LuaJIT's `sizemcode` (the size of each machine code area) to 256 KB:
+on arm64, a new area of the default size often couldn't be placed once a
+large file was open, and every compiled trace was thrown away each time.
 
 Both use the same highlight groups (`OrgBold`, `OrgVerbatim`, ... below, and
 the `org...` syntax group names linked to them, so a colorscheme that sets
@@ -7270,9 +7287,9 @@ blocks; `:Org inspect` lists it), only org buffers are drawn by it (a buffer
 that just sets 'syntax' to org, like the drill window, keeps the regions),
 verbatim and code are left out of spell checking with extmarks instead of
 |:syn-spell| clusters (|org-highlighter-spell|), and
-`ui.highlight_latex_and_related` "native" draws fragments like "latex" (Vim's
-tex syntax isn't included in them). To go back to the old engine while it is
-kept: >lua
+`ui.highlight_latex_and_related` "native" draws fragments with marks of Vim's
+tex groups (|org-highlighter-latex|). To go back to the old engine while it
+is kept: >lua
     ui = { highlighter = "syntax" }
 <
 Calling `setup()` again with another `ui.highlighter` draws the org buffers
@@ -7300,6 +7317,23 @@ emphasis in a list item's tag, a link over two lines, or keyword and
 block lines in a quote block; and verbatim is what org-element finds, left
 to right, so `=a "b"=, the rest=` checks ", the rest" (font-lock, which
 tries every marker, draws it as verbatim too).
+                                                *org-highlighter-latex*
+With `ui.highlight_latex_and_related = { "native" }`, the parser
+highlighter draws what it finds (`$x$`, `\(..\)`, `\[..\]`, `$$..$$` and
+`\begin{..}` environments, and the entities and scripts when listed too)
+the way Emacs's org-do-latex-and-related does then: the text is drawn as a
+TeX file of its own would be, with the groups of Vim's tex syntax
+(texMathZoneX, texStatement, ...), over `orgSrcBlock` (org-block, as the
+body of a src block drawn by its language), and in place of `OrgLatex`.
+It is shown as typed: tex's concealing and its error groups are left out.
+Without a tex syntax on 'runtimepath', fragments get `OrgBlock` alone.
+Like Emacs, nothing is drawn where the byte after the start of the match
+is verbatim, code, underline or a special keyword. The tex groups are
+marks, not syntax: `synstack()` and |:Inspect| don't list them (`:Org
+inspect` does). A fragment seen first while the screen is drawn gets its
+colours right after, on the next redraw. Difference: Emacs takes the faces
+of bold, italic and the like off a fragment drawn natively; here the tex
+groups only go over them.
 
 `:Org inspect` (no default key) shows what is drawn under the cursor,
 like |:Inspect| but with the marks it doesn't see: the decorations and
@@ -7309,7 +7343,11 @@ checked and whether it hides the text, then the syntax groups, tree-sitter
 captures and extmarks |:Inspect| lists.
 
 Quote and verse block contents are highlighted as ordinary Org (lists,
-tables, timestamps, markup) on top of OrgQuoteBlock; center, special
+tables, timestamps, markup), on top of OrgQuoteBlock (quote) and
+OrgVerseBlock (verse, linked to OrgQuoteBlock) only with
+`ui.fontify_quote_and_verse_blocks` (off by default, as Emacs's
+org-fontify-quote-and-verse-blocks; the deprecated "syntax" highlighter
+draws both on OrgQuoteBlock); center, special
 (`#+begin_note`...) and dynamic (`#+BEGIN:`) blocks highlight only their
 delimiter lines. Every block ends at the next headline, whether or not it
 has its `#+end` line. `#+begin_export LANG` blocks get LANG's syntax, as
@@ -7338,6 +7376,17 @@ body is never drawn with a tree-sitter org parser or a Vim syntax for org,
 even when one is installed: this drawing wins. "syntax" draws such bodies
 as plain OrgBlock.
 
+With the "parser" highlighter, an inline src block (`src_LANG{BODY}`) is
+drawn wherever its text is, as Emacs's org-fontify-inline-src-blocks does:
+in a headline, a table, a list term, a link description, a comment, a
+keyword line, or the body of a block. Its braces and body don't take the
+face of what they are in (OrgInlineSrcMarker and OrgInlineSrc alone, no
+headline, table, link or OrgBlock colour under them), while `src_LANG` and
+`[HEADERS]` keep it under their own. What a link hides stays hidden. In
+the body of a src or export block, the language's Vim syntax still draws
+under the braces (a decoration can't take a syntax group's attributes
+off, so `<b>src_sh{x}</b>` in an html export block keeps its bold).
+
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
 Both highlighters draw with the `org...` group names (`orgHeadlineLevel1`,
 `orgTodo`, ...) linked to these; the default one, "parser"
@@ -7349,7 +7398,8 @@ Both highlighters draw with the `org...` group names (`orgHeadlineLevel1`,
     `OrgTags`, `OrgTimestamp`, `OrgTimestampInactive`, `OrgPlanning`,
     `OrgClockDuration`, `OrgClockSum`, `OrgDrawer`, `OrgPropertyKey`,
     `OrgPropertyValue`, `OrgKeyword`, `OrgKeywordValue`, `OrgTitle`,
-    `OrgComment`, `OrgBlock`, `OrgQuoteBlock`, `OrgBlockDelimiter`,
+    `OrgComment`, `OrgBlock`, `OrgQuoteBlock`, `OrgVerseBlock`,
+    `OrgBlockDelimiter`,
     `OrgBold`, `OrgItalic`, `OrgUnderline`, `OrgStrikethrough`,
     `OrgVerbatim`, `OrgCode`, `OrgLink`, `OrgListBullet`, `OrgListTerm`,
     `OrgCheckbox`, `OrgCheckboxChecked`, `OrgCheckboxPartial`,
@@ -9104,7 +9154,11 @@ Differences from Emacs:
   line of a closed fold, is drawn below the line or shown as its link text
   (Emacs makes that screen line as tall as the image). A wrapped line
   breaks by its full text, hidden link targets included, so a long link
-  near the window edge leaves a gap (|org-links-wrap|). With
+  near the window edge leaves a gap (|org-links-wrap|). A macro whose
+  `}}}`, or a footnote reference whose closing bracket, comes after the
+  next headline is not drawn (Emacs's font-lock paints it over the
+  headline and the lines up to its end): the rows of a window are drawn
+  from the lines back to the headline above them at most. With
   `ui.highlighter = "syntax"` (deprecated; the default "parser" has none
   of these limits, |org-highlighter|), Vim draws syntax
   up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
@@ -9113,6 +9167,15 @@ Differences from Emacs:
   first line is at most 'synmaxcol' characters long: looking further for
   the end of every marker would make drawing a long line take time
   quadratic in its length.
+
+- Inline tasks: promoting one at the minimum level is refused. With odd
+  levels only, Emacs compares the new stars with org-inlinetask-min-level
+  itself and so promotes a 29 stars inline task to 27 stars, a headline
+  (its END line becoming a headline too).
+
+- `ui.highlight_latex_and_related` "native" (|org-highlighter-latex|)
+  draws LaTeX with Vim's tex syntax, not latex-mode's faces, and over the
+  bold, italic and the like around it, which Emacs takes off.
 
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or

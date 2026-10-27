@@ -10,8 +10,17 @@
 ;; when they are invisible (emphasis markers, link brackets and paths).
 ;; org-hide-emphasis-markers is on; the rest are Org's defaults. Columns
 ;; count bytes, as in Neovim.
+;;
+;; With FACES_QUOTE=1, org-fontify-quote-and-verse-blocks is t and the
+;; inputs that have a quote or verse block are written under
+;; expected-quote/ instead (the others draw the same either way).
 
 (setq org-hide-emphasis-markers t)
+
+(defvar faces-quote (equal (getenv "FACES_QUOTE") "1")
+  "Non-nil: record with `org-fontify-quote-and-verse-blocks' set.")
+(when faces-quote
+  (setq org-fontify-quote-and-verse-blocks t))
 
 (defun faces-names (f)
   "The names of face property value F."
@@ -46,7 +55,7 @@
     (and any (mapconcat #'identity (nreverse runs) ","))))
 
 (let* ((dir (expand-file-name "faces/" parity-fixtures))
-       (out-dir (expand-file-name "expected/" dir))
+       (out-dir (expand-file-name (if faces-quote "expected-quote/" "expected/") dir))
        (only (getenv "FACES_FILES"))
        (files (if (and only (not (string= only "")))
                   (mapcar (lambda (f) (expand-file-name f parity-root)) (split-string only))
@@ -54,7 +63,14 @@
                         (directory-files (expand-file-name "fontify/" parity-fixtures) t "\\.org\\'")
                         (directory-files dir t "\\.org\\'")))))
   (make-directory out-dir t)
-  (dolist (f files)
+  (dolist (f (if faces-quote
+                (seq-filter (lambda (f)
+                              (with-temp-buffer
+                                (insert-file-contents f)
+                                (let ((case-fold-search t))
+                                  (re-search-forward "^[ \t]*#\\+begin_\\(?:quote\\|verse\\)" nil t))))
+                            files)
+              files))
     (let ((out '()))
       (with-temp-buffer
         (insert-file-contents f)

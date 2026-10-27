@@ -1,0 +1,23 @@
+#+STARTUP: odd
+#+TITLE: Inline tasks with odd levels only
+
+With odd levels only, org-inlinetask-min-level 15 means 2 * 15 - 1 = 29
+stars: fewer stars make a headline (15 stars is level 8).
+
+* Level one
+*** Level two
+Some text.
+*************** TODO Fifteen stars: a level 8 headline [#A] :work:
+Text of the level 8 headline.
+**************************** Twenty-eight stars: still a headline
+Text under it.
+***************************** TODO Inline task with 29 stars :call:
+Body of the inline task.
+***************************** END
+More text of the entry.
+******************************* DONE Deeper inline task, 31 stars
+****************************** NEXT Thirty stars, no END line
+Text after it.
+***** Level three
+******************************* END
+Text.

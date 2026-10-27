@@ -245,8 +245,9 @@ function M.cycle_limit_level()
     end
     return odd and 2 * max - 1 or max
   end
-  local min_inline = parser.inlinetask_min_level()
-  if min_inline then
+  -- org-get-limited-outline-regexp: org-inlinetask-min-level - 1 levels
+  local min_inline = config.opts.inlinetask_min_level
+  if type(min_inline) == "number" then
     max = min_inline - 1
     return odd and 2 * max - 1 or max
   end

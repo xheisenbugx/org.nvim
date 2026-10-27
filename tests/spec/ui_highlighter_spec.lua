@@ -453,7 +453,8 @@ describe("ui.highlighter = parser: long lines", function()
     is("orgBold", 2, 16)
     is("orgListTerm", 4, 3)
     is("orgListTerm", 4, 4990)
-    is("orgQuoteBlock", 6, 2)
+    -- (a quote body: no colour without ui.fontify_quote_and_verse_blocks)
+    is("", 6, 2)
     is("orgListTerm", 6, 3)
     is("", 8, 3)
   end)
@@ -684,6 +685,76 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
     eq(fresh, kept)
   end)
 
+  it("keeps rows over an edit of a headline's text, not of its stars", function()
+    local buf = org_buffer(require("tests.helpers.gen").headlines(40), { 1, 0 })
+    local row
+    for i, l in ipairs(buf_lines(buf)) do
+      if i > 60 and l:find("^%*+ TODO") then
+        row = i - 1
+        break
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    vim.cmd("normal! zz")
+    vim.cmd("redraw")
+    local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    local col = #buf_lines(buf)[row + 1]:match("^%*+ TODO ")
+    -- the title, the TODO keyword, the tags: the rows around it only
+    for _, edit in ipairs({ { col, col, "x" }, { col - 2, col - 1, "" }, { col - 3, col - 3, "X " } }) do
+      local carried = deco._carried
+      local n = computed(function()
+        vim.api.nvim_buf_set_text(buf, row, edit[1], row, edit[2], { edit[3] })
+        vim.cmd("redraw")
+      end)
+      eq(carried + 1, deco._carried)
+      ok(n >= 1 and n <= 8, "rows computed: " .. n)
+      local kept, fresh = screen_marks(buf, top, bot)
+      eq(fresh, kept)
+    end
+    -- a star more or less: every row
+    for _, edit in ipairs({ { 0, 0, "*" }, { 0, 1, "" }, { 1, 2, "\t" } }) do
+      local n = computed(function()
+        vim.api.nvim_buf_set_text(buf, row, edit[1], row, edit[2], { edit[3] })
+        vim.cmd("redraw")
+      end)
+      ok(n > bot - top, "rows computed: " .. n)
+      local kept, fresh = screen_marks(buf, top, bot)
+      eq(fresh, kept)
+    end
+  end)
+
+  it("looks at the rows near an edit only to keep the others, however many were drawn", function()
+    -- (scrolled through the whole buffer: every row is done)
+    local buf = org_buffer(require("tests.helpers.gen").headlines(400), { 1, 0 })
+    local lines = buf_lines(buf)
+    ok(#lines > 4000)
+    local top
+    while top ~= vim.fn.line("w0") do
+      top = vim.fn.line("w0")
+      vim.cmd("normal! \6")
+      vim.cmd("redraw")
+    end
+    local row
+    for i = math.floor(#lines / 2), #lines do
+      if lines[i]:find("^Body") then
+        row = i - 1
+        break
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    vim.cmd("normal! zz")
+    vim.cmd("redraw")
+    local carried, looked = deco._carried, deco._carried_rows
+    vim.api.nvim_buf_set_text(buf, row, 0, row, 0, { "x" })
+    vim.cmd("redraw")
+    eq(carried + 1, deco._carried)
+    local looked_at = deco._carried_rows - looked
+    ok(looked_at > 0 and looked_at < 400, "rows looked at: " .. looked_at)
+    local t, b = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    local kept, fresh = screen_marks(buf, t, b)
+    eq(fresh, kept)
+  end)
+
   it("computes again every row of a screen an edit changes what draws rows together in", function()
     -- a macro over the items of a list is drawn when the rows are scanned
     -- together: an edit of any of them computes them all again
@@ -720,11 +791,6 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
       local lines = fuzz.doc(rng, { crlf = false })
       local from = rng:int(1, #fixtures - 40)
       vim.list_extend(lines, vim.list_slice(fixtures, from, from + 40))
-      -- (the rows of what draws rows together are drawn as a scan of each
-      -- row alone draws them once edits computed some again: left out)
-      for i, l in ipairs(lines) do
-        lines[i] = (l:gsub("{{{", "{{"):gsub("%[fn:", "[f:"))
-      end
       local buf = org_buffer(lines, { 1, 0 })
       for _ = 1, 25 do
         local n = vim.api.nvim_buf_line_count(buf)
@@ -742,15 +808,13 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
         end
         vim.cmd("redraw")
         local now = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-        if not require("org.ui.highlight").spans_paragraphs(table.concat(now, "\n")) then
-          top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
-          local kept, fresh = screen_marks(buf, top, bot)
-          for i = 1, #fresh do
-            if kept[i] ~= fresh[i] then
-              error(
-                fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(top + i - 1, row), now, now)
-              )
-            end
+        top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+        local kept, fresh = screen_marks(buf, top, bot)
+        for i = 1, #fresh do
+          if kept[i] ~= fresh[i] then
+            error(
+              fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(top + i - 1, row), now, now)
+            )
           end
         end
       end

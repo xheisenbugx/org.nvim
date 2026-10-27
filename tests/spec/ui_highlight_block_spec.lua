@@ -69,6 +69,7 @@ describe("parser highlighter: blocks", function()
 
   -- Emacs: a headline always ends a block (org-fontify-meta-lines-and-blocks-1)
   it("ends blocks, closed or not, at a headline", function()
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
     org_buffer({
       "* Top",
       "#+begin_quote",
@@ -93,6 +94,7 @@ describe("parser highlighter: blocks", function()
     ok(not has(9, 1, "orgblockdelimiter"), groups(9, 1))
     ok(has(10, 1, "orgblockdelimiter"), groups(10, 1))
     ok(not has(12, 1, "orgblock") and not has(12, 1, "orgblockdelimiter"), groups(12, 1))
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
   end)
 
   it("leaves a block without an end line or headline after it unhighlighted", function()
@@ -102,10 +104,12 @@ describe("parser highlighter: blocks", function()
   end)
 
   it("closes a block only with an end line of its name", function()
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
     org_buffer({ "#+begin_verse", "a", "#+end_verse1", "#+end_verse_", "after" })
-    ok(has(3, 1, "orgquoteblock") and not has(3, 1, "orgblockdelimiter"), groups(3, 1))
+    ok(has(3, 1, "orgverseblock") and not has(3, 1, "orgblockdelimiter"), groups(3, 1))
     ok(has(4, 1, "orgblockdelimiter"), groups(4, 1))
-    ok(not has(5, 1, "orgquoteblock"), groups(5, 1))
+    ok(not has(5, 1, "orgverseblock"), groups(5, 1))
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
   end)
 
   it("draws example and export bodies in orgBlock, out of spell checking", function()
@@ -165,28 +169,64 @@ describe("parser highlighter: blocks", function()
     require("org.config").opts.ui.src_highlight_engine = nil
   end)
 
-  it("highlights quote and verse contents as Org text on orgQuoteBlock", function()
+  -- Emacs: org-quote / org-verse only with org-fontify-quote-and-verse-blocks
+  -- (nil by default)
+  it("highlights quote and verse contents as Org text, without a block face by default", function()
     org_buffer({
       "#+begin_quote",
-      "- item <2026-01-01 Thu> +strike+ [fn:1]",
-      "| a | b |",
-      "#+begin_src emacs-lisp",
-      "(in the quote)",
-      "#+end_src",
+      "- item +strike+",
       "#+end_quote",
       "#+begin_verse",
       "  Roses are *red*,",
       "#+end_verse",
     })
-    for _, l in ipairs({ 2, 3, 4, 5, 6, 9 }) do
-      eq({ "0-" .. #vim.fn.getline(l) }, spans(l, "orgQuoteBlock"))
+    for _, l in ipairs({ 2, 5 }) do
+      eq({}, spans(l, "orgQuoteBlock"))
+      eq({}, spans(l, "orgVerseBlock"))
     end
     ok(has(2, col(2, "trike"), "orgstrikethrough"), groups(2, col(2, "trike")))
-    -- (Emacs: a block in a quote block is quote text)
-    ok(not has(4, 1, "orgblockdelimiter"), groups(4, 1))
-    ok(not has(5, 1, "orgblock"), groups(5, 1))
-    ok(has(7, 1, "orgblockdelimiter"), groups(7, 1))
-    ok(has(9, col(9, "red"), "orgbold"), groups(9, col(9, "red")))
+    ok(has(5, col(5, "red"), "orgbold"), groups(5, col(5, "red")))
+    ok(has(1, 1, "orgblockdelimiter") and has(6, 1, "orgblockdelimiter"))
+  end)
+
+  it(
+    "highlights quote and verse contents on orgQuoteBlock / orgVerseBlock with fontify_quote_and_verse_blocks",
+    function()
+      require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
+      org_buffer({
+        "#+begin_quote",
+        "- item <2026-01-01 Thu> +strike+ [fn:1]",
+        "| a | b |",
+        "#+begin_src emacs-lisp",
+        "(in the quote)",
+        "#+end_src",
+        "#+end_quote",
+        "#+begin_verse",
+        "  Roses are *red*,",
+        "#+end_verse",
+      })
+      for _, l in ipairs({ 2, 3, 4, 5, 6 }) do
+        eq({ "0-" .. #vim.fn.getline(l) }, spans(l, "orgQuoteBlock"))
+      end
+      eq({ "0-" .. #vim.fn.getline(9) }, spans(9, "orgVerseBlock"))
+      eq({}, spans(9, "orgQuoteBlock"))
+      ok(has(2, col(2, "trike"), "orgstrikethrough"), groups(2, col(2, "trike")))
+      -- (Emacs: a block in a quote block is quote text)
+      ok(not has(4, 1, "orgblockdelimiter"), groups(4, 1))
+      ok(not has(5, 1, "orgblock"), groups(5, 1))
+      ok(has(7, 1, "orgblockdelimiter"), groups(7, 1))
+      ok(has(9, col(9, "red"), "orgbold"), groups(9, col(9, "red")))
+      require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
+    end
+  )
+
+  -- Emacs: org-fontify-inline-src-blocks removes the faces under the braces
+  -- and body of an inline src block, org-quote with them
+  it("leaves the quote face off the braces and body of an inline src block", function()
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
+    org_buffer({ "#+begin_quote", "run src_sh{echo hi} now", "#+end_quote" })
+    eq({ "0-10", "19-23" }, spans(2, "orgQuoteBlock"))
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
   end)
 
   it("spell checks quote, verse and comment blocks", function()
@@ -196,6 +236,17 @@ describe("parser highlighter: blocks", function()
     for _, m in ipairs(deco.line_marks(0, 1)) do
       ok(m[2].spell ~= false, vim.inspect(m))
     end
+  end)
+
+  -- Emacs: an example block in a quote is quote text to font-lock, but an
+  -- example block to flyspell (org-mode-flyspell-verify)
+  it("doesn't spell check an example block's body in a quote block", function()
+    org_buffer({ "#+begin_quote", "#+begin_example", "teh", "#+end_example", "wrod", "#+end_quote" })
+    ok(nospell(3, 1))
+    ok(not nospell(5, 1))
+    org_buffer({ "#+begin_center", "#+begin_example", "teh", "#+end_center" })
+    -- (no end line: a paragraph)
+    ok(not nospell(3, 1))
   end)
 
   -- Emacs: comment, center and special blocks aren't protecting blocks:
@@ -313,7 +364,8 @@ describe("parser highlighter: latex", function()
     eq({ "0-18" }, spans(2, "orgLatex"))
     eq({ "0-5" }, spans(3, "orgLatex"))
     eq({ "0-5" }, spans(5, "orgLatex"))
-    eq({ "0-15" }, spans(6, "orgLatex"))
+    -- (without the blank after "\\end{equation}", which the match takes)
+    eq({ "0-14" }, spans(6, "orgLatex"))
     eq({ "0-17" }, spans(7, "orgLatex"))
   end)
 
@@ -341,8 +393,10 @@ describe("parser highlighter: latex", function()
       "$x",
       "y$ over two lines",
     })
-    -- (not "$ no$", "$no $", "$5 $" nor "$a$b")
-    eq({ "2-5", "27-32", "8-13" }, spans(1, "orgLatex"))
+    -- (not "$ no$", "$no $", "$5 $" nor "$a$b"; with the byte before and
+    -- the punctuation after, which the match takes: Emacs draws " $x$"
+    -- and " $x+y$," in org-latex-and-related)
+    eq({ "1-5", "27-32", "7-14" }, spans(1, "orgLatex"))
     eq({ "0-2" }, spans(2, "orgLatex"))
     eq({ "0-2" }, spans(3, "orgLatex"))
   end)
@@ -416,11 +470,11 @@ describe("parser highlighter: highlight_latex_and_related", function()
     org_buffer(text)
     n = names()
     eq({ "", "orglatexscript", "orglatexscript" }, { n[17], n[18], n[19] })
-    -- native: like latex
+    -- native: the tex syntax over org-block (ui_highlight_latex_native_spec)
     opts.highlight_latex_and_related = { "native" }
     org_buffer(text)
-    n = names()
-    eq({ "orglatex", "orglatex" }, { n[3], n[7] })
+    ok(groups(1, 3):find("orgsrcblock") and groups(1, 3):find("tex"), groups(1, 3))
+    ok(not groups(1, 3):find("orglatex"), groups(1, 3))
   end)
 
   it("follows ui.use_sub_superscripts and #+OPTIONS: ^:", function()

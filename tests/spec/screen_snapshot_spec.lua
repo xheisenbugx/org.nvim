@@ -50,6 +50,20 @@ describe("screen snapshot", function()
     "Body with *bold*, /italic/ and =verbatim=.",
   }
 
+  it("inline tasks with #+STARTUP: odd (29 stars; 15 stars is a level 8 headline)", function()
+    new({ inlinetask_min_level = 15 }, 60, 8)
+    screen:org({
+      "#+STARTUP: odd",
+      "* Level one",
+      string.rep("*", 15) .. " TODO Level eight",
+      string.rep("*", 29) .. " TODO Task :t:",
+      "Task body.",
+      string.rep("*", 29) .. " END",
+      "Text.",
+    })
+    screen:expect("inlinetask_odd")
+  end)
+
   it("emphasis next to headline stars", function()
     new()
     screen:org(EMPHASIS)
@@ -196,6 +210,26 @@ describe("screen snapshot", function()
     screen:expect("links")
   end)
 
+  -- a macro and a footnote reference opened above the window, over a
+  -- keyword line and list items, are drawn on the rows shown; man: is a
+  -- link only in brackets (as in Emacs without ol-man)
+  it("draws a macro opened above the window", function()
+    new(nil, 60, 6)
+    screen:org({
+      "para {{{m(a",
+      "#+TITLE: over a keyword",
+      "- item",
+      "- item 2",
+      "- item 3",
+      "- b)}}} and [fn:: c",
+      "#+KEY: v",
+      "- item d] e",
+      "plain man:printf(3) and [[man:ls]]",
+    })
+    screen:cmd([[exe "normal! 4\<C-e>"]])
+    screen:expect("objects_above_window")
+  end)
+
   it("lists and checkboxes", function()
     new()
     screen:org({
@@ -270,6 +304,23 @@ describe("screen snapshot", function()
     screen:expect("table")
   end)
 
+  -- (org-fontify-inline-src-blocks: the braces and body of an inline src
+  -- block don't take the faces of the headline, table, comment or block
+  -- they are in)
+  it("inline src blocks", function()
+    new()
+    screen:org({
+      "* TODO Run src_sh{echo hi} now :tag:",
+      "| a | src_sh{in a table} | b |",
+      "- term src_sh{x} :: a description",
+      "# a comment src_sh{y} here",
+      "#+begin_example",
+      "an example src_sh{z} body",
+      "#+end_example",
+    })
+    screen:expect("inline_src")
+  end)
+
   it("source blocks", function()
     new()
     screen:org({
@@ -285,6 +336,39 @@ describe("screen snapshot", function()
       "# a comment",
     })
     screen:expect("blocks")
+  end)
+
+  -- org-fontify-quote-and-verse-blocks: the quote and verse bodies on
+  -- OrgQuoteBlock / OrgVerseBlock, under their Org text
+  it("quote and verse blocks with fontify_quote_and_verse_blocks", function()
+    new({ ui = { fontify_quote_and_verse_blocks = true } })
+    screen:org({
+      "#+begin_quote",
+      "A *quote* with =code=.",
+      "#+end_quote",
+      "#+begin_verse",
+      "  A verse",
+      "#+end_verse",
+    })
+    screen:expect("blocks_quote_verse")
+  end)
+
+  -- ui.highlight_latex_and_related "native": Vim's tex syntax in the
+  -- fragments, over orgSrcBlock (org-src-font-lock-fontify-block "latex")
+  it("LaTeX fragments and environments drawn natively", function()
+    new({ ui = { highlight_latex_and_related = { "native", "entities" } } }, 60, 8)
+    screen:org({
+      "* Math",
+      "Inline $x^2 + y_1$, \\(\\frac{a}{b}\\) and \\alpha here.",
+      "\\begin{equation}",
+      "E = mc^2 % energy",
+      "\\end{equation}",
+      "Not in =$verbatim$=.",
+    })
+    screen:expect("latex_native")
+    -- a fragment typed in is drawn again with its new text
+    screen:input("2G0f$a\\beta <Esc>")
+    screen:expect("latex_native_typed")
   end)
 
   it("source blocks highlighted with tree-sitter", function()

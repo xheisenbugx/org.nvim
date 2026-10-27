@@ -179,7 +179,7 @@ end
 ---@field properties_range integer[]|nil {start, end} of the file-level property drawer
 ---@field bufnr? integer the buffer it was parsed from (set by org.files)
 ---@field _log_drawer string the drawer state changes and notes go into, upper-cased
----@field _min_inline? integer inlinetask_min_level when the file was parsed
+---@field _min_inline? integer the fewest stars of an inline task when the file was parsed (inlinetask_min_level)
 local File = {}
 File.__index = File
 M.File = File
@@ -811,7 +811,7 @@ local DRAWER_END = "^%s*:[Ee][Nn][Dd]:%s*$"
 ---@param from integer
 ---@param to integer
 ---@param log_drawer string
----@param min_inline? integer inline tasks start at this level
+---@param min_inline? integer inline tasks have this many stars or more
 function parse_section(hl, lines, from, to, log_drawer, min_inline)
   hl.planning = {}
   hl.properties = {}
@@ -1044,7 +1044,7 @@ function M.parse(lines, filename, base)
 
   local stack = {}
   local headlines = file.headlines
-  local min_inline = M.inlinetask_min_level()
+  local min_inline = M.inlinetask_min_level(settings)
   file._min_inline = min_inline
   local skip_to = 0
   for i, line in ipairs(lines) do
@@ -1131,11 +1131,50 @@ function M.parse(lines, filename, base)
   return file
 end
 
---- Level from which headlines are inline tasks (org-inlinetask-min-level),
---- nil when inline tasks are off.
-function M.inlinetask_min_level()
+--- Whether the file of `src` uses only odd levels (org-odd-levels-only):
+--- its `#+STARTUP: odd` / `oddeven`, else the `odd_levels_only` option.
+--- `src` is a file, its settings, a buffer number or nil (the current
+--- buffer). For a buffer, the last parse of it is used, even one of older
+--- text: like Emacs, which reads #+STARTUP when Org mode starts, and so
+--- that redraw-time code (folds, highlights) doesn't parse on each change.
+---@param src? table|integer
+---@return boolean
+function M.odd_levels(src)
+  local settings
+  if type(src) == "table" then
+    settings = src.settings or src
+  else
+    local files = require("org.files")
+    local bufnr = (src == nil or src == 0) and vim.api.nvim_get_current_buf() or src --[[@as integer]]
+    local file = files.last_buffer(bufnr)
+    if not file then
+      local ok, f = pcall(files.get_buffer, bufnr)
+      file = ok and f or nil
+    end
+    settings = file and file.settings
+  end
+  local st = settings and settings.startup or {}
+  if st.odd then
+    return true
+  elseif st.oddeven then
+    return false
+  end
+  return require("org.config").opts.odd_levels_only == true
+end
+
+--- The fewest stars of an inline task, nil when inline tasks are off: the
+--- `inlinetask_min_level` option (org-inlinetask-min-level), or with odd
+--- levels only (`M.odd_levels`) 2 * that - 1 stars, as
+--- org-inlinetask-outline-regexp and org-element count them (15 -> 29).
+---@param src? table|integer the file, its settings or a buffer
+--- (nil: the current buffer) whose odd levels setting applies
+---@return integer|nil
+function M.inlinetask_min_level(src)
   local v = require("org.config").opts.inlinetask_min_level
-  return type(v) == "number" and v or nil
+  if type(v) ~= "number" then
+    return nil
+  end
+  return M.odd_levels(src) and 2 * v - 1 or v
 end
 
 --- The text after the END line of inline task `hl`, up to the next heading,
@@ -1202,9 +1241,12 @@ end
 
 --- Level of `line` as an outline headline: nil for text and, when inline
 --- tasks are on, for inline tasks (org-with-limited-levels).
-function M.outline_level(line)
+---@param line string
+---@param src? table|integer whose odd levels apply (see
+--- inlinetask_min_level; nil: the current buffer)
+function M.outline_level(line, src)
   local lvl = M.headline_level(line)
-  local min = lvl and M.inlinetask_min_level()
+  local min = lvl and M.inlinetask_min_level(src)
   if min and lvl >= min then
     return nil
   end

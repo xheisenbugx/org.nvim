@@ -47,10 +47,9 @@ end
 function M.split(lines, opts)
   local level = opts.slide_level or 1
   local parser = require("org.parser")
-  local inline = parser.inlinetask_min_level()
   local starts = {}
   for _, hl in ipairs(parser.parse(lines).headlines) do
-    if hl.level <= level and not (inline and hl.level >= inline) then
+    if hl.level <= level and not hl.inlinetask then
       starts[#starts + 1] = hl
     end
   end

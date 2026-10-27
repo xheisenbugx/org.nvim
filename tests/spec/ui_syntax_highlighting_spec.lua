@@ -103,7 +103,8 @@ describe("ui syntax: blocks", function()
       "*bold* in a special block",
       "#+end_note",
     })
-    ok(has(2, 1, "orgquoteblock") and has(2, 1, "orglistbullet"), groups(2, 1))
+    -- (no colour of the block: ui.fontify_quote_and_verse_blocks is off)
+    ok(has(2, 1, "orgquotetext") and not has(2, 1, "orgquoteblock") and has(2, 1, "orglistbullet"), groups(2, 1))
     ok(has(2, col(2, "2026"), "orgtimestamp"), groups(2, col(2, "2026")))
     ok(has(2, col(2, "trike"), "orgstrikethrough"), groups(2, col(2, "trike")))
     ok(has(2, col(2, "fn:1"), "orgfootnote"), groups(2, col(2, "fn:1")))
@@ -112,6 +113,15 @@ describe("ui syntax: blocks", function()
     eq("orgtable", groups(6, 3))
     ok(has(9, 2, "orgbold"), groups(9, 2))
     ok(not has(9, 2, "orgblock "), groups(9, 2))
+  end)
+
+  it("draws quote and verse bodies on orgQuoteBlock with fontify_quote_and_verse_blocks", function()
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
+    org_buffer({ "#+begin_quote", "*quoted*", "#+end_quote", "#+begin_verse", "a verse", "#+end_verse" })
+    ok(has(2, 2, "orgquoteblock") and has(2, 2, "orgbold"), groups(2, 2))
+    ok(has(5, 1, "orgquoteblock"), groups(5, 1))
+    ok(has(1, 1, "orgblockdelimiter"), groups(1, 1))
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
   end)
 
   it("spell checks quote blocks", function()

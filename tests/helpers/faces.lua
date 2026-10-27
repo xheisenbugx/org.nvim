@@ -183,6 +183,31 @@ local function faces_of(group)
   return f and { f } or {}
 end
 
+--- The Emacs faces of the language group `name` that Vim's syntax draws
+--- innermost on a byte of a src or export block's body: Vim's html syntax
+--- draws <b>, <i>, <em>, <u>, ... in htmlBold, htmlItalic, htmlUnderline
+--- and their combinations (htmlBoldItalic, ...), where html-mode, which
+--- Emacs fontifies an html export block's body with, draws bold, italic
+--- and underline (sgml-tag-face-alist). Only the innermost group counts:
+--- Vim shows its attributes alone (htmlTag over htmlBold isn't bold).
+---@param name string
+---@return string[]
+function M.native_faces_of(name)
+  local rest = name:match("^html(%u%l+.*)$")
+  if not rest then
+    return {}
+  end
+  local out = {}
+  for part in rest:gmatch("%u%l*") do
+    local f = ({ Bold = "bold", Italic = "italic", Underline = "underline" })[part]
+    if not f then
+      return {}
+    end
+    out[#out + 1] = f
+  end
+  return out
+end
+
 local function set_of(list)
   local t = {}
   for _, v in ipairs(list) do
@@ -285,9 +310,16 @@ function M.nvim_faces(buf)
         local set = {}
         local hidden = false
         if syntax then
-          for _, id in ipairs(vim.fn.synstack(l, c)) do
-            for _, f in ipairs(faces_of(vim.fn.synIDattr(id, "name"))) do
+          local stack = vim.fn.synstack(l, c)
+          for k, id in ipairs(stack) do
+            local name = vim.fn.synIDattr(id, "name")
+            for _, f in ipairs(faces_of(name)) do
               set[f] = true
+            end
+            if k == #stack then
+              for _, f in ipairs(M.native_faces_of(name)) do
+                set[f] = true
+              end
             end
           end
           hidden = vim.fn.synconcealed(l, c)[1] == 1
@@ -332,10 +364,14 @@ function M.nvim_lines(faces, family)
   return out
 end
 
---- The fixture files: name -> path of the input.
-function M.fixtures()
+--- The fixture files: name -> path of the input. `set`: the directory of
+--- expected files under tests/fixtures/emacs/faces/ ("expected", the
+--- default; "expected-quote": recorded with
+--- org-fontify-quote-and-verse-blocks, FACES_QUOTE=1 in faces.el).
+---@param set? string
+function M.fixtures(set)
   local out = {}
-  for _, f in ipairs(vim.fn.globpath(P.dir .. "/faces/expected", "*.txt", false, true)) do
+  for _, f in ipairs(vim.fn.globpath(P.dir .. "/faces/" .. (set or "expected"), "*.txt", false, true)) do
     local name = vim.fn.fnamemodify(f, ":t"):gsub("%.txt$", "")
     out[#out + 1] = { expected = f, name = name }
   end
@@ -364,7 +400,8 @@ local cache = {} ---@type table<string, table>
 function M.differences(fx, family, known)
   local expected = {}
   local lines = vim.fn.readfile(input_of(fx.name))
-  local key = fx.name .. ":" .. tostring(require("org.config").opts.ui.highlighter)
+  local ui = require("org.config").opts.ui
+  local key = fx.name .. ":" .. tostring(ui.highlighter) .. ":" .. tostring(ui.fontify_quote_and_verse_blocks)
   local faces = cache[key]
   if not faces then
     local buf = org_buffer(lines, { 1, 0 })
@@ -403,9 +440,10 @@ function M.differences(fx, family, known)
 end
 
 --- One test per fixture file for `family`. `KNOWN`: fixture name ->
---- { [line] = reason }.
-function M.spec(family, KNOWN)
-  for _, fx in ipairs(M.fixtures()) do
+--- { [line] = reason }. `set`: the expected files (`M.fixtures`).
+---@param set? string
+function M.spec(family, KNOWN, set)
+  for _, fx in ipairs(M.fixtures(set)) do
     it(fx.name, function()
       local diffs = M.differences(fx, family, (KNOWN or {})[fx.name])
       eq(
