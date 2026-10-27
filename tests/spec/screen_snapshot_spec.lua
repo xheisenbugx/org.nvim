@@ -196,6 +196,26 @@ describe("screen snapshot", function()
     screen:expect("links")
   end)
 
+  -- a macro and a footnote reference opened above the window, over a
+  -- keyword line and list items, are drawn on the rows shown; man: is a
+  -- link only in brackets (as in Emacs without ol-man)
+  it("draws a macro opened above the window", function()
+    new(nil, 60, 6)
+    screen:org({
+      "para {{{m(a",
+      "#+TITLE: over a keyword",
+      "- item",
+      "- item 2",
+      "- item 3",
+      "- b)}}} and [fn:: c",
+      "#+KEY: v",
+      "- item d] e",
+      "plain man:printf(3) and [[man:ls]]",
+    })
+    screen:cmd([[exe "normal! 4\<C-e>"]])
+    screen:expect("objects_above_window")
+  end)
+
   it("lists and checkboxes", function()
     new()
     screen:org({

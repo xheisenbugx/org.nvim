@@ -50,6 +50,8 @@ local DRAWN = { text = true, table = true, fixed = true, qcomment = true }
 -- other objects of a comment are spell checked, as flyspell and the syntax
 -- engine check all of a comment).
 local NOSPELL = { comment = true, info = true }
+-- The document info keywords (org-fontify-meta-lines-and-blocks).
+local INFO_KEYWORDS = { title = true, subtitle = true, author = true, email = true, date = true }
 
 --- The highlight group of the custom link type `name` with face `face`
 --- (`links.types.<name>.face`), defined (default link) once.
@@ -320,21 +322,25 @@ local CLOSE = { [41] = true, [93] = true, [125] = true, [62] = true }
 --- byte of its closing bracket, or nil. `memo` keeps the closing bracket
 --- (or false) of every opening one met outside strings, which a scan from
 --- there would find the same: nested footnotes don't scan again.
+--- The scan stops at byte `limit` (default: the end of s), the line break
+--- before the next line of stars: org.nvim's footnote references don't
+--- run on over a headline (see `M.reaching`).
 ---@param memo table<integer, integer|false>
+---@param limit? integer
 ---@return integer?
-local function scan_sexp(s, p, memo)
+local function scan_sexp(s, p, memo, limit)
   local m = memo[p]
   if m ~= nil then
     return m or nil
   end
   local stack = { p }
   local j = p + 1
-  local n = #s
+  local n = limit or #s
   while j <= n do
     local b = byte(s, j)
     if b == 34 then
       local q = s:find('"', j + 1, true)
-      if not q then
+      if not q or q > n then
         break
       end
       j = q
@@ -390,6 +396,118 @@ local function after_latex_macro(s, p, ls)
     j = j - 1
   end
   return j < e and j >= ls and byte(s, j) == 92
+end
+
+--- The macros and footnote references of `s` (lines joined by "\n") that
+--- run on past its end, as `M.paint` finds them in a text that goes on
+--- after s: the byte of the first macro opening ("{{{name") with no
+--- "}}}" after it before an empty line (the macros after it are in it),
+--- and those of the footnote references with no closing bracket (or an
+--- open string) in s. Not after a line of stars: unlike Emacs, whose
+--- font-lock paints one over every line up to its end (scan-sexps, or a
+--- "}}}" before an empty line), org.nvim ends both before the next line of
+--- stars, so that the scan of a window (org.ui.highlight `window_of`) need
+--- not read back further than the headline above to find them.
+---@param s string
+---@return integer? macro
+---@return integer[]? footnotes
+function M.reaching(s)
+  local has_macro, has_fn = s:find("{{{", 1, true) ~= nil, s:find("[fn:", 1, true) ~= nil
+  if not (has_macro or has_fn) then
+    return nil, nil
+  end
+  -- the start of the line after the last line of stars (plain searches:
+  -- a pattern search tries every byte)
+  local after_star = 1
+  local at = 1
+  while true do
+    local p = s:find("\n*", at, true)
+    if not p then
+      break
+    end
+    local q = s:match("^%*+()", p + 1)
+    local c = byte(s, q)
+    if c == nil or c == 10 or c == 32 or c == 9 then
+      after_star = p + 1
+    end
+    at = q
+  end
+  local macro ---@type integer?
+  if has_macro then
+    -- (the line break before the first empty line from byte `from` on, for
+    -- positions that go up; an empty last line too)
+    local t = #s
+    while byte(s, t) == 32 or byte(s, t) == 9 do
+      t = t - 1
+    end
+    local tail = byte(s, t) == 10 and t or nil ---@type integer?
+    local nb_from, nb_at = math.huge, nil ---@type integer, integer?
+    local function next_empty(from)
+      if not (from >= nb_from and (nb_at == nil or from <= nb_at)) then
+        nb_from, nb_at = from, s:find("\n[ \t]*\n", from)
+        if not nb_at and tail and tail >= from then
+          nb_at = tail
+        end
+      end
+      return nb_at
+    end
+    local function empty_in(a, b)
+      local e = next_empty(a)
+      return e and e <= b and e or nil
+    end
+    local i = after_star
+    while true do
+      local p = s:find("{{{", i, true)
+      if not p then
+        break
+      end
+      local ne = s:match("^{{{%a[-%w_]*()", p)
+      if not ne then
+        i = p + 1
+      else
+        local c = s:find("}}}", ne, true)
+        local e = empty_in(ne, c or #s)
+        if e then
+          -- (no macro: an empty line before its "}}}", or before the end)
+          -- (the openings before it fail the same way)
+          i = e
+        elseif c then
+          i = c + 3
+        else
+          macro = p
+          break
+        end
+      end
+    end
+  end
+  local fns ---@type integer[]?
+  if has_fn then
+    local memo = {} ---@type table<integer, integer|false>
+    local i = after_star
+    while true do
+      local p = s:find("[fn:", i, true)
+      if not p then
+        break
+      end
+      i = p + 1
+      local q = E.word_end(s, p + 4)
+      local c = byte(s, q)
+      if p > 1 and byte(s, p - 1) ~= 10 and (c == 58 or (c == 93 and q > p + 4)) and not scan_sexp(s, p, memo) then
+        fns = fns or {}
+        fns[#fns + 1] = p
+      end
+    end
+  end
+  return macro, fns
+end
+
+--- The byte of the closing bracket of the footnote reference at byte p of
+--- s (scan-sexps), nil when there is none in s.
+---@param s string
+---@param p integer
+---@return integer?
+function M.reference_end(s, p)
+  return scan_sexp(s, p, {})
 end
 
 -- Painting ---------------------------------------------------------------------
@@ -464,33 +582,52 @@ function M.paint(ctx)
   --- it too).
   ---@param o org.ui.highlight.MarkOpts
   local function span(a, b, o, any, over)
+    -- (bytes [x, y] of line l, but those inline src blocks draw)
+    local function put(l, x, y, opts)
+      while x <= y do
+        while not over and x <= y and native[x] do
+          x = x + 1
+        end
+        local z = x
+        while z < y and (over or not native[z + 1]) do
+          z = z + 1
+        end
+        if x <= y then
+          ctx.emit(l, x - starts[l], z - starts[l] + 1, opts)
+        end
+        x = z + 1
+      end
+    end
     while a <= b do
       local l = line_of(a)
       local e = math.min(b, line_start(l + 1) - 2)
       local k = kinds[l] or "none"
       local opts = o ---@type org.ui.highlight.MarkOpts?
+      local g1, g2 ---@type integer?, integer?
       if not any and not DRAWN[k] then
         local nospell = o.link and (NOSPELL[k] or caption_line(l))
         opts = nospell and { spell = false, priority = o.priority } or nil
+        if k == "info" then
+          -- (the blanks between a document info keyword and its value,
+          -- which org-fontify-meta-lines-and-blocks gives no face: a macro
+          -- or footnote reference over the line keeps its face there)
+          local key, x, y = lines[l]:match("^[ \t]*#%+(%a+):()[ \t]*()")
+          if key and INFO_KEYWORDS[key:lower()] and y > x then
+            g1, g2 = math.max(a, starts[l] + x - 1), math.min(e, starts[l] + y - 2)
+          end
+        end
       elseif (k == "comment" or k == "qcomment") and o.spell == false and not o.link then
         -- (all of a comment is spell checked but its links)
         opts = { hl_group = o.hl_group, priority = o.priority, conceal = o.conceal }
       end
-      if opts and e >= a then
-        local x = a
-        while x <= e do
-          while not over and x <= e and native[x] do
-            x = x + 1
-          end
-          local y = x
-          while y < e and (over or not native[y + 1]) do
-            y = y + 1
-          end
-          if x <= e then
-            ctx.emit(l, x - starts[l], y - starts[l] + 1, opts)
-          end
-          x = y + 1
+      if g1 and g2 and g1 <= g2 then
+        if opts then
+          put(l, a, g1 - 1, opts)
+          put(l, g2 + 1, e, opts)
         end
+        put(l, g1, g2, o)
+      elseif opts and e >= a then
+        put(l, a, e, opts)
       end
       a = line_start(l + 1)
     end
@@ -623,6 +760,22 @@ function M.paint(ctx)
   -- bracket link or a LaTeX macro's argument; a definition's label at the
   -- start of a line, not in a comment, fixed width line or a src, example,
   -- export or comment block
+  -- (the line break before the next line of stars after each line: a
+  -- macro or a footnote reference ends before it, see `M.reaching`)
+  local star_after ---@type table<integer, integer|false>?
+  local function bound_after(l)
+    if not star_after then
+      star_after = {}
+      local at = false ---@type integer|false
+      for k = #lines, 1, -1 do
+        star_after[k] = at
+        if E.star_line(lines[k]) then
+          at = starts[k] - 1
+        end
+      end
+    end
+    return star_after[l] or nil
+  end
   if s:find("[fn:", 1, true) then
     local memo = {} ---@type table<integer, integer|false>
     local bi = 1
@@ -639,7 +792,7 @@ function M.paint(ctx)
       local l = line_of(p)
       if p ~= starts[l] then
         if c == 58 or (c == 93 and label > 0) then
-          local e = scan_sexp(s, p, memo)
+          local e = scan_sexp(s, p, memo, bound_after(l))
           while brackets[bi] and brackets[bi][2] < p do
             bi = bi + 1
           end
@@ -699,13 +852,13 @@ function M.paint(ctx)
   end
 
   -- macros (org-fontify-macros): {{{name, then the first }}} before an
-  -- empty line
+  -- empty line (or a line of stars, see `M.reaching`)
   if s:find("{{{", 1, true) then
     local hide = ctx.ui.hide_macro_markers and true or false
-    -- the empty lines (blanks only), in order
+    -- the empty lines (blanks only) and lines of stars, in order
     local empty = {} ---@type integer[]
     for l = 2, #lines do
-      if not lines[l]:find("[^ \t]") then
+      if not lines[l]:find("[^ \t]") or E.star_line(lines[l]) then
         empty[#empty + 1] = l
       end
     end

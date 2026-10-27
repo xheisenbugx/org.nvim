@@ -448,14 +448,22 @@ end
 
 -- Link types Emacs knows (org-link-types) besides org.nvim's
 local EMACS_TYPES = { rmail = true, mhe = true, gnus = true, bbdb = true, shortdoc = true }
+-- org.nvim's link types Emacs doesn't know by default: ol-man defines
+-- man:, and it isn't in the default org-modules (ol-doi ol-w3m ol-bbdb
+-- ol-bibtex ol-docview ol-gnus ol-info ol-irc ol-mhe ol-rmail ol-eww), so
+-- "man:printf(3)" is plain text there; "[[man:printf(3)]]" is a link of
+-- any type. (attachment: is org-attach's, which ox loads.)
+local NOT_EMACS_TYPES = { man = true }
 
---- The link types of plain and angle links: org.nvim's, `links.types`
---- and Emacs's.
+--- The link types of plain and angle links: org.nvim's that Emacs knows
+--- by default, Emacs's and `links.types`.
 ---@return table<string, boolean>
 function M.link_types()
   local types = {}
   for k in pairs(require("org.links.schemes")) do
-    types[k] = true
+    if not NOT_EMACS_TYPES[k] then
+      types[k] = true
+    end
   end
   for k in pairs(EMACS_TYPES) do
     types[k] = true

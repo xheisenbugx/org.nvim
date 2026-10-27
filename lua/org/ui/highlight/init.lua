@@ -53,6 +53,11 @@ M.last_read = nil
 ---@type { lo: table<integer, integer>, hi: table<integer, integer> }?
 M.last_reads = nil
 
+--- Whether the lines the last `add_marks` read hold the start of a macro
+--- or a footnote reference (`M.spans_paragraphs`): then an edit of any
+--- bracket or quote in them can change the rows below them.
+M.last_spans = false
+
 local E = require("org.ui.emphasis")
 
 --- The parts, in the order they paint (the order doesn't decide which
@@ -100,6 +105,7 @@ local PARAGRAPH = 50
 ---@field star table<integer, integer|false>
 ---@field block table<integer, org.ui.emphasis.Block|false>
 ---@field ends table<string, integer|false>
+---@field above? { row: integer, from: integer, lines: string[] } the lines the last window read above its first row (`spanning`)
 
 -- What the lookbacks and lookaheads of the scans of a buffer found, at one
 -- changedtick. A redraw scans one window per range of rows drawn (one per
@@ -202,11 +208,19 @@ local function block_before(text, row)
   end
   local h = star_above(text, row, LOOKBACK)
   local from = h and h + 1 or math.max(text.top, row - LOOKBACK)
-  local lines = text.get(from, row)
+  -- (the lines `spanning` read above the row, when it did)
+  local lines, off = nil, 0 ---@type string[]?, integer
+  local above = text.memo.above
+  if above and above.row == row and above.from <= from then
+    lines, off = above.lines, from - above.from
+  else
+    lines = text.get(from, row)
+  end
+  local n = row - from
   -- the end lines by name (no line of stars is among the lines)
   local ends = {} ---@type table<string, integer[]>
-  for j, line in ipairs(lines) do
-    local name, begins = E.block_line(line)
+  for j = 1, n do
+    local name, begins = E.block_line(lines[j + off])
     if name and not begins then
       local t = ends[name] or {}
       t[#t + 1] = j
@@ -215,7 +229,8 @@ local function block_before(text, row)
   end
   local at = {} ---@type table<string, integer>
   local block = false ---@type org.ui.emphasis.Block|false
-  for j, line in ipairs(lines) do
+  for j = 1, n do
+    local line = lines[j + off]
     local name, begins = E.block_line(line)
     if name then
       if block and not begins and name == block.name then
@@ -252,6 +267,159 @@ local function separates(line)
     seps[line], nseps = v, nseps + 1
   end
   return v
+end
+
+-- (org.ui.highlight.object, which requires this module)
+local object ---@type table?
+-- (the last text `spanning` looked in above a window, and what it found)
+local reached = {} ---@type { [1]: string?, [2]: integer?, [3]: integer[]? }
+
+--- Whether `lines` hold the start of a macro or a footnote reference.
+---@param lines string[]
+---@return boolean
+local function has_openings(lines)
+  for _, line in ipairs(lines) do
+    if M.spans_paragraphs(line) then
+      return true
+    end
+  end
+  return false
+end
+
+--- The window [scan_row, stop) of `text` (its `lines`) grown over the
+--- macros and footnote references that run on past its ends (over lines
+--- that separate paragraphs: a keyword line, a list item), so that a row
+--- is drawn the same whatever the rows drawn with it: up to the line that
+--- separates paragraphs at or above the first one open at scan_row (one
+--- that starts after the line of stars above, LOOKBACK lines up at most),
+--- and down to the line of the "}}}" or closing bracket of those open at
+--- `stop` (or the empty line or line of stars that ends them; LOOKBACK
+--- lines on at most). Nil when nothing runs on past the ends; else
+--- { scan_row, stop, lines, the line before scan_row (nil: read it) }.
+--- The lines read above are kept for `block_before`, and looked in only
+--- when they hold a "{{{" or "[fn:" (`M.spans_paragraphs`).
+---@param text org.ui.highlight.Text
+---@param lines string[]
+---@return { [1]: integer, [2]: integer, [3]: string[], [4]: string? }?
+local function spanning(text, scan_row, stop, lines)
+  local top, bottom, get = text.top, text.bottom, text.get
+  object = object or require("org.ui.highlight.object")
+  local grown = false
+  local prev ---@type string?
+  -- up: from the line of stars above (whose objects can run on below it)
+  if scan_row > top and not (lines[1] and E.star_line(lines[1])) then
+    local h = star_above(text, scan_row, LOOKBACK)
+    local from = h or math.max(top, scan_row - LOOKBACK)
+    local above = get(from, scan_row)
+    text.memo.above = { row = scan_row, from = from, lines = above }
+    local u = table.concat(above, "\n")
+    if M.spans_paragraphs(u) then
+      -- (the lines above the rows typed in stay the same from one
+      -- keystroke to the next)
+      if u ~= reached[1] then
+        reached = { u, object.reaching(u) }
+      end
+      local macro, fns = reached[2], reached[3]
+      local p = macro
+      if fns and (not p or fns[1] < p) then
+        p = fns[1]
+      end
+      if p then
+        -- (the line of p, then the line that separates paragraphs at or
+        -- above it)
+        local _, k = u:sub(1, p):gsub("\n", "")
+        k = k + 1
+        while k > 1 and not separates(above[k]) do
+          k = k - 1
+        end
+        local new = {} ---@type string[]
+        for j = k, #above do
+          new[#new + 1] = above[j]
+        end
+        vim.list_extend(new, lines)
+        lines, prev, grown = new, above[k - 1], true
+        scan_row = from + k - 1
+      end
+    end
+  end
+  -- down: to where those open at the end of the lines end
+  if stop < bottom and has_openings(lines) then
+    local s = table.concat(lines, "\n")
+    local macro, fns = object.reaching(s)
+    local limit = math.min(bottom, stop + LOOKBACK)
+    local new_stop = stop
+    if macro then
+      -- (the first line on with a "}}}", or an empty line or a line of
+      -- stars, which end it)
+      local from, size, found = stop, 8, false
+      while not found and from < limit do
+        local chunk = get(from, math.min(limit, from + size))
+        for k, line in ipairs(chunk) do
+          if E.star_line(line) or not line:find("[^ \t]") then
+            new_stop, found = from + k - 1, true
+            break
+          elseif line:find("}}}", 1, true) then
+            new_stop, found = from + k, true
+            break
+          end
+        end
+        from = from + #chunk
+        if #chunk == 0 then
+          break
+        end
+        size = math.min(size * 2, 512)
+      end
+      if not found then
+        new_stop = math.max(new_stop, from)
+      end
+    end
+    if fns then
+      -- (each one's closing bracket, in the lines read on up to a line of
+      -- stars)
+      local below = {} ---@type string[]
+      local from, size, ended = stop, 8, false
+      local open = fns
+      while #open > 0 and not ended and from < limit do
+        local chunk = get(from, math.min(limit, from + size))
+        for _, line in ipairs(chunk) do
+          if E.star_line(line) then
+            ended = true
+            break
+          end
+          below[#below + 1] = line
+        end
+        from = from + #chunk
+        if #chunk == 0 then
+          break
+        end
+        size = math.min(size * 2, 512)
+        local t = s .. "\n" .. table.concat(below, "\n")
+        local still = {} ---@type integer[]
+        for _, p in ipairs(open) do
+          local e = object.reference_end(t, p)
+          if e then
+            -- (the row of its closing bracket, and the one after it)
+            local _, k = t:sub(#s + 2, e):gsub("\n", "")
+            new_stop = math.max(new_stop, stop + k + 1)
+          else
+            still[#still + 1] = p
+          end
+        end
+        open = still
+      end
+      if #open > 0 then
+        new_stop = math.max(new_stop, stop + #below)
+      end
+    end
+    if new_stop > stop then
+      vim.list_extend(lines, get(stop, new_stop))
+      stop, grown = new_stop, true
+    end
+  end
+  if not grown then
+    return nil
+  end
+  return { scan_row, stop, lines, prev }
 end
 
 --- The lines rows `first` to `last` (0-based) of `text` are drawn from
@@ -298,6 +466,13 @@ local function window_of(text, first, last)
     size = size * 2
   end
   local lines = get(scan_row, stop)
+  local grown = spanning(text, scan_row, stop, lines)
+  if grown then
+    if grown[1] ~= scan_row then
+      prev = grown[4]
+    end
+    scan_row, stop, lines = grown[1], grown[2], grown[3]
+  end
   if scan_row > top and not prev then
     -- (the line before the window)
     prev = get(scan_row - 1, scan_row)[1]
@@ -518,6 +693,7 @@ local function paint(bufnr, text, first, last, ui, rows, file, body)
   M.last_read = read and { math.min(read[1], r0), math.max(read[2], r1) } or { r0, r1 }
   -- (each row's own: the rows of the bodies of org src blocks have all)
   M.last_reads = not read and not body and row_reads(w, text.top, text.bottom, first, last) or nil
+  M.last_spans = M.last_spans or has_openings(w.lines)
   local row0 = w.row0
   ---@type org.ui.highlight.Ctx
   local ctx = {
@@ -617,7 +793,7 @@ end
 ---@param ui table the buffer's `ui` options
 ---@param rows table<integer, table[]>
 function M.add_marks(bufnr, first, last, ui, rows)
-  M.last_read, M.last_reads = nil, nil
+  M.last_read, M.last_reads, M.last_spans = nil, nil, false
   local file = M.file_in_use(bufnr) or require("org.files").get_buffer(bufnr)
   parses[bufnr] = file
   local w, _, roles = paint(bufnr, buffer_text(bufnr), first, last, ui, rows, file, false)

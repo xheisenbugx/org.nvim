@@ -720,11 +720,6 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
       local lines = fuzz.doc(rng, { crlf = false })
       local from = rng:int(1, #fixtures - 40)
       vim.list_extend(lines, vim.list_slice(fixtures, from, from + 40))
-      -- (the rows of what draws rows together are drawn as a scan of each
-      -- row alone draws them once edits computed some again: left out)
-      for i, l in ipairs(lines) do
-        lines[i] = (l:gsub("{{{", "{{"):gsub("%[fn:", "[f:"))
-      end
       local buf = org_buffer(lines, { 1, 0 })
       for _ = 1, 25 do
         local n = vim.api.nvim_buf_line_count(buf)
@@ -742,15 +737,13 @@ describe("ui.highlighter = parser, after an edit inside a line", function()
         end
         vim.cmd("redraw")
         local now = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-        if not require("org.ui.highlight").spans_paragraphs(table.concat(now, "\n")) then
-          top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
-          local kept, fresh = screen_marks(buf, top, bot)
-          for i = 1, #fresh do
-            if kept[i] ~= fresh[i] then
-              error(
-                fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(top + i - 1, row), now, now)
-              )
-            end
+        top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+        local kept, fresh = screen_marks(buf, top, bot)
+        for i = 1, #fresh do
+          if kept[i] ~= fresh[i] then
+            error(
+              fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(top + i - 1, row), now, now)
+            )
           end
         end
       end

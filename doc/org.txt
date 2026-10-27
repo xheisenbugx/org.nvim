@@ -3797,6 +3797,11 @@ Targets:
                                       is called interactively there
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
+                                      (as in Emacs, where ol-man isn't
+                                      loaded by default, it is drawn as
+                                      a link only in brackets:
+                                      `[[man:printf(3)]]`; <CR> opens it
+                                      either way)
   info:emacs#Top                      the `info` program in a terminal
                                       (exported to HTML as a link to the
                                       manual's URL in
@@ -9104,7 +9109,11 @@ Differences from Emacs:
   line of a closed fold, is drawn below the line or shown as its link text
   (Emacs makes that screen line as tall as the image). A wrapped line
   breaks by its full text, hidden link targets included, so a long link
-  near the window edge leaves a gap (|org-links-wrap|). With
+  near the window edge leaves a gap (|org-links-wrap|). A macro whose
+  `}}}`, or a footnote reference whose closing bracket, comes after the
+  next headline is not drawn (Emacs's font-lock paints it over the
+  headline and the lines up to its end): the rows of a window are drawn
+  from the lines back to the headline above them at most. With
   `ui.highlighter = "syntax"` (deprecated; the default "parser" has none
   of these limits, |org-highlighter|), Vim draws syntax
   up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
