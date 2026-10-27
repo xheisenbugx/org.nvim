@@ -416,6 +416,33 @@ describe("merge extension: structural merge", function()
     eq({ "* Note", "ONE", "* Note", "TWO" }, res.lines)
   end)
 
+  it("writes a CRLF file without a final newline without a stray CR", function()
+    local d = tmpdir()
+    local function put(name, s)
+      local fh = assert(io.open(d .. "/" .. name, "wb"))
+      fh:write(s)
+      fh:close()
+    end
+    put("O", "* A\r\na\r\n* B\r\nb")
+    put("A", "* A\r\na1\r\n* B\r\nb")
+    put("B", "* A\r\na\r\n* B\r\nb1")
+    eq(0, (require("org.extensions.merge.merge").merge_files(d .. "/O", d .. "/A", d .. "/B")))
+    local fh = assert(io.open(d .. "/A", "rb"))
+    local out = fh:read("*a")
+    fh:close()
+    eq("* A\r\na1\r\n* B\r\nb1", out)
+    -- with the final newline it stays
+    put("O", "* A\r\na\r\n")
+    put("A", "* A\r\na1\r\n")
+    put("B", "* A\r\na\r\n")
+    require("org.extensions.merge.merge").merge_files(d .. "/O", d .. "/A", d .. "/B")
+    fh = assert(io.open(d .. "/A", "rb"))
+    out = fh:read("*a")
+    fh:close()
+    eq("* A\r\na1\r\n", out)
+    vim.fn.delete(d, "rf")
+  end)
+
   it("merges the refile fixture with one conflict scoped to the entry body", function()
     local rf = require("org.extensions.merge.merge").read_file
     local d = fixtures .. "/refile/"

@@ -1286,6 +1286,10 @@ function M.merge_files(base_path, ours_path, theirs_path, opts)
   local text = table.concat(res.lines, "\n")
   if #res.lines > 0 and eol then
     text = text .. "\n"
+  elseif text:sub(-1) == "\r" and (ours[#ours] or ""):sub(-1) ~= "\r" then
+    -- no final newline: the CR of a CRLF file's line ends goes too
+    -- (unless ours ended with a lone CR)
+    text = text:sub(1, -2)
   end
   fh:write(text)
   fh:close()
