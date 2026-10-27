@@ -544,6 +544,23 @@ describe("babel parity: results", function()
       end)()
     )
   end)
+
+  it("a trailing | closes an imported row, as in an Org table (Org 9.8.10)", function()
+    -- org-babel-import-elisp-from-file: org-table-convert-region, then
+    -- org-table-to-lisp. Emacs results, from `echo` / `printf` in sh blocks:
+    --   '| t | u |' -> |   | t | u |       'a b |\nc d |' -> | a | b |   |
+    --   'a\tb\t\n...' -> | a | b |          'a |' -> : a
+    --   'a,b,\n...'  -> | a | b |   |  (CSV ends each line with " |")
+    eq({ { "", "t", "u" } }, lisp.import_table("| t | u |\n"))
+    eq({ { "", "x" } }, lisp.import_table("| x |\n"))
+    eq({ { "a", "b", "" }, { "c", "d", "" } }, lisp.import_table("a b |\nc d |\n"))
+    eq({ { "a", "b" }, { "c", "d" } }, lisp.import_table("a b|\nc d|\n"))
+    eq({ { "a", "b" }, { "c", "d" } }, lisp.import_table("a\tb\t\nc\td\t\n"))
+    eq({ { "a", "b", "" }, { "c", "d", "" } }, lisp.import_table("a,b,\nc,d,\n"))
+    eq("a", lisp.import_table("a |\n"))
+    eq("x y", lisp.import_table("x y |\n"))
+    eq({ { "a", "b" } }, lisp.import_table("a | b\n"))
+  end)
 end)
 
 describe("babel parity: evaluation", function()

@@ -458,7 +458,13 @@ function M.text_to_rows(text, separator)
         vim.list_extend(cells, row_cells(f))
       end
     end
-    -- trailing empty cell of a row ending with a separator stays, like Org
+    -- the line is now "| f1| f2 ...": as in any Org table row, a last `|`
+    -- followed by blanks closes the row instead of starting a cell ("a |"
+    -- is the one cell "a"). CSV lines end with " |" (an empty last field
+    -- stays a cell).
+    if mode ~= "csv" and #cells > 1 and cells[#cells] == "" then
+      cells[#cells] = nil
+    end
     rows[#rows + 1] = cells
   end
   return rows
