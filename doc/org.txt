@@ -672,7 +672,8 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 with a count). Clones lose CLOCK lines and get a new ID, or
                 none with `clone_delete_id`. With a repeating timestamp,
                 the copies lose the repeater and one more copy after them
-                keeps it.
+                keeps it. Hours on a date without a time move it only past
+                midnight (`+30h` is the next day) and add no time.
 
                                                                  *org-sort*
 <prefix>hs      Sort the children of the current headline, the top-level
@@ -1293,7 +1294,9 @@ keyword of its sequence, like Emacs. The `REPEAT_TO_STATE` property or
 `todo_repeat_to_state` (a keyword, or `true` for the previous state) choose
 another state. A SCHEDULED date without a repeater is removed. The state
 change is logged and `LAST_REPEAT` set when `log_repeat` is enabled
-(`LAST_REPEAT` is also set when the entry has clock lines).
+(`LAST_REPEAT` is also set when the entry has clock lines). An hour
+repeater (`+5h`) on a date without a time is an error, and the entry is
+left as it was.
   +N   shift by N units once
   ++N  shift until the date is in the future, keeping the weekday
   .+N  shift to N units after today

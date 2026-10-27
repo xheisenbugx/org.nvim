@@ -579,11 +579,31 @@ function Date:add(n, unit, clamp)
   return c
 end
 
---- Shift the start and range end together.
+--- `d` shifted like org-timestamp-change: hours or minutes on a date
+--- without a time count from 00:00 and move the day only when they cross
+--- one; the date keeps having no time.
+---@param d org.Date
+---@param n integer
+---@param unit string
+---@return org.Date
+local function change(d, n, unit)
+  local c = d:add(n, unit)
+  if (unit == "h" or unit == "min") and not d.hour then
+    c = c:clone({ hour = vim.NIL, min = vim.NIL, end_hour = vim.NIL, end_min = vim.NIL })
+  end
+  return c
+end
+
+--- Shift the start and range end together (org-timestamp-change: a date
+--- without a time stays without one).
+---@param n integer
+---@param unit? string
+---@return org.Date
 function Date:add_with_range(n, unit)
-  local c = self:add(n, unit)
+  unit = unit or "d"
+  local c = change(self, n, unit)
   if self.range_end then
-    c.range_end = self.range_end:add(n, unit)
+    c.range_end = change(self.range_end, n, unit)
   end
   return c
 end

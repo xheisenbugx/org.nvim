@@ -260,6 +260,26 @@ local function entry_repeats(hl)
   return false
 end
 
+--- The count of the first `+Nh` repeater of the entry on a date without a
+--- time (planning dates first, then the other active timestamps), or nil.
+---@param hl org.Headline
+---@return integer|nil
+local function hour_repeater_without_time(hl)
+  local stamps = {}
+  for _, kind in ipairs({ "deadline", "scheduled" }) do
+    stamps[#stamps + 1] = hl.planning[kind]
+  end
+  for _, t in ipairs(hl.timestamps) do
+    stamps[#stamps + 1] = t.date
+  end
+  for _, d in ipairs(stamps) do
+    if has_repeater(d) and d.repeater.unit == "h" and not d:has_time() then
+      return d.repeater.value
+    end
+  end
+  return nil
+end
+
 --- Is the running clock on this headline?
 local function clocked_here(bufnr, lnum)
   local ok, clock = pcall(require, "org.clock")
@@ -575,6 +595,15 @@ function M.change_state(target, new, opts)
     end
     if reason then
       utils.warn(string.format("TODO state change from %s to %s blocked (by %s)", old or "", new or "", reason))
+      return nil
+    end
+  end
+  if becomes_done then
+    -- org-auto-repeat-maybe: an hour repeater on a date without a time is
+    -- a user-error; the entry is left as it was
+    local n = hour_repeater_without_time(hl)
+    if n then
+      utils.error(("Cannot repeat in %d hour(s) because no hour has been set"):format(n))
       return nil
     end
   end
