@@ -538,7 +538,7 @@ function M.conceal_opts(bufnr)
     links = b.org_link_descriptive and true or false
   end
   local o = { links = links }
-  -- emphasis and entities are drawn by the Org syntax and decorations only
+  -- emphasis and entities are drawn by the highlighter and decorations only
   if valid and vim.bo[bufnr].filetype == "org" then
     o.emphasis = ui.hide_emphasis_markers and true or false
     if b.org_hide_emphasis_markers ~= nil then

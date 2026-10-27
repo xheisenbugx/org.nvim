@@ -271,6 +271,32 @@ describe("tree-sitter src blocks", function()
     ok(groups(2, 1):find("^orgsrcblock_lua lua"), groups(2, 1))
   end)
 
+  it("a #+begin_src line in a raw block opens no language region past it", function()
+    set_ui({ src_highlight_engine = "syntax" })
+    org_buffer({
+      "#+begin_example",
+      "#+begin_src lua",
+      "#+end_example",
+      "local x = 1",
+      "#+begin_comment",
+      "#+begin_src lua",
+      "#+end_comment",
+      "local y = 2",
+      "#+begin_src text",
+      "#+begin_src lua",
+      "#+end_src",
+      "local z = 3",
+      "#+begin_src lua",
+      "local w = 4",
+      "#+end_src",
+    })
+    -- (the lines after each block are a paragraph, checked for spelling)
+    for _, l in ipairs({ 4, 8, 12 }) do
+      eq("", groups(l, 1))
+    end
+    ok(groups(14, 1):find("^orgsrcblock_lua lua"), groups(14, 1))
+  end)
+
   it('src_highlight_engine = "treesitter" leaves a language without a parser plain', function()
     if has_parser("fstab") then
       return
@@ -284,8 +310,9 @@ describe("tree-sitter src blocks", function()
       "local x",
       "#+end_src",
     })
-    -- (no region: the parser highlighter draws the body in orgBlock)
-    eq("", groups(2, 1))
+    -- (no language region: the parser highlighter draws the body in
+    -- orgBlock; the syntax only keeps it raw text)
+    eq("orgblockraw", groups(2, 1))
     ok(hl.has(2, 1, "orgblock"), hl.groups(2, 1))
     eq("@keyword.lua", group_at(5, 0))
   end)

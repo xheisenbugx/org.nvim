@@ -295,7 +295,7 @@ org-persist	org-persist-gc:version	cmd	na	-	org-persist cache internals	-
 org-persist	org-persist-write:elisp-data	cmd	na	-	org-persist cache internals	-
 org-persist	org-persist-write:version	cmd	na	-	org-persist cache internals	-
 org	org-M-RET-may-split-line	opt	done	meta_return_split_line (config/tables.lua:87)	-	-
-org	org-activate-links	opt	vim	syntax.lua link highlighting (OrgLink)	all link types highlighted; per-type switch via highlight groups only	-
+org	org-activate-links	opt	vim	ui/highlight/object.lua link highlighting (OrgLink)	all link types highlighted; per-type switch via highlight groups only	-
 org	org-adapt-indentation	opt	done	-	'headline-data' read by indent.lua/structure relevel; demote/promote + indent fixtures from Emacs; also probed odd-level relevel	S
 org	org-after-note-stored-hook	opt	done	edit.note_stored	fixed after verification: clock-out notes fire OrgNoteStored (e095b28)	S
 org	org-after-todo-state-change-hook	opt	done	User autocmd OrgTodoStateChange (todo.lua:637)	-	-
@@ -344,7 +344,7 @@ org	org-fast-tag-selection-single-key	opt	done	fast_tag_selection_single_key (co
 org	org-file-apps	opt	done	links.file_apps (config/agenda.lua:260)	-	-
 org	org-fontify-done-headline	opt	done	ui.fontify_done_headline (config/links.lua:122)	-	-
 org	org-fontify-emphasized-text	opt	vim	OrgBold etc. highlight groups	link groups to Normal to disable	-
-org	org-fontify-todo-headline	opt	done	syntax.lua orgHeadlineTodo	fixed after verification: covers priority, cookies, tags, links (aaa64fa)	S
+org	org-fontify-todo-headline	opt	done	ui/highlight/headline.lua orgHeadlineTodo	fixed after verification: covers priority, cookies, tags, links (aaa64fa)	S
 org	org-fontify-whole-block-delimiter-line	opt	vim	OrgBlockDelimiter highlight group	fontification knob	-
 org	org-fontify-whole-heading-line	opt	vim	OrgHeadlineLevelN highlight groups	fontification knob	-
 org	org-format-latex-header	opt	done	ui.latex_preview.header (config/links.lua:207)	-	-
@@ -359,7 +359,7 @@ org	org-hide-leading-stars	opt	done	ui.hide_leading_stars (config/links.lua:88)	
 org	org-hide-macro-markers	opt	done	-	PROBED: {{{ and }}} concealed, macro name/args shown with macro face, identical to Emacs	S
 org	org-hierarchical-todo-statistics	opt	done	hierarchical_todo_statistics (config/todo.lua:68)	-	-
 org	org-highest-priority	opt	done	priority_highest (config/todo.lua:119)	obsolete alias	-
-org	org-highlight-latex-and-related	opt	done	-	latex/native/script/entities read in syntax.lua, default {} like Emacs; spec per kind	S
+org	org-highlight-latex-and-related	opt	done	-	latex/native/script/entities read in ui/highlight/object.lua and native.lua, default {} like Emacs; spec per kind	S
 org	org-highlight-links	opt	vim	OrgLink highlight group	all link types highlighted	-
 org	org-highlight-sparse-tree-matches	opt	vim	OrgSparseMatch (agenda/sparse.lua:75)	link group to Normal to disable	-
 org	org-image-actual-width	opt	done	ui.images.actual_width (config/links.lua:160)	-	-

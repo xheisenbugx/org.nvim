@@ -19,7 +19,7 @@ local M = {}
 
 local byte = string.byte
 
---- Marker -> syntax group of its emphasis (org-emphasis-alist).
+--- Marker -> group of its emphasis (org-emphasis-alist).
 M.GROUPS = {
   ["*"] = "orgBold",
   ["/"] = "orgItalic",
