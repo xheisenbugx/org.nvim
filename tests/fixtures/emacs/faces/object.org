@@ -125,3 +125,6 @@ Text[fn:東京] and[fn:a—b] and[fn:x$y] here.
 
 * Footnote definitions before a link to a footnote
 [fn:9] A definition, then a link to it: [[fn:9]] and the rest.
+
+* A footnote link in a plain link
+A plain link http://a.b/c[[fn:1]] takes the footnote link in.

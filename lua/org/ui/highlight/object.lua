@@ -607,6 +607,9 @@ function M.paint(ctx)
             bi = bi + 1
           end
           local in_link = brackets[bi] and brackets[bi][1] <= p and p < brackets[bi][2]
+          -- (or the path of a "[[fn:...]]" a plain link took in: Emacs
+          -- asks org-link-bracket-re, not what was drawn)
+          in_link = in_link or (byte(s, p - 1) == 91 and s:find("^%[%[[^%[%]]+%]", p - 1) ~= nil)
           if e and not in_link and not after_latex_macro(s, p, starts[l]) then
             local head = c == 58 and q or e
             span(p, head, { hl_group = "orgFootnote", priority = P.footnote, spell = false })
