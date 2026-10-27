@@ -1894,10 +1894,11 @@ function Headline:clocked_minutes(from_min, to_min, include_children)
     -- a naked `CLOCK: => H:MM` counts whatever the range (org-clock-sum)
     total = total + (h.naked_clock_minutes or 0)
     for _, c in ipairs(h.clocks) do
-      if c.minutes then
+      if c["end"] then
         local s = c.start:minutes()
         if (not from_min or s >= from_min) and (not to_min or s < to_min) then
-          total = total + c.minutes
+          -- from the timestamps, not the `=> H:MM` text, like org-clock-sum
+          total = total + date.elapsed_minutes(c.start, c["end"])
         end
       end
     end

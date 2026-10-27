@@ -1042,3 +1042,19 @@ describe("clock tables with #+STARTUP: odd (Emacs)", function()
     }, vim.list_slice(buf_lines(buf), 9, 14))
   end)
 end)
+
+describe("clocked minutes from the timestamps (Emacs)", function()
+  -- org-clock-sum computes a closed clock from its two timestamps; the
+  -- `=> H:MM` text after them isn't read
+  it("ignores a duration text that disagrees with the timestamps", function()
+    local file = require("org.parser").parse({
+      "* Task",
+      "CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 10:13] =>  9:99",
+      "** Child",
+      "CLOCK: [2024-01-01 Mon 11:00]--[2024-01-01 Mon 11:30] =>  0:01",
+    })
+    local task = file.headlines[1]
+    eq(13, task:clocked_minutes(nil, nil, false))
+    eq(43, task:clocked_minutes(nil, nil, true))
+  end)
+end)
