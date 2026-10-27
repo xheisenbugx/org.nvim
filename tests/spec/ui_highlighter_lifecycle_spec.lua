@@ -158,6 +158,22 @@ describe("ui.highlighter switched with setup() again", function()
     ok(vim.tbl_contains(marks, "orgBold"))
     eq({}, syn)
   end)
+
+  it("draws a buffer opened with the syntax highlighter with the parser one", function()
+    -- (with "syntax" and no other decoration on, the buffer has no
+    -- decorations to draw the parser's marks with)
+    setup("syntax")
+    local buf = org_buffer({ "* TODO H", "text *bold* a" }, { 1, 0 })
+    vim.cmd("redraw")
+    local marks, syn = groups_at(buf, 1, 6)
+    eq({}, marks)
+    ok(vim.tbl_contains(syn, "OrgBold"), vim.inspect(syn))
+    setup("parser")
+    vim.cmd("redraw")
+    marks, syn = groups_at(buf, 1, 6)
+    ok(vim.tbl_contains(marks, "orgBold"), vim.inspect(marks))
+    eq({}, syn)
+  end)
 end)
 
 -- The rows kept over edits (org.ui.decorations `carried`) after the edits

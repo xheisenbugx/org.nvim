@@ -1356,6 +1356,12 @@ function M.attach(bufnr, force)
 end
 
 function M.refresh(bufnr)
+  if not attached[bufnr] and vim.api.nvim_buf_is_valid(bufnr) and vim.b[bufnr].org_attached then
+    -- (an org buffer with nothing to draw when it was set up, until the
+    -- options changed: setup() again with ui.highlighter = "parser")
+    M.attach(bufnr)
+    return
+  end
   M.render(bufnr)
 end
 
