@@ -91,7 +91,10 @@ M.FACE_OF = {
   orginlinesrcmarker = "inline-src-block",
   orginlinesrclang = "inline-src-block",
   orginlinesrcheader = "inline-src-block",
-  orginlinesrcbody = "inline-src-block",
+  -- (the body is fontified natively: org-src-font-lock-fontify-block takes
+  -- the faces of src_LANG{...} off it and appends org-block, which
+  -- OrgInlineSrc stands for in place of the language's own faces)
+  orginlinesrcbody = "block",
   orgexportsnippetmarker = "font-lock-comment-face",
   orgexportsnippetbackend = "tag",
   orgcite = "cite",
