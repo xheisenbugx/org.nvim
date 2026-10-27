@@ -4358,7 +4358,11 @@ Normal mode:
                   CSV/TSV/whitespace (Visual mode; count 4: comma, 16:
                   tab, N: N+ spaces; at most
                   `table_convert_region_max_lines` lines, also for
-                  table_import)
+                  table_import). Without a count, tabs separate the
+                  fields when every line has one, else commas when every
+                  line has one, else spaces; the table starts at column
+                  0 and a blank line inside is an empty row
+                  (org-table-convert-region)
   <prefix>T-      insert a hline (<C-c>- with a count: above)
   <prefix>Tf      recalculate the whole table
   <prefix>Ts      sort rows (<C-c>^, see below)
@@ -9200,6 +9204,9 @@ Differences from Emacs:
   holding an e-mail address) is left as written and the references after
   it are still replaced; Emacs stops replacing the `@` references that
   come after it.
+- Converting text to a table (C-c | on a region, `table_import`) writes a
+  `|` in the data as `\vert{}`; Emacs copies it as it is, where it then
+  splits the field.
 - Footnote sorting and renumbering leave src, example, export and comment
   blocks alone: a line starting with `[fn:N]` inside one is code, not a
   definition. Emacs renumbers such lines too.
