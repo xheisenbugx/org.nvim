@@ -11018,8 +11018,12 @@ Body text conflicts always get markers.
 Conflict markers wrap only the lines in conflict (the headline and
 planning line of one entry, one property line, or a few lines of text):
 >
-        * WAITING Plan the offsite                                    :team:
-      35. Migrating from nvim-orgmode ............... |org-migrate|
+    <<<<<<< HEAD
+    * WAITING Plan the offsite                                    :team:
+    =======
+    * DONE Plan the offsite                                       :team:
+    CLOSED: [2026-09-29 Tue 18:10]
+    >>>>>>> phone
     Venue ideas.
 <
 Files with CRLF line ends or a UTF-8 BOM keep them. An ID used by two
