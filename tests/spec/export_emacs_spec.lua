@@ -1102,3 +1102,53 @@ describe("export: id: links to another file (Emacs 9.8.10)", function()
     )
   end)
 end)
+
+describe("export: keyword macros read the buffer, not its setup file (Emacs 9.8.10)", function()
+  -- org-macro--find-keyword-value searches the buffer's own lines; the
+  -- #+MACRO definitions of a setup file apply (org-collect-keywords).
+  -- Emacs (ascii, body only):
+  --   a.org: "T= A= D= D2= E= K=local KT= M=from-setup-x"
+  --   b.org: "T=Own D=2021 K="
+  local dir
+  before_each(function()
+    dir = tmpdir()
+    vim.fn.mkdir(dir .. "/sub", "p")
+    vim.fn.writefile({
+      "#+TITLE: Setup Title",
+      "#+AUTHOR: Setup Author",
+      "#+DATE: <2020-01-02 Thu>",
+      "#+EMAIL: s@x",
+      "#+KW: fromsetup",
+      "#+MACRO: m from-setup-$1",
+    }, dir .. "/sub/s.setup")
+  end)
+
+  local function ascii(lines)
+    return (ox.export_as("ascii", lines, { filename = dir .. "/a.org", body_only = true }))
+  end
+
+  it("leaves title, author, date, email and keyword empty without own keywords", function()
+    has(
+      ascii({
+        "#+SETUPFILE: sub/s.setup",
+        "#+KW: local",
+        "#+OPTIONS: email:t",
+        "T={{{title}}} A={{{author}}} D={{{date}}} D2={{{date(%Y)}}} E={{{email}}} K={{{keyword(KW)}}}"
+          .. " KT={{{keyword(TITLE)}}} M={{{m(x)}}}",
+      }),
+      "T= A= D= D2= E= K=local KT= M=from-setup-x"
+    )
+  end)
+
+  it("uses the buffer's own keywords", function()
+    has(
+      ascii({
+        "#+SETUPFILE: sub/s.setup",
+        "#+TITLE: Own",
+        "#+DATE: <2021-03-04 Thu>",
+        "T={{{title}}} D={{{date(%Y)}}} K={{{keyword(KW)}}}",
+      }),
+      "T=Own D=2021 K=\n"
+    )
+  end)
+end)

@@ -5741,7 +5741,10 @@ comma, macros may use other macros), `export.global_macros` (strings or Lua
 functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
 `{{{date(FMT)}}}`, `{{{time(FMT)}}}`, `{{{modification-time(FMT)}}}`,
 `{{{input-file}}}`, `{{{keyword(NAME)}}}`, `{{{property(NAME[,search])}}}`,
-`{{{n(name[,-|N])}}}` and `{{{results(...)}}}`.
+`{{{n(name[,-|N])}}}` and `{{{results(...)}}}`. Like Emacs, `{{{title}}}`,
+`{{{author}}}`, `{{{email}}}`, `{{{date}}}` and `{{{keyword(NAME)}}}` read
+the keywords written in the file itself (and its `#+INCLUDE`d text), not
+those of a `#+SETUPFILE`; the `#+MACRO` definitions of a setup file apply.
 `{{{modification-time(FMT,t)}}}` takes the date of the file's last Git
 commit (Emacs asks any VC back-end). As in Emacs, macros are replaced in
 the text before it is parsed: a macro that expands to nothing on a line

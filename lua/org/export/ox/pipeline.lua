@@ -164,7 +164,7 @@ function export_as(backend, lines, opts)
     end
   end
   -- keywords are read from the whole buffer
-  local keywords = M.collect_keywords(lines, dir, nil, nil, filename)
+  local keywords, own_keywords = M.collect_keywords(lines, dir, nil, nil, filename)
   local subtree
   if opts.subtree_line then
     subtree = subtree_region(lines, opts.subtree_line, todo)
@@ -199,12 +199,15 @@ function export_as(backend, lines, opts)
       vim.list_extend(full, work)
       vim.list_extend(full, lines, subtree.last + 1)
     end
-    keywords = M.collect_keywords(full, dir, nil, nil, filename)
+    keywords, own_keywords = M.collect_keywords(full, dir, nil, nil, filename)
   end
   work = M.delete_comment_trees(work, todo)
   local babel_cfg = require("org.config").opts.babel or {}
   local ctx = {
     keywords = keywords,
+    -- without the setup files' keywords: {{{title}}}, {{{author}}},
+    -- {{{date}}}, {{{email}}} and {{{keyword}}} read the buffer only
+    own_keywords = own_keywords,
     filename = filename,
     babel = babel_cfg.evaluate_on_export and not opts.no_babel and true or false,
     -- opts.no_eval_macros: leave (eval ...) macros unrun (the live preview)

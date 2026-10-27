@@ -218,17 +218,26 @@ end
 --- Collect in-buffer keywords: { KEY = { values... } } in buffer order,
 --- including local SETUPFILE dependencies. The unused depth argument and
 --- accumulator remain accepted for callers of the former recursive scanner.
+--- The second value has only the keywords written in `lines` themselves,
+--- not those of setup files (what org-macro--find-keyword-value sees).
+---@return table<string,string[]> keywords
+---@return table<string,string[]> own
 function M.collect_keywords(lines, dir, _depth, acc, filename)
   acc = acc or {}
+  local own = {}
   local source = filename or ((dir or vim.fn.getcwd()) .. "/.org-export-keyword-context")
   local entries = require("org.keywords").collect(lines, source)
   for _, entry in ipairs(entries) do
     if entry.key ~= "SETUPFILE" then
       acc[entry.key] = acc[entry.key] or {}
       table.insert(acc[entry.key], entry.value)
+      if entry.filename == source then
+        own[entry.key] = own[entry.key] or {}
+        table.insert(own[entry.key], entry.value)
+      end
     end
   end
-  return acc
+  return acc, own
 end
 
 --- Expand $VAR and ${VAR} (substitute-env-in-file-name).
