@@ -9306,6 +9306,10 @@ Differences from Emacs:
   C-0 C-c C-w (a count cannot be 0) is `:Org refile_cache_clear` or
   C-u C-u C-u C-c C-w. Agenda archives-mode and view toggles (`va`, `v[`,
   ...) stay on until toggled off.
+- An inline src block or call without a value (`src_emacs-lisp{nil}`,
+  `src_sh{printf ''}`) gets `{{{results(==)}}}` in the buffer, which the
+  next run replaces. Emacs inserts only the space before a result, so
+  every run adds another one. On export both show nothing.
 - Babel sessions (|org-babel| Sessions) are live REPLs in terminal
   buffers for shells, python, js/node, ruby (irb), R, julia, ocaml,
   scheme, haskell (ghci) and SQL; other languages have none. Emacs has

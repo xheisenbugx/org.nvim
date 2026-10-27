@@ -383,6 +383,15 @@ describe("export (Emacs features)", function()
     has(h2, "echo none")
   end)
 
+  it("exports nothing for an inline block without a value (Org 9.8.10)", function()
+    -- Emacs: "Nil src_emacs-lisp{nil} end." -> "Nil end."; an empty string
+    -- is still {{{results(==)}}}, the text "==" (Lisp src_emacs-lisp{""})
+    skip_on_windows("runs a sh block")
+    config.opts.babel.evaluate_on_export = true
+    config.opts.babel.confirm_evaluate = false
+    has(html({ "Again src_sh{printf ''} done." }), "<p>\nAgain done.\n</p>")
+  end)
+
   it("numbers lines and resolves coderefs like ox-html", function()
     local lines = {
       "#+begin_src sh -n -r",
