@@ -308,9 +308,19 @@ local function block_line(line)
   end
   local e
   name, e = line:match("^[ \t]*#%+[eE][nN][dD]_(%a+)()")
-  local b = name and byte(line, e)
-  -- (word characters in Org's syntax table: letters, digits, $ % ')
-  if name and not (b and (b >= 128 or b == 36 or b == 37 or b == 39 or (b >= 48 and b <= 57))) then
+  if not name then
+    return
+  end
+  -- (not followed by a word constituent, "\\>": letters, digits, $ % ',
+  -- and non-ASCII word constituents of the Latin script; 東京 starts
+  -- another word)
+  local b = byte(line, e)
+  local word = b ~= nil and WORD[b]
+  if b and b >= 128 then
+    local cp = chars.at(line, e)
+    word = cp == nil or (chars.syntax(cp) == "w" and not chars.word_start_after(cp))
+  end
+  if not word then
     return name:lower(), false
   end
 end

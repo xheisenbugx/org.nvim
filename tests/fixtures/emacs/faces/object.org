@@ -128,3 +128,10 @@ Text[fn:東京] and[fn:a—b] and[fn:x$y] here.
 
 * A footnote link in a plain link
 A plain link http://a.b/c[[fn:1]] takes the footnote link in.
+
+* A comment block in a center block
+#+begin_center
+#+begin_comment
+[fn:3] not a definition in a comment block
+#+end_comment
+#+end_center

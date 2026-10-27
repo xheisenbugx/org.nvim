@@ -205,6 +205,43 @@ local function radio_targets(file)
   return out
 end
 
+-- org-footnote-forbidden-blocks
+local FORBIDDEN = { comment = true, example = true, export = true, src = true }
+
+--- Whether line `l`, in the body of a block, is in a comment, example,
+--- export or src block nested in it (org-in-block-p: the nearest begin
+--- line above, its end line below), which org.ui.emphasis `kinds` doesn't
+--- track.
+---@param lines string[]
+---@param roles table<integer, org.ui.emphasis.Role>
+---@param l integer
+local function nested_forbidden(lines, roles, l)
+  for j = l - 1, 1, -1 do
+    local r = roles[j]
+    if not r or r.role ~= "body" then
+      return false
+    end
+    local name, begins = E.block_line(lines[j])
+    if name then
+      if not (begins and FORBIDDEN[name]) then
+        return false
+      end
+      for k = l + 1, #lines do
+        local r2 = roles[k]
+        if not r2 or r2.role ~= "body" then
+          return false
+        end
+        local n2, b2 = E.block_line(lines[k])
+        if n2 == name and not b2 then
+          return true
+        end
+      end
+      return false
+    end
+  end
+  return false
+end
+
 --- Whether the character before byte i of s (`after`: the one at byte i)
 --- keeps a radio link from starting (ending) there: [[:alnum:]] and not
 --- line-breakable (\\c|, such as CJK characters), org-update-radio-target-
@@ -631,6 +668,7 @@ function M.paint(ctx)
           and block ~= "example"
           and block ~= "export"
           and block ~= "src"
+          and not (block and nested_forbidden(lines, ctx.roles, l))
         then
           span(p, q, { hl_group = "orgFootnote", priority = P.footnote, spell = false })
         end

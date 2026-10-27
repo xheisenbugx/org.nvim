@@ -35,7 +35,7 @@ local KNOWN = {
   ["examples/21-images-latex.org"] = { [760] = VERBATIM },
   ["examples/22-extras.org"] = { [213] = LINK, [214] = LINK, [891] = FACES },
   ["examples/tutorial.org"] = { [207] = COMMENT_BLOCK },
-  ["tests/fixtures/emacs/faces/block.org"] = { [43] = FACES, [76] = COMMENT_BLOCK, [137] = FACES, [138] = FACES },
+  ["tests/fixtures/emacs/faces/block.org"] = { [43] = FACES, [76] = COMMENT_BLOCK, [145] = FACES, [146] = FACES },
   ["tests/fixtures/emacs/faces/date.org"] = { [26] = FACES, [27] = FACES, [71] = FACES },
   ["tests/fixtures/emacs/faces/headline.org"] = {
     [28] = FACES,
@@ -71,6 +71,7 @@ local KNOWN = {
     [119] = FACES,
     [121] = FACES,
     [124] = FACES,
+    [135] = COMMENT_BLOCK,
   },
   ["tests/fixtures/emacs/faces/table.org"] = {
     [63] = FACES,

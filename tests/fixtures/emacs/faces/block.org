@@ -134,5 +134,13 @@ in a drawer
 quoted up to the headline
 ** Next
 
+#+begin_verse
+an end line followed by a word of another script
+#+end_verse東京
+#+begin_verse
+and by a Latin letter: no end
+#+end_verseé
+#+end_verse
+
 #+begin_example
 open to the end of the file
