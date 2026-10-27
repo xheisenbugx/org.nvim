@@ -7255,7 +7255,13 @@ so it has none of the limits of regions: everything is drawn past
 'synmaxcol' (3000) and markup over two lines however long the first is, a
 long line full of markers can't run out of 'maxmempattern' (E363) and
 turn highlighting off, and an emphasis or block whose end can't be found
-never runs on over the lines below.
+never runs on over the lines below. Typing computes again only the rows
+an edit inside a line can change (an edit of a headline's text too, not
+of its stars), however much of the file was drawn before, so a keystroke
+in a file of 10,000 headlines costs less than with "syntax". Loading it
+sets LuaJIT's `sizemcode` (the size of each machine code area) to 256 KB:
+on arm64, a new area of the default size often couldn't be placed once a
+large file was open, and every compiled trace was thrown away each time.
 
 Both use the same highlight groups (`OrgBold`, `OrgVerbatim`, ... below, and
 the `org...` syntax group names linked to them, so a colorscheme that sets
