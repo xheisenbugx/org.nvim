@@ -1035,3 +1035,70 @@ describe("export: {{{n}}} counters in keywords follow the document (Emacs 9.8.10
     has(out, "| #+DATE: Ex {{{n}}}\n")
   end)
 end)
+
+describe("export: id: links to another file (Emacs 9.8.10)", function()
+  -- org-export-resolve-id-link gives the other file's name; each back-end
+  -- links to that file. org.nvim used to abort with "Unable to resolve link".
+  local dir
+  before_each(function()
+    dir = tmpdir()
+    local other = {
+      "* Other heading",
+      ":PROPERTIES:",
+      ":ID: hunt9-abc",
+      ":END:",
+      "** Sub other",
+      ":PROPERTIES:",
+      ":ID: hunt9-def",
+      ":END:",
+    }
+    vim.fn.writefile(other, dir .. "/other.org")
+    require("org.id").register_lines(other, dir .. "/other.org")
+  end)
+
+  local function exp(backend)
+    pcall(require, "org.export.odt")
+    return (
+      ox.export_as(
+        backend,
+        -- texinfo exports nothing before the first heading (Emacs too)
+        { "* Local", "See [[id:hunt9-abc][an id]] and [[id:hunt9-abc]] and [[id:hunt9-def]]." },
+        { filename = dir .. "/a.org", body_only = true }
+      )
+    )
+  end
+
+  it("html", function()
+    has(
+      exp("html"),
+      'See <a href="other.html#ID-hunt9-abc">an id</a> and <a href="other.html#ID-hunt9-abc">other.org</a>'
+        .. ' and <a href="other.html#ID-hunt9-def">other.org</a>.'
+    )
+  end)
+
+  it("latex", function()
+    has(exp("latex"), "See \\href{other.org}{an id} and \\url{other.org} and \\url{other.org}.")
+  end)
+
+  it("md", function()
+    has(exp("md"), "See [an id](other.md) and <other.md> and <other.md>.")
+  end)
+
+  it("ascii", function()
+    local out = exp("ascii")
+    has(out, "See [an id] and other.org and other.org.")
+    has(out, "[an id] See file other.org")
+  end)
+
+  it("texinfo", function()
+    has(exp("texinfo"), "See @uref{file://other.org,an id} and @uref{file://other.org} and @uref{file://other.org}.")
+  end)
+
+  it("odt", function()
+    has(
+      exp("odt"),
+      'See <text:a xlink:type="simple" xlink:href="../other.org">an id</text:a> and '
+        .. '<text:a xlink:type="simple" xlink:href="../other.org">../other.org</text:a>'
+    )
+  end)
+end)

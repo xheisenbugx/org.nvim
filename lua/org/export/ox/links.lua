@@ -366,7 +366,8 @@ function M.resolve_id_link(link, info)
       return require("org.id").find(id)
     end)
     if ok and loc then
-      local file = type(loc) == "table" and (loc.file or loc[1]) or loc
+      -- org.id.find gives { filename, lnum, ... } (org-id-find: (FILE . POS))
+      local file = type(loc) == "table" and loc.filename or loc
       if type(file) == "string" then
         local base = info.input_file and vim.fn.fnamemodify(info.input_file, ":p:h") or vim.fn.getcwd()
         return { type = "plain-text", value = M.relative_path(file, base), external = true }
