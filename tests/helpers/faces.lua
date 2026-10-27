@@ -87,8 +87,6 @@ M.FACE_OF = {
   -- links and objects
   orglink = "link",
   orglinkplain = "link",
-  orglinkbracket = "link",
-  orglinktargethidden = "link",
   orgradiolink = "link",
   orgfootnote = "footnote",
   orgtarget = "target",

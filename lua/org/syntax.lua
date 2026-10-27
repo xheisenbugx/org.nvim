@@ -87,7 +87,6 @@ local function block_language(line)
     return lang
   end
 end
-M.block_language = block_language
 
 --- Languages used in `#+begin_src <lang>` and `#+begin_export <lang>`
 --- lines of the buffer.
@@ -239,10 +238,25 @@ local function src_regions(bufnr, config)
     local modes = config.src_lang_modes or {}
     local sorted = vim.tbl_keys(langs)
     table.sort(sorted)
+    local raw = false
     for _, lang in ipairs(sorted) do
       local syn = syntax_of(lang)
       local how = not included[syn] and drawn_by(syn)
       if how then
+        if not raw then
+          raw = true
+          -- The bodies of src, example, export and comment blocks are
+          -- raw text: a `#+begin_src <lang>` line in one opens no
+          -- language region that would run on past the block. (Defined
+          -- first: on a block's own begin line the language region,
+          -- defined after it, wins.)
+          cmd(
+            string.format(
+              [=[syntax region orgBlockRaw start=/\c^\s*#+begin_\z(src\|example\|export\|comment\)\%%(\s.*\)\=$/ end=/\c^\s*#+end_\z1\%%(\s.*\)\=$/ %s keepend contains=@NoSpell]=],
+              BLOCK_STOP
+            )
+          )
+        end
         included[syn] = true
         local cluster = "orgSrc_" .. syn
         if how == "syntax" then

@@ -5333,7 +5333,7 @@ parsed, each once for its text: moving around or editing elsewhere
 doesn't parse a block again; a longer block is parsed again from the tree
 it had after an edit in it. Other
 languages get their Vim syntax (`syntax/<lang>.vim`) included into the
-org syntax, as before. The language name goes through `src_lang_modes`
+buffer's syntax. The language name goes through `src_lang_modes`
 first (`elisp` → `lisp`, `shell` → `sh` → the bash parser).
 `ui.src_highlight_engine` chooses: "auto" (the default), "treesitter"
 (languages without a parser stay plain) or "syntax" (always the Vim
@@ -6885,8 +6885,8 @@ Options under `ui`:
                          has a parser and a highlights query for the
                          language, else with its Vim syntax;
                          "treesitter": tree-sitter only (other languages
-                         stay plain); "syntax": the Vim syntax only, as
-                         before. See |org-src-highlight|.
+                         stay plain); "syntax": the Vim syntax only.
+                         See |org-src-highlight|.
   src_block_faces        face of src block bodies by language, like
                          todo_keyword_faces: { python = { bg = "#e5ffb8" } }
                          ("" = blocks without a language)
@@ -7267,16 +7267,18 @@ the default size often couldn't be placed once a large file was open, and
 every compiled trace was thrown away each time.
 
 It draws with the highlight groups below (`OrgBold`, `OrgVerbatim`, ...,
-and the `org...` group names linked to them, so a colorscheme that sets
-either keeps working) and follows `ui.hide_emphasis_markers`,
+and the `org...` group names linked to them, such as `orgBoldDelimiter`,
+so a colorscheme that sets either keeps working) and follows `ui.hide_emphasis_markers`,
 `ui.conceal_links`, toggle_link_display and the cursor rules of
 |org-conceal-cursor|. What it draws isn't a syntax group, so `synID()`,
 `synstack()` and |:Inspect| don't report it (plugins that ask the syntax
-what is under the cursor see plain text there, except in src blocks;
-`:Org inspect` lists it). A buffer that sets 'syntax' to org without being
+what is under the cursor see plain text there; `:Org inspect` lists it).
+Only once a src block's language is drawn by its Vim syntax do the bodies
+of src, export, example and comment blocks get syntax regions: the
+language's, and `orgBlockRaw` (no colour) keeping the others raw text. A buffer that sets 'syntax' to org without being
 an org buffer, like the drill window, is drawn by it too, until its
-'syntax' changes. Verbatim and code are left out of spell checking with
-extmarks (|org-highlighter-spell|), and `ui.highlight_latex_and_related`
+'syntax' changes. What isn't prose (verbatim, code, links, timestamps,
+...) is left out of spell checking with extmarks (|org-highlighter-spell|), and `ui.highlight_latex_and_related`
 "native" draws fragments with marks of Vim's tex groups
 (|org-highlighter-latex|). Calling `setup()` again draws the org buffers
 already open with the new options. An error raised while drawing (a bug:
@@ -7372,12 +7374,14 @@ under the braces (a decoration can't take a syntax group's attributes
 off, so `<b>src_sh{x}</b>` in an html export block keeps its bold).
 
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
-The parser highlighter (|org-highlighter|) draws with the `org...` group
-names (`orgHeadlineLevel1`, `orgTodo`, ...) linked to these, as
-decorations, not syntax groups.
+The parser highlighter (|org-highlighter|) draws these and the `org...`
+group names linked to them (`orgBoldDelimiter`, `orgLinkPlain`, ...; group
+names ignore case, so `orgTodo` is `OrgTodo`), as decorations, not syntax
+groups.
   - `OrgHeadlineLevel1..8` (linked to the colorscheme's markdown
     headings)
-  - `OrgTodo`, `OrgDone`, `OrgHeadlineDone`, `OrgHeadlineComment`,
+  - `OrgTodo`, `OrgDone`, `OrgHeadlineTodo`, `OrgHeadlineDone`,
+    `OrgHeadlineComment`,
     `OrgPriority`, `OrgPriorityA`, `OrgPriorityB`, `OrgPriorityC`,
     `OrgTags`, `OrgTimestamp`, `OrgTimestampInactive`, `OrgPlanning`,
     `OrgClockDuration`, `OrgClockSum`, `OrgDrawer`, `OrgPropertyKey`,
@@ -7392,8 +7396,9 @@ decorations, not syntax groups.
     `OrgInlineSrcMarker`, `OrgInlineSrcLang`, `OrgExportSnippetMarker`,
     `OrgExportSnippetBackend`, `OrgFootnote`, `OrgTarget`, `OrgLatex`,
     `OrgHorizontalRule`, `OrgMacro`, `OrgHiddenStars`, `OrgSuperscript`,
-    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`,
-    `OrgBabelOutput`, `OrgCommandPreview`
+    `OrgSubscript`, `OrgInlinetask`, `OrgInlinetaskFirstStar`,
+    `OrgSparseMatch`, `OrgBabelRunning`, `OrgBabelOutput`,
+    `OrgCommandPreview`
   - `OrgContext`, `OrgContextLineNumber`, `OrgContextBottom`
     (|org-context|)
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
@@ -9127,9 +9132,7 @@ Differences from Emacs:
 
 - Display: in indent mode (org-indent-mode) rows that wrap don't get the
   virtual indentation (Emacs sets a wrap-prefix; Neovim has no per-line
-  one). Emphasis doesn't nest inside the same kind of emphasis or inside
-  verbatim/code: Emacs fontifies `*a *b* c*` and `=x *y* z=` twice,
-  org.nvim highlights the outer span only. In the agenda clock report,
+  one). In the agenda clock report,
   links are replaced by their description in the text (Emacs keeps the
   link and hides its brackets). A shrunk table column shows its full
   fields on the cursor line in modes missing from 'concealcursor' (Visual

@@ -14,7 +14,7 @@
 --- (org-set-font-lock-defaults), compared with Emacs byte by byte by
 --- tests/spec/emacs_faces_*_spec.lua (tests/helpers/faces.lua).
 ---
---- Parts draw with the syntax group names (orgHeadlineLevel1, orgTodo,
+--- Parts draw with the org group names (orgHeadlineLevel1, orgTodo,
 --- ...: org.highlights links them to the Org* groups), so a colorscheme or
 --- config that sets either keeps working. Where marks overlap, the one of
 --- higher priority wins each attribute it sets (Emacs prepends faces the
@@ -621,7 +621,7 @@ end
 ---@field star_above fun(row: integer, max: integer): integer|false the row of the nearest line of stars above `row` in the text drawn, `max` lines up at most
 
 ---@class org.ui.highlight.MarkOpts
----@field hl_group? string a syntax group name (orgTodo, ...)
+---@field hl_group? string an org group name (orgTodo, ...)
 ---@field priority? integer (see `M.PRIO`)
 ---@field spell? boolean false: not spell checked (like a syntax group without @Spell)
 ---@field conceal? string

@@ -39,8 +39,8 @@ package.loaded["org.links"] = M
 --- (org-stored-links).
 M.stored = {}
 
--- (a module of its own: the syntax and the decorations read it without
--- loading this one)
+-- (a module of its own: the highlighter (org.ui.emphasis) and the
+-- decorations read it without loading this one)
 M.URL_SCHEMES = require("org.links.schemes")
 
 local function lopts()

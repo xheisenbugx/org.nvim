@@ -926,8 +926,8 @@ function M.paint(ctx)
     end
   end
 
-  -- line breaks: \\ at the end of a line (no face in Emacs; the syntax
-  -- engine's orgLineBreak)
+  -- line breaks: \\ at the end of a line (no face in Emacs; orgLineBreak,
+  -- linked to OrgLatex)
   for l = math.max(1, ctx.first - ctx.row0 + 1), math.min(#lines, ctx.last - ctx.row0 + 1) do
     local line, k = lines[l], kinds[l]
     if k == "text" or k == "qcomment" then
