@@ -70,6 +70,7 @@ M.day_sources = {}
 ---@field time integer|nil minutes since midnight (time-of-day)
 ---@field sort_time? integer the time it sorts by, when not `time` (the first time in its DOTIME)
 ---@field end_time integer|nil
+---@field end_time_default? boolean `end_time` is `time` + default_appointment_duration
 ---@field extra string|nil leader ("Scheduled: ", "In   3 d.: ", ...)
 ---@field face string|nil highlight group for the text
 ---@field undone_face? string the face when not done

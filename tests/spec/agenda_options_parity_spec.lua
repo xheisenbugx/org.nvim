@@ -767,7 +767,7 @@ describe("agenda diary sexp entries sorting", function()
       "  DEADLINE: " .. ts(1),
     }, {
       agenda = {
-        time_grid = { daily = true, require_timed = false, times = { 1000 } },
+        time_grid = { times = { 1000 } },
         show_current_time_in_grid = false,
       },
     })
@@ -777,6 +777,31 @@ describe("agenda diary sexp entries sorting", function()
       "  skip:       In   1 d.:  TODO Soon",
       "  skip:       Daily",
     }, vim.list_slice(buf_text(), 3))
+  end)
+end)
+
+describe("default_appointment_duration past midnight", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10 org-agenda-format-item with org-agenda-default-appointment-duration
+  -- 45: the end is a duration ("1d 0:45") shown by its time of day, while an
+  -- end time written past midnight keeps its "+"
+  it("shows the end by its time of day", function()
+    open({
+      "* Midnight",
+      ts(0, "24:00"),
+      "* Late",
+      ts(0, "23:30"),
+      "* Past midnight",
+      ts(0, "23:30-24:30"),
+    }, { agenda = { default_appointment_duration = 45, time_grid = { enabled = false } } })
+    eq({
+      "  skip:       23:30-0:15  Late",
+      "  skip:       23:30-+0:30 Past midnight",
+      "  skip:       24:00-0:45  Midnight",
+    }, item_lines())
   end)
 end)
 
