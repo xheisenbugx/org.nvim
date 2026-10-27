@@ -204,6 +204,7 @@
 ---| "indent_block" # Indent the block at point
 ---| "indent_drawer" # Indent the drawer at point
 ---| "indent_mode" # Toggle virtual indentation (org-indent-mode)
+---| "indent_operator" # = with org-indent-region (indent-region-function)
 ---| "indent_region" # Indent the buffer / selection (org-indent-region)
 ---| "indirect_subtree" # Subtree in split edit buffer
 ---| "inlinetask_insert" # Insert inline task
@@ -505,6 +506,8 @@
 ---@field promote_subtree? org.MappingLhs
 --- Demote subtree. Default: `>s`
 ---@field demote_subtree? org.MappingLhs
+--- = with org-indent-region (indent-region-function). Default: `=`
+---@field indent_operator? org.MappingLhs
 --- Promote / move column left. Default: `{ "<M-h>", "<M-Left>" }`
 ---@field meta_left? org.MappingLhs
 --- Demote / move column right. Default: `{ "<M-l>", "<M-Right>" }`

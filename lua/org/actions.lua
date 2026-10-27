@@ -224,6 +224,12 @@ group("Structure", {
     desc = "Indent the buffer / selection (org-indent-region)",
     modes = { "n", "x" },
   },
+  indent_operator = {
+    "org.indent",
+    "indent_operator",
+    desc = "= with org-indent-region (indent-region-function)",
+    modes = { "n", "x", "o" },
+  },
   beginning_of_line = { "org.lineedit", "beginning_of_line", desc = "Start of line / headline title" },
   end_of_line = { "org.lineedit", "end_of_line", desc = "End of line / before the tags" },
   kill_line = { "org.lineedit", "kill_line", desc = "Kill to the end of the line / the tags" },

@@ -835,16 +835,20 @@ These have no default keys; for Emacs-style Insert mode keys: >lua
       end_of_line = "<C-e>", kill_line = "<C-k>" } }
 <
 Indentation and filling                               *org-indent* *org-fill*
-'indentexpr' follows org-indent-line, so `==`, `=` and new lines (`o`, `O`)
-are indented like in Emacs: headlines, footnote definitions and diary sexps
-at column 0; the first line of an element like its previous sibling, else
-like the contents of its parent (after the bullet of an item; at the
-headline level + 1 with `adapt_indentation`); other lines like the line
-above. List items keep their indentation (move them with <M-h> / <M-l>),
-and `=` keeps the contents of example, export and verse blocks. Lines of a
-src block keep their relative indentation at the block's content
-indentation (Emacs asks the language's major mode). <Tab> in body text
-indents the same way (`cycle_emulate_tab`).
+'indentexpr' follows org-indent-line, so new lines (`o`, `O`) are indented
+like in Emacs: headlines, footnote definitions and diary sexps at column
+0; the first line of an element like its previous sibling, else like the
+contents of its parent (after the bullet of an item; at the headline level
++ 1 with `adapt_indentation`); other lines like the line above. <Tab> in
+body text indents the same way (`cycle_emulate_tab`).
+In org buffers `=` (`indent_operator`) is org-indent-region, Emacs's
+indent-region-function in Org: `={motion}`, `==`, `{count}==` and `=` in
+Visual mode indent those lines like `:Org indent_region` (below), so plain
+lists and example and export blocks move as a whole, the contents of
+example, export and verse blocks keep their relative indentation, and the
+code of a src block moves to the block's content indentation keeping its
+own layout (Emacs asks the language's major mode). Vim's own `=`
+(`:normal! =`) indents line by line with 'indentexpr'.
 :Org indent_region  Indent the Visual selection, or the buffer, like
                 org-indent-region: lists, example and export blocks move
                 as a whole, node properties are aligned
@@ -8106,6 +8110,8 @@ Section `org` (default key: action):
   >>                               demote_heading
   <s                               promote_subtree
   >s                               demote_subtree
+  =                                indent_operator (org-indent-region,
+                                   |org-indent|)
   <M-h> <M-l> <M-k> <M-j>          meta_left/right/up/down
   <M-Left> <M-Right>               meta_left/right (in addition to
                                    <M-h>/<M-l>)
@@ -9520,12 +9526,9 @@ Differences from Emacs:
     their tabs.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
-  - Indentation (|org-indent|): `=` indents line by line with
-    org-indent-line, so a list or an example block is not moved as a
-    whole like org-indent-region (C-M-\) does; `:Org indent_region` does
-    that. Src block code keeps its own relative indentation instead of
-    being indented by the language's major mode (Emacs's
-    org-src-tab-acts-natively).
+  - Indentation (|org-indent|): src block code keeps its own relative
+    indentation instead of being indented by the language's major mode
+    (Emacs's org-src-tab-acts-natively), with `=` and with <Tab>.
   - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
     fill-column (70); src blocks are not filled (Emacs uses the language's
     major mode); `gq` over a comment of several paragraphs fills each of

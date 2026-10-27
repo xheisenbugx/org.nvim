@@ -55,6 +55,8 @@ local defaults = {
       demote_heading = ">>",
       promote_subtree = "<s",
       demote_subtree = ">s",
+      -- Vim's = indents with org-indent-region (Emacs's indent-region-function)
+      indent_operator = "=",
       meta_left = { "<M-h>", "<M-Left>" },
       meta_right = { "<M-l>", "<M-Right>" },
       meta_up = { "<M-k>", "<M-Up>" },
