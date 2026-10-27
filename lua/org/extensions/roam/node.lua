@@ -828,7 +828,7 @@ function M.extract_subtree(path)
     utils.warn("org-roam: " .. utils.abbreviate(path) .. " exists, not extracting")
     return
   end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line - 1, hl.end_line, false)
+  local lines = utils.file_lines(bufnr, hl.line, hl.end_line)
   while #lines > 1 and lines[#lines]:match("^%s*$") do
     table.remove(lines)
   end

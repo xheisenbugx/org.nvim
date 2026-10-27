@@ -12763,6 +12763,11 @@ auto-save plugins), skip all of this: the file is cleaned again when you
 leave the buffer, stay idle (`CursorHold`) or Neovim loses focus, but
 not after `:noautocmd wq`.
 
+Commands that copy a subtree elsewhere copy its keywords, not the text
+inserted under them: refile (and refile a copy), archive, cut and copy
+subtree, clone, roam's extract, and the `:w` of an edit buffer (an Org
+source's own inserted transclusions show in it too).
+
 Transclusions are drawn when an org buffer is shown, redrawn when the
 buffer or a source buffer changes (`live`) or a source is written, and,
 for source files that aren't loaded, when they change on disk (`watch`,

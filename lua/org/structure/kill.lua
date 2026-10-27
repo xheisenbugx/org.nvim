@@ -51,7 +51,7 @@ local function subtree_lines()
       last = sibs[idx + i]
     end
   end
-  return hl, get_lines(buf(), hl.line, last.end_line), last.end_line
+  return hl, utils.file_lines(buf(), hl.line, last.end_line), last.end_line
 end
 
 --- Whether the last copied or cut subtree was folded
@@ -413,7 +413,7 @@ function M.clone_subtree()
     utils.warn("Invalid number of replications")
     return
   end
-  local src = get_lines(bufnr, hl.line, hl.end_line)
+  local src = utils.file_lines(bufnr, hl.line, hl.end_line)
   local has_ts = false
   for _, l in ipairs(src) do
     if #date.parse_all(l) > 0 then

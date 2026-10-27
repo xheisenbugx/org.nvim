@@ -1020,6 +1020,35 @@ function M.diff_indices(a, b)
   return xdiff(a, b, { result_type = "indices" }) --[[@as integer[][] ]]
 end
 
+--- Lines `first`..`last` (1-based, `last` included; default the whole
+--- buffer) of buffer `bufnr` as its file holds them: text that is in the
+--- buffer only to be shown (what the transclusion extension inserted) and
+--- never reaches the file is left out. Anything that copies buffer text
+--- somewhere else (refile, archive, a kill) takes it from here, or the
+--- shown text would become real text there.
+---@param bufnr integer
+---@param first? integer
+---@param last? integer
+---@return string[]
+function M.file_lines(bufnr, first, last)
+  bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  first = first or 1
+  local lines = vim.api.nvim_buf_get_lines(bufnr, first - 1, last or -1, false)
+  -- only when the extension is loaded: core never loads it
+  local tr = package.loaded["org.extensions.transclusion"]
+  local inside = tr and tr.inserted_rows and tr.inserted_rows(bufnr)
+  if not inside then
+    return lines
+  end
+  local out = {}
+  for i, l in ipairs(lines) do
+    if not inside[first + i - 1] then
+      out[#out + 1] = l
+    end
+  end
+  return out
+end
+
 --- Restore a synchronous edit snapshot without replacing unchanged lines.
 --- This keeps unrelated extmarks and cursor locations intact on rollback.
 function M.restore_buffer(bufnr, lines, modified)

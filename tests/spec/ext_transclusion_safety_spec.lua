@@ -507,4 +507,116 @@ describe("transclusion data safety", function()
     want[1] = "* Quit"
     eq(want, vim.fn.readfile(path))
   end)
+
+  it("leaves the edit buffer's own inserted text out of the source (materialized mode)", function()
+    setup({ watch = false, debounce = 1, mode = "materialized" })
+    -- the source has a transclusion of its own, which the edit buffer
+    -- (an Org buffer) shows inserted too
+    write("src.org", { "* Beta", "b1", "#+transclude: [[file:code.py]] :lines 1-1", "b2" })
+    local buf = open({ "* Notes", "#+transclude: [[file:src.org::*Beta]]", "end" })
+    vim.cmd("edit! " .. vim.fn.fnameescape(dir .. "/src.org"))
+    local sbuf = api.nvim_get_current_buf()
+    T.add_all(sbuf)
+    eq("import os", buf_lines(sbuf)[4])
+    api.nvim_set_current_buf(buf)
+    api.nvim_win_set_cursor(0, { 2, 0 })
+    local eb = T.edit()
+    eq("import os", buf_lines(eb)[4])
+    api.nvim_buf_set_lines(eb, 1, 1, false, { "NEW" })
+    vim.cmd("silent write")
+    eq({ "* Beta", "NEW", "b1", "#+transclude: [[file:code.py]] :lines 1-1", "b2" }, vim.fn.readfile(dir .. "/src.org"))
+    eq({ "* Beta", "NEW", "b1", "#+transclude: [[file:code.py]] :lines 1-1", "import os", "b2" }, buf_lines(sbuf))
+    vim.cmd("close")
+  end)
+
+  it("leaves the edit buffer's inserted text out of a transclusion of the same buffer", function()
+    setup({ watch = false, debounce = 1, mode = "materialized" })
+    local path = write(
+      "notes.org",
+      { "* Notes", "#+transclude: [[*Beta]]", "end", "* Beta", "b1", "#+transclude: [[file:code.py]] :lines 1-1", "b2" }
+    )
+    vim.cmd("edit! " .. vim.fn.fnameescape(path))
+    local buf = api.nvim_get_current_buf()
+    T.add_all(buf)
+    api.nvim_win_set_cursor(0, { 2, 0 })
+    local eb = T.edit()
+    api.nvim_buf_set_lines(eb, 1, 1, false, { "NEW" })
+    vim.cmd("silent write")
+    vim.cmd("close")
+    local want = {
+      "* Notes",
+      "#+transclude: [[*Beta]]",
+      "end",
+      "* Beta",
+      "NEW",
+      "b1",
+      "#+transclude: [[file:code.py]] :lines 1-1",
+      "b2",
+    }
+    eq(want, vim.fn.readfile(path))
+    eq(want, (T.clean_lines(buf)))
+  end)
+
+  it("refile, archive and cut leave the inserted text behind", function()
+    local buf = open({ "* A", "#+transclude: [[file:code.py]] :lines 1-2", "a body", "* B" })
+    eq("import os", buf_lines(buf)[3])
+    write("other.org", { "* Target" })
+    require("org.refile").move(
+      { bufnr = buf, lnum = 1, save_destination = true },
+      { filename = dir .. "/other.org", lnum = 1 }
+    )
+    eq(
+      { "* Target", "** A", "#+transclude: [[file:code.py]] :lines 1-2", "a body" },
+      vim.fn.readfile(dir .. "/other.org")
+    )
+    eq({ "* B" }, buf_lines(buf))
+
+    -- refile a copy
+    buf = open({ "* A", "#+transclude: [[file:code.py]] :lines 1-2", "* B" }, "copy.org")
+    write("dest.org", { "* Dest" })
+    api.nvim_win_set_cursor(0, { 1, 0 })
+    quiet(function()
+      require("org.refile").refile(nil, { copy = true, dest = { filename = dir .. "/dest.org", lnum = 1 } })
+    end)
+    vim.cmd("silent! wall")
+    eq({ "* Dest", "** A", "#+transclude: [[file:code.py]] :lines 1-2" }, vim.fn.readfile(dir .. "/dest.org"))
+
+    -- archive
+    buf = open({ "* DONE A", "#+transclude: [[file:code.py]] :lines 1-2", "* B" }, "n2.org")
+    api.nvim_win_set_cursor(0, { 1, 0 })
+    quiet(function()
+      require("org.archive").archive_subtree()
+    end)
+    vim.cmd("silent! wall")
+    local arch = vim.fn.readfile(dir .. "/n2.org_archive")
+    ok(vim.tbl_contains(arch, "#+transclude: [[file:code.py]] :lines 1-2"), vim.inspect(arch))
+    ok(not vim.tbl_contains(arch, "import os"), vim.inspect(arch))
+
+    -- cut subtree: the kill holds the keyword, not its text
+    buf = open({ "* A", "#+transclude: [[file:code.py]] :lines 1-2", "* B" }, "n3.org")
+    api.nvim_win_set_cursor(0, { 1, 0 })
+    quiet(function()
+      require("org.structure").cut_subtree()
+    end)
+    eq({ "* A", "#+transclude: [[file:code.py]] :lines 1-2" }, require("org.structure").clip)
+  end)
+
+  it("roam's extract leaves the inserted text behind", function()
+    require("org").setup({
+      org_directory = dir,
+      agenda_files = { dir .. "/*.org" },
+      extensions = {
+        transclusion = { watch = false, debounce = 1, mode = "virtual" },
+        roam = { directory = dir, index_file = dir .. "/roam-index.json" },
+      },
+    })
+    local buf = open({ "* Top", "** Seed", "#+transclude: [[file:code.py]] :lines 1-2", "body" })
+    eq("import os", buf_lines(buf)[4])
+    api.nvim_win_set_cursor(0, { 2, 0 })
+    quiet(function()
+      require("org.extensions.roam.node").extract_subtree(dir .. "/seed.org")
+    end)
+    local out = vim.fn.readfile(dir .. "/seed.org")
+    eq({ "#+title: Seed", "#+transclude: [[file:code.py]] :lines 1-2", "body" }, vim.list_slice(out, 4))
+  end)
 end)

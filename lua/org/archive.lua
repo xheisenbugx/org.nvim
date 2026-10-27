@@ -335,7 +335,7 @@ function M.archive_subtree(target, opts)
     return
   end
   local s, e = hl.line, hl.end_line
-  local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+  local lines = utils.file_lines(bufnr, s, e)
   local same = file.filename and vim.fs.normalize(loc.filename) == file.filename
   local title = hl:plain_title()
   local closed = hl.planning.closed
@@ -482,8 +482,8 @@ function M.archive_to_sibling(target)
     end
   end
   local s, e = hl.line, hl.end_line
-  local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
   if sib == hl then
+    local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
     -- the archive sibling itself: Emacs goes to its end, cuts it and
     -- pastes it there one level deeper, so it moves under the sibling
     -- before it (under the parent when it is the first child)
@@ -509,6 +509,8 @@ function M.archive_to_sibling(target)
     utils.notify(string.format('Subtree "%s" moved to archive sibling', hl:plain_title()))
     return up and up.line or s
   end
+  -- the copy leaves out text shown in the buffer only (transclusion)
+  local lines = utils.file_lines(bufnr, s, e)
   local source = assert(marks.range(bufnr, s, e))
   local parent = hl.parent and marks.set(bufnr, hl.parent.line)
   local sib_line

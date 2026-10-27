@@ -530,7 +530,7 @@ function M.move(src, dest)
   end
   local sbuf = src.bufnr or vim.api.nvim_get_current_buf()
   local s, e = source_range(sbuf, src.lnum or vim.api.nvim_win_get_cursor(0)[1], src.range)
-  local lines = vim.api.nvim_buf_get_lines(sbuf, s - 1, e, false)
+  local lines = utils.file_lines(sbuf, s, e)
   local dbuf = dest.bufnr or utils.load_buffer(dest.filename)
   if dbuf == sbuf then
     if dest.lnum and dest.lnum >= s and dest.lnum <= e then
@@ -741,7 +741,7 @@ function M.refile(target, opts)
   local title = hl:plain_title()
   local ok, dbuf, dline
   if copy then
-    local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+    local lines = utils.file_lines(bufnr, s, e)
     ok, dbuf, dline = pcall(M.insert_subtree, lines, dest)
   else
     ok, dbuf, dline = pcall(M.move, {
