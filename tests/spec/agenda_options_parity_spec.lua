@@ -780,6 +780,25 @@ describe("agenda diary sexp entries sorting", function()
   end)
 end)
 
+describe("stuck projects keywords", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10 org-agenda-list-stuck-projects: the keywords are a regexp
+  -- on the heading lines of the subtree, so a word that is no TODO keyword
+  -- in the file counts too
+  it("matches the keywords as text on the heading lines", function()
+    open({
+      "* Project one",
+      "** NEXT do it",
+      "* Project two",
+      "** TODO only a todo",
+    }, { agenda = { stuck_projects = { match = "+LEVEL=1", todo_keywords = { "NEXT" } } } }, { type = "stuck" })
+    eq({ "  skip:       Project two" }, item_lines())
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()

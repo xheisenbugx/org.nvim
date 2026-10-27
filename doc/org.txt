@@ -2723,9 +2723,12 @@ Stuck projects                                         *org-stuck-projects*
 
 `agenda.stuck_projects` (org-stuck-projects): projects matching `match`
 ("+LEVEL=2/-DONE") are stuck unless a heading of their subtree, the
-project heading included, has one of `todo_keywords` ({ "TODO", "NEXT",
-"NEXTACTION" }; "*" = any not-done keyword) or `tags` ("*" = any tag), or
-the subtree text matches the Vim regexp `text`.
+project heading included (inline tasks too), starts with one of
+`todo_keywords` ({ "TODO", "NEXT", "NEXTACTION" }; "*" = any not-done
+keyword of the agenda files) or has one of `tags` ("*" = any tag), or the
+subtree text matches the Vim regexp `text`. Like Emacs, the keywords are
+words on the heading line: one that isn't a TODO keyword in that file
+counts too.
 
 Search view                                            *org-agenda-search*
 
