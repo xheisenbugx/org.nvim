@@ -621,7 +621,10 @@ stars alone is text, like in Emacs): >org
                 for <M-k> / <M-j>.
 Promotion keeps the spacing of the headline and realigns its tags. With
 `odd_levels_only` (`#+STARTUP: odd`, org-odd-levels-only) the level changes
-by two.
+by two, and levels count the odd ones only (org-reduced-level: 1, 3, 5
+stars are levels 1, 2, 3) where Emacs counts them so: `LEVEL` in matches
+and stuck projects, the agenda's `%l`, clock table `:maxlevel`, `:level`
+and `:scope treeN`.
 
 List items follow org-list rules: an item with children cannot be outdented
 alone (use <M-H>), the first item of a list cannot be indented alone, and

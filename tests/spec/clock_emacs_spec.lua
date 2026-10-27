@@ -987,3 +987,58 @@ describe("clock line recognition (Emacs)", function()
     ok(vim.tbl_contains(buf_lines(buf), "| Task         | 2:01   |"), table.concat(buf_lines(buf), "\n"))
   end)
 end)
+
+describe("clock tables with #+STARTUP: odd (Emacs)", function()
+  -- Org 9.8.10 org-clock-get-table-data and :scope treeN count levels with
+  -- org-reduced-level: 1, 3, 5 stars are levels 1, 2, 3
+  local function line(h)
+    return ("CLOCK: [2026-09-29 Tue %02d:00]--[2026-09-29 Tue %02d:30] =>  0:30"):format(h, h)
+  end
+
+  it("reduces levels in :maxlevel, :level and the indentation", function()
+    local buf = org_buffer({
+      "#+STARTUP: odd",
+      "* Top",
+      line(9),
+      "*** Odd level two",
+      line(10),
+      "***** Odd level three",
+      line(11),
+      "#+BEGIN: clocktable :scope tree :maxlevel 3 :level t",
+      "#+END:",
+    }, { 8, 0 })
+    clock.clock_report()
+    eq({
+      "| L | Headline              | Time   |      |      |",
+      "|---+-----------------------+--------+------+------|",
+      "|   | *Total time*          | *1:30* |      |      |",
+      "|---+-----------------------+--------+------+------|",
+      "| 1 | Top                   | 1:30   |      |      |",
+      "| 2 | \\_  Odd level two     |        | 1:00 |      |",
+      "| 3 | \\_    Odd level three |        |      | 0:30 |",
+      "#+END:",
+    }, vim.list_slice(buf_lines(buf), 10, 17))
+  end)
+
+  it("goes up to a reduced level for :scope treeN", function()
+    local buf = org_buffer({
+      "#+STARTUP: odd",
+      "* Top",
+      line(9),
+      "*** Odd level two",
+      line(10),
+      "***** Odd level three",
+      "#+BEGIN: clocktable :scope tree2 :maxlevel 3",
+      "#+END:",
+    }, { 7, 0 })
+    clock.clock_report()
+    eq({
+      "| Headline          | Time   |      |",
+      "|-------------------+--------+------|",
+      "| *Total time*      | *0:30* |      |",
+      "|-------------------+--------+------|",
+      "| \\_  Odd level two |        | 0:30 |",
+      "#+END:",
+    }, vim.list_slice(buf_lines(buf), 9, 14))
+  end)
+end)

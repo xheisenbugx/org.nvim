@@ -721,6 +721,35 @@ describe("window_frame_fractions", function()
   end)
 end)
 
+describe("agenda levels with #+STARTUP: odd", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local lines = {
+    "#+STARTUP: odd",
+    "* TODO Top",
+    "*** TODO Second",
+    "***** TODO Third",
+    "*** Project two",
+    "***** WAITING sub",
+    "* nothing",
+  }
+
+  -- Emacs 9.8.10 (org-reduced-level): LEVEL counts odd levels only, so do
+  -- the default stuck projects match (+LEVEL=2/-DONE) and %l
+  it("matches LEVEL, stuck projects and %l by the reduced level", function()
+    open(lines, {}, { type = "tags", match = "LEVEL=2" })
+    eq({ "  skip:       TODO Second", "  skip:       Project two" }, item_lines())
+    open(lines, {}, { type = "tags", match = "LEVEL>2" })
+    eq({ "  skip:       TODO Third", "  skip:       WAITING sub" }, item_lines())
+    open(lines, {}, { type = "stuck" })
+    eq({ "  skip:       Project two" }, item_lines())
+    open(lines, { agenda = { prefix_format = { todo = " %l|%-8c" } } }, { type = "todo" })
+    eq({ "  |skip    TODO Top", "   |skip    TODO Second", "    |skip    TODO Third" }, item_lines())
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()

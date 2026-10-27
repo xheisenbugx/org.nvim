@@ -55,7 +55,7 @@ M.day_sources = {}
 ---@field filename string|nil
 ---@field bufnr integer|nil
 ---@field lnum integer
----@field level integer outline level (0 outside an entry)
+---@field level integer outline level, odd levels reduced (0 outside an entry)
 ---@field fidx? integer index of the file (or diary, extra day source) it comes from, in a day agenda
 ---@field raw string
 ---@field title string headline text without TODO keyword, priority and tags
@@ -145,7 +145,7 @@ local function new_item(hl, fields)
     category = hl:get_category(),
     tags = hl:get_tags(),
     done = hl:is_done(),
-    level = hl.level,
+    level = hl:reduced_level(),
     order = order,
     prio = priority_value(hl),
   }

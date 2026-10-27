@@ -145,7 +145,7 @@ local function updated_item(old, hl)
   it.category = hl:get_category()
   it.tags = hl:get_tags()
   it.done = hl:is_done()
-  it.level = hl.level
+  it.level = hl:reduced_level()
   local prio = require("org.agenda.items").priority_value(hl)
   it.urgency = (old.urgency or old.prio or 0) - (old.prio or 0) + prio
   it.prio = prio

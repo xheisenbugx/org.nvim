@@ -1185,6 +1185,18 @@ function M.odd_levels(src)
   return require("org.config").opts.odd_levels_only == true
 end
 
+--- The level of a heading with `stars` stars, counting only odd levels
+--- when `odd` (org-reduced-level: 1, 3, 5 stars are levels 1, 2, 3).
+---@param stars integer
+---@param odd boolean
+---@return integer
+function M.reduced_level(stars, odd)
+  if odd and stars > 0 then
+    return 1 + math.floor(stars / 2)
+  end
+  return stars
+end
+
 --- The fewest stars of an inline task, nil when inline tasks are off: the
 --- `inlinetask_min_level` option (org-inlinetask-min-level), or with odd
 --- levels only (`M.odd_levels`) 2 * that - 1 stars, as
@@ -1474,6 +1486,13 @@ end
 
 function Headline:is_done()
   return self.todo ~= nil and self.file.settings.todo:is_done(self.todo)
+end
+
+--- The headline's level with its file's odd levels setting applied
+--- (org-reduced-level), what LEVEL matches and clock tables count.
+---@return integer
+function Headline:reduced_level()
+  return M.reduced_level(self.level, M.odd_levels(self.file))
 end
 
 function Headline:is_todo()

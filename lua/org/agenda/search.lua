@@ -561,8 +561,9 @@ end
 --- Property value getter of the matcher (org-make-tags-matcher's `gv`).
 local function getter(name)
   if name == "LEVEL" then
+    -- org-element's :level, reduced with odd levels only
     return function(hl)
-      return tostring(hl.level)
+      return tostring(hl:reduced_level())
     end
   elseif name == "CATEGORY" then
     return function(hl)
@@ -983,12 +984,15 @@ end
 --- belongs to its ancestor).
 local function region_end(hl, max_level)
   if max_level > 0 then
-    if hl.level > max_level then
+    -- reduced levels (org-reduced-level) with odd levels only
+    local odd = require("org.parser").odd_levels(hl.file)
+    local reduced = require("org.parser").reduced_level
+    if reduced(hl.level, odd) > max_level then
       return nil
     end
     local hls = hl.file.headlines
     for i = (hl.index or 0) + 1, #hls do
-      if hls[i].level <= max_level then
+      if reduced(hls[i].level, odd) <= max_level then
         return hls[i].line - 1
       end
     end
