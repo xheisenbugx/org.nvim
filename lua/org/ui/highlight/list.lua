@@ -14,6 +14,11 @@
 --- drawn on those lines here. Like syntax groups without @Spell, none of
 --- them is spell checked.
 
+-- Not compiled by the JIT, like org.ui.highlight (see the comment there).
+if jit then
+  jit.off(true, true)
+end
+
 local M = {}
 
 local byte = string.byte

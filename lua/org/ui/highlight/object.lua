@@ -17,6 +17,11 @@
 --- the text once or remembers what it found, so the time is linear in the
 --- length of the lines.
 
+-- Not compiled by the JIT, like org.ui.highlight (see the comment there).
+if jit then
+  jit.off(true, true)
+end
+
 local M = {}
 
 local E = require("org.ui.emphasis")
@@ -337,6 +342,23 @@ end
 
 -- Painting ---------------------------------------------------------------------
 
+--- Whether `s` holds "src_" in any case (an inline src block can start
+--- there): a plain search for "_" and a look at the bytes before it,
+--- faster than the pattern on prose.
+---@param s string
+---@return boolean
+local function has_src(s)
+  local p = s:find("_", 4, true)
+  while p do
+    local a, b, c = byte(s, p - 3, p - 1)
+    if (a == 115 or a == 83) and (b == 114 or b == 82) and (c == 99 or c == 67) then
+      return true
+    end
+    p = s:find("_", p + 1, true)
+  end
+  return false
+end
+
 --- Paint the rows of `ctx` (see org.ui.highlight `Ctx`).
 ---@param ctx org.ui.highlight.Ctx
 function M.paint(ctx)
@@ -408,7 +430,7 @@ function M.paint(ctx)
 
   -- inline src blocks: src_LANG, then [HEADERS] and {BODY}, paired over
   -- at most one line break
-  if s:find("[sS][rR][cC]_") then
+  if has_src(s) then
     local symbol = {}
     for c in ("$%&'*+-/=_|~\\"):gmatch(".") do
       symbol[byte(c)] = true
@@ -488,9 +510,9 @@ function M.paint(ctx)
   end
 
   -- links (org-activate-links, as org.ui.emphasis finds them)
-  local types = E.link_types()
+  local types = ctx.link_types or E.link_types()
   local groups = custom_groups()
-  local _, found = E._links(s, types, line_of, line_start)
+  local found = ctx.links or select(2, E._links(s, types, line_of, line_start))
   local brackets = {} ---@type integer[][]
   for _, f in ipairs(found) do
     local a, b, style = f[1], f[2], f[3]
@@ -682,11 +704,19 @@ function M.paint(ctx)
 
   -- line breaks: \\ at the end of a line (no face in Emacs; the syntax
   -- engine's orgLineBreak)
-  for l, line in ipairs(lines) do
-    local k = kinds[l]
-    if (k == "text" or k == "qcomment") and byte(line, #line) ~= nil and line:find("\\\\[ \t]*$") then
-      local a = line:find("\\\\[ \t]*$")
-      ctx.emit(l, a - 1, #line, { hl_group = "orgLineBreak", priority = P.link, spell = false })
+  for l = math.max(1, ctx.first - ctx.row0 + 1), math.min(#lines, ctx.last - ctx.row0 + 1) do
+    local line, k = lines[l], kinds[l]
+    if k == "text" or k == "qcomment" then
+      -- ("\\\\[ \t]*$", read back from the end of the line)
+      local e = #line
+      local b = byte(line, e)
+      while b == 32 or b == 9 do
+        e = e - 1
+        b = byte(line, e)
+      end
+      if b == 92 and byte(line, e - 1) == 92 then
+        ctx.emit(l, e - 2, #line, { hl_group = "orgLineBreak", priority = P.link, spell = false })
+      end
     end
   end
 

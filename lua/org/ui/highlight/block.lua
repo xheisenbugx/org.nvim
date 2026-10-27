@@ -30,6 +30,11 @@
 --- and nothing goes over a headline. "native" draws like "latex" (the tex
 --- syntax isn't included with this highlighter).
 
+-- Not compiled by the JIT, like org.ui.highlight (see the comment there).
+if jit then
+  jit.off(true, true)
+end
+
 local M = {}
 
 local E = require("org.ui.emphasis")
@@ -180,7 +185,8 @@ local function paint_blocks(ctx)
     how[block] = v
     return v
   end
-  for i = 1, #lines do
+  -- (the rows drawn only: nothing is carried from one line to the next)
+  for i = math.max(1, ctx.first - ctx.row0 + 1), math.min(#lines, ctx.last - ctx.row0 + 1) do
     local line = lines[i]
     local r = roles[i]
     if r then
@@ -513,13 +519,12 @@ local function paint_latex(ctx, o)
   -- An environment open before the lines: its begin line is above them,
   -- after the headline above.
   if o.fragments and ctx.row0 > 0 and not star[1] then
-    local above = vim.api.nvim_buf_get_lines(ctx.bufnr, math.max(0, ctx.row0 - LOOK), ctx.row0, false)
+    -- (the lines after the headline above: read up to it only)
+    local h = H.star_above(ctx.bufnr, ctx.row0, LOOK)
+    local above = vim.api.nvim_buf_get_lines(ctx.bufnr, h and h + 1 or math.max(0, ctx.row0 - LOOK), ctx.row0, false)
     local open ---@type string?
     for k = #above, 1, -1 do
       local line = above[k]
-      if E.star_line(line) then
-        break
-      end
       local name, after = env_begin(line)
       if name then
         open = name

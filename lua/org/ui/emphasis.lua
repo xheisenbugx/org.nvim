@@ -803,6 +803,7 @@ M._emphasis = emphasis
 ---@field prev? string the line before `lines`
 ---@field closed_after? fun(name: string): boolean (see `M.kinds`)
 ---@field types? table<string, boolean> link types (default `M.link_types()`)
+---@field kinds? org.ui.emphasis.Kind[] `M.kinds` of the lines, when already known
 
 --- Emphasis and link marks for `lines`, buffer lines from row `row0`
 --- (0-based) on, in the block state `opts.block` (see `M.kinds`), after
@@ -815,8 +816,9 @@ M._emphasis = emphasis
 ---@param last integer
 ---@param opts org.ui.emphasis.MarksOpts
 ---@param rows table<integer, table[]>
+---@return { [1]: integer, [2]: integer, [3]: string }[]? links the links of the lines (`links`), when found to hide them
 function M.marks(lines, row0, first, last, opts, rows)
-  local kinds = M.kinds(lines, opts.block, opts.closed_after)
+  local kinds = opts.kinds or M.kinds(lines, opts.block, opts.closed_after)
 
   local s = table.concat(lines, "\n")
   local starts = {}
@@ -857,8 +859,11 @@ function M.marks(lines, row0, first, last, opts, rows)
   -- part of a link or a marker. Lines that draw nothing (src blocks,
   -- keywords) and fixed-width lines show everything.
   local link_hidden = {} ---@type table<integer, boolean>
+  local found ---@type { [1]: integer, [2]: integer, [3]: string }[]?
   if opts.conceal_links then
-    for _, r in ipairs(links(s, opts.types or M.link_types(), line_of, line_start)) do
+    local hide
+    hide, found = links(s, opts.types or M.link_types(), line_of, line_start)
+    for _, r in ipairs(hide) do
       for x = r[1], r[2] do
         link_hidden[x] = true
       end
@@ -1059,6 +1064,7 @@ function M.marks(lines, row0, first, last, opts, rows)
       b = b + 1
     end
   end
+  return found
 end
 
 -- The buffer ----------------------------------------------------------------

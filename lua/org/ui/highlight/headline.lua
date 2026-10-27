@@ -15,6 +15,11 @@
 --- and org-inlinetask-fontify for inline tasks. Emacs prepends the later
 --- rules' faces, so they get the higher priorities here.
 
+-- Not compiled by the JIT, like org.ui.highlight (see the comment there).
+if jit then
+  jit.off(true, true)
+end
+
 local M = {}
 
 local byte = string.byte

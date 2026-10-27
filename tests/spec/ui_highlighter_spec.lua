@@ -486,3 +486,112 @@ describe("ui.highlighter = parser: long lines", function()
     end)
   end
 end)
+
+-- Typing keeps the marks of the rows an edit can't change
+-- (org.ui.decorations `carried`): after every edit, each row must be drawn
+-- as a fresh scan of the buffer draws it.
+describe("ui.highlighter = parser, after an edit inside a line", function()
+  with_config({
+    ui = {
+      highlighter = "parser",
+      hide_emphasis_markers = true,
+      indent_mode = true,
+      pretty_entities = true,
+      bullets = { "◉", "○" },
+      checkboxes = { " ", "◐", "✓" },
+    },
+  })
+
+  --- Every row's marks, as one string per row: as drawn (`fresh`: as a
+  --- scan of that row alone draws them, with the same parse).
+  local function all_marks(buf, fresh)
+    local ui = fresh and deco.ui_options(buf, require("org.ui.highlight").file_in_use(buf))
+    local out = {}
+    for row = 0, vim.api.nvim_buf_line_count(buf) - 1 do
+      local t = {}
+      local marks = fresh and deco.compute(buf, row, row, ui)[row] or not fresh and deco.line_marks(buf, row) or {}
+      for _, m in ipairs(marks) do
+        local o = vim.tbl_extend("force", {}, m[2])
+        o.ephemeral = nil
+        t[#t + 1] = m[1] .. ":" .. vim.inspect(o, { newline = "", indent = "" })
+      end
+      table.sort(t)
+      out[row + 1] = table.concat(t, " ")
+    end
+    return out
+  end
+
+  --- The inline marks drawn on screen (org.ui.decorations `sync_inline`),
+  --- after a redraw.
+  local function inline_marks(buf)
+    vim.cmd("redraw")
+    local ns = vim.api.nvim_create_namespace("org.decorations.inline")
+    local t = {}
+    local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, { top, 0 }, { bot, -1 }, { details = true })) do
+      local d = m[4]
+      d.ns_id = nil
+      t[#t + 1] = m[2] .. ":" .. m[3] .. vim.inspect(d, { newline = "", indent = "" })
+    end
+    table.sort(t)
+    return table.concat(t, "\n")
+  end
+
+  -- what an edit inserts: plain text, markup markers, link and footnote
+  -- brackets, and what keeps rows from being kept (a star, "#", "\")
+  local CHARS = { "a", "x", " ", " ", "*", "/", "=", "~", "+", "_", "[", "]", "<", ">", "{", "}", "(", ")", '"' }
+  vim.list_extend(CHARS, { "\\", "#", ":", "|", "-", "$", "^", "1", ".", "@", "\t" })
+
+  local root = vim.fn.getcwd() .. "/tests/fixtures/emacs/faces/"
+  local fixtures = {}
+  for _, f in ipairs({ "headline", "list", "date", "meta", "table", "block", "object" }) do
+    vim.list_extend(fixtures, vim.fn.readfile(root .. f .. ".org"))
+  end
+
+  it("draws every row as a fresh scan does, and keeps rows", function()
+    local carried = deco._carried
+    for _, seed in ipairs(fuzz.seeds(4)) do
+      local rng = fuzz.rng(seed)
+      local lines = fuzz.doc(rng, { crlf = false })
+      -- (and a part of the Emacs faces cases)
+      local from = rng:int(1, #fixtures - 40)
+      vim.list_extend(lines, vim.list_slice(fixtures, from, from + 40))
+      local buf = org_buffer(lines, { 1, 0 })
+      all_marks(buf)
+      for _ = 1, 25 do
+        local n = vim.api.nvim_buf_line_count(buf)
+        local row = rng:int(0, n - 1)
+        local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1]
+        local col = rng:int(0, #line)
+        if #line > 0 and rng:chance(0.3) then
+          col = math.min(col, #line - 1)
+          vim.api.nvim_buf_set_text(buf, row, col, row, col + 1, {})
+        else
+          vim.api.nvim_buf_set_text(buf, row, col, row, col, { rng:pick(CHARS) })
+        end
+        local kept = all_marks(buf)
+        local fresh = all_marks(buf, true)
+        local now = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        for i = 1, #fresh do
+          if kept[i] ~= fresh[i] then
+            error(fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(i - 1, row), now, now))
+          end
+        end
+        -- and the inline marks (indent mode) of the rows on screen
+        vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+        local inline = inline_marks(buf)
+        deco.render(buf)
+        if inline ~= inline_marks(buf) then
+          error(fuzz.report(seed, ("inline marks after an edit of row %d differ"):format(row), now, now))
+        end
+        -- (the redraw computed the rows on screen together, whose marks
+        -- can differ from those of each row alone: a macro over a list
+        -- item; each row alone again, without a redraw)
+        deco.render(buf, true)
+        all_marks(buf)
+      end
+    end
+    -- (rows were kept, not only drawn again)
+    ok(deco._carried > carried)
+  end)
+end)

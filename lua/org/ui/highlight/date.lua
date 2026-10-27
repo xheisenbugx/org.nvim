@@ -15,6 +15,11 @@
 --- and export blocks get the faces of their language: those lines draw
 --- none of them.
 
+-- Not compiled by the JIT, like org.ui.highlight (see the comment there).
+if jit then
+  jit.off(true, true)
+end
+
 local M = {}
 
 local H = require("org.ui.highlight")
