@@ -6865,11 +6865,10 @@ Options under `ui`:
                          (org-highlight-latex-and-related), none by
                          default like Emacs: "latex" (fragments $..$,
                          \(..\), \[..\], $$..$$ and \begin{..}
-                         environments, OrgLatex), "native" (the same with
-                         Vim's tex syntax inside; with the default
-                         |org-highlighter| like "latex"), "script" (x^2,
-                         a_{i}),
-                         "entities" (\alpha)
+                         environments, OrgLatex), "native" (the same
+                         drawn by Vim's tex syntax, with the entities and
+                         scripts listed; |org-highlighter-latex|),
+                         "script" (x^2, a_{i}), "entities" (\alpha)
   src_highlight          highlight src blocks in their language
                          (org-src-fontify-natively); false: plain text
   src_highlight_engine   "auto" (default): with tree-sitter when Neovim
@@ -7270,9 +7269,9 @@ blocks; `:Org inspect` lists it), only org buffers are drawn by it (a buffer
 that just sets 'syntax' to org, like the drill window, keeps the regions),
 verbatim and code are left out of spell checking with extmarks instead of
 |:syn-spell| clusters (|org-highlighter-spell|), and
-`ui.highlight_latex_and_related` "native" draws fragments like "latex" (Vim's
-tex syntax isn't included in them). To go back to the old engine while it is
-kept: >lua
+`ui.highlight_latex_and_related` "native" draws fragments with marks of Vim's
+tex groups (|org-highlighter-latex|). To go back to the old engine while it
+is kept: >lua
     ui = { highlighter = "syntax" }
 <
 Calling `setup()` again with another `ui.highlighter` draws the org buffers
@@ -7300,6 +7299,23 @@ emphasis in a list item's tag, a link over two lines, or keyword and
 block lines in a quote block; and verbatim is what org-element finds, left
 to right, so `=a "b"=, the rest=` checks ", the rest" (font-lock, which
 tries every marker, draws it as verbatim too).
+                                                *org-highlighter-latex*
+With `ui.highlight_latex_and_related = { "native" }`, the parser
+highlighter draws what it finds (`$x$`, `\(..\)`, `\[..\]`, `$$..$$` and
+`\begin{..}` environments, and the entities and scripts when listed too)
+the way Emacs's org-do-latex-and-related does then: the text is drawn as a
+TeX file of its own would be, with the groups of Vim's tex syntax
+(texMathZoneX, texStatement, ...), over `orgSrcBlock` (org-block, as the
+body of a src block drawn by its language), and in place of `OrgLatex`.
+It is shown as typed: tex's concealing and its error groups are left out.
+Without a tex syntax on 'runtimepath', fragments get `OrgBlock` alone.
+Like Emacs, nothing is drawn where the byte after the start of the match
+is verbatim, code, underline or a special keyword. The tex groups are
+marks, not syntax: `synstack()` and |:Inspect| don't list them (`:Org
+inspect` does). A fragment seen first while the screen is drawn gets its
+colours right after, on the next redraw. Difference: Emacs takes the faces
+of bold, italic and the like off a fragment drawn natively; here the tex
+groups only go over them.
 
 `:Org inspect` (no default key) shows what is drawn under the cursor,
 like |:Inspect| but with the marks it doesn't see: the decorations and
@@ -9113,6 +9129,10 @@ Differences from Emacs:
   first line is at most 'synmaxcol' characters long: looking further for
   the end of every marker would make drawing a long line take time
   quadratic in its length.
+
+- `ui.highlight_latex_and_related` "native" (|org-highlighter-latex|)
+  draws LaTeX with Vim's tex syntax, not latex-mode's faces, and over the
+  bold, italic and the like around it, which Emacs takes off.
 
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or

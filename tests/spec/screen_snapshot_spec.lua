@@ -287,6 +287,24 @@ describe("screen snapshot", function()
     screen:expect("blocks")
   end)
 
+  -- ui.highlight_latex_and_related "native": Vim's tex syntax in the
+  -- fragments, over orgSrcBlock (org-src-font-lock-fontify-block "latex")
+  it("LaTeX fragments and environments drawn natively", function()
+    new({ ui = { highlight_latex_and_related = { "native", "entities" } } }, 60, 8)
+    screen:org({
+      "* Math",
+      "Inline $x^2 + y_1$, \\(\\frac{a}{b}\\) and \\alpha here.",
+      "\\begin{equation}",
+      "E = mc^2 % energy",
+      "\\end{equation}",
+      "Not in =$verbatim$=.",
+    })
+    screen:expect("latex_native")
+    -- a fragment typed in is drawn again with its new text
+    screen:input("2G0f$a\\beta <Esc>")
+    screen:expect("latex_native_typed")
+  end)
+
   it("source blocks highlighted with tree-sitter", function()
     new()
     -- the parsers bundled with Neovim (lib/nvim/parser), which the child's

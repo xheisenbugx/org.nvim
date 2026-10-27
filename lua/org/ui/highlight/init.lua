@@ -438,6 +438,7 @@ end
 ---@field link_types? table<string, boolean> org.ui.emphasis `link_types()`
 ---@field links? { [1]: integer, [2]: integer, [3]: string }[] the links of `lines` (org.ui.emphasis `_links`), when known
 ---@field emit fun(i: integer, col: integer, end_col: integer, opts: org.ui.highlight.MarkOpts) mark bytes [col, end_col) (0-based) of lines[i]
+---@field marks? fun(i: integer): { [1]: integer, [2]: vim.api.keyset.set_extmark }[]? the marks of lines[i] so far (emphasis, then the parts that painted before), nil when none or not drawn
 ---@field get_line fun(row: integer): string? any line of the text drawn, by 0-based row
 ---@field top integer 0-based first row of the text drawn: 0, or the first line of the body of an org src block drawn as Org (`M.org_body`)
 ---@field bottom integer 0-based row after its last line
@@ -561,6 +562,9 @@ local function paint(bufnr, text, first, last, ui, rows, file, body)
         nil,
         "parser",
       }
+    end,
+    marks = function(i)
+      return rows[row0 + i - 1]
     end,
     get_line = function(row)
       if row < text.top or row >= text.bottom then
