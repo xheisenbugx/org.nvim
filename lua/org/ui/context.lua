@@ -112,22 +112,37 @@ local function ancestors(file, lnum, foreign)
   return out
 end
 
---- The buffer line drawn `rows` screen lines below line `top` of the
---- current window, a closed fold taking one line.
+--- The buffer line drawn `rows` screen lines below the first screen line
+--- of the current window, whose top line is `top`: a closed fold takes
+--- one screen line, a wrapped line as many as it wraps to.
 ---@param top integer
 ---@param rows integer
 ---@param last integer the buffer's last line
 ---@return integer
 local function line_below(top, rows, last)
-  local l = top
-  for _ = 1, rows do
+  local l, used = top, 0
+  -- (the top line scrolled by 'smoothscroll' shows from its skipcol on)
+  local skip = vim.fn.winsaveview().skipcol or 0
+  while true do
     local fend = vim.fn.foldclosedend(l)
+    local h = 1
+    if fend == -1 and vim.wo.wrap then
+      local ok, th = pcall(api.nvim_win_text_height, 0, {
+        start_row = l - 1,
+        end_row = l - 1,
+        start_vcol = l == top and skip > 0 and skip or nil,
+      })
+      h = ok and th.all or 1
+    end
+    if used + h > rows then
+      return l
+    end
+    used = used + h
     l = (fend ~= -1 and fend or l) + 1
     if l > last then
       return last
     end
   end
-  return l
 end
 
 --- Keep `max` of `list`, dropping the outermost ("outer") or innermost
