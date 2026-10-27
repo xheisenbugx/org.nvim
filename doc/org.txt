@@ -478,9 +478,11 @@ Inside tmux the terminal is the one of the attached client.
 org.nvim extensions ~
 - each enabled extension, its stability (|org-extensions-stability|) and
   the checks of its own `health` function (|org-extensions|): the external
-  programs it needs and its paths
-- an extension enabled in setup() that isn't loaded (a misspelt name, or
-  an error in its module) is an error
+  programs it needs, its paths and options it can't use (pomodoro's
+  durations, transclusion's `mode`, super_agenda's `groups`, ...)
+- an extension enabled in setup() that isn't loaded (a misspelt name, a
+  module that is shared code such as `views_util`, or an error in its
+  module) is an error
 
 org.nvim development (Emacs parity) ~
 Shown only when Emacs is installed or `ORG_EMACS` / `ORG_LISP_DIR` is set:

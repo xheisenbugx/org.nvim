@@ -824,14 +824,20 @@ function M.teardown(again)
 end
 
 function M.health(h, o)
+  local bad = false
   for _, k in ipairs({ "work", "short_break", "long_break" }) do
     if not (tonumber(o[k]) and tonumber(o[k]) > 0) then
       h.error(string.format("pomodoro: %s must be a positive number of minutes", k))
+      bad = true
     end
+  end
+  if not (tonumber(o.long_break_every) and tonumber(o.long_break_every) >= 1) then
+    h.error("pomodoro: long_break_every must be a number of pomodoros, 1 or more")
+    bad = true
   end
   if o.system_notification and not require("org.agenda.notifications").desktop_backend() then
     h.warn("pomodoro: no osascript, notify-send or powershell.exe for desktop notifications")
-  else
+  elseif not bad then
     h.ok(
       string.format(
         "pomodoro: %g/%g/%g min, long break every %d",

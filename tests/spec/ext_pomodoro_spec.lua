@@ -529,3 +529,26 @@ describe("pomodoro off", function()
     vim.fn.delete(state_file)
   end)
 end)
+
+describe("pomodoro health", function()
+  local function report(o)
+    local out = {}
+    local h = {}
+    for _, kind in ipairs({ "ok", "warn", "error", "info" }) do
+      h[kind] = function(m)
+        out[#out + 1] = kind .. " " .. m
+      end
+    end
+    pomodoro.health(h, vim.tbl_extend("force", pomodoro.defaults, { system_notification = false }, o))
+    return out
+  end
+
+  it("reports bad durations without an OK line for them", function()
+    eq({ "error pomodoro: work must be a positive number of minutes" }, report({ work = -5 }))
+    eq(
+      { "error pomodoro: long_break_every must be a number of pomodoros, 1 or more" },
+      report({ long_break_every = 0 })
+    )
+    eq({ "ok pomodoro: 25/5/15 min, long break every 4" }, report({}))
+  end)
+end)

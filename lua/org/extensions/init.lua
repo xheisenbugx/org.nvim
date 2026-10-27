@@ -66,6 +66,30 @@ local function is_enabled(value)
   return not (type(value) == "table" and value.enabled == false)
 end
 
+-- Load extension `name`: its module, or nil and why it can't be used (no
+-- such module, a module that is shared code rather than an extension, or
+-- the error loading it).
+---@return org.Extension|nil, string|nil
+local function load(name)
+  local mod = "org.extensions." .. name
+  local ok, ext = pcall(require, mod)
+  if not ok then
+    local err = tostring(ext)
+    if err:find("module '" .. mod .. "' not found", 1, true) then
+      return nil, "Unknown extension " .. name .. " (no lua/org/extensions/" .. name .. " in 'runtimepath')"
+    end
+    return nil, "Broken extension " .. name .. ": " .. err
+  end
+  if
+    type(ext) ~= "table"
+    or ext == M
+    or not (ext.setup or ext.defaults or ext.actions or ext.commands or ext.mappings or ext.health or ext.teardown)
+  then
+    return nil, name .. " is not an extension (" .. mod .. " is shared code)"
+  end
+  return ext
+end
+
 local function unregister()
   local actions = require("org.actions")
   local commands = require("org.commands")
@@ -170,9 +194,9 @@ function M.setup()
   for _, name in ipairs(names) do
     local value = exts[name]
     if is_enabled(value) then
-      local ok, ext = pcall(require, "org.extensions." .. name)
-      if not ok then
-        utils.error(string.format("Unknown or broken extension %s: %s", name, tostring(ext)))
+      local ext, lerr = load(name)
+      if not ext then
+        utils.error(tostring(lerr))
       else
         local opts = vim.deepcopy(ext.defaults or {})
         config.merge(opts, type(value) == "table" and value or {})
@@ -227,12 +251,12 @@ function M.check(h)
   end
   table.sort(broken)
   for _, name in ipairs(broken) do
-    local ok, err = pcall(require, "org.extensions." .. name)
+    local ext, err = load(name)
     h.error(
       string.format(
         "extension %s is enabled but not loaded: %s",
         name,
-        ok and "setup() ran before it was enabled" or (tostring(err):match("^[^\n]*"):gsub(":$", ""))
+        ext and "setup() ran before it was enabled" or (tostring(err):match("^[^\n]*"):gsub(":$", ""))
       ),
       { "check the name under `extensions` in setup(); see :h org-extensions" }
     )

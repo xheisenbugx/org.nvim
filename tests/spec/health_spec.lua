@@ -885,7 +885,7 @@ describe("health: sections", function()
       ok(
         find_msg(
           out,
-          "^error: extension no_such_ext is enabled but not loaded: module 'org%.extensions%.no_such_ext' not found$"
+          "^error: extension no_such_ext is enabled but not loaded: Unknown extension no_such_ext %(no lua/org/extensions/no_such_ext in 'runtimepath'%)$"
         ),
         vim.inspect(out)
       )

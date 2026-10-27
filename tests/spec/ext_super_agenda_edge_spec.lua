@@ -269,7 +269,7 @@ describe("super_agenda edge cases", function()
     sa.health(h, { groups = "not a list" })
     eq("error super_agenda groups: super_agenda: unknown selector nonsense", res[1])
     eq("ok super_agenda: 0 group(s)", res[2])
-    ok(res[3]:match("^error super_agenda groups: "), res[3])
+    eq('error super_agenda: groups must be a list of groups, not "not a list"', res[3])
   end)
 
   it("ignores groups given as a single table instead of a list", function()
