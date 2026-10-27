@@ -139,6 +139,9 @@ local function reset_state()
     session = false,
     cwd = nil,
     dirty_before = {},
+    -- messages already printed on stderr (a failure repeating one isn't
+    -- printed again)
+    printed = {},
   }) do
     state[k] = v
   end
@@ -483,7 +486,7 @@ function M.main(argv, opts)
     if state.verbose then
       err(e.msg)
     end
-  else
+  elseif not state.printed[e.msg] then
     err(e.msg)
   end
   return e.code

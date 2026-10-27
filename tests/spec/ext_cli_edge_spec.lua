@@ -219,6 +219,102 @@ describe("cli: messages of a command the session server runs", function()
   end)
 end)
 
+describe("cli: argument, configuration and message errors", function()
+  local function json(dir, args)
+    local code, out, err = run(dir, vim.list_extend({ "--no-server", "--json" }, args))
+    local okd, e = pcall(vim.json.decode, out)
+    ok(okd, out .. err)
+    return code, e
+  end
+
+  it("prints a failure once, not again after the warning that says it", function()
+    local dir = workspace()
+    vim.fn.writefile({ "* Inbox" }, dir .. "/inbox.org")
+    vim.fn.setfperm(dir .. "/inbox.org", "r--r--r--")
+    vim.fn.writefile({
+      "return { org_directory = "
+        .. vim.inspect(dir)
+        .. ", agenda_files = { "
+        .. vim.inspect(dir .. "/work.org")
+        .. " },",
+      "  capture = { templates = { t = { description = 'T', template = '* %?', target = " .. vim.inspect(
+        dir .. "/inbox.org"
+      ) .. " } } } }",
+    }, dir .. "/cfg.lua")
+    local code, _, err = run(dir, { "--no-server", "capture", "x" })
+    eq(1, code)
+    local _, n = err:gsub("Capture could not be saved", "")
+    eq(1, n, err)
+    vim.fn.setfperm(dir .. "/inbox.org", "rw-r--r--")
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("shows the child entries of show --children in text too", function()
+    local dir = workspace()
+    vim.fn.writefile({ "* Parent", "Parent text.", "** Child", "Child text.", "*** Grandchild" }, dir .. "/home.org")
+    local code, out = run(dir, { "--no-server", "show", "--children", "home.org::Parent" })
+    eq(0, code)
+    local lines = vim.split(vim.trim(out), "\n", { plain = true })
+    ok(lines[1]:find("* Parent$"), out)
+    ok(
+      out:find("Parent text.\n\n[^\n]*home.org:3: %*%* Child\n\nChild text.\n\n[^\n]*home.org:5: %*%*%* Grandchild"),
+      out
+    )
+    code, out = run(dir, { "--no-server", "show", "home.org::Parent" })
+    eq(0, code)
+    ok(not out:find("Child", 1, true), out)
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("refuses a --todo keyword no file knows and a --match it cannot read", function()
+    local dir = workspace()
+    local code, e = json(dir, { "headlines", "--todo", "NOPE" })
+    eq(2, code)
+    eq("bad_value", e.errors[1].code)
+    eq("NOPE", e.errors[1].details.keyword)
+    code, e = json(dir, { "headlines", "--todo", "TODO,open" })
+    eq(0, code)
+    eq(3, #e.data)
+    for _, m in ipairs({ "+(((", "+code +work", "a=" }) do
+      code, e = json(dir, { "headlines", "--match", m })
+      eq(2, code, m)
+      eq("bad_value", e.errors[1].code, m)
+      code, e = json(dir, { "search", "--match", m })
+      eq(2, code, m)
+    end
+    code, e = json(dir, { "headlines", "--match", " +work-boss " })
+    eq(0, code, vim.inspect(e))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("says a flag's value is missing when the next word is another flag", function()
+    local dir = workspace()
+    local code, e = json(dir, { "headlines", "--todo", "--limit", "1" })
+    eq(2, code)
+    eq("usage", e.errors[1].code)
+    eq("--todo needs a value", e.errors[1].message)
+    -- --flag=value takes any value
+    code, e = json(dir, { "headlines", "--match=-nothing" })
+    eq(0, code, vim.inspect(e))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("fails with a config error for a config that returns no table or gives agenda_files a wrong type", function()
+    local dir = workspace()
+    vim.fn.writefile({ "return 42" }, dir .. "/num.lua")
+    vim.fn.writefile({ "return { agenda_files = 5 }" }, dir .. "/files.lua")
+    vim.fn.writefile({ "return { org_directory = {} }" }, dir .. "/dir.lua")
+    for _, f in ipairs({ "num.lua", "files.lua", "dir.lua" }) do
+      local code, out, err = run(dir, { "--no-server", "--json", "--config", dir .. "/" .. f, "files" })
+      eq(2, code, f .. out .. err)
+      local e = vim.json.decode(out)
+      eq("config", e.errors[1].code, f .. out)
+      ok(not e.errors[1].message:find("%.lua:%d+:"), e.errors[1].message)
+    end
+    vim.fn.delete(dir, "rf")
+  end)
+end)
+
 describe("cli: FILE:LINE targets", function()
   it("takes an agenda file's name as FILE, as FILE::TITLE does", function()
     local dir = workspace()

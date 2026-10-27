@@ -11384,7 +11384,9 @@ itself. Returning a table keeps it independent of your plugin manager:
     }
 <
 Your whole init.lua works as `--config` too, but then every call loads all
-your plugins. `--files GLOB` (repeatable, or comma-separated) replaces
+your plugins. A file that fails, returns something else than a table, or
+gives `agenda_files` or `org_directory` a value of the wrong type is a
+`config` error (exit 2). `--files GLOB` (repeatable, or comma-separated) replaces
 `agenda_files`, and `--dir DIR` sets `org_directory`.
 
 Nothing waits for input: prompts, confirmations and dangling-clock
@@ -11412,7 +11414,9 @@ DATE, a property VALUE, or a TARGET with nothing after it (`show`, `id`,
 `clock in`, `archive`) takes the remaining words. So quote a TARGET of
 several words that other arguments follow (`set`, `note`, `refile`):
 `org set todo "Buy milk" DONE`. A word no argument takes is a usage
-error (exit 2), never dropped.
+error (exit 2), never dropped. An option that takes a value is missing it
+when the next word is an option itself (`--todo --json`); give a value
+that looks like an option as `--match=-boss`.
 
 Reading:
 `org agenda [VIEW] [--date DATE] [--span N] [--csv]`
@@ -11440,10 +11444,15 @@ Reading:
     either side optional, a single date for that day, or `any`, `none`),
     `--file FILE` (one of the agenda files), `--match MATCH` and
     `--limit N`. Archived and commented subtrees are left out unless
-    `--archived`.
+    `--archived`. A `--todo` that is no keyword of the files is a
+    `bad_value` error, as is a `--match` (here and in `search`) with
+    text it can't read: where Emacs ignores the rest of a match from the
+    first thing it can't read (`+work +boss` is `+work`), the CLI says
+    so instead of quietly giving other headings.
 `org show TARGET [--children]`
     A heading with its properties, planning, clocks, plain timestamps
-    and body text; `--children` adds the child entries.
+    and body text; `--children` adds the child entries (the whole
+    subtree, each entry as the heading is shown).
 `org clock [status] [--short] [--format FMT]`
     The running clock: the one saved in `clock.persist_file` (with
     `clock.persist`), else the first open CLOCK line in the agenda files.

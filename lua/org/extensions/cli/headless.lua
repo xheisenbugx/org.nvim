@@ -134,6 +134,7 @@ function M.headless()
       end
       if show then
         err(msg)
+        state.printed[msg] = true
       end
       if state.session and level >= vim.log.levels.INFO then
         -- the session's user sees what the command line did there (the

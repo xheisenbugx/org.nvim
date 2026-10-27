@@ -465,13 +465,24 @@ local function parse_term(s, i)
 end
 
 --- All terms of an AND group, stopping (silently, like Emacs) at the
---- first position that does not start a term.
-local function parse_and(s)
+--- first position that does not start a term; `strict`: an error there.
+local function parse_and(s, strict)
   local terms = {}
   local i = 1
+  if strict then
+    s = vim.trim(s)
+  end
   while i <= #s do
     local t, e = parse_term(s, i)
     if not t or not e then
+      if strict then
+        local rest = s:sub(i)
+        error(
+          string.format("cannot read %q", rest)
+            .. (rest:match("^%s") and " (join terms with + - & or |, not a space)" or ""),
+          0
+        )
+      end
       break
     end
     terms[#terms + 1] = t
@@ -667,11 +678,11 @@ local function compile_term(t, groups)
 end
 
 --- Compile the TODO part ("TODO|NEXT", "-DONE", "{^W}").
-local function compile_todo(s)
+local function compile_todo(s, strict)
   local groups = {}
   for _, term in ipairs(split_bar(s)) do
     local preds = {}
-    for _, t in ipairs(parse_and(term)) do
+    for _, t in ipairs(parse_and(term, strict)) do
       local p
       if t.kind == "tagre" then
         local re = M.compile_emacs_regexp(t.re)
@@ -716,15 +727,17 @@ end
 
 --- Compile a match string into predicate(headline) -> boolean.
 --- Invalid regexps raise an error; use `M.try_compile` for (nil, err).
---- Like Emacs, text after the last term that parses is ignored.
+--- Like Emacs, text after the last term that parses is ignored (unless
+--- `opts.strict`: then it is an error).
 --- `opts.groups` are the tag groups to expand (default: the current
 --- buffer's, the `tags` option's and the agenda files', when `group_tags`
 --- is on; false = none).
 ---@param match string
----@param opts? { groups?: table<string, string[]>|false }
+---@param opts? { groups?: table<string, string[]>|false, strict?: boolean }
 ---@return fun(hl: org.Headline): boolean
 function M.compile(match, opts)
   match = match or ""
+  local strict = opts and opts.strict or false
   local tag_groups = opts and opts.groups
   if tag_groups == nil then
     tag_groups = require("org.tags").match_groups()
@@ -771,7 +784,7 @@ function M.compile(match, opts)
         k = k + 1
       end
       local preds = {}
-      for _, t in ipairs(parse_and(term)) do
+      for _, t in ipairs(parse_and(term, strict)) do
         preds[#preds + 1] = compile_term(t, tag_groups)
       end
       groups[#groups + 1] = preds
@@ -802,7 +815,7 @@ function M.compile(match, opts)
       return false
     end
   end
-  local todo_pred = todo_part and compile_todo(todo_part) or nil
+  local todo_pred = todo_part and compile_todo(todo_part, strict) or nil
 
   return function(hl)
     if todo_only and not hl:is_todo() then
