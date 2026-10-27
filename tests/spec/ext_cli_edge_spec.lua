@@ -175,3 +175,46 @@ describe("cli: a running Neovim follows the shell's clock", function()
     eq({ dir .. "/bin/" }, got)
   end)
 end)
+
+describe("cli: messages of a command the session server runs", function()
+  local dir, real_notify, real_echo
+  after_each(function()
+    vim.notify, vim.api.nvim_echo = real_notify, real_echo
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find(dir, 1, true) then
+        pcall(vim.api.nvim_buf_delete, b, { force = true })
+      end
+    end
+    require("org").setup({
+      org_directory = root .. "/tests/fixtures",
+      agenda_files = { root .. "/tests/fixtures/*.org" },
+    })
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("shows each message once in that Neovim, through its own vim.notify", function()
+    dir = workspace()
+    require("org").setup({ org_directory = dir, agenda_files = { dir .. "/work.org" } })
+    real_notify, real_echo = vim.notify, vim.api.nvim_echo
+    local echoed = {}
+    vim.api.nvim_echo = function(chunks)
+      echoed[#echoed + 1] = chunks[1][1]
+      -- the notify <-> nvim_echo loop used to run until the stack ran out
+      assert(#echoed < 20, "nvim_echo called again and again")
+    end
+    -- the default vim.notify echoes the message
+    vim.notify = function(msg)
+      vim.api.nvim_echo({ { msg } }, true, {})
+    end
+    -- work.org has unsaved changes in this Neovim: the command warns
+    local b = require("org.utils").load_buffer(dir .. "/work.org")
+    vim.api.nvim_buf_set_lines(b, -1, -1, false, { "unsaved" })
+    local res = require("org.extensions.cli.run").serve({ "--json", "set", "todo", "tests-id", "DONE" }, dir)
+    vim.notify, vim.api.nvim_echo = real_notify, real_echo
+    eq(0, res.code, res.err)
+    local e = vim.json.decode(res.out)
+    eq(1, #e.warnings, vim.inspect(e.warnings))
+    ok(e.warnings[1]:find("has unsaved changes in Neovim", 1, true), e.warnings[1])
+    eq({ e.warnings[1] }, echoed)
+  end)
+end)

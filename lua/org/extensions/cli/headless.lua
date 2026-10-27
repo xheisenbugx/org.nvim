@@ -74,6 +74,9 @@ function M.headless()
     end
   end
   local notify = vim.notify
+  local echo = vim.api.nvim_echo
+  -- inside the session user's own vim.notify (see below)
+  local forwarding = 0
   replace(vim.fn, {
     input = function(opts)
       return ask(opts)
@@ -133,15 +136,21 @@ function M.headless()
         err(msg)
       end
       if state.session and level >= vim.log.levels.INFO then
-        -- the session's user sees what the command line did there
+        -- the session's user sees what the command line did there (the
+        -- default vim.notify echoes it: with this Neovim's own nvim_echo)
+        forwarding = forwarding + 1
         pcall(notify, msg, level)
+        forwarding = forwarding - 1
       end
     end,
   })
   -- nvim_echo() writes to stderr under `nvim -l`: make its messages
   -- notifications like the others (org-crypt's "No crypt key set, ...")
   replace(vim.api, {
-    nvim_echo = function(chunks)
+    nvim_echo = function(chunks, ...)
+      if forwarding > 0 then
+        return echo(chunks, ...)
+      end
       local text, level = {}, vim.log.levels.INFO
       for _, c in ipairs(chunks or {}) do
         text[#text + 1] = c[1] or ""
