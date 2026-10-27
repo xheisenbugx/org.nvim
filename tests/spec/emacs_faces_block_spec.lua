@@ -12,16 +12,6 @@ local KNOWN = {
     -- hidden byte shows no face
     [574] = "json syntax conceal",
   },
-  ["tests-fixtures-emacs-faces-object.org"] = {
-    -- "src_sh{z}" in the body of a sh src block: Emacs's inline src
-    -- fontification runs there too and takes org-block off the braces;
-    -- org.nvim sees no inline src block in a src block
-    [103] = "inline src block in a src block's body",
-  },
-  ["tests-fixtures-emacs-faces-orgsrc.org"] = {
-    -- (the same in the body of an org src block, drawn as Org)
-    [33] = "inline src block in a src block's body",
-  },
 }
 
 describe("emacs faces: block", function()

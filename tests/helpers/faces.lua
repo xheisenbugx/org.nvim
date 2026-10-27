@@ -183,6 +183,31 @@ local function faces_of(group)
   return f and { f } or {}
 end
 
+--- The Emacs faces of the language group `name` that Vim's syntax draws
+--- innermost on a byte of a src or export block's body: Vim's html syntax
+--- draws <b>, <i>, <em>, <u>, ... in htmlBold, htmlItalic, htmlUnderline
+--- and their combinations (htmlBoldItalic, ...), where html-mode, which
+--- Emacs fontifies an html export block's body with, draws bold, italic
+--- and underline (sgml-tag-face-alist). Only the innermost group counts:
+--- Vim shows its attributes alone (htmlTag over htmlBold isn't bold).
+---@param name string
+---@return string[]
+function M.native_faces_of(name)
+  local rest = name:match("^html(%u%l+.*)$")
+  if not rest then
+    return {}
+  end
+  local out = {}
+  for part in rest:gmatch("%u%l*") do
+    local f = ({ Bold = "bold", Italic = "italic", Underline = "underline" })[part]
+    if not f then
+      return {}
+    end
+    out[#out + 1] = f
+  end
+  return out
+end
+
 local function set_of(list)
   local t = {}
   for _, v in ipairs(list) do
@@ -285,9 +310,16 @@ function M.nvim_faces(buf)
         local set = {}
         local hidden = false
         if syntax then
-          for _, id in ipairs(vim.fn.synstack(l, c)) do
-            for _, f in ipairs(faces_of(vim.fn.synIDattr(id, "name"))) do
+          local stack = vim.fn.synstack(l, c)
+          for k, id in ipairs(stack) do
+            local name = vim.fn.synIDattr(id, "name")
+            for _, f in ipairs(faces_of(name)) do
               set[f] = true
+            end
+            if k == #stack then
+              for _, f in ipairs(M.native_faces_of(name)) do
+                set[f] = true
+              end
             end
           end
           hidden = vim.fn.synconcealed(l, c)[1] == 1

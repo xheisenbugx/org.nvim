@@ -291,6 +291,7 @@ describe("parser highlighter: keywords, drawers and comments", function()
           emit = function(i, c, e, o)
             rows[#rows + 1] = { i, c, e, o }
           end,
+          cancel = function() end,
         })
       end
       return (vim.uv.hrtime() - t) / 1e6

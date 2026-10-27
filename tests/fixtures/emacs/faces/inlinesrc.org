@@ -1,0 +1,59 @@
+#+TITLE: Inline src blocks src_sh{t}
+
+Inline src blocks cancel the faces under their braces and body.
+
+* TODO A headline with src_sh{echo x} in it :tag:
+** DONE [#A] Done src_python[:results none]{1 + 2} here
+*** COMMENT src_sh{c} commented
+* src_sh{at the start} of a headline
+
+| a | src_sh{in a table} | b |
+|---+--------------------+---|
+| 1 | SRC_sh{upper case} | 2 |
+#+TBLFM: $2=src_sh{x}
+
+- a term src_sh{x} here :: a description src_sh{y}
+- [ ] a checkbox src_sh{z} [1/2]
++ src_sh{only} :: term
+
+A [[https://orgmode.org][link src_sh{x} desc]] and [[https://orgmode.org/src_sh{y}]].
+A plain https://orgmode.org/src_sh{z} link, and <https://x.org/src_sh{w}>.
+An *emphasis src_sh{x} around* it, /italic src_sh{y}/ and =src_sh{v}= and ~src_sh{c}~.
+A footnote[fn:src_sh{f}] and a {{{macro(src_sh{m})}}} and <<src_sh{t}>>.
+A date <2026-10-01 Thu src_sh{d}> and src_sh[:exports code]{echo [[x]]}.
+Just src_sh and src_sh[:x y] with no body, and src_{x} and xsrc_sh{n}.
+Nested src_sh{a {b} c} braces and src_sh{open
+across} a line break.
+An empty src_sh{} body and src_elisp{(+ 1 2)} here.
+
+# a comment src_sh{x} and *bold*
+#+NAME: src_sh{name}
+#+CAPTION: a caption src_sh{cap}
+:PROPERTIES:
+:KEY: src_sh{value}
+:END:
+: fixed src_sh{width}
+SCHEDULED: <2026-10-03 Sat> src_sh{after}
+
+#+begin_example
+an example src_sh{body}
+#+end_example
+
+#+begin_quote
+a quote src_sh{body} *bold*
+#+end_quote
+
+#+begin_export html
+<b>src_sh{html}</b>
+#+end_export
+
+#+begin_src emacs-lisp
+(message "src_sh{lisp}")
+#+end_src
+
+#+begin_src org
+,* TODO src_sh{h} in org
+| src_sh{cell} |
+- term src_sh{x} :: desc
+A [[https://orgmode.org][src_sh{d}]] link.
+#+end_src

@@ -300,6 +300,53 @@ describe("ui.highlighter = parser: objects", function()
       ok(not has(2, col(2, "https"), "orglinkplain"), groups(2, col(2, "https")))
     end)
 
+    it("takes the faces of the line off an inline src block's braces and body", function()
+      -- (org-fontify-inline-src-blocks: src_LANG and [HEADERS] keep them)
+      local buf = org_buffer({
+        "* TODO A src_sh[:x y]{echo x} b :tag:",
+        "| a | src_sh{t} |",
+        "- term src_sh{x} :: d",
+        "# a comment src_sh{c} *b*",
+        "#+begin_src sh",
+        "echo src_sh{z}",
+        "#+end_src",
+        "A [[https://x.org][d src_sh{l} e]] f.",
+      })
+      ---@type { [1]: integer, [2]: string, [3]: string }[] line, text, group
+      local cases = {
+        { 1, "A src", "orgheadlinelevel1" },
+        { 2, "| a", "orgtable" },
+        { 3, "term", "orglistterm" },
+        { 4, "# a", "orgcomment" },
+        { 6, "echo", "orgsrcblock" },
+        { 8, "d src", "orglink" },
+      }
+      for _, c in ipairs(cases) do
+        local l, text, group = c[1], c[2], c[3]
+        ok(has(l, col(l, text), group), groups(l, col(l, text)))
+        -- src_ and the language keep the line's face
+        ok(has(l, col(l, "src_"), group), groups(l, col(l, "src_")))
+        ok(has(l, col(l, "src_") + 4, group), groups(l, col(l, "src_") + 4))
+        local open = col(l, "{")
+        local close = vim.fn.getline(l):find("}", open, true)
+        for x = open, close do
+          ok(not has(l, x, group), l .. ":" .. x .. " " .. groups(l, x))
+        end
+        ok(has(l, open, "orginlinesrcmarker"), groups(l, open))
+        ok(has(l, close, "orginlinesrcmarker"), groups(l, close))
+        if close < #vim.fn.getline(l) - 1 then
+          ok(has(l, close + 1, group), l .. ":" .. (close + 1) .. " " .. groups(l, close + 1))
+        end
+      end
+      -- the header keeps the headline's face, the tags theirs
+      ok(has(1, col(1, ":x y"), "orgheadlinelevel1"), groups(1, col(1, ":x y")))
+      ok(has(1, col(1, ":tag"), "orgtags"), groups(1, col(1, ":tag")))
+      -- what the link hides stays hidden, and the body stays out of spell
+      -- checking
+      ok(has(8, col(8, "[[https"), "conceal"), groups(8, col(8, "[[https")))
+      ok(nospell(buf, 8, col(8, "{l}") + 1))
+    end)
+
     it("highlights line breaks", function()
       org_buffer({ "a line \\\\", "b \\\\ c" })
       ok(has(1, col(1, "\\\\"), "orglinebreak"), groups(1, col(1, "\\\\")))
@@ -337,6 +384,9 @@ describe("ui.highlighter = parser: objects", function()
         kinds = kinds,
         roles = roles,
         emit = function()
+          count = count + 1
+        end,
+        cancel = function()
           count = count + 1
         end,
         get_line = function() end,
