@@ -148,8 +148,9 @@ local function write_default(captured, cols, params, file)
     end
     for i, v in ipairs(cells) do
       if i ~= item_index then
-        -- Emacs writes other values as they are, and a `|` splits the cell
-        cells[i] = v:gsub("|", "\\vert")
+        -- Emacs writes other values as they are, and a `|` splits the cell;
+        -- org-table-align then trims the cell (a `%5.1f` summary's padding)
+        cells[i] = vim.trim((v:gsub("|", "\\vert")))
       end
     end
     out[#out + 1] = cells
@@ -181,12 +182,11 @@ function M.dblock(params, ctx)
   local file = files.get_buffer(ctx.bufnr)
   local id = params.id
   local roots, fmt
+  -- a local or :id view starts where column view would
+  -- (org-columns-goto-top-level): the entry holding the COLUMNS property
+  -- it inherits, else the entry itself
   if id == "local" or id == nil then
-    local hl = file:headline_at(ctx.start_line)
     fmt, roots = scope_for(file, ctx.start_line)
-    if hl then
-      roots = { hl }
-    end
   elseif type(id) == "string" and id:match("^file:") then
     local path = utils.expand(id:sub(6), file.filename and vim.fn.fnamemodify(file.filename, ":h") or nil)
     local f = files.get(path)
@@ -208,7 +208,6 @@ function M.dblock(params, ctx)
     end
     file = found.file
     fmt, roots = scope_for(found.file, found.line)
-    roots = { found }
   else
     fmt, roots = scope_for(file, nil)
   end

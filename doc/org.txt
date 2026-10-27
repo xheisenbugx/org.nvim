@@ -5448,8 +5448,10 @@ clocktable parameters (the output matches Emacs 9.8):
                 adds a <40> width row instead
   :header "text"  replace the `#+CAPTION:` line
 
-columnview parameters: `:id local|global|file:path|ID` (default local),
-`:maxlevel`, `:skip-empty-rows`, `:indent`, `:format`, `:match` (tags /
+columnview parameters: `:id local|global|file:path|ID` (default local; a
+local or ID view covers the subtree of the entry holding the `COLUMNS`
+property that entry inherits, else the entry's own subtree, as column view
+does), `:maxlevel`, `:skip-empty-rows`, `:indent`, `:format`, `:match` (tags /
 property match), `:exclude-tags (a b)` (inherited tags count), `:hlines t|N`
 (a hline before each entry, or each entry of level N or less), `:vlines t`
 (column groups), `:link t` (link items to their headings), `:formatter`
