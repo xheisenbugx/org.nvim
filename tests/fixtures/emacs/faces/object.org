@@ -122,3 +122,6 @@ Radio 東京Radio Word東京 and two wordsテキスト and éradio and radioé a
 
 [fn:a—b] not a definition: "—" is not a word constituent
 Text[fn:東京] and[fn:a—b] and[fn:x$y] here.
+
+* Footnote definitions before a link to a footnote
+[fn:9] A definition, then a link to it: [[fn:9]] and the rest.

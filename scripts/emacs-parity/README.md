@@ -24,6 +24,7 @@ bundles an older Org, so you usually need `ORG_DIR`.
 | export | `export.el` | `examples/*.org` listed in `export/cases.txt`, with their backends | `export/<name>.{txt,html,tex,md}`: body-only, Babel off |
 | clocktable | `clocktable.el` | `clocktable/{a,b,c}.org`, `clocktable/tables.org` | `clocktable/tables.expected.org`: every block updated |
 | lint | `lint.el` | `examples/*.org`, `lint/*.org` | `lint/expected.txt`: `line:col [checker] message` |
+| chars | `chars.el` | Org's syntax table, char-script-table, the char categories | `lua/org/ui/chars_data.lua`: the non-ASCII characters' syntax classes and word boundaries, for the parser highlighter (`org.ui.chars`) |
 
 Each output file is split into `=== <case>` sections (or files), and each
 section is one test.
