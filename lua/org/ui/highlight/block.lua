@@ -139,7 +139,13 @@ local function paint_blocks(ctx)
   local native = { hl_group = "orgSrcBlock", priority = element }
   local native_nospell = { hl_group = "orgSrcBlock", priority = element, spell = false }
   local quote = { hl_group = "orgQuoteBlock", priority = element }
+  -- (spell checked, as by Emacs's flyspell, but its links: see
+  -- org.ui.highlight.object)
   local caption = { hl_group = "orgBlock", priority = element }
+  -- a keyword or block line in the body of a quote, verse, center or
+  -- special block: Org text to font-lock, but a keyword or a block to
+  -- org-element, not spell checked (as by the syntax engine)
+  local meta_nospell = { priority = element, spell = false }
   -- how each verbatim block's body is drawn (by its begin line)
   local how = {} ---@type table<org.ui.emphasis.Block, string|false>
   local function body_of(block, i)
@@ -201,8 +207,13 @@ local function paint_blocks(ctx)
             -- (spelling: as the included syntax says)
             emit(i, 0, n, native)
           end
-        elseif block.name == "quote" or block.name == "verse" then
-          emit(i, 0, n, quote)
+        else
+          if block.name == "quote" or block.name == "verse" then
+            emit(i, 0, n, quote)
+          end
+          if block.name ~= "comment" and line:find("^[ \t]*#%+%S") then
+            emit(i, 0, n, meta_nospell)
+          end
         end
       end
     else

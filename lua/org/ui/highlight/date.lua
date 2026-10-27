@@ -90,8 +90,10 @@ local function stamp_at(s, p, close)
   end
 end
 
---- Paint the timestamps and ranges of line `i` (org-activate-dates).
-local function stamps(ctx, i, line)
+--- Paint the timestamps and ranges of line `i` (org-activate-dates);
+--- `nospell`: only leave them out of spell checking.
+---@param nospell? boolean
+local function stamps(ctx, i, line, nospell)
   if not line:find("%d%d%d%d%-%d%d%-%d%d") then
     return
   end
@@ -122,7 +124,7 @@ local function stamps(ctx, i, line)
       -- font-lock draws, a bug not copied: only this one is left out)
       if p == 1 or byte(line, p - 1) ~= 91 then
         local group = byte(line, p) == 91 and "orgTimestampInactive" or "orgTimestamp"
-        ctx.emit(i, p - 1, e, { hl_group = group, priority = PRIO.object, spell = false })
+        ctx.emit(i, p - 1, e, { hl_group = not nospell and group or nil, priority = PRIO.object, spell = false })
       end
       pos = e + 1
     end
@@ -263,6 +265,10 @@ function M.paint(ctx)
       if line:find("%%(", 1, true) then
         sexps(ctx, i, line)
       end
+    elseif kind == "none" and not ctx.roles[i] and line:find("^[ \t]*#%+[cC][aA][pP][tT][iI][oO][nN]") then
+      -- a caption is spell checked (org.ui.highlight.block), but not its
+      -- timestamps (org--flyspell-object-check-p)
+      stamps(ctx, i, line, true)
     end
   end
 end

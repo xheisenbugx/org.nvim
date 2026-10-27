@@ -766,7 +766,8 @@ describe("images in place of the link", function()
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
     images.show_links(buf, 1, 1)
     images.sync()
-    local concealed = vim.fn.synconcealed(1, 1)[1] == 1
+    -- (hidden by the syntax, or by ui.highlighter = "parser")
+    local concealed = vim.fn.synconcealed(1, 1)[1] == 1 or require("org.ui.decorations").concealed(buf, 0, 0) == ""
     -- only "site " shows before the image
     eq(concealed and 6 or 31, live()[1].col)
   end)

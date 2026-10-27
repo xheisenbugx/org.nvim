@@ -221,6 +221,8 @@ function M.mode(bufnr, on)
       vim.cmd([=[syntax match orgBeamerTag /:\zs\(B_\l\+\|BMCOL\)\ze:/ contained containedin=orgTags]=])
       vim.cmd("highlight default link orgBeamerTag OrgBeamerTag")
     end)
+    -- (ui.highlighter = "parser" draws the tags in the decorations)
+    pcall(require("org.ui.decorations").render, bufnr)
   else
     for _, lhs in ipairs(keys()) do
       pcall(vim.keymap.del, "n", lhs, { buffer = bufnr })
@@ -234,6 +236,7 @@ function M.mode(bufnr, on)
     vim.api.nvim_buf_call(bufnr, function()
       pcall(vim.api.nvim_command, "syntax clear orgBeamerTag")
     end)
+    pcall(require("org.ui.decorations").render, bufnr)
   end
   pcall(vim.api.nvim_exec_autocmds, "User", {
     pattern = "OrgBeamerMode",

@@ -7253,13 +7253,41 @@ groups (bold inside a headline keeps the headline's color, as in Emacs)
 where "syntax" draws the innermost group only; the emphasis isn't a
 syntax group, so `synID()`, `synstack()` and |:Inspect| don't report it
 (plugins that ask the syntax what is under the cursor see plain text
-there), only org buffers draw it (a buffer that just sets 'syntax' to org
-keeps the regions), and
+there; `:Org inspect` lists it), only org buffers draw it (a buffer that
+just sets 'syntax' to org keeps the regions), and
 verbatim and code are left out of spell checking with extmarks instead of
-|:syn-spell| clusters. "parser" will become the default in a later
-release; set it now with: >lua
+|:syn-spell| clusters (|org-highlighter-spell|). "parser" will become the
+default in a later release; set it now with: >lua
     ui = { highlighter = "parser" }
 <
+                                                *org-highlighter-spell*
+With 'spell' set, both highlighters check the same words, and `]s`, `[s`,
+|z=| and |spellbadword()| skip what the screen leaves out. Checked:
+paragraphs, headline titles, list items, comments, quote and verse
+blocks, the text of bold, italic, underline and strike-through (in table
+rows too, where nothing else is checked). Not checked: the TODO
+keyword, priority and tags of a headline, keywords (`#+TITLE:` and the
+like, the keyword and its value), block delimiter lines, src, example and
+export blocks (but what the language's syntax checks, such as its
+comments), tables, drawer lines and properties, planning and clock lines,
+timestamps, links (their description too: Emacs removes flyspell's marks
+from links), footnote labels, targets, macros, inline src blocks,
+export snippets, LaTeX, verbatim and code. Where "parser" differs from
+"syntax", it follows what Emacs's flyspell checks (org-mode-flyspell-
+verify, which asks org-element): it checks the body of comment blocks and
+the text of `#+CAPTION:` (not its links and timestamps), and the footnotes,
+targets and inline src blocks of a comment; it doesn't check the
+emphasis in a list item's tag, a link over two lines, or keyword and
+block lines in a quote block; and verbatim is what org-element finds, left
+to right, so `=a "b"=, the rest=` checks ", the rest" (font-lock, which
+tries every marker, draws it as verbatim too).
+
+`:Org inspect` (no default key) shows what is drawn under the cursor,
+like |:Inspect| but with the marks it doesn't see: the decorations and
+the parser highlighter's groups (drawn anew on each redraw, ephemeral
+extmarks) and citations, each with its priority, whether it is spell
+checked and whether it hides the text, then the syntax groups, tree-sitter
+captures and extmarks |:Inspect| lists.
 
 Quote and verse block contents are highlighted as ordinary Org (lists,
 tables, timestamps, markup) on top of OrgQuoteBlock; center, special

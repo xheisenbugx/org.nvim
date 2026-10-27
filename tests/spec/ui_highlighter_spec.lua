@@ -94,15 +94,22 @@ describe("ui.highlighter = parser", function()
   end)
 
   it("leaves verbatim and code out of spell checking", function()
-    local buf = org_buffer({ "*bold* =verbatim= ~code~" }, { 1, 0 })
-    for _, m in ipairs(deco.line_marks(buf, 0)) do
-      local g = m[2].hl_group or ""
-      if g:find("^orgVerbatim") or g:find("^orgCode") then
-        eq(false, m[2].spell)
-      elseif g:find("^orgBold") then
-        eq(nil, m[2].spell)
+    local line = "*bold* =verbatim= ~code~"
+    local buf = org_buffer({ line }, { 1, 0 })
+    -- the spell flag of the mark of highest priority that sets one at col
+    local function spell_at(col)
+      local best, prio
+      for _, m in ipairs(deco.line_marks(buf, 0)) do
+        local o = m[2]
+        if o.spell ~= nil and col >= m[1] and col < (o.end_col or m[1] + 1) and (o.priority or 0) >= (prio or -1) then
+          best, prio = o.spell, o.priority or 0
+        end
       end
+      return best
     end
+    eq(nil, spell_at(line:find("bold") - 1))
+    eq(false, spell_at(line:find("verbatim") - 1))
+    eq(false, spell_at(line:find("code") - 1))
   end)
 
   it("follows b:org_hide_emphasis_markers (presentation slides)", function()

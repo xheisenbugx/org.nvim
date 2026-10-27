@@ -959,7 +959,38 @@ local function drawn_ranges(win, top, bot)
   return ok and out or { { top, bot } }
 end
 
-vim.api.nvim_set_decoration_provider(ns, {
+--- Spell checking outside a redraw (`]s`, `[s`, `z=`, spellbadword()):
+--- the `spell` of the marks of rows [srow, erow], as ephemeral marks that
+--- Neovim reads for the words it looks at. (Drawing reads them from
+--- on_line; without this, `]s` would stop on the words the screen doesn't
+--- mark, in verbatim, links, tags, ... with ui.highlighter = "parser".)
+local function on_spell_nav(_, _, bufnr, srow, _, erow)
+  if not attached[bufnr] then
+    return
+  end
+  local last = vim.api.nvim_buf_line_count(bufnr) - 1
+  erow = math.min(math.max(erow or srow, srow), last)
+  if srow > erow then
+    return
+  end
+  local rows = rows_for(bufnr, srow, erow)
+  for row = srow, erow do
+    for _, m in ipairs(rows[row] or {}) do
+      local o = m[2]
+      if o.spell ~= nil and not is_persistent(m) then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, m[1], {
+          end_col = o.end_col,
+          end_row = o.end_row,
+          spell = o.spell,
+          priority = o.priority,
+          ephemeral = true,
+        })
+      end
+    end
+  end
+end
+
+local provider = {
   on_win = function(_, win, bufnr, toprow, botrow)
     if not attached[bufnr] then
       return false
@@ -986,14 +1017,23 @@ vim.api.nvim_set_decoration_provider(ns, {
       end
     end
   end,
-})
+  -- (not in the documented API, but what vim.treesitter's highlighter
+  -- uses for the same purpose)
+  _on_spell_nav = on_spell_nav,
+}
+if not pcall(vim.api.nvim_set_decoration_provider, ns, provider) then
+  provider._on_spell_nav = nil
+  vim.api.nvim_set_decoration_provider(ns, provider)
+end
 
 --- The decorations drawn on 0-based `row` of `bufnr`, as `{ col, opts }`
 --- pairs for `nvim_buf_set_extmark` (the sticky headline context copies
---- them), from the per-changedtick cache. Empty when the buffer draws none.
+--- them), from the per-changedtick cache, each with what drew it third
+--- ("parser", "emphasis": the parser highlighter). Empty when the buffer
+--- draws none.
 ---@param bufnr integer
 ---@param row integer
----@return { [1]: integer, [2]: vim.api.keyset.set_extmark }[]
+---@return { [1]: integer, [2]: vim.api.keyset.set_extmark, [3]: string? }[]
 function M.line_marks(bufnr, row)
   if not attached[bufnr] then
     return {}
@@ -1006,7 +1046,7 @@ function M.line_marks(bufnr, row)
       o = vim.tbl_extend("force", {}, o)
       o.ephemeral = nil
     end
-    out[#out + 1] = { m[1], o }
+    out[#out + 1] = { m[1], o, m[4] }
   end
   return out
 end

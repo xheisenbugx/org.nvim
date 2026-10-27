@@ -158,6 +158,7 @@ local parses = {} ---@type table<integer, org.File>
 ---@field priority? integer (see `M.PRIO`)
 ---@field spell? boolean false: not spell checked (like a syntax group without @Spell)
 ---@field conceal? string
+---@field link? boolean (org.ui.highlight.object) a link: left out of spell checking on comment lines too
 
 --- Marks of rows `first` to `last` (0-based) of buffer `bufnr`, added to
 --- `rows` (the format of org.ui.decorations `compute`):

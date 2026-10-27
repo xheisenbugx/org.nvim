@@ -165,7 +165,11 @@ describe("present folded slides", function()
       -- the link shows its description, as on an open line
       local col = vim.fn.getline(1):find("[[", 1, true)
       ok(vim.wo.conceallevel >= 2)
-      eq(1, vim.fn.synconcealed(1, col)[1])
+      -- (hidden by the syntax, or by ui.highlighter = "parser")
+      ok(
+        vim.fn.synconcealed(1, col)[1] == 1
+          or require("org.ui.decorations").concealed(vim.api.nvim_get_current_buf(), 0, col - 1) == ""
+      )
     end)
     if not floats_drawn() then
       return
