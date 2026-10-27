@@ -1072,26 +1072,6 @@ function M.entry_lines(s)
   return lines
 end
 
--- With `adapt_indentation` the body lines are built indented for level 1
--- (and 2 under the questions); the date tree puts the entry deeper: shift
--- them as far as its headlines went.
-local function indent_logged(bufnr, line)
-  local file = require("org.files").get_buffer(bufnr)
-  local hl = file:headline_at(line)
-  if not hl or hl.line ~= line or hl.level <= 1 or require("org.edit").body_indent(1) == "" then
-    return
-  end
-  local pad = string.rep(" ", hl.level - 1)
-  local parser = require("org.parser")
-  local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line, hl.end_line, false)
-  for i, l in ipairs(lines) do
-    if l:match("%S") and not parser.headline_level(l) then
-      lines[i] = pad .. l
-    end
-  end
-  vim.api.nvim_buf_set_lines(bufnr, hl.line, hl.end_line, false, lines)
-end
-
 --- Finish the review: write the review entry into the log date tree (or
 --- capture it with `capture_template`) and forget the saved state.
 function M.finish()
@@ -1137,10 +1117,8 @@ function M.finish()
     line = line - 1
     changed = true
   end
-  if require("org.edit").body_indent(1) ~= "" then
-    indent_logged(bufnr, line)
-    changed = true
-  end
+  -- (with `adapt_indentation`, the body lines built indented for level 1
+  -- are shifted to the entry's level by the capture, like org-paste-subtree)
   if changed then
     utils.save_buffer_or_warn(bufnr)
   end

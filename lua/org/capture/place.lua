@@ -185,7 +185,9 @@ local function place_entry(bufnr, loc, tpl, lines, pos_line, pos_col)
     n = 1
   end
   at = empty_lines_before(bufnr, at, n or 0)
-  local new = edit.relevel(lines, level)
+  -- org-paste-subtree: a change of level promotes or demotes each
+  -- headline like org-demote (tags realigned, inline tasks left alone)
+  local new = edit.paste_relevel(lines, level, file.settings.todo)
   at = put(bufnr, at, new)
   empty_lines_after(bufnr, at + #new, tpl.empty_lines_after or tpl.empty_lines or 0)
   return at + 1

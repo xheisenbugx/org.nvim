@@ -376,6 +376,14 @@ describe("capture placement (Emacs parity)", function()
       "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| x |\n| 3 |\n",
     },
     { "text\n* A\n", { type = "table-line", template = "| x |" }, "text\n* A\n|   |\n|---|\n| x |\n" },
+    -- org-paste-subtree realigns the tags of the headlines it promotes or
+    -- demotes, and leaves a template already at the right level alone
+    {
+      "* A\n",
+      { headline = "A", template = "**** new :tag:\n***** sub    :b:\ntext :x:" },
+      "* A\n** new" .. string.rep(" ", 66) .. ":tag:\n*** sub" .. string.rep(" ", 67) .. ":b:\ntext :x:\n",
+    },
+    { "* A\n", { headline = "A", template = "** new :tag:" }, "* A\n** new :tag:\n" },
     -- the headline matches without regard to case (case-fold-search)
     { "* TODO a\n", { headline = "A", template = "* new" }, "* TODO a\n** new\n" },
     { "* Été\n", { headline = "ÉTÉ", template = "* new" }, "* Été\n** new\n" },
