@@ -333,6 +333,21 @@ local function parser_dirs()
   return dirs
 end
 
+--- Wait for the child's screen to stop changing. A busy machine (a full
+--- parallel `make test`) can keep a child working through typed keys past
+--- tests/screen.lua's timeout, so a second wait is allowed before a
+--- screen that never settles fails the step.
+---@param screen table
+local function settle(screen)
+  local ok, err = pcall(screen.snapshot, screen)
+  if not ok and tostring(err):find("didn't settle", 1, true) then
+    ok, err = pcall(screen.snapshot, screen)
+  end
+  if not ok then
+    error(err, 0)
+  end
+end
+
 --- Play scenario `sc`, writing its evidence to `evidence`.
 ---@param sc table
 ---@param evidence string a directory
@@ -388,7 +403,7 @@ function M.run(sc, evidence)
       elseif step.lua then
         screen:lua(step.lua, dir)
       end
-      screen:snapshot()
+      settle(screen)
       local lines = M.plain(screen)
       local state = screen:lua(STATE)
       if step.expect and not why then
@@ -399,7 +414,7 @@ function M.run(sc, evidence)
             break
           end
           vim.wait(50)
-          screen:snapshot()
+          settle(screen)
           lines = M.plain(screen)
           local again = screen:lua(STATE)
           vim.list_extend(again.errors, state.errors)
