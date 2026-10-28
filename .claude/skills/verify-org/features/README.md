@@ -20,11 +20,14 @@ module, spec or help tag fails the suite instead of leaving the map wrong:
 | --- | --- |
 | [agenda](agenda.md) | the dispatcher, the week agenda, editing entries from it, moving in time |
 | [capture](capture.md) | templates, the capture buffer, finalize / kill, targets |
+| [columns](columns.md) | column view over the headlines, summaries, editing values |
 | [extensions](extensions.md) | enabling an extension in a scenario; the kanban board, the journal, presentations |
 | [folding](folding.md) | `Tab` / `S-Tab` cycling, startup visibility, folds after edits |
+| [lists](lists.md) | new items, checkboxes and `[n/m]` cookies, numbering and bullets |
 | [refile](refile.md) | refile and copy through the target picker, archive file, ARCHIVE tag, Archive sibling |
+| [tables](tables.md) | typing and realigning, rows / columns / hlines, `#+TBLFM` formulas |
 
-Areas not mapped yet: tables, links, clock, babel, export, columns, lists,
-dates. To add one, write `<area>.md` with the header above and
+Areas not mapped yet: links, clock, babel, export, dates. To add one,
+write `<area>.md` with the header above and
 `scripts/verify/recipes/<area>.lua` with its scenarios, and add a row
 here.
