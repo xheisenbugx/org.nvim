@@ -65,7 +65,10 @@ cancels):` below. Type the number, then `<CR>`.
   spaces), two blank lines, `Archived entries from file <path>`, two blank
   lines, then the entry at level 1 with ARCHIVE_TIME, ARCHIVE_FILE,
   ARCHIVE_OLPATH, ARCHIVE_CATEGORY and ARCHIVE_TODO (the clock's
-  `2026-10-12 Mon 09:00`).
+  `2026-10-12 Mon 09:00`). The mode line is Emacs's too: its
+  `auto-mode-alist` has no `.org_archive`, so `org-archive-subtree`
+  turns Org mode on with `org-insert-mode-line-in-empty-file` (checked
+  with Org 9.8.10 in batch). A target named `*.org` gets no mode line.
 - `org_log_done` is off by default, so archiving or refiling adds no
   CLOSED or logbook lines; `refile.log` adds "Refiled on".
 - `{{org.toggle_archive_tag}}` folds the subtree and it stays folded after
