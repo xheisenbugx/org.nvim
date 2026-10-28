@@ -8504,7 +8504,24 @@ entry of the menu uses it as its key: a TODO keyword, tag, capture
 template, agenda command or export backend you gave the key `q` is chosen
 with it, and only <Esc> quits that menu. The same holds for the expert
 export prompt, the agenda's tag filter, the attachment prompt and the date
-prompt's calendar keys. A choice list closes with `q` or <Esc>.
+prompt's calendar keys.
+
+A menu taller than the screen (the export dispatcher on a 24-line
+screen) drops its blank lines first, then scrolls: the footer shows `↓`
+when more entries are below and `↑` when more are above, with the key
+that scrolls each way. Every entry's key works whether it is shown or
+not. A scroll key that an entry of the menu uses chooses the entry
+instead (the footer then names another key).
+
+  <Space> <PageDown>          a screen down
+  <BS> <PageUp>               a screen up; at the top of a submenu, back
+  <C-d> <C-u>                 half a screen down / up
+  <C-n> <C-p> <Down> <Up>     a line down / up
+  mouse wheel                 three lines
+
+These are the export dispatcher's scroll keys in Emacs
+(org-export-dispatch: SPC, DEL, C-n, C-p and the arrows), in every menu.
+A choice list closes with `q` or <Esc>.
                                                            *org-choice-list*
 Commands that ask for one of a fixed set of values (Emacs's
 completing-read) show a floating list instead: the table export format
@@ -13838,7 +13855,12 @@ Other differences ~
   - <CR> on a link opens it; in Insert mode, <CR> in a table moves to the
     next row.
   - Menus (the agenda dispatcher, capture, export) are org.nvim's own key
-    menus, which Esc closes (|org-key-menus|).
+    menus, which Esc closes (|org-key-menus|). One too tall for the
+    screen scrolls with the export dispatcher's keys (SPC, DEL, C-n, C-p,
+    the arrows) and Vim's <C-d> / <C-u> in every menu; Emacs's agenda
+    dispatcher and capture menu scroll with C-n, C-p, C-v and M-v
+    instead. <BS> at the top of a submenu goes back, where Emacs says
+    "Beginning of buffer".
 
 ==============================================================================
 36. FAQ AND TROUBLESHOOTING                                          *org-faq*

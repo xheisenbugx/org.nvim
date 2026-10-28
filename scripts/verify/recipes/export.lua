@@ -102,6 +102,29 @@ return {
     },
   },
   {
+    -- the menu is taller than 24 rows: & and # used to be cut off with no
+    -- sign of them; SPC scrolls to them, as in Emacs's dispatcher
+    name = "SPC scrolls the dispatcher to its last entries",
+    files = { ["trip.org"] = notes },
+    open = "trip.org",
+    steps = {
+      {
+        key = "{{org.export}}",
+        expect = { screen = { "Org Export", "↓ SPC more" }, no_screen = { "Export stack", "Insert default export" } },
+      },
+      {
+        key = "<Space>",
+        expect = {
+          screen = { "Export stack", "Insert default export template", "↑ DEL more" },
+          no_screen = "Body only",
+        },
+      },
+      { key = "<BS>", expect = { screen = { "Body only", "↓ SPC more" }, no_screen = "Export stack" } },
+      { key = "<Space>", expect = { screen = "Export stack" } },
+      { key = "&", expect = { screen = "Org Export Stack", no_screen = "Insert default export" } },
+    },
+  },
+  {
     name = "the subtree toggle exports only the heading at the cursor",
     files = { ["trip.org"] = notes },
     open = "trip.org",
