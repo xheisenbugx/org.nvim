@@ -1118,6 +1118,88 @@ breaking one (`feat(<name>)!:` or a `BREAKING CHANGE:` footer) bumps the
 major version. Nothing is demoted automatically: a stable extension below
 the bar is a prompt to add the missing specs or docs.
 
+## Lessons from past debugging
+
+What cost rounds before and isn't obvious from the code.
+
+### Windows
+
+The Windows job of CI is the only feedback loop for it (about 12 minutes).
+A job's log can be read with `gh api repos/<owner>/<repo>/actions/jobs/<id>/logs`
+once the job ends, or `gh run view <run> --log-failed` once the whole run
+ends.
+
+- Paths: `fs_realpath`, `fnamemodify(":p")` / `(":~")`, `getcompletion()`
+  and `expand()` return `\` on Windows, and libuv's home is
+  `%USERPROFILE%` (it ignores `$HOME`). In plugin code use
+  `utils.realpath`, `utils.abbreviate`, `utils.complete_path`,
+  `utils.is_absolute` and `utils.home`, and in specs compare paths through
+  `vim.fs.normalize`.
+- The runner (`tests/run.lua`) has the helpers: `fake_exe` (a shell
+  script plus a `.cmd` launcher), `path_prepend`, `skip_on_windows`,
+  `posix_shell()` and `tz()` (America/New_York becomes EST5EDT there).
+  `ORG_TEST_PROGRESS=1` (or `2`) names each file (or test) as it starts,
+  to find a hang.
+- cmd.exe mangles `.cmd` arguments containing `< > '`, and setting
+  'shell' to sh for the whole run breaks `.cmd` launches.
+- A `term = true` job (ConPTY) in headless Neovim gets EOF at once, so the
+  REPL `:session` specs are skipped there. stdin must be `/dev/null`, or an
+  unstubbed prompt hangs the job.
+- Unsetting `TZ` doesn't reach the MSVC C runtime's copy:
+  `date.set_tz(nil)` sets it to `""` first.
+- Git's MSYS gpg blocks headless, so the encryption specs are skipped on
+  Windows.
+
+### A CI failure on your pull request
+
+Before blaming the change, look for the same failure on unrelated runs:
+`gh run view <id> --log-failed | grep FAIL:` over recent failed runs. A
+known flake goes in `tests/quarantine.lua` (see "Flaky specs");
+`gh run rerun <run> --failed` reruns the failed jobs. GitHub's runners
+ship real programs (`psql` and other database clients), so a fake
+executable in a spec must be run by its absolute path, not found first on
+`PATH`.
+
+### Folds
+
+- Neovim evaluates 'foldexpr' after `on_bytes` but before `on_lines` for
+  a normal edit, and before both for undo and redo. That is why
+  `lua/org/fold.lua` tracks the changedtick it expects and recomputes
+  everything when a change wasn't reported. Resetting 'modified' (a read
+  or write) bumps changedtick with no `on_bytes`.
+- Neovim re-evaluates 'foldexpr' only near an edit, so the levels of
+  distant rows go stale (the end of a block deleted, a headline's depth
+  after `J`, `dd` or undo). After every edit `fold.lua` runs
+  `vim._foldupdate` over the rows whose levels changed. A Neovim bug
+  (0.12, 0.13-dev) also leaves the last row of the outermost fold around
+  an edit unevaluated (`fold_ends`). A quick repro on old code: `J` on the
+  first headline, then `u`; a later headline gets fold level 0.
+- For a fold report, compare `vim.fn.foldlevel(l)` with
+  `fold.compute(lines)` after the edits in a real UI. Headless `-l`
+  scripts never run `vim.schedule` callbacks until they exit, so use the
+  spec runner (`vim.wait`) for a headless repro.
+
+### Typing latency
+
+Measure it in a real UI: Neovim in a detached tmux session, keys sent
+with `tmux send-keys`, timed from `vim.on_key` to the decoration
+provider's `on_end`, counted from the last key before the redraw. A
+`v:lua` 'foldexpr' costs about 1.7 µs a line in bridge overhead, so a
+full fold pass over 112,000 lines takes about 200 ms whatever the Lua
+function does. Compare with a `git worktree` of `dev`. For the agenda over
+many files, see "Benchmarks"; profile with
+`require("jit.p").start("Fl3", out)`.
+
+### Trying commands by hand
+
+When you try `bin/org`, the Lua API or a capture by hand, point HOME and
+every `XDG_*` directory at a scratch directory and set `org_directory`,
+`agenda_files` and `default_notes_file` inside it. With a misspelt option
+(`capture_templates` instead of `capture = { templates = ... }`) capture
+falls back to Emacs's default template, whose target is
+`default_notes_file`: `~/.notes`, your real notes. `make verify` does all
+of this for its scenarios.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.
@@ -1125,7 +1207,11 @@ the bar is a prompt to add the missing specs or docs.
   titles, as the history does: `feat(agenda): …`, `fix(capture): …`,
   `docs: …`.
 - Describe how you tested the change. For UI changes, a screenshot or
-  short recording helps a lot.
+  short recording helps a lot. Maintainers record GIFs with vhs (a tape
+  that sources `docs/media/tapes/common.tape`) and push them to the
+  `media` branch under `pr/<number>/`, linked from the description by
+  their `raw.githubusercontent.com` URL; for a fix, one before and one
+  after.
 - Add an "In plain words" section to the description: a few sentences,
   without code or jargon, that anyone using org.nvim can follow. Say what
   was wrong or missing, what changes for them, and whether they need to do

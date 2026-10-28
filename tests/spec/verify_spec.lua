@@ -172,6 +172,28 @@ describe("verify-org feature map", function()
   local actions = require("org.actions").list
   local index = table.concat(vim.fn.readfile(features .. "/README.md"), "\n")
 
+  -- the keys and actions an extension adds once enabled (none is enabled
+  -- here): section -> name -> true
+  local ext_keys = {}
+  for name in vim.fs.dir(root .. "/lua/org/extensions") do
+    name = name:gsub("%.lua$", "")
+    local loaded, ext = pcall(require, "org.extensions." .. name)
+    if loaded and type(ext) == "table" then
+      for section, keys in pairs(type(ext.mappings) == "table" and ext.mappings or {}) do
+        ext_keys[section] = ext_keys[section] or {}
+        for key in pairs(keys) do
+          ext_keys[section][key] = true
+        end
+      end
+      for action in pairs(type(ext.actions) == "table" and ext.actions or {}) do
+        for _, section in ipairs({ "org", "global" }) do
+          ext_keys[section] = ext_keys[section] or {}
+          ext_keys[section][action] = true
+        end
+      end
+    end
+  end
+
   for _, file in ipairs(files) do
     it(file .. " names things that exist", function()
       local h = assert(header(features .. "/" .. file), file .. " has no header")
@@ -188,6 +210,7 @@ describe("verify-org feature map", function()
           and (
             (type(maps[section]) == "table" and maps[section][name] ~= nil)
             or ((section == "org" or section == "global") and actions[name] ~= nil)
+            or (ext_keys[section] and ext_keys[section][name])
           )
         ok(known, file .. ": no key or action " .. key)
       end
