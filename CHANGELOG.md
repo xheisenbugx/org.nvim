@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.0] - 2026-10-28
+
+### Features
+
+- **cli:** Org lsp for other editors, agenda index at startup, extensions ready for promotion ([#313](https://github.com/xheisenbugx/org.nvim/pull/313))
+
 ## [v3.1.0] - 2026-10-28
 
 ### Features
@@ -578,6 +584,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.1.0...v3.2.0
 [v3.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.0.0...v3.1.0
 [v3.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.3...v3.0.0
 [v2.16.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.2...v2.16.3
