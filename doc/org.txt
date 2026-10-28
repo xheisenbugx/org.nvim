@@ -12582,8 +12582,8 @@ are not links and are left alone. Only links that really resolve to the
 renamed thing change: `[[Title]]` is left alone when a `<<Title>>` target
 wins. A name that would make links point elsewhere (another target,
 `#+NAME:` or CUSTOM_ID with it, or a headline with the same title when
-links spell the title) is refused with a message, as are blanks in IDs,
-CUSTOM_IDs and footnote labels. Links whose path or description spans
+links spell the title) is refused with a message, as are blanks and square brackets in IDs and
+CUSTOM_IDs, and blanks in footnote labels. Links whose path or description spans
 lines are found and rewritten like the others. Files the rename edits
 that were not loaded are written once Neovim has loaded them to apply the
 edit (`rename.write_unloaded`, like VS Code's refactoring auto-save);
