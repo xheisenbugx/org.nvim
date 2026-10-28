@@ -240,3 +240,78 @@ describe("table emacs commands", function()
     }, buf_lines(buf))
   end)
 end)
+
+local function keys(k)
+  vim.api.nvim_feedkeys(vim.keycode(k), "xt", false)
+end
+
+describe("table <CR> in Insert mode (org-return)", function()
+  -- org-return: "before first column or after last one, split the table"
+  -- (a plain newline); elsewhere in a row, org-table-next-row.
+  it("after the last | inserts a plain newline", function()
+    local buf = org_buffer({ "|Item|Qty|" }, { 1, 0 })
+    keys("A<CR><Esc>")
+    eq({ "|Item|Qty|", "" }, buf_lines(buf))
+    eq(2, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("keys typed after it (a macro, typeahead) go on the new line", function()
+    -- the <CR> fed back to Vim runs before the keys already waiting
+    local buf = org_buffer({ "|Item|Qty|" }, { 1, 0 })
+    keys("A<CR>next<Esc>")
+    eq({ "|Item|Qty|", "next" }, buf_lines(buf))
+  end)
+
+  it("with only spaces after the cursor inserts a plain newline", function()
+    local buf = org_buffer({ "| a | b |  " }, { 1, 9 })
+    keys("i<CR><Esc>")
+    local lines = buf_lines(buf)
+    eq(2, #lines)
+    eq("| a | b |", vim.trim(lines[1]))
+    eq("", vim.trim(lines[2]))
+  end)
+
+  it("before the first column inserts a plain newline", function()
+    local buf = org_buffer({ "| a | b |", "| c | d |" }, { 1, 0 })
+    keys("i<CR><Esc>")
+    eq({ "", "| a | b |", "| c | d |" }, buf_lines(buf))
+  end)
+
+  it("in a field still goes to the next row", function()
+    local buf = org_buffer({ "|Item|Qty|" }, { 1, 2 })
+    keys("i<CR><Esc>")
+    eq({ "| Item | Qty |", "|      |     |" }, buf_lines(buf))
+    eq(2, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("in orgtbl-mode goes to the next row even at the end (orgtbl-ret)", function()
+    vim.cmd("enew!")
+    local buf = vim.api.nvim_get_current_buf()
+    vim.bo[buf].bufhidden = "wipe"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "|Item|Qty|" })
+    require("org.table.orgtbl").enable(buf)
+    keys("A<CR><Esc>")
+    require("org.table.orgtbl").disable(buf)
+    eq({ "| Item | Qty |", "|      |     |" }, buf_lines(buf))
+  end)
+end)
+
+describe("table_insert_row (org-table-insert-row)", function()
+  -- org-table-insert-row: above the current row; with a prefix arg below
+  it("inserts above the cursor's row", function()
+    local buf = org_buffer({ "| a | 1 |", "| b | 2 |" }, { 2, 2 })
+    require("org.actions").run("table_insert_row")
+    eq({ "| a | 1 |", "|   |   |", "| b | 2 |" }, buf_lines(buf))
+    eq({ 2, 2 }, vim.api.nvim_win_get_cursor(0))
+  end)
+
+  it("with a count inserts below", function()
+    local buf = org_buffer({ "| a | 1 |", "| b | 2 |" }, { 1, 2 })
+    vim.keymap.set("n", "<F12>", function()
+      require("org.actions").run("table_insert_row")
+    end, { buffer = buf })
+    keys("4<F12>")
+    eq({ "| a | 1 |", "|   |   |", "| b | 2 |" }, buf_lines(buf))
+    eq({ 2, 2 }, vim.api.nvim_win_get_cursor(0))
+  end)
+end)

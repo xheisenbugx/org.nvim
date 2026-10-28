@@ -1,4 +1,4 @@
-.PHONY: test bench snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz playground difftest
+.PHONY: test bench snapshots lint format site media publish-media parity-fixtures changelog typecheck coverage fuzz playground difftest verify
 
 # A throwaway data and cache dir: tests never touch the real ID database, clock
 # state, agenda index or other stdpath("data") and stdpath("cache") files,
@@ -55,7 +55,7 @@ fuzz:
 
 # stylua, then the source rules of scripts/lint_sources.lua
 lint:
-	stylua --check lua plugin ftplugin syntax tests scripts/site scripts/playground
+	stylua --check lua plugin ftplugin syntax tests scripts/site scripts/playground scripts/verify .claude/hooks
 	nvim --headless --clean -l scripts/lint_sources.lua lua
 
 # lua-language-server --check with .luarc.json: the diagnostics it gates on
@@ -68,7 +68,7 @@ typecheck:
 
 # stylua sometimes needs a second pass to settle
 format:
-	stylua lua plugin ftplugin syntax tests scripts/site scripts/playground && stylua lua plugin ftplugin syntax tests scripts/site scripts/playground
+	stylua lua plugin ftplugin syntax tests scripts/site scripts/playground scripts/verify .claude/hooks && stylua lua plugin ftplugin syntax tests scripts/site scripts/playground scripts/verify .claude/hooks
 
 # The documentation website (doc/org.txt, README.md, examples/*.org and the
 # parity docs as HTML) in site/; see scripts/site/build.lua. Open
@@ -86,6 +86,16 @@ site:
 playground:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_STATE_HOME=$$d/state XDG_CACHE_HOME=$$d/cache \
 	nvim --headless --clean -l scripts/playground/record.lua docs/playground $(LESSON); \
+	s=$$?; rm -rf $$d; exit $$s
+
+# Drive features in a child Neovim as a user does and check the screen and
+# the files (scripts/verify/drive.lua; the verify-org skill's feature map
+# is .claude/skills/verify-org/features/). RECIPE=agenda (or several,
+# space-separated, or recipe:scenario) runs only those; OUT=dir keeps the
+# evidence there instead of a new temporary directory.
+verify:
+	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d XDG_STATE_HOME=$$d/state XDG_CACHE_HOME=$$d/cache \
+	nvim --headless --clean -l scripts/verify/drive.lua $(if $(OUT),--out $(OUT)) $(RECIPE); \
 	s=$$?; rm -rf $$d; exit $$s
 
 # Re-record the README GIFs and screenshots (needs vhs and the

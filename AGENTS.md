@@ -20,6 +20,7 @@ make coverage-check                        # coverage/ against the floors in scr
 make fuzz                                  # fuzz specs with 40x the seeds, random start
 make bench                                 # first open and a 50,000-headline agenda, timed (CONTRIBUTING.md)
 make extensions-report                     # each extension against the promotion criteria (CONTRIBUTING.md)
+make verify RECIPE=agenda                  # drive a feature in a child Neovim, check screen and files (verify-org skill)
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
@@ -56,6 +57,41 @@ make extensions-report                     # each extension against the promotio
   add its path as one line there and fix what `make typecheck` reports;
   never remove a path to get a pass (CONTRIBUTING.md, "Strict paths").
 
+## Verifying a change
+
+Passing specs aren't proof that a user's path works. After a user-visible
+change, use the `verify-org` skill (`.claude/skills/verify-org/SKILL.md`).
+Its feature map (`features/<area>.md`) says how to reach each feature,
+what each step should show, and what can mislead a check. Run the area's
+recipe with `make verify RECIPE=<area>`, add a scenario for what you
+changed (for a bug, see it fail first), read the evidence screens, and say
+what you didn't check. Areas without a feature file are verified by hand
+(the skill's tmux section). Change the feature file with the area.
+
+## Agent skills and reviewers
+
+Skills in `.claude/skills/<name>/SKILL.md` are playbooks; follow the one
+that fits before you start. Reviewers in `.claude/agents/<name>.md` are
+read-only subagents: each reads `git diff dev...HEAD` on its own and
+reports findings with `file:line` and a failure scenario.
+
+- `verify-org`: check a user-visible change in a running Neovim.
+- `fix-bug`: fixing a bug, from a failing spec to the PR with GIFs.
+- `emacs-parity`: finding what Emacs does and pinning it in an Emacs spec.
+- `new-option`: adding or changing an option, action or default key.
+- `parity-reviewer`: before a PR that changes behaviour Emacs defines.
+- `hot-path-reviewer`: before a PR that touches a hot path, first open
+  or the agenda.
+- `docs-sync-reviewer`: before a PR with a user-visible change.
+- `windows-reviewer`: before a PR that touches paths, files, programs,
+  shell commands or time zones.
+
+Claude Code hooks in `.claude/settings.json` refuse Edit / Write of files
+only a make target writes (`tests/fixtures/screen/`,
+`tests/fixtures/emacs/`, `docs/playground/`) and run stylua on Lua files
+after an edit. Shell commands aren't checked: the AGENTS.md rules still
+apply there.
+
 ## Layout
 
 | Path | Contents |
@@ -63,7 +99,7 @@ make extensions-report                     # each extension against the promotio
 | `lua/org/init.lua` | `setup()` entry point |
 | `lua/org/config/` | every option and its default, one file per area (`init.lua`: `setup()` merging) |
 | `lua/org/actions.lua` | registry of every user-facing operation |
-| `lua/org/mappings.lua` | default keys, bound to actions |
+| `lua/org/config/mappings.lua`, `lua/org/mappings.lua` | the default keys; binding them to actions |
 | `lua/org/parser.lua`, `element.lua`, `files.lua` | parsing and the per-file cache |
 | `lua/org/agenda/`, `babel/`, `capture/`, `export/`, `table/`, `ui/` | larger subsystems |
 | `lua/org/agenda/items.lua`, `agenda/items/` | collecting agenda entries (not compiled by the JIT, each part included): item fields, building items and headline iteration in the facade; times of day, repeats, date ranges, diary sexps, deadlines and scheduled, timestamps, log mode, the day agenda, the TODO / tags / search / stuck lists and sorting in the parts |
@@ -97,12 +133,14 @@ make extensions-report                     # each extension against the promotio
 | `lua/aerial/`, `lua/outline/`, `lua/telescope/` | one-line shims those plugins `require` by name; they load only when the plugin is installed |
 | `lua/org/_meta/` | LuaLS type annotations for `setup()` options (no runtime code) |
 | `plugin/`, `ftplugin/`, `syntax/` | Vim runtime files |
-| `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags |
+| `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags (generated, not committed) |
 | `examples/` | per-feature tutorial `.org` files |
 | `tutor/org/`, `lua/org/tutor/`, `scripts/playground/lessons/` | `:Org tutor` lessons (`.org` text with `{{org.action}}` key placeholders and `#+TUTOR_ORDER/LEVEL/TOPICS:`), their checks and hints (`lessons/<name>.lua`) and recorded steps; a new lesson follows CONTRIBUTING.md, "Writing a tutor lesson" |
 | `tests/run.lua`, `tests/minimal_init.lua` | the test runner and headless init |
 | `tests/spec/*_spec.lua`, `tests/fixtures/` | specs and the fixture org files |
 | `tests/screen.lua`, `tests/fixtures/screen/` | screen snapshot helper and its golden files |
+| `scripts/verify/`, `.claude/skills/verify-org/` | the verify driver and its recipes; the feature map and skill that use them |
+| `.claude/settings.json`, `.claude/hooks/` | the Claude Code hooks (generated files guard, stylua after edits) |
 
 ## How the code fits together
 
@@ -134,7 +172,7 @@ make extensions-report                     # each extension against the promotio
   picker with `pickers.resolve`, not `backend`), warn only when the
   feature is on, and are documented under `:h org-health`
   (CONTRIBUTING.md, "Health checks").
-- **Key conflicts matter.** Before adding a default key in `mappings.lua`,
+- **Key conflicts matter.** Before adding a default key in `config/mappings.lua`,
   check it isn't a prefix of, or already taken by, another mapping.
 
 ## Emacs parity
@@ -149,7 +187,7 @@ else. Intentional differences go under `:h org-differences` in `doc/org.txt`.
 `tests/spec/emacs_*_parity_spec.lua` compare org.nvim with real Emacs output
 checked in under `tests/fixtures/emacs/` (visibility, agenda, export, clock
 tables, org-lint). Regenerate those fixtures with `make parity-fixtures`
-(it needs Emacs with Org 9.8.10, see `scripts/emacs-parity/README.md`), never
+(it needs Emacs with Org 9.8.12, see `scripts/emacs-parity/README.md`), never
 by hand. Rewrite rules for intentional differences live only in `NORMALISE`
 in `tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
 
