@@ -90,9 +90,11 @@ local function child(scenario, dir)
     os.remove(index.path())
     timed("cold_week", week)
   elseif scenario == "background" then
-    -- (the background starts half a second after startup)
-    vim.wait(600, function()
-      return index.status().warming
+    -- (the background starts half a second after startup, later on a
+    -- busy machine)
+    vim.wait(10000, function()
+      local st = index.status()
+      return st.warming or st.hits + st.indexed > 0
     end, 10)
     assert(index.wait(5 * 60 * 1000), "the background parse did not finish")
     local st = index.status()

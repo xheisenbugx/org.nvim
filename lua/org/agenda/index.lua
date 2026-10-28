@@ -67,7 +67,9 @@ local S = {
   head = 1,
   queued = {}, ---@type table<string, boolean>
   stated = {}, ---@type { path: string, st: uv.fs_stat.result|nil }[]
-  ready = {}, ---@type { path: string, st: uv.fs_stat.result, data: string }[]
+  ready = {}, ---@type { path: string, st: uv.fs_stat.result, data: string, taken: boolean? }[]
+  -- the item of S.ready for each path, for take_read
+  ready_by = {}, ---@type table<string, table>
   in_flight = 0,
   -- parses in worker threads: id -> what to do with the result
   ---@type table<integer, { path: string, st: uv.fs_stat.result, file: org.File, gen: integer }>
@@ -593,17 +595,17 @@ end
 ---@param st uv.fs_stat.result
 ---@return string[]|nil lines
 function M.take_read(path, st)
-  local ready = S.ready
-  for i = 1, #ready do
-    local item = ready[i]
-    if item.path == path then
-      table.remove(ready, i)
-      if same_stat(item.st, st) then
-        S.stats.taken = S.stats.taken + 1
-        return utils.split_content(item.data)
-      end
-      return nil
-    end
+  -- a lookup, not a scan of S.ready: a view asks for every agenda file
+  local item = S.ready_by[path]
+  if not item then
+    return nil
+  end
+  S.ready_by[path] = nil
+  -- the background skips it
+  item.taken = true
+  if same_stat(item.st, st) then
+    S.stats.taken = S.stats.taken + 1
+    return utils.split_content(item.data)
   end
 end
 
@@ -659,7 +661,9 @@ local function read_async(path, st)
       return
     end
     if data then
-      S.ready[#S.ready + 1] = { path = path, st = st, data = data }
+      local item = { path = path, st = st, data = data }
+      S.ready[#S.ready + 1] = item
+      S.ready_by[path] = item
     end
     vim.schedule(function()
       if retry then
@@ -803,6 +807,7 @@ end
 function pump()
   if not background() then
     S.queue, S.head, S.queued, S.stated, S.ready, S.done, S.warming = {}, 1, {}, {}, {}, {}, false
+    S.ready_by = {}
     return
   end
   local deadline = uv.hrtime() + SLICE_MS * 1e6
@@ -846,9 +851,15 @@ function pump()
   local n = workers()
   while #S.ready > 0 and uv.hrtime() < deadline and (n == 0 or S.working < n) do
     local item = table.remove(S.ready, 1)
-    local ok, err = pcall(parse_ready, item, n > 0)
-    if not ok then
-      S.stats.error = tostring(err)
+    if S.ready_by[item.path] == item then
+      S.ready_by[item.path] = nil
+    end
+    -- taken by a view (take_read) already
+    if not item.taken then
+      local ok, err = pcall(parse_ready, item, n > 0)
+      if not ok then
+        S.stats.error = tostring(err)
+      end
     end
   end
   -- files read wait for a worker to be free, which wakes the background
@@ -1041,6 +1052,7 @@ function M.stop()
     stop_timer(name)
   end
   S.queue, S.head, S.queued, S.stated, S.ready, S.done = {}, 1, {}, {}, {}, {}
+  S.ready_by = {}
   S.warming, S.changed, S.rescan, S.announce = false, {}, false, false
   S.gen = S.gen + 1
 end
