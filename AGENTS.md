@@ -68,6 +68,24 @@ changed (for a bug, see it fail first), read the evidence screens, and say
 what you didn't check. Areas without a feature file are verified by hand
 (the skill's tmux section). Change the feature file with the area.
 
+## Agent skills and reviewers
+
+Skills in `.claude/skills/<name>/SKILL.md` are playbooks; follow the one
+that fits before you start. Reviewers in `.claude/agents/<name>.md` are
+read-only subagents: each reads `git diff dev...HEAD` on its own and
+reports findings with `file:line` and a failure scenario.
+
+- `verify-org`: check a user-visible change in a running Neovim.
+- `fix-bug`: fixing a bug, from a failing spec to the PR with GIFs.
+- `emacs-parity`: finding what Emacs does and pinning it in an Emacs spec.
+- `new-option`: adding or changing an option, action or default key.
+- `parity-reviewer`: before a PR that changes behaviour Emacs defines.
+- `hot-path-reviewer`: before a PR that touches a hot path, first open
+  or the agenda.
+- `docs-sync-reviewer`: before a PR with a user-visible change.
+- `windows-reviewer`: before a PR that touches paths, files, programs,
+  shell commands or time zones.
+
 Claude Code hooks in `.claude/settings.json` refuse Edit / Write of files
 only a make target writes (`tests/fixtures/screen/`,
 `tests/fixtures/emacs/`, `docs/playground/`) and run stylua on Lua files
