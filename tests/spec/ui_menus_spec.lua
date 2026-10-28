@@ -219,3 +219,98 @@ describe("table export format prompt", function()
     vim.cmd("enew!") -- leave no modified buffer for the next spec
   end)
 end)
+
+-- A menu with more rows than the screen used to cut off its last entries
+-- (the export dispatcher's & and # at 80x24) with no way to see them. It
+-- scrolls now, as Emacs's dispatcher does (org-export--dispatch-action:
+-- SPC / DEL a screen, C-n / C-p and the arrows a line).
+describe("ui.menu taller than the screen", function()
+  --- `n` entries keyed a, b, c, ... (then A, B, ...), each returning its key.
+  local function entries(n)
+    local keys = "abcdefghijklmnoprstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    local items = {}
+    for i = 1, n do
+      local k = keys:sub(i, i)
+      items[i] = { key = k, label = "Entry " .. i, value = k }
+    end
+    return items
+  end
+
+  --- The menu window's first row shown and its footer.
+  local function shown()
+    local win = vim.api.nvim_get_current_win()
+    local footer = vim.api.nvim_win_get_config(win).footer
+    local text = type(footer) == "table" and footer[1][1] or footer
+    return { vim.fn.line("w0"), vim.trim(text) }
+  end
+
+  --- Run the menu answering `keys`; also return what each key was asked over.
+  local function run(opts, keys)
+    local seen = {}
+    local res
+    with_stub(utils, "getchar", function()
+      seen[#seen + 1] = shown()
+      return table.remove(keys, 1)
+    end, function()
+      res = ui.menu(opts)
+    end)
+    return res, seen
+  end
+
+  it("still runs the last entry's key, which isn't on screen", function()
+    local n = vim.o.lines * 2
+    local items = entries(n)
+    local res, seen = run({ title = "Big", items = items }, { items[n].key })
+    eq(items[n].key, res)
+    eq({ 1, "↓ SPC more · q/Esc quit" }, seen[1])
+  end)
+
+  it("SPC / DEL scroll a screen, C-n / C-p and the arrows a line; the footer says which way more is", function()
+    local n = vim.o.lines * 2
+    local height = vim.o.lines - 4
+    local items = entries(n)
+    local keys = { " ", vim.keycode("<Down>"), "\16", " ", " ", " ", "\127", items[n].key }
+    local res, seen = run({ title = "Big", items = items }, keys)
+    eq(items[n].key, res)
+    eq({ 1, "↓ SPC more · q/Esc quit" }, seen[1])
+    eq({ height - 1, "↑↓ SPC/DEL more · q/Esc quit" }, seen[2])
+    eq(height, seen[3][1])
+    eq(height - 1, seen[4][1])
+    -- at the end: the last rows shown, nothing more below; SPC stays there
+    eq({ n - height + 1, "↑ DEL more · q/Esc quit" }, seen[6])
+    eq(seen[6], seen[7])
+    eq(n - height + 1 - (height - 2), seen[8][1])
+  end)
+
+  it("a scroll key that is an entry's key still chooses the entry", function()
+    local items = entries(vim.o.lines * 2)
+    table.insert(items, 1, { key = " ", label = "Space entry", value = "space" })
+    local res, seen = run({ title = "Big", items = items }, { " " })
+    eq("space", res)
+    eq({ 1, "↓ C-d more · q/Esc quit" }, seen[1])
+  end)
+
+  it("in a submenu, BS scrolls back up first, then goes back", function()
+    local sub = entries(vim.o.lines * 2)
+    local items = { { key = "x", label = "Sub", items = sub }, { key = "y", label = "Other", value = "y" } }
+    local res, seen = run({ title = "Big", items = items }, { "x", " ", "\127", "\127", "y" })
+    eq("y", res)
+    eq({ 1, "↓ SPC more · BS back · q/Esc quit" }, seen[2])
+    eq({ vim.o.lines - 5, "↑↓ SPC/DEL more · q/Esc quit" }, seen[3])
+    eq({ 1, "↓ SPC more · BS back · q/Esc quit" }, seen[4])
+    eq({ 1, "q/Esc quit" }, seen[5])
+  end)
+
+  it("a menu that fits doesn't take the scroll keys", function()
+    local warned
+    local res, seen
+    with_stub(utils, "warn", function(msg)
+      warned = msg
+    end, function()
+      res, seen = run({ title = "Small", items = entries(3) }, { " " })
+    end)
+    eq(nil, res)
+    eq({ 1, "q/Esc quit" }, seen[1])
+    eq("No menu entry for key: SPC", warned)
+  end)
+end)

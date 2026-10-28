@@ -69,5 +69,7 @@ change the part under the cursor.
 - The buffer changes, not the file: `cmd = "write"` before an
   `expect.file`.
 - Under heavy machine load a step typed into the "Date:" prompt once
-  failed with "the screen didn't settle within 10000 ms" and passed on
-  every rerun; rerun before suspecting the calendar.
+  failed with "the screen didn't settle within 10000 ms" (it passed on
+  every rerun, 16 at once included). The driver now waits a second time
+  before failing a step on that; if it still fails, the screen really
+  keeps changing.

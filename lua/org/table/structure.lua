@@ -95,12 +95,18 @@ function M.fix_formulas(bufnr, finish, key, replace, limit, delta, remove)
 end
 
 --- Insert an empty row above (`above` = true) or below the current row.
---- A `#`, `*` or `$` mark in the first column is copied, and row
---- references in the formulas are shifted. Emacs org-table-insert-row.
+--- Without `above` (the `table_insert_row` action): above, or below with
+--- a count standing in for the prefix argument. A `#`, `*` or `$` mark in
+--- the first column is copied, and row references in the formulas are
+--- shifted. Emacs org-table-insert-row.
+---@param above? boolean
 function M.insert_row(above)
   local info = M.at_cursor()
   if not info then
     return false
+  end
+  if above == nil then
+    above = vim.v.count == 0
   end
   local row, field = cursor_pos(info)
   local t = info.tbl

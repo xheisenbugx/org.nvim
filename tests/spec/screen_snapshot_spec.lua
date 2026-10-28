@@ -471,6 +471,20 @@ describe("screen snapshot", function()
     screen:input("<Esc>")
   end)
 
+  it("a menu taller than the screen scrolls, and its footer says more is below", function()
+    -- the export dispatcher at 80x24 used to cut off & and # with no sign
+    -- of them; SPC scrolls to them, as in Emacs's dispatcher
+    new(nil, 80, 24)
+    screen:org({ "#+TITLE: Hello", "", "* A" })
+    screen:input(" oe")
+    screen:request("nvim_eval", "1")
+    screen:expect("menu_overflow_top")
+    screen:input(" ")
+    screen:request("nvim_eval", "1")
+    screen:expect("menu_overflow_end")
+    screen:input("<Esc>")
+  end)
+
   it("the fast tag selection menu and its footer", function()
     new(nil, 100, 14)
     screen:org({ "#+TAGS: work(w) home(h) errand(e)", "", "* TODO Task :work:" })

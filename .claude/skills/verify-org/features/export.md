@@ -31,6 +31,7 @@ back-end that opens its submenu. Or `:Org export {format} [subtree]
 | `h` then `h` | `trip.html` (`H` is the buffer, `o` file and open) |
 | `m` | `M  To temporary buffer`, `m  To file`, `o  To file and open`, `G` / `g` GFM |
 | `s` in the menu | "Export scope" goes from `buffer` to `subtree` |
+| `<Space>` in the menu | scrolled to the end: `&  Export stack`, `#  Insert default export template`, footer `↑ DEL more` |
 | `:Org export md` | `trip.md`, no menu |
 
 ## Gotchas
@@ -54,8 +55,10 @@ back-end that opens its submenu. Or `:Org export {format} [subtree]
 - The ASCII title block is centred on its longest line, so its
   indentation changes with the title and author.
 - The menu doesn't fit 24 rows: its last entries, `&` (export stack)
-  and `#` (template), are cut off with no sign of more, but their keys
-  still work (`&` opens `*Org Export Stack*`). The submenus say what each key does in
+  and `#` (template), start below the window, and the footer says
+  `↓ SPC more`. `<Space>` scrolls to them (footer `↑ DEL more`), `<BS>`
+  back up; their keys work either way (`&` opens `*Org Export Stack*`).
+  Expect `Export stack` on screen only after `<Space>`. The submenus say what each key does in
   the back-end's own words ("As ASCII file", "To file"): check those,
   not a common label.
 - `cmd = "Org export md"` blocks the driver when the export prompts (a

@@ -38,7 +38,7 @@ local function fallback(lhs, mode)
       if map.callback then
         local ok, res = pcall(map.callback)
         if ok and map.expr == 1 and type(res) == "string" then
-          vim.api.nvim_feedkeys(vim.keycode(res), map.noremap == 1 and "n" or "m", false)
+          vim.api.nvim_feedkeys(vim.keycode(res), map.noremap == 1 and "ni" or "mi", false)
         end
         return
       elseif map.rhs and map.rhs ~= "" then
@@ -46,7 +46,7 @@ local function fallback(lhs, mode)
         if map.expr == 1 then
           rhs = vim.api.nvim_eval(rhs)
         end
-        vim.api.nvim_feedkeys(vim.keycode(rhs), map.noremap == 1 and "n" or "m", false)
+        vim.api.nvim_feedkeys(vim.keycode(rhs), map.noremap == 1 and "ni" or "mi", false)
         return
       end
     end
@@ -55,7 +55,7 @@ local function fallback(lhs, mode)
   if vim.v.count > 0 and mode == "n" then
     keys = vim.v.count .. keys
   end
-  vim.api.nvim_feedkeys(keys, "n", false)
+  vim.api.nvim_feedkeys(keys, "ni", false)
 end
 
 -- Dot-repeat (|org-dot-repeat|). After a repeatable action ran from a

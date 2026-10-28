@@ -28,8 +28,10 @@ empty table.
 | --- | --- |
 | Insert mode, type `\|Item\|Qty`, `{{org_insert.insert_tab}}` | `\| Item \| Qty \|` aligned, a new empty row, cursor in its first field |
 | type a field, `{{org_insert.insert_tab}}` | the table realigned to the widest field; numbers right-aligned |
+| type `\|Item\|Qty\|`, `{{org_insert.table_next_row}}` | a plain new line below the row, no new row (org-return) |
 | `{{org.table_insert_hline}}` on a row | `\|--------+-----\|` below it |
 | `{{org.shift_meta_down}}` (M-J) | an empty row above the cursor's |
+| `{{org.table_insert_row}}`; with a count | an empty row above the cursor's; below it |
 | `{{org.shift_meta_right}}` (M-L) | an empty column left of the cursor's |
 | `{{org.context_action}}` on `#+TBLFM: $4=$2*$3` | column 4 filled in every data row |
 | change a field, `{{org.table_recalc}}` | the formula column recomputed |
@@ -37,20 +39,21 @@ empty table.
 
 ## Gotchas
 
-- `{{org_insert.table_next_row}}` (`<CR>` in Insert mode) in a table
-  always goes to the next row, even after the last `|` of the row: there
-  it opens a new row with the cursor past its end, and `|-` typed next
-  becomes two new columns. Emacs org-return inserts a plain newline at the
-  end of a row. Type the header without the closing `|` and use
-  `{{org_insert.insert_tab}}`, and add hlines with
-  `{{org.table_insert_hline}}`.
+- `{{org_insert.table_next_row}}` (`<CR>` in Insert mode) goes to the
+  next row only from inside the row. After the last `|` (only blanks
+  after the cursor) or before the first one it is a plain newline that
+  splits the table, as Emacs org-return does: typing `|Item|Qty|` then
+  `<CR>` leaves the header unaligned on its line until the next
+  `{{org_insert.insert_tab}}` or leaving Insert mode. orgtbl-mode's `<CR>`
+  (orgtbl-ret) always goes to the next row.
 - While typing, the field just grows (`| Apples    |`); the table is
   aligned only on `{{org_insert.insert_tab}}`, `{{org_insert.table_prev_field}}`,
   `{{org_insert.table_next_row}}` or leaving Insert mode. Check the screen
   after one of those.
-- `{{org.table_insert_row}}` (`<prefix>Tr`) puts the new row below the
-  cursor; `{{org.shift_meta_down}}` (M-J) and the menu put it above, as
-  Emacs org-table-insert-row does. `{{org.table_insert_column}}` and
+- `{{org.table_insert_row}}` (`<prefix>Tr`), `{{org.shift_meta_down}}`
+  (M-J) and the menu all put the new row above the cursor's, as Emacs
+  org-table-insert-row does; with a count (`4{{org.table_insert_row}}`,
+  Emacs C-u) the row goes below. `{{org.table_insert_column}}` and
   `{{org.shift_meta_right}}` both insert left of the cursor's column.
 - Put the cursor in a field with `at` and `col` (`{ at = "Pears", col = "3" }`):
   the structure keys act on the cursor's row and column.

@@ -104,6 +104,31 @@ describe("verify driver", function()
     ok(vim.env.HOME ~= nil and not vim.env.HOME:find("org-verify-files-", 1, true))
   end)
 
+  it("waits twice for a busy screen, and fails one that never settles", function()
+    local Screen = require("tests.screen")
+    local saved = Screen.timeout
+    Screen.timeout = 1000
+    -- the buffer changes every millisecond (faster than a settle round)
+    -- for `...` ms (-1: until the child quits)
+    local busy = [[
+      local ms, t0, n = ..., vim.uv.now(), 0
+      _G.__verify_timer = vim.uv.new_timer()
+      _G.__verify_timer:start(0, 1, vim.schedule_wrap(function()
+        n = n + 1
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { "tick " .. n })
+        if ms >= 0 and vim.uv.now() - t0 > ms then
+          _G.__verify_timer:stop()
+        end
+      end))
+    ]]
+    local ok_res = run({ name = "busy", steps = { { lua = busy:gsub("%.%.%.", "1500") } } })
+    local stuck = run({ name = "stuck", steps = { { lua = busy:gsub("%.%.%.", "-1") } } })
+    Screen.timeout = saved
+    ok(ok_res.ok, why(ok_res))
+    eq(false, stuck.ok)
+    ok(why(stuck):find("didn't settle", 1, true), why(stuck))
+  end)
+
   it("names the step that failed when the target has no such scenario", function()
     local out = drive.mkdtemp("org-verify-spec-")
     local saved = io.stdout
