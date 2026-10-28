@@ -99,7 +99,7 @@ apply there.
 | `lua/org/init.lua` | `setup()` entry point |
 | `lua/org/config/` | every option and its default, one file per area (`init.lua`: `setup()` merging) |
 | `lua/org/actions.lua` | registry of every user-facing operation |
-| `lua/org/mappings.lua` | default keys, bound to actions |
+| `lua/org/config/mappings.lua`, `lua/org/mappings.lua` | the default keys; binding them to actions |
 | `lua/org/parser.lua`, `element.lua`, `files.lua` | parsing and the per-file cache |
 | `lua/org/agenda/`, `babel/`, `capture/`, `export/`, `table/`, `ui/` | larger subsystems |
 | `lua/org/agenda/items.lua`, `agenda/items/` | collecting agenda entries (not compiled by the JIT, each part included): item fields, building items and headline iteration in the facade; times of day, repeats, date ranges, diary sexps, deadlines and scheduled, timestamps, log mode, the day agenda, the TODO / tags / search / stuck lists and sorting in the parts |
@@ -133,7 +133,7 @@ apply there.
 | `lua/aerial/`, `lua/outline/`, `lua/telescope/` | one-line shims those plugins `require` by name; they load only when the plugin is installed |
 | `lua/org/_meta/` | LuaLS type annotations for `setup()` options (no runtime code) |
 | `plugin/`, `ftplugin/`, `syntax/` | Vim runtime files |
-| `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags |
+| `doc/org.txt` | the user manual (`:h org`); `doc/tags` is its helptags (generated, not committed) |
 | `examples/` | per-feature tutorial `.org` files |
 | `tutor/org/`, `lua/org/tutor/`, `scripts/playground/lessons/` | `:Org tutor` lessons (`.org` text with `{{org.action}}` key placeholders and `#+TUTOR_ORDER/LEVEL/TOPICS:`), their checks and hints (`lessons/<name>.lua`) and recorded steps; a new lesson follows CONTRIBUTING.md, "Writing a tutor lesson" |
 | `tests/run.lua`, `tests/minimal_init.lua` | the test runner and headless init |
@@ -172,7 +172,7 @@ apply there.
   picker with `pickers.resolve`, not `backend`), warn only when the
   feature is on, and are documented under `:h org-health`
   (CONTRIBUTING.md, "Health checks").
-- **Key conflicts matter.** Before adding a default key in `mappings.lua`,
+- **Key conflicts matter.** Before adding a default key in `config/mappings.lua`,
   check it isn't a prefix of, or already taken by, another mapping.
 
 ## Emacs parity
@@ -187,7 +187,7 @@ else. Intentional differences go under `:h org-differences` in `doc/org.txt`.
 `tests/spec/emacs_*_parity_spec.lua` compare org.nvim with real Emacs output
 checked in under `tests/fixtures/emacs/` (visibility, agenda, export, clock
 tables, org-lint). Regenerate those fixtures with `make parity-fixtures`
-(it needs Emacs with Org 9.8.10, see `scripts/emacs-parity/README.md`), never
+(it needs Emacs with Org 9.8.12, see `scripts/emacs-parity/README.md`), never
 by hand. Rewrite rules for intentional differences live only in `NORMALISE`
 in `tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
 

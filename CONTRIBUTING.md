@@ -1207,7 +1207,11 @@ of this for its scenarios.
   titles, as the history does: `feat(agenda): …`, `fix(capture): …`,
   `docs: …`.
 - Describe how you tested the change. For UI changes, a screenshot or
-  short recording helps a lot.
+  short recording helps a lot. Maintainers record GIFs with vhs (a tape
+  that sources `docs/media/tapes/common.tape`) and push them to the
+  `media` branch under `pr/<number>/`, linked from the description by
+  their `raw.githubusercontent.com` URL; for a fix, one before and one
+  after.
 - Add an "In plain words" section to the description: a few sentences,
   without code or jargon, that anyone using org.nvim can follow. Say what
   was wrong or missing, what changes for them, and whether they need to do
