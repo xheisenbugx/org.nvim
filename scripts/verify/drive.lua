@@ -318,6 +318,21 @@ local function write(path, lines)
   f:close()
 end
 
+--- The directories of the tree-sitter parsers Neovim ships, for the child.
+--- Under `make test` the runtimepath is only the plugin and $VIMRUNTIME,
+--- which leaves out lib/nvim/parser (beside share/nvim/runtime): without
+--- it a `lua` buffer's ftplugin (vim.treesitter.start()) fails in the
+--- child and its error blocks it on a Press ENTER prompt.
+local function parser_dirs()
+  local dirs = record.parser_dirs()
+  local runtime = vim.fs.normalize(vim.env.VIMRUNTIME or "")
+  local lib = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(runtime))) .. "/lib/nvim"
+  if runtime ~= "" and vim.uv.fs_stat(lib .. "/parser") and not vim.tbl_contains(dirs, lib) then
+    dirs[#dirs + 1] = lib
+  end
+  return dirs
+end
+
 --- Play scenario `sc`, writing its evidence to `evidence`.
 ---@param sc table
 ---@param evidence string a directory
@@ -346,7 +361,7 @@ function M.run(sc, evidence)
   local ok, err = pcall(function()
     screen =
       Screen.new({ width = sc.width or M.width, height = sc.height or M.height, now = sc.now or M.now, setup = setup })
-    screen:lua(SETUP, record.parser_dirs())
+    screen:lua(SETUP, parser_dirs())
     if sc.open then
       screen:lua(OPEN, dir .. "/" .. sc.open, sc.cursor or vim.NIL)
     end
