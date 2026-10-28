@@ -444,6 +444,8 @@ local function input_keys(keys)
   return table.concat(out)
 end
 
+M.input_keys = input_keys
+
 function Rec:key(keys)
   self:event("i", keys)
   self.screen:input(input_keys(keys))
