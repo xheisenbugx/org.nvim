@@ -329,14 +329,14 @@ describe("extension promotion report", function()
   end)
 
   it("downloads the coverage of the latest Coverage run of dev once, with gh", function()
-    skip_on_windows("the fake gh is a shell script")
     local dir = vim.fn.tempname()
     local bin, log = dir .. "/bin", dir .. "/gh.log"
     fake_exe(
       bin,
       "gh",
       table.concat({
-        'echo "$*" >> ' .. vim.fn.shellescape(log),
+        -- single quotes: a Windows path is safe in them, unlike cmd.exe's quoting
+        'echo "$*" >> \'' .. log .. "'",
         'case "$1 $2" in',
         "  'run list')",
         [[    echo '[{"databaseId":7,"headBranch":"feature","event":"pull_request"},]]
@@ -350,7 +350,7 @@ describe("extension promotion report", function()
     )
     local report_lib = dofile(root .. "/scripts/extension_report.lua")
     local saved = { path = vim.env.PATH, cache = vim.env.XDG_CACHE_HOME }
-    vim.env.PATH = bin .. ":" .. saved.path
+    path_prepend(bin)
     vim.env.XDG_CACHE_HOME = dir .. "/cache"
     local first = report_lib.fetch_coverage()
     local second = report_lib.fetch_coverage()
@@ -372,12 +372,11 @@ describe("extension promotion report", function()
   end)
 
   it("goes on without coverage when gh can't list the runs", function()
-    skip_on_windows("the fake gh is a shell script")
     local dir = vim.fn.tempname()
     fake_exe(dir .. "/bin", "gh", "exit 1")
     local report_lib = dofile(root .. "/scripts/extension_report.lua")
     local saved = vim.env.PATH
-    vim.env.PATH = dir .. "/bin:" .. saved
+    path_prepend(dir .. "/bin")
     local got = report_lib.fetch_coverage()
     vim.env.PATH = saved
     vim.fn.delete(dir, "rf")

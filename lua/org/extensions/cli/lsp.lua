@@ -555,9 +555,9 @@ function M.cmd_lsp(_, _)
         writing = writing - 1
       end)
     else
-      -- stdout is a file
-      run.stdout(str)
-      io.stdout:flush()
+      -- stdout is a file: raw bytes, which Windows' text mode would
+      -- give a \r before every \n
+      vim.uv.fs_write(1, str)
     end
   end
 
@@ -577,9 +577,17 @@ function M.cmd_lsp(_, _)
       end)
     end)
   else
-    -- stdin is a file: all of it, then its end
+    -- stdin is a file: all of it (raw bytes, as for stdout), then its end
     vim.schedule(function()
-      sess.receive(io.stdin:read("*a") or "")
+      local parts = {}
+      while true do
+        local data = vim.uv.fs_read(0, 65536)
+        if not data or data == "" then
+          break
+        end
+        parts[#parts + 1] = data
+      end
+      sess.receive(table.concat(parts))
       sess.eof()
     end)
   end
