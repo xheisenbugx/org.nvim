@@ -141,6 +141,7 @@ M.FLAGS = {
   { key = "output", names = { "-o", "--output" }, value = "FILE", desc = "export to FILE" },
   { key = "stdout", names = { "--stdout" }, desc = "export to stdout" },
   { key = "read_only", names = { "--read-only" }, desc = "no tools that change files" },
+  { key = "stdio", names = { "--stdio" }, desc = "talk on stdin and stdout (the only transport; editors pass it)" },
   { key = "priority", names = { "--priority" }, value = "P", desc = "priority of the new heading (A, B, C, ...)" },
   {
     key = "body",
@@ -620,6 +621,12 @@ M.COMMANDS = {
     name = "mcp",
     summary = "Serve the commands as the tools of an MCP server (JSON-RPC on stdin and stdout) for AI agents",
     flags = { "read_only" },
+    output = { type = "object" },
+  },
+  {
+    name = "lsp",
+    summary = "Serve the lsp extension's language server to an editor (LSP on stdin and stdout)",
+    flags = { "stdio" },
     output = { type = "object" },
   },
   {

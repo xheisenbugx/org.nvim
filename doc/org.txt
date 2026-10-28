@@ -11477,7 +11477,8 @@ The command itself works without the extension: enabling it only adds
 $ORG_NVIM_BIN picks the Neovim binary (default `nvim`).
 
 With the session server on in your Neovim (`remote.enabled`,
-|org-remote|), every command but `export`, `schema` and `version` runs in
+|org-remote|), every command but `export`, `schema`, `version`, `mcp` and
+`lsp` runs in
 that Neovim, on its buffers, its clock and its configuration, and prints
 the same output: a capture or `org set todo` edits the open buffer, and
 `org clock in` starts its clock. With none running, or with
@@ -11674,6 +11675,9 @@ Writing (each saves the files it changed):
 `org mcp [--read-only]`
     Serve the commands to an AI agent as an MCP server, on stdin and
     stdout (|org-extensions-cli-mcp|).
+`org lsp [--stdio]`
+    Serve the language server of the `lsp` extension to an editor other
+    than Neovim, on stdin and stdout (|org-extensions-cli-lsp|).
 
 `org schema [COMMAND]`, `org help [--json]`, `org version`
 
@@ -11891,7 +11895,7 @@ A desktop app may not see your shell's $PATH: give `command` the full
 path of `bin/org` then. Global options go before `mcp` and apply to every
 tool call (`"args": ["--config", "/path/cfg.lua", "mcp"]`).
 
-Every command but `schema`, `help`, `version`, `protocol` and `mcp` is a
+Every command but `schema`, `help`, `version`, `protocol`, `mcp` and `lsp` is a
 tool, named after it with `_` for spaces (`agenda`, `headlines`, `show`,
 `capture`, `clock_in`, `set_todo`, `note`, `refile`, `export`, ...),
 with a description written for the agent: what the tool is for and when
@@ -11940,6 +11944,63 @@ in order, one at a time. Nothing but protocol messages goes to stdout;
 change files (every `writes` command, and `export`, which writes its
 output file); calling one anyway gives an error result. The server
 speaks MCP protocol versions 2025-06-18, 2025-03-26 and 2024-11-05.
+
+Language server for other editors                    *org-extensions-cli-lsp*
+`org lsp` (`--stdio` is accepted and changes nothing: it is the only
+transport) runs the language server of |org-extensions-lsp| as a
+program, for editors that start one: Helix, VS Code, Zed, Emacs, Kakoune.
+It speaks LSP on stdin and stdout (`Content-Length` headers) until the
+editor sends `exit` or closes stdin, and exits 0 after a `shutdown`, 1
+without one. Messages go to stderr, which editors log.
+
+It reads the configuration as every `org` command does (`--config`,
+$ORG_NVIM_CONFIG or `stdpath("config")/org-cli.lua`): `org_directory`,
+`agenda_files`, TODO keywords, and the `extensions.lsp` options if you
+enable it there. The editor's workspace folders join the workspace files
+(references, rename, workspace symbols). A document the editor opens is
+read from what the editor sends, unsaved changes included; other files
+from disk.
+
+Everything the server does in Neovim works, with these differences:
+  - no code lenses, and the code actions are only those that are edits
+    (lint quick fixes, conversions): the commands (TODO state,
+    schedule, refile, ...) run org actions in a Neovim buffer, which the
+    editor wouldn't see;
+  - a rename's edits are applied by the editor, in open and closed
+    files alike (`rename.write_unloaded` doesn't apply);
+  - positions are UTF-8 when the editor offers it (Helix, Neovim), else
+    UTF-16, which every editor takes.
+
+Helix (`~/.config/helix/languages.toml`):
+>toml
+    [language-server.org]
+    command = "org"
+    args = ["lsp", "--stdio"]
+
+    [[language]]
+    name = "org"
+    scope = "source.org"
+    file-types = ["org"]
+    roots = []
+    comment-token = "#"
+    language-servers = ["org"]
+<
+Emacs (eglot):
+>elisp
+    (with-eval-after-load 'eglot
+      (add-to-list 'eglot-server-programs
+                   '(org-mode . ("org" "lsp" "--stdio"))))
+<
+then `M-x eglot` in an Org buffer. VS Code and Zed start language
+servers through extensions: use a generic LSP client extension, with
+the command `org`, the arguments `lsp --stdio` and the `org` language.
+Give the full path of `bin/org` when the editor doesn't see your
+shell's $PATH, and global options before `lsp`
+(`["--config", "/path/cfg.lua", "lsp", "--stdio"]`).
+
+Each `org lsp` is its own Neovim (`nvim --headless`): it answers
+`initialize` within about 0.1 s of starting, then parses the workspace
+in the background as in Neovim.
 
 Options (`extensions.cli`) ~
   `install_dir`        where `cli_install` links `org` ("~/.local/bin")
@@ -12388,7 +12449,8 @@ reads the documents from their buffers, unsaved changes included, and
 other files from disk. Needs Neovim 0.11 or later (tested on 0.11, 0.12
 and nightly). File names are compared with symlinks resolved, so a
 file opened through a symlink gets the edits of a rename in its own
-buffer.
+buffer. Other editors (Helix, VS Code, Zed, Emacs) run the same server
+as a program: `org lsp` (|org-extensions-cli-lsp|).
 
 What it does ~
   documentSymbol   the outline: each headline with its subtree as range,

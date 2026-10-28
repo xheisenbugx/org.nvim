@@ -2,7 +2,7 @@
 ---
 --- A Model Context Protocol server on stdin and stdout (JSON-RPC 2.0,
 --- one message per line) for AI agents: every command of the command line
---- but `schema`, `help`, `version`, `protocol` and `mcp` is a tool, whose
+--- but `schema`, `help`, `version`, `protocol`, `mcp` and `lsp` is a tool, whose
 --- `inputSchema` is the command's `input_schema` (`schema.input_schema`).
 --- A tool call runs `org COMMAND ... --json` in a new Neovim, as the shell
 --- does, so it reads the files as they are on disk, writes them through
@@ -28,8 +28,8 @@ M.PROTOCOLS = { "2025-06-18", "2025-03-26", "2024-11-05" }
 M.TIMEOUT = 600000
 
 -- commands that are no tools: descriptions, the URL handler (it needs a
--- running Neovim's windows) and the server itself
-local NOT_TOOLS = { schema = true, help = true, version = true, protocol = true, mcp = true }
+-- running Neovim's windows), the server itself and the language server
+local NOT_TOOLS = { schema = true, help = true, version = true, protocol = true, mcp = true, lsp = true }
 
 -- flags no tool takes: --force writes over a running Neovim's unsaved
 -- changes (the agent gets file_busy and asks the user), --input reads
@@ -770,22 +770,7 @@ function M.cmd_mcp(_, flags)
   end
   local server = M.server(flags)
   -- nothing but the protocol on stdout
-  local saved_print = _G.print
-  _G.print = function(...)
-    local parts = {}
-    for i = 1, select("#", ...) do
-      parts[i] = tostring((select(i, ...)))
-    end
-    run.stderr(table.concat(parts, "\t") .. "\n")
-  end
-  local saved_write = io.write
-  local function stderr_write(...)
-    for i = 1, select("#", ...) do
-      run.stderr(tostring((select(i, ...))))
-    end
-    return io.stdout
-  end
-  io.write = stderr_write
+  local restore = run.protocol_stdout()
   local ok, e = pcall(function()
     while true do
       local line = M.read_line()
@@ -802,8 +787,7 @@ function M.cmd_mcp(_, flags)
       end
     end
   end)
-  _G.print = saved_print
-  io.write = saved_write
+  restore()
   if not ok then
     error(e, 0)
   end
