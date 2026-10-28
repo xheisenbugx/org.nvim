@@ -5,6 +5,18 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 if (vim.env.ORG_COVERAGE_DIR or "") ~= "" then
   package.loaded["tests.coverage"] = dofile(root .. "/tests/coverage.lua")
   package.loaded["tests.coverage"].start(vim.env.ORG_COVERAGE_DIR)
+  -- the `org` command line runs in a Neovim of its own (bin/org): start it
+  -- through tests/cli_coverage.lua, so its lines count too
+  local bin = vim.fs.normalize(root .. "/bin/org")
+  local system = vim.system
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.system = function(cmd, opts, on_exit)
+    if type(cmd) == "table" and type(cmd[1]) == "string" and vim.fs.normalize(cmd[1]) == bin then
+      local nvim = opts and opts.env and opts.env.ORG_NVIM_BIN or vim.v.progpath
+      cmd = vim.list_extend({ nvim, "--headless", "-l", root .. "/tests/cli_coverage.lua" }, cmd, 2)
+    end
+    return system(cmd, opts, on_exit)
+  end
 end
 vim.opt.rtp = { root, vim.env.VIMRUNTIME }
 -- never reach a session server of the user's own Neovim (:h org-remote):
