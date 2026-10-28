@@ -466,7 +466,14 @@ function Screen:snapshot()
   local prev
   while true do
     self.links = self:lua(FLATTEN)
-    self:cmd("redraw")
+    -- not on the command line or at a prompt (confirm(), inputlist(),
+    -- input(), Press ENTER): it is drawn already, and Neovim 0.11.0
+    -- clears the message lines above the prompt on :redraw (there
+    -- confirm() is mode "c", later ones "r?")
+    local mode = self:request("nvim_get_mode").mode
+    if not (mode == "c" or mode:sub(1, 1) == "r") then
+      self:cmd("redraw")
+    end
     local flushes = self.flushes
     -- the redraw's events come before its answer; one more round trip
     -- lets scheduled callbacks in the child run

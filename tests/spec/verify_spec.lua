@@ -71,6 +71,17 @@ describe("verify driver", function()
     ok(res.steps[1].why:find("a.org is", 1, true), res.steps[1].why)
   end)
 
+  it("reads a file written with CRLF line ends as its lines", function()
+    local res = run({
+      name = "crlf",
+      steps = {
+        { lua = [[vim.fn.writefile({ "* One\r", "body\r" }, (...) .. "/dos.org")]] },
+        { expect = { file = { "dos.org", lines = { "* One", "body" } } } },
+      },
+    })
+    ok(res.ok, why(res))
+  end)
+
   it("fails a step that leaves an error, unless it allows one", function()
     local notify = [[vim.notify("broken", vim.log.levels.ERROR)]]
     local res = run({ name = "error", steps = { { lua = notify } } })

@@ -216,6 +216,9 @@ local function list(v)
   return type(v) == "table" and v or { v }
 end
 
+--- The lines of a file, without their line ends. A CR before the LF is
+--- left out too: on Windows a new file written by `:write` (a `cmd`
+--- step) gets 'fileformat' dos, as it does for a user.
 local function read_file(path)
   local f = io.open(path, "rb")
   if not f then
@@ -223,7 +226,7 @@ local function read_file(path)
   end
   local s = f:read("*a")
   f:close()
-  return vim.split((s:gsub("\n$", "")), "\n", { plain = true })
+  return vim.split((s:gsub("\r?\n$", "")), "\r?\n")
 end
 
 --- Why `expect` doesn't hold (nil when it does).
