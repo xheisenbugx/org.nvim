@@ -1228,8 +1228,9 @@ of this for its scenarios.
   Neovim v0.11.0, stable and nightly (nightly may fail without blocking),
   and on macOS and Windows against stable, plus `make lint` (stylua and
   the source lint rules), `make typecheck`
-  and a helptags check; after editing `doc/org.txt`, run
-  `nvim --headless -u NONE -c "helptags doc" -c q`. A pull request that
+  and a helptags check, which fails on an `E154: Duplicate tag`; after
+  editing `doc/org.txt`, run `nvim --headless -u NONE -c "helptags doc" -c q`
+  and look for that error (it doesn't change the exit status there). A pull request that
   changes the docs also builds the website. Pushes don't run CI.
 - The Fuzz and Difftest (nightly) and Coverage (weekly) workflows test `dev`. GitHub
   starts scheduled workflows from the default branch, `main`, so a change
