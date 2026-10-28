@@ -349,6 +349,86 @@ describe("agenda index", function()
       ok(index.wait())
       eq(nil, files.cached(path, assert(vim.uv.fs_stat(path))))
     end)
+
+    --- Start the background and wait until it has read a file it has not
+    --- parsed yet.
+    local function read_ahead()
+      set_index({ background = true })
+      index.start()
+      ok(vim.wait(5000, function()
+        return index.status().ready > 0
+      end, 0))
+    end
+
+    it("gives a view built half way the files it has read, not read twice", function()
+      local want = reference()
+      read_ahead()
+      local taken = index.status().taken
+      eq_views(want, views())
+      ok(index.status().taken > taken)
+      ok(index.wait())
+      eq_views(want, views())
+    end)
+
+    it("reads a file changed since the background read it again", function()
+      read_ahead()
+      local taken = index.status().taken
+      for _, p in ipairs(files.agenda_file_paths()) do
+        local lines = vim.fn.readfile(p)
+        table.insert(lines, "* TODO Changed after the read :work:")
+        vim.fn.writefile(lines, p)
+      end
+      local got = views()
+      eq(taken, index.status().taken)
+      ok(table.concat(got.tags, "\n"):find("Changed after the read", 1, true) ~= nil)
+      eq_views(reference(), got)
+    end)
+
+    describe("start", function()
+      after_each(function()
+        set_index()
+        index.setup()
+      end)
+
+      it('starts without an org buffer with "startup"', function()
+        vim.cmd("silent! %bwipeout!")
+        set_index({ background = true, start = "startup" })
+        local indexed = index.status().indexed
+        index.setup()
+        -- not during setup(): a moment after
+        eq(false, index.status().warming)
+        ok(vim.wait(5000, function()
+          return index.status().indexed > indexed
+        end, 10))
+        ok(index.wait())
+        eq(#files.agenda_file_paths(), index.status().indexed - indexed)
+      end)
+
+      it('waits for an org buffer with "org_buffer"', function()
+        vim.cmd("silent! %bwipeout!")
+        set_index({ background = true, start = "org_buffer" })
+        local indexed = index.status().indexed
+        index.setup()
+        vim.wait(800)
+        eq(false, index.status().warming)
+        eq(indexed, index.status().indexed)
+        vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/home.org"))
+        ok(vim.wait(5000, function()
+          return index.status().indexed > indexed
+        end, 10))
+        ok(index.wait())
+      end)
+
+      it("does nothing without background parsing", function()
+        vim.cmd("silent! %bwipeout!")
+        set_index({ background = false, start = "startup" })
+        local indexed = index.status().indexed
+        index.setup()
+        vim.wait(800)
+        eq(false, index.status().warming)
+        eq(indexed, index.status().indexed)
+      end)
+    end)
   end)
 
   -- agenda.index.threads: the background parses each file's outline on

@@ -139,10 +139,20 @@ function M.load_state()
   if type(s) ~= "table" or not s.started then
     return nil
   end
-  s.notes = type(s.notes) == "table" and s.notes or {}
+  -- a damaged file: only answers that are text, counts that are numbers
+  local function only(t, kind)
+    local out = {}
+    for k, v in pairs(type(t) == "table" and t or {}) do
+      if type(v) == kind then
+        out[k] = v
+      end
+    end
+    return out
+  end
+  s.notes = only(s.notes, "string")
   s.skipped = type(s.skipped) == "table" and s.skipped or {}
-  s.stats = vim.tbl_extend("keep", type(s.stats) == "table" and s.stats or {}, new_state().stats)
-  s.counts = type(s.counts) == "table" and s.counts or {}
+  s.stats = vim.tbl_extend("keep", only(s.stats, "number"), new_state().stats)
+  s.counts = only(s.counts, "number")
   return s
 end
 
@@ -1081,15 +1091,17 @@ function M.finish()
   end
   local o = opts()
   local lines = M.entry_lines(s)
+  -- kept until the entry is logged
+  save_state()
   local origin = s.origin_win
   close_window()
   M.session = nil
-  M.clear_state()
   if origin and vim.api.nvim_win_is_valid(origin) then
     vim.api.nvim_set_current_win(origin)
   end
   local capture = require("org.capture")
   if o.capture_template then
+    M.clear_state()
     return capture.capture(o.capture_template, { initial = table.concat(vim.list_slice(lines, 2), "\n") })
   end
   local tpl = {
@@ -1100,6 +1112,8 @@ function M.finish()
   -- a date tree starts a new file with an empty line (like Emacs): not
   -- the review log's first line
   local path = log_path()
+  -- a log in a directory that doesn't exist yet
+  pcall(vim.fn.mkdir, vim.fs.dirname(path), "p")
   local fresh = vim.fn.getfsize(path) <= 0
   local lbuf = utils.find_buffer(path)
   if lbuf then
@@ -1108,9 +1122,11 @@ function M.finish()
   end
   local bufnr, line = capture.store(tpl, lines, { date = date.today() })
   if not bufnr then
+    -- the saved state stays: `:Org review` resumes it
     utils.warn("The review could not be logged")
     return
   end
+  M.clear_state()
   local changed = false
   if fresh and vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] == "" and line > 1 then
     vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, {})

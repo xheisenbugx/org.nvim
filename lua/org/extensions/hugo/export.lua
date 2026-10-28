@@ -830,7 +830,8 @@ function M.export_file(o)
   local filename = vim.api.nvim_buf_get_name(bufnr)
   local kw = ox.collect_keywords(lines, nil, nil, nil, filename ~= "" and filename or nil)
   local name = filename ~= "" and vim.fn.fnamemodify(filename, ":t") or vim.fn.bufname(bufnr)
-  if not kw.TITLE then
+  -- a #+title with nothing but spaces parses to no title in Emacs too
+  if not nw(table.concat(kw.TITLE or {}, " ")) then
     local msg =
       fmt("[hugo] %s: the entire file is attempted to be exported, but it is missing the #+title keyword", name)
     if o.noerror then

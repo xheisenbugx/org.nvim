@@ -18,7 +18,7 @@ local err = shared.err
 --- calls each run `org`, and so go there one by one).
 M.SESSION_COMMANDS = {}
 for name in pairs(M.COMMANDS) do
-  if name ~= "export" and name ~= "schema" and name ~= "version" and name ~= "mcp" then
+  if name ~= "export" and name ~= "schema" and name ~= "version" and name ~= "mcp" and name ~= "lsp" then
     M.SESSION_COMMANDS[name] = true
   end
 end

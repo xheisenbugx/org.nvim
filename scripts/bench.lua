@@ -9,8 +9,8 @@
 --   make bench ARGS="--json"            # the numbers as JSON
 --
 -- Every measurement runs in a Neovim of its own (a new session), the
--- agenda ones with `agenda.index.background` and `watch` off, so what is
--- timed is the view itself:
+-- agenda ones with `agenda.index.background` and `watch` off (but the last
+-- one), so what is timed is the view itself:
 --
 --   cold week     a week agenda, no agenda index on disk: every file read
 --                 and parsed
@@ -20,6 +20,9 @@
 --   TODO list     every TODO entry (after the week)
 --   refresh       the week rebuilt (`r`) after one file was edited
 --                 and saved
+--   background    the week once the background parse is done, with
+--                 `agenda.index.start = "startup"` and the index on disk:
+--                 the first agenda of a session that waited a moment
 --
 -- See "Performance budgets" in CONTRIBUTING.md.
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
@@ -53,10 +56,11 @@ local function child(scenario, dir)
   vim.opt.shadafile = "NONE"
   vim.env.ORG_NVIM_SERVER = "none"
   vim.cmd("runtime plugin/org.lua")
-  require("org").setup({
-    agenda_files = { dir },
-    agenda = { index = { background = false, watch = false } },
-  })
+  local idx = { background = false, watch = false }
+  if scenario == "background" then
+    idx = { start = "startup", watch = false }
+  end
+  require("org").setup({ agenda_files = { dir }, agenda = { index = idx } })
   local files = require("org.files")
   local index = require("org.agenda.index")
   local agenda = require("org.agenda")
@@ -85,6 +89,17 @@ local function child(scenario, dir)
   elseif scenario == "cold" then
     os.remove(index.path())
     timed("cold_week", week)
+  elseif scenario == "background" then
+    -- (the background starts half a second after startup, later on a
+    -- busy machine)
+    vim.wait(10000, function()
+      local st = index.status()
+      return st.warming or st.hits + st.indexed > 0
+    end, 10)
+    assert(index.wait(5 * 60 * 1000), "the background parse did not finish")
+    local st = index.status()
+    assert(st.hits + st.indexed > 0, "the background parse did not start")
+    timed("background_week", week)
   elseif scenario == "warm" then
     timed("warm_week", week)
     timed("hot_week", week)
@@ -202,6 +217,7 @@ local function parent()
   bench("index")
   for _ = 1, runs do
     add(bench("warm"))
+    add(bench("background"))
   end
   vim.fn.delete(dir, "rf")
 
@@ -214,6 +230,7 @@ local function parent()
     { 'tags match "+work-home"', "tags" },
     { "TODO list", "todo" },
     { "refresh the week after editing one file", "refresh" },
+    { "week agenda after the background parse (start = startup)", "background_week" },
   }
   local info = machine()
   local result = { machine = info, runs = runs, files = nfiles, headlines = headlines, ms = {} }

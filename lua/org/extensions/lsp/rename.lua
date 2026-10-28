@@ -80,6 +80,10 @@ local function validate(subject, new)
   if (k == "custom_id" or k == "id" or k == "footnote") and new:find("%s") then
     return "The new name cannot contain blanks"
   end
+  -- `[[#a]]b]]` would end the link early
+  if (k == "custom_id" or k == "id") and new:find("[%[%]]") then
+    return "The new name cannot contain '[' or ']'"
+  end
   if k == "footnote" and new:find("[%]:]") then
     return "A footnote label cannot contain ']' or ':'"
   end

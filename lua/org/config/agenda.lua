@@ -275,6 +275,10 @@ local defaults = {
       --- Parse the agenda files in the background from the first org
       --- buffer; false: when a view needs them (and add them to the index).
       background = true,
+      --- When that background parse starts: "org_buffer" (the first org
+      --- buffer or agenda view) or "startup" (soon after Neovim starts, so
+      --- that an agenda opened before any org file finds the files parsed).
+      start = "org_buffer",
       --- Worker threads that parse agenda files in the background, off
       --- the main loop (0: parse them on the main loop, a slice at a time).
       threads = 2,

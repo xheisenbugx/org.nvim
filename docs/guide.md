@@ -1040,7 +1040,8 @@ each one stands.
   JSON in which every heading carries a `target` to pass back, and it
   offers `plan_day`, `weekly_review` and `triage_inbox` prompts. With the
   [session server](#session-server) on, its commands run in your open
-  Neovim instead of on the files.
+  Neovim instead of on the files. `org lsp --stdio` is the `lsp`
+  extension's language server for editors other than Neovim (below).
 
   ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/org-cli.gif)
 
@@ -1083,6 +1084,25 @@ each one stands.
   actions (schedule, refile, archive, lint quick fixes) and a rename of a
   headline, CUSTOM_ID, ID or target that rewrites every link to it across
   files, something Emacs can't do (`:h org-extensions-lsp`).
+  Other editors get the same server as a program: `org lsp --stdio`
+  from the [`cli` extension](#-extensions) speaks LSP on stdin and
+  stdout, so Helix, Emacs (eglot), VS Code and Zed (through a generic LSP
+  client) see your Org files the same way (`:h org-extensions-cli-lsp`).
+  For Helix, in `~/.config/helix/languages.toml`:
+
+  ```toml
+  [language-server.org]
+  command = "org"
+  args = ["lsp", "--stdio"]
+
+  [[language]]
+  name = "org"
+  scope = "source.org"
+  file-types = ["org"]
+  roots = []
+  comment-token = "#"
+  language-servers = ["org"]
+  ```
 
   ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lsp.gif)
 

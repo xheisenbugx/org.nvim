@@ -14,7 +14,8 @@
 --- headlines, show), info (templates, files, tags, keywords, schema,
 --- version), capture (capture and protocol), clock, export and session
 --- (the session server). The write commands are in write.lua, the MCP
---- server (`org mcp`) in mcp.lua.
+--- server (`org mcp`) in mcp.lua, the language server (`org lsp`) in
+--- lsp.lua.
 
 local schema = require("org.extensions.cli.schema")
 local shared = require("org.extensions.cli.shared")
@@ -62,6 +63,8 @@ Write (never prompt; --force writes over unsaved changes in a running Neovim):
 
   mcp [--read-only]   the commands as the tools of an MCP server for AI
                       agents (JSON-RPC on stdin and stdout)
+  lsp [--stdio]       the language server of the lsp extension for any
+                      editor (LSP on stdin and stdout)
 
   schema [COMMAND] | help [--json] | version
 
@@ -114,6 +117,32 @@ M.stdout = function(s)
 end
 M.stderr = function(s)
   io.stderr:write(s)
+end
+
+--- For a server whose protocol is stdout (`org mcp`, `org lsp`): send
+--- `print()` and `io.write()` to stderr. Returns the function that puts
+--- them back.
+---@return fun()
+function M.protocol_stdout()
+  local saved_print, saved_write = _G.print, io.write
+  _G.print = function(...)
+    local parts = {}
+    for i = 1, select("#", ...) do
+      parts[i] = tostring((select(i, ...)))
+    end
+    M.stderr(table.concat(parts, "\t") .. "\n")
+  end
+  local function stderr_write(...)
+    for i = 1, select("#", ...) do
+      M.stderr(tostring((select(i, ...))))
+    end
+    return io.stdout
+  end
+  io.write = stderr_write
+  return function()
+    _G.print = saved_print
+    io.write = saved_write
+  end
 end
 
 -- One table for the run's lifetime (the parts hold it), reset in place
@@ -242,6 +271,9 @@ M.COMMANDS = {
   export = M.cmd_export,
   mcp = function(...)
     return require("org.extensions.cli.mcp").cmd_mcp(...)
+  end,
+  lsp = function(...)
+    return require("org.extensions.cli.lsp").cmd_lsp(...)
   end,
   schema = M.cmd_schema,
   version = M.cmd_version,

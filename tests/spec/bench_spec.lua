@@ -25,7 +25,17 @@ describe("make bench", function()
     local r = vim.json.decode(lines[#lines])
     eq(3, r.files)
     eq(120, r.headlines)
-    for _, key in ipairs({ "setup_ms", "open_ms", "cold_week", "warm_week", "hot_week", "tags", "todo", "refresh" }) do
+    for _, key in ipairs({
+      "setup_ms",
+      "open_ms",
+      "cold_week",
+      "warm_week",
+      "hot_week",
+      "tags",
+      "todo",
+      "refresh",
+      "background_week",
+    }) do
       ok(type(r.ms[key]) == "number" and r.ms[key] > 0, key .. ": " .. vim.inspect(r.ms[key]))
     end
   end)

@@ -328,6 +328,61 @@ describe("extension promotion report", function()
     eq(exts.builtin(), options)
   end)
 
+  it("downloads the coverage of the latest Coverage run of dev once, with gh", function()
+    local dir = vim.fn.tempname()
+    local bin, log = dir .. "/bin", dir .. "/gh.log"
+    fake_exe(
+      bin,
+      "gh",
+      table.concat({
+        -- single quotes: a Windows path is safe in them, unlike cmd.exe's quoting
+        'echo "$*" >> \'' .. log .. "'",
+        'case "$1 $2" in',
+        "  'run list')",
+        [[    echo '[{"databaseId":7,"headBranch":"feature","event":"pull_request"},]]
+          .. [[{"databaseId":42,"headBranch":"dev","event":"push"}]' ;;]],
+        "  'run download')",
+        '    mkdir -p "$7"',
+        [[    printf '| `org.extensions.heatmap` | 50.0%% | 50 | 100 |\n' > "$7/report.md" ;;]],
+        "  *) exit 1 ;;",
+        "esac",
+      }, "\n")
+    )
+    local report_lib = dofile(root .. "/scripts/extension_report.lua")
+    local saved = { path = vim.env.PATH, cache = vim.env.XDG_CACHE_HOME }
+    path_prepend(bin)
+    vim.env.XDG_CACHE_HOME = dir .. "/cache"
+    local first = report_lib.fetch_coverage()
+    local second = report_lib.fetch_coverage()
+    local mods = first and report_lib.load_coverage(first)
+    vim.env.PATH, vim.env.XDG_CACHE_HOME = saved.path, saved.cache
+    -- the dev run, not the pull request's
+    ok(first and first:find("/org%-extension%-report/42$"), tostring(first))
+    eq(first, second)
+    eq({ lines = 100, hit = 50 }, mods and mods["org.extensions.heatmap"])
+    local calls = vim.fn.readfile(log)
+    vim.fn.delete(dir, "rf")
+    -- listed twice, downloaded once
+    eq(2, #vim.tbl_filter(function(l)
+      return l:match("^run list")
+    end, calls))
+    eq(1, #vim.tbl_filter(function(l)
+      return l:match("^run download 42 ")
+    end, calls))
+  end)
+
+  it("goes on without coverage when gh can't list the runs", function()
+    local dir = vim.fn.tempname()
+    fake_exe(dir .. "/bin", "gh", "exit 1")
+    local report_lib = dofile(root .. "/scripts/extension_report.lua")
+    local saved = vim.env.PATH
+    path_prepend(dir .. "/bin")
+    local got = report_lib.fetch_coverage()
+    vim.env.PATH = saved
+    vim.fn.delete(dir, "rf")
+    eq(nil, got)
+  end)
+
   it("rejects an extension that doesn't exist", function()
     local res = vim
       .system(
