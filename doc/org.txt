@@ -3504,11 +3504,11 @@ removed. `$ORG_NVIM_SERVER` overrides the address for the server and its
 clients, and `ORG_NVIM_SERVER=none` turns it off.
 
 What goes there:
-- every command of the `org` command line but `export`, `schema` and
-  `version` (|org-extensions-cli|): a capture lands in the open buffer
-  (one undo step takes it back), `org clock in` starts that Neovim's
-  clock, `org set todo` changes the buffer, `org agenda` sees unsaved
-  changes. A file with unsaved changes there is changed in its buffer but
+- every command of the `org` command line but `export`, `schema`,
+  `version`, `mcp` and `lsp` (|org-extensions-cli|): a capture lands in
+  the open buffer (one undo step takes it back), `org clock in` starts
+  that Neovim's clock, `org set todo` changes the buffer, `org agenda`
+  sees unsaved changes. A file with unsaved changes there is changed in its buffer but
   not saved; other files are saved as before. Agendas are built aside:
   your agenda windows stay as they are. `--no-server`, `--config`,
   `--files` and `--dir` run the command in its own process instead.
@@ -10643,7 +10643,9 @@ headline. A new log file starts with its date tree, without the empty
 first line an Emacs date tree leaves. With `capture_template` set to
 a template key, the review is captured with that template instead, the
 summary being its initial text (`%i`), so it can be edited before it is
-stored. The saved progress is then forgotten.
+stored. The saved progress is forgotten once the entry is stored; if it
+can't be stored, `:Org review` picks the review up again. A missing
+directory of `log_file` is created.
 
 Custom steps ~
 `steps` lists the steps in order. An entry is a builtin name, a builtin
@@ -11951,7 +11953,9 @@ transport) runs the language server of |org-extensions-lsp| as a
 program, for editors that start one: Helix, VS Code, Zed, Emacs, Kakoune.
 It speaks LSP on stdin and stdout (`Content-Length` headers) until the
 editor sends `exit` or closes stdin, and exits 0 after a `shutdown`, 1
-without one. Messages go to stderr, which editors log.
+without one. Messages go to stderr, which editors log. It takes no
+`--json` or `--jsonl` (the protocol is already JSON), and it doesn't run
+in a session (|org-remote|): it always starts its own Neovim.
 
 It reads the configuration as every `org` command does (`--config`,
 $ORG_NVIM_CONFIG or `stdpath("config")/org-cli.lua`): `org_directory`,
