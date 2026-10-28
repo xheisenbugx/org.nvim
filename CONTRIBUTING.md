@@ -1001,8 +1001,10 @@ priorities, tags, SCHEDULED and DEADLINE dates around 2026-05-13 with
 times, repeaters and warnings, habits, properties, clocks and plain
 timestamps, the same every time). Each measurement runs in a new Neovim
 with throwaway data and cache directories, `agenda.index.background` and
-`watch` off. `tests/spec/bench_spec.lua` runs it on a tiny corpus so
-that it keeps working. Numbers from Neovim 0.13.0-dev on an Apple M1
+`watch` off, but the last row: the week once the background parse
+started at startup (`agenda.index.start = "startup"`) is done, the first
+agenda of a session that waited a moment. `tests/spec/bench_spec.lua`
+runs it on a tiny corpus so that it keeps working. Numbers from Neovim 0.13.0-dev on an Apple M1
 Ultra (20 threads, 128 GB, macOS 26, load average about 10 from other
 jobs), medians of 5:
 
