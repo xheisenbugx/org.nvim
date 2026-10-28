@@ -91,7 +91,7 @@ local S = {
   changed = {}, ---@type table<string, boolean> paths reported by watchers
   rescan = false, -- a watcher saw a file come or go
   announce = false, -- say when the queue is done (a rebuild)
-  stats = { hits = 0, misses = 0, indexed = 0, threaded = 0, saved = nil, error = nil },
+  stats = { hits = 0, misses = 0, indexed = 0, threaded = 0, taken = 0, saved = nil, error = nil },
 }
 
 ---------------------------------------------------------------------------
@@ -582,6 +582,28 @@ function M.parsed(path, st, file)
   end)
   if not ok then
     S.stats.error = tostring(err)
+  end
+end
+
+--- The text of `path` if the background has read it and not parsed it
+--- yet, when it is still that of the file whose fs_stat is `st`: a view
+--- built while the background is at work (org.files) takes it instead of
+--- reading the file again, and parses it as any file it reads itself.
+---@param path string
+---@param st uv.fs_stat.result
+---@return string[]|nil lines
+function M.take_read(path, st)
+  local ready = S.ready
+  for i = 1, #ready do
+    local item = ready[i]
+    if item.path == path then
+      table.remove(ready, i)
+      if same_stat(item.st, st) then
+        S.stats.taken = S.stats.taken + 1
+        return utils.split_content(item.data)
+      end
+      return nil
+    end
   end
 end
 
@@ -1092,6 +1114,8 @@ function M.status()
     threads = workers(),
     working = S.working,
     threaded = S.stats.threaded,
+    ready = #S.ready,
+    taken = S.stats.taken,
     thread_error = S.thread_error,
     watchers = vim.tbl_count(S.watchers),
     polled = vim.tbl_count(S.polled),
@@ -1104,7 +1128,7 @@ function M.status()
 end
 
 --- Install the autocmds (setup()): start in the background on the first
---- org buffer, save on exit.
+--- org buffer, or after startup (`agenda.index.start`), save on exit.
 function M.setup()
   local group = vim.api.nvim_create_augroup("org.agenda_index", { clear = true })
   M.stop()
@@ -1124,8 +1148,16 @@ function M.setup()
     return
   end
   local function start_soon()
-    -- after what opened the buffer is done
+    -- after what opened the buffer (or started Neovim) is done
     vim.defer_fn(M.start, 500)
+  end
+  if opts().start == "startup" then
+    if vim.v.vim_did_enter == 1 then
+      start_soon()
+    else
+      vim.api.nvim_create_autocmd("VimEnter", { group = group, once = true, callback = start_soon })
+    end
+    return
   end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then

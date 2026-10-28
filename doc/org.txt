@@ -2019,6 +2019,15 @@ are parsed, never what a view shows. Options under `agenda.index`:
                          a few milliseconds at a time, so that the first
                          view finds them parsed. false: files are parsed
                          (and added to the index) when a view needs them.
+  start          "org_buffer"
+                         when that background parse starts: "org_buffer"
+                         (the first org buffer or agenda view), or
+                         "startup": half a second after Neovim starts,
+                         for an agenda opened before any org file (a
+                         dashboard key, `nvim +"Org agenda"`). Not the
+                         default: a Neovim started for other work
+                         (a commit message, a quick edit) would read
+                         every agenda file for nothing.
   threads        2       worker threads for that background parse: each
                          file's outline is found in Neovim's main loop,
                          the rest of it (headline parts, planning,
@@ -2043,7 +2052,8 @@ are parsed, never what a view shows. Options under `agenda.index`:
   poll_interval  30      ... every this many seconds (0: never).
 
 A view built before the background is done is still complete: it parses
-what is left itself, taking what it can from the index. The index is only
+what is left itself, taking what it can from the index, and the text of
+the files the background has read already. The index is only
 used for the same file: same modification and change time, same size,
 same lines, under the same options (`todo_keywords`, `log_into_drawer`,
 `inlinetask_min_level`, `property_separators`) and version of org.nvim;
@@ -7867,8 +7877,9 @@ agenda ~
   query_register "o", restriction_lock_highlight_subtree true,
   window_frame_fractions { 0.5, 0.75 },
   columns_add_appointments_to_effort_sum false,
-  index { enabled true, cache true, background true, threads 2, watch true,
-  max_watchers 32, poll_interval 30 } (|org-agenda-index|)
+  index { enabled true, cache true, background true, start "org_buffer",
+  threads 2, watch true, max_watchers 32, poll_interval 30 }
+  (|org-agenda-index|)
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
