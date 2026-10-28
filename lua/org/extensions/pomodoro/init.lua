@@ -133,7 +133,7 @@ local function relocate(st)
     return false
   end
   st.bufnr = b
-  st.mark = vim.api.nvim_buf_set_extmark(b, ns, hl.line - 1, 0, {})
+  st.mark = vim.api.nvim_buf_set_extmark(b, ns, hl.line - 1, 0, { invalidate = true })
   return true
 end
 
@@ -144,7 +144,12 @@ local function entry_line(st)
   end
   local pos
   if st.bufnr and st.mark and vim.api.nvim_buf_is_loaded(st.bufnr) then
-    pos = vim.api.nvim_buf_get_extmark_by_id(st.bufnr, ns, st.mark, {})
+    pos = vim.api.nvim_buf_get_extmark_by_id(st.bufnr, ns, st.mark, { details = true })
+    -- its line was deleted: the mark would sit on the next heading
+    if pos[3] and pos[3].invalid then
+      pcall(vim.api.nvim_buf_del_extmark, st.bufnr, ns, st.mark)
+      st.mark, pos = nil, nil
+    end
   end
   if not (pos and pos[1]) then
     if not relocate(st) then
@@ -535,7 +540,7 @@ function M.start(target)
     duration = 0,
     count = st and st.count or 0,
     bufnr = bufnr,
-    mark = vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, 0, {}),
+    mark = vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, 0, { invalidate = true }),
     path = vim.api.nvim_buf_get_name(bufnr) ~= "" and vim.api.nvim_buf_get_name(bufnr) or nil,
     title = hl:plain_title(),
   }
