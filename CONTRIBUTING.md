@@ -1069,10 +1069,12 @@ make extensions-report   # ARGS="--markdown", "--json", "--no-gh", or names
 
 Coverage is read from `coverage/` when `make coverage` has run (its
 `coverage.json`, `report.md` or `counts/`); `ARGS="--coverage PATH"` or
-`ORG_COVERAGE=PATH` point at another, such as the `coverage` artifact of
-the latest Coverage workflow run (`gh run download ID --name coverage
---dir DIR`). Without any, coverage shows `?` and the report says how to
-get it.
+`ORG_COVERAGE=PATH` point at another. Without either, the report
+downloads the `coverage` artifact of the latest Coverage workflow run
+that tested `dev` with `gh` (once per run, kept under
+`stdpath("cache")/org-extension-report/`; `--no-fetch` or `--no-gh`
+turn that off). Without any, coverage shows `?` and the report says how
+to get it.
 
 `scripts/extension_report.lua` measures each criterion below for every
 extension and lists the candidates (experimental extensions that pass all
