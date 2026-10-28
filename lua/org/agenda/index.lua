@@ -67,7 +67,9 @@ local S = {
   head = 1,
   queued = {}, ---@type table<string, boolean>
   stated = {}, ---@type { path: string, st: uv.fs_stat.result|nil }[]
-  ready = {}, ---@type { path: string, st: uv.fs_stat.result, data: string }[]
+  ready = {}, ---@type { path: string, st: uv.fs_stat.result, data: string, taken: boolean? }[]
+  -- the item of S.ready for each path, for take_read
+  ready_by = {}, ---@type table<string, table>
   in_flight = 0,
   -- parses in worker threads: id -> what to do with the result
   ---@type table<integer, { path: string, st: uv.fs_stat.result, file: org.File, gen: integer }>
@@ -91,7 +93,7 @@ local S = {
   changed = {}, ---@type table<string, boolean> paths reported by watchers
   rescan = false, -- a watcher saw a file come or go
   announce = false, -- say when the queue is done (a rebuild)
-  stats = { hits = 0, misses = 0, indexed = 0, threaded = 0, saved = nil, error = nil },
+  stats = { hits = 0, misses = 0, indexed = 0, threaded = 0, taken = 0, saved = nil, error = nil },
 }
 
 ---------------------------------------------------------------------------
@@ -585,6 +587,28 @@ function M.parsed(path, st, file)
   end
 end
 
+--- The text of `path` if the background has read it and not parsed it
+--- yet, when it is still that of the file whose fs_stat is `st`: a view
+--- built while the background is at work (org.files) takes it instead of
+--- reading the file again, and parses it as any file it reads itself.
+---@param path string
+---@param st uv.fs_stat.result
+---@return string[]|nil lines
+function M.take_read(path, st)
+  -- a lookup, not a scan of S.ready: a view asks for every agenda file
+  local item = S.ready_by[path]
+  if not item then
+    return nil
+  end
+  S.ready_by[path] = nil
+  -- the background skips it
+  item.taken = true
+  if same_stat(item.st, st) then
+    S.stats.taken = S.stats.taken + 1
+    return utils.split_content(item.data)
+  end
+end
+
 ---------------------------------------------------------------------------
 -- The background
 ---------------------------------------------------------------------------
@@ -637,7 +661,9 @@ local function read_async(path, st)
       return
     end
     if data then
-      S.ready[#S.ready + 1] = { path = path, st = st, data = data }
+      local item = { path = path, st = st, data = data }
+      S.ready[#S.ready + 1] = item
+      S.ready_by[path] = item
     end
     vim.schedule(function()
       if retry then
@@ -781,6 +807,7 @@ end
 function pump()
   if not background() then
     S.queue, S.head, S.queued, S.stated, S.ready, S.done, S.warming = {}, 1, {}, {}, {}, {}, false
+    S.ready_by = {}
     return
   end
   local deadline = uv.hrtime() + SLICE_MS * 1e6
@@ -824,9 +851,15 @@ function pump()
   local n = workers()
   while #S.ready > 0 and uv.hrtime() < deadline and (n == 0 or S.working < n) do
     local item = table.remove(S.ready, 1)
-    local ok, err = pcall(parse_ready, item, n > 0)
-    if not ok then
-      S.stats.error = tostring(err)
+    if S.ready_by[item.path] == item then
+      S.ready_by[item.path] = nil
+    end
+    -- taken by a view (take_read) already
+    if not item.taken then
+      local ok, err = pcall(parse_ready, item, n > 0)
+      if not ok then
+        S.stats.error = tostring(err)
+      end
     end
   end
   -- files read wait for a worker to be free, which wakes the background
@@ -1019,6 +1052,7 @@ function M.stop()
     stop_timer(name)
   end
   S.queue, S.head, S.queued, S.stated, S.ready, S.done = {}, 1, {}, {}, {}, {}
+  S.ready_by = {}
   S.warming, S.changed, S.rescan, S.announce = false, {}, false, false
   S.gen = S.gen + 1
 end
@@ -1092,6 +1126,8 @@ function M.status()
     threads = workers(),
     working = S.working,
     threaded = S.stats.threaded,
+    ready = #S.ready,
+    taken = S.stats.taken,
     thread_error = S.thread_error,
     watchers = vim.tbl_count(S.watchers),
     polled = vim.tbl_count(S.polled),
@@ -1104,7 +1140,7 @@ function M.status()
 end
 
 --- Install the autocmds (setup()): start in the background on the first
---- org buffer, save on exit.
+--- org buffer, or after startup (`agenda.index.start`), save on exit.
 function M.setup()
   local group = vim.api.nvim_create_augroup("org.agenda_index", { clear = true })
   M.stop()
@@ -1124,8 +1160,16 @@ function M.setup()
     return
   end
   local function start_soon()
-    -- after what opened the buffer is done
+    -- after what opened the buffer (or started Neovim) is done
     vim.defer_fn(M.start, 500)
+  end
+  if opts().start == "startup" then
+    if vim.v.vim_did_enter == 1 then
+      start_soon()
+    else
+      vim.api.nvim_create_autocmd("VimEnter", { group = group, once = true, callback = start_soon })
+    end
+    return
   end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then

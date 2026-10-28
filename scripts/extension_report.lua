@@ -14,9 +14,15 @@
 --                       `coverage` artifact of the Coverage workflow:
 --                       gh run download ID --name coverage --dir DIR).
 --                       Default: $ORG_COVERAGE, else ./coverage when it
---                       has any of them; without one it shows "?"
---   --no-gh             don't ask GitHub for open bug issues (also when
---                       `gh` is missing or fails: the column is skipped)
+--                       has any of them, else the `coverage` artifact of
+--                       the latest Coverage workflow run that tested dev
+--                       (downloaded with `gh` once, kept in
+--                       stdpath("cache")/org-extension-report/<run id>);
+--                       without one it shows "?"
+--   --no-fetch          don't download that artifact
+--   --no-gh             don't ask GitHub for open bug issues or coverage
+--                       (also when `gh` is missing or fails: the column is
+--                       skipped)
 --   --issues FILE       open bug issues as the JSON of `gh issue list --json
 --                       number,title,body,labels` instead of asking GitHub
 --   --repo DIR          read the history (commits and tags) from the git
@@ -243,6 +249,59 @@ function M.load_coverage(path)
     return nil
   end
   return mods, from
+end
+
+--- The `coverage` artifact of the latest Coverage workflow run that tested
+--- dev (or ran on its schedule), as in .github/workflows/pages.yml:
+--- downloaded with `gh` into the cache once per run. Nil (with a note on
+--- stderr) when `gh` is missing, offline or there is no such run.
+---@return string|nil dir
+function M.fetch_coverage()
+  if vim.fn.executable("gh") == 0 then
+    return nil
+  end
+  local out = run({
+    "gh",
+    "run",
+    "list",
+    "--workflow",
+    "coverage.yml",
+    "--status",
+    "completed",
+    "--limit",
+    "50",
+    "--json",
+    "databaseId,headBranch,event",
+  })
+  local ok, runs = pcall(vim.json.decode, out or "")
+  if not (out and ok and type(runs) == "table") then
+    io.stderr:write("extension_report.lua: couldn't list the Coverage workflow runs with gh\n")
+    return nil
+  end
+  local id
+  for _, r in ipairs(runs) do
+    if type(r) == "table" and (r.headBranch == "dev" or r.event == "schedule") and r.databaseId then
+      id = tostring(r.databaseId)
+      break
+    end
+  end
+  if not id then
+    return nil
+  end
+  local dir = vim.fn.stdpath("cache") .. "/org-extension-report/" .. id
+  for _, f in ipairs({ "/coverage.json", "/report.md" }) do
+    if exists(dir .. f) then
+      return dir
+    end
+  end
+  vim.fn.mkdir(dir, "p")
+  io.stderr:write("extension_report.lua: downloading the coverage of Coverage run " .. id .. "\n")
+  if not run({ "gh", "run", "download", id, "--name", "coverage", "--dir", dir }) then
+    vim.fn.delete(dir, "rf")
+    io.stderr:write("extension_report.lua: couldn't download the coverage of Coverage run " .. id .. "\n")
+    return nil
+  end
+  return dir
 end
 
 ---@return number|nil percent
@@ -1170,6 +1229,8 @@ function M.main(argv)
       o.format = "json"
     elseif a == "--no-gh" then
       o.gh = false
+    elseif a == "--no-fetch" then
+      o.fetch = false
     elseif a == "--coverage" or a == "--demo" or a == "--issues" or a == "--repo" then
       i = i + 1
       o[a:sub(3)] = argv[i]
@@ -1191,6 +1252,10 @@ function M.main(argv)
         break
       end
     end
+  end
+  -- else CI's; not with an issues file, which stands for GitHub (specs)
+  if not o.coverage and o.gh and o.fetch ~= false and not o.issues then
+    o.coverage = M.fetch_coverage()
   end
   o.demo = o.demo or vim.env.ORG_DEMO_CONFIG or vim.fn.expand("~/demo/config.lua")
   local ok, report = pcall(M.measure, o)

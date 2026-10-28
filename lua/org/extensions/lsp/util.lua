@@ -12,7 +12,8 @@ local M = {}
 local real_cache = {}
 
 --- A file name with symlinks resolved (so `/var/x` and `/private/var/x`
---- are one file), normalized; the name itself when the file is missing.
+--- are one file), normalized; for a file that doesn't exist (yet), its
+--- directory resolved, else the name itself.
 ---@param path string
 ---@return string
 function M.canon(path)
@@ -21,7 +22,12 @@ function M.canon(path)
   if not r then
     r = utils.realpath(path)
     if not r then
-      return path
+      local dir = utils.realpath(vim.fs.dirname(path))
+      if not dir then
+        return path
+      end
+      -- not remembered: the file may be created
+      return vim.fs.joinpath(vim.fs.normalize(dir), vim.fs.basename(path))
     end
     r = vim.fs.normalize(r)
     real_cache[path] = r
@@ -250,6 +256,12 @@ local CACHE_MS = 3000
 -- link path and directory -> resolved file name
 local resolved = {}
 
+--- Directories whose `.org` files join the workspace besides the
+--- configured ones: the workspace folders of an editor that runs
+--- `org lsp` (org.extensions.cli.lsp).
+---@type string[]
+M.roots = {}
+
 --- Forget the cached workspace file list and resolved link paths (a file
 --- was written, created or deleted; the options changed).
 function M.invalidate()
@@ -307,6 +319,9 @@ local function configured_files()
     end
     for _, p in ipairs(utils.glob_org_files(w.extra or {})) do
       add(p)
+    end
+    for _, dir in ipairs(M.roots) do
+      add_dir(add, dir, w.recursive ~= false)
     end
   end
   listed.at, listed.list = now, out

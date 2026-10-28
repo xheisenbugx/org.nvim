@@ -99,12 +99,12 @@ local function names(tools)
 end
 
 describe("cli mcp: tools and arguments", function()
-  it("makes a tool of every command but schema, help, version, protocol and mcp", function()
+  it("makes a tool of every command but schema, help, version, protocol, mcp and lsp", function()
     local tools = mcp.tools(false)
     local got = names(tools)
     for _, c in ipairs(schema.COMMANDS) do
       local name = c.name:gsub(" ", "_")
-      local skip = ({ schema = true, help = true, version = true, protocol = true, mcp = true })[c.name]
+      local skip = ({ schema = true, help = true, version = true, protocol = true, mcp = true, lsp = true })[c.name]
       eq(not skip, vim.tbl_contains(got, name), name)
     end
     local set_todo = tools[vim.fn.index(got, "set_todo") + 1]

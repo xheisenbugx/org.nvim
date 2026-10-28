@@ -182,13 +182,15 @@ function M.get(path, opts)
   if file then
     return file
   end
-  local lines = utils.readfile(path)
+  local index = opts and opts.index and require("org.agenda.index")
+  -- (what the agenda index's background has read already, not twice)
+  local lines = index and index.take_read(path, st) or utils.readfile(path)
   if not lines then
     return nil
   end
   file = require("org.parser").parse(lines, path)
-  if opts and opts.index then
-    require("org.agenda.index").parsed(path, st, file)
+  if index then
+    index.parsed(path, st, file)
   end
   store(path, st, file)
   return file
