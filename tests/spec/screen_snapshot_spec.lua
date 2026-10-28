@@ -10,6 +10,7 @@ local screen
 
 --- A child Neovim of `width` x `height` with org set up with `setup`.
 local function new(setup, width, height, now)
+  setup = setup or {}
   screen = Screen.new({ width = width or 60, height = height or 12, setup = setup, now = now })
   return screen
 end
@@ -48,6 +49,20 @@ describe("screen snapshot", function()
     "Body with *bold*, /italic/ and =verbatim=.",
   }
 
+  it("inline tasks with #+STARTUP: odd (29 stars; 15 stars is a level 8 headline)", function()
+    new({ inlinetask_min_level = 15 }, 60, 8)
+    screen:org({
+      "#+STARTUP: odd",
+      "* Level one",
+      string.rep("*", 15) .. " TODO Level eight",
+      string.rep("*", 29) .. " TODO Task :t:",
+      "Task body.",
+      string.rep("*", 29) .. " END",
+      "Text.",
+    })
+    screen:expect("inlinetask_odd")
+  end)
+
   it("emphasis next to headline stars", function()
     new()
     screen:org(EMPHASIS)
@@ -66,6 +81,53 @@ describe("screen snapshot", function()
     screen:expect("emphasis_bullets_hidden")
   end)
 
+  -- (|org-highlighter|): the emphasis groups drawn by the decorations over
+  -- the headline faces
+  it("emphasis drawn by the parser highlighter", function()
+    new({ ui = { hide_emphasis_markers = true } })
+    screen:org(EMPHASIS)
+    screen:expect("emphasis_parser_hidden")
+  end)
+
+  it("links, overlapping markup and verbatim drawn by the parser highlighter", function()
+    new({ ui = { hide_emphasis_markers = true } }, 60, 8)
+    screen:org({
+      "See [[https://orgmode.org][the *Org* site]] and *[[a]]*.",
+      "Overlap: *a /b* c/ and =v *no*= raw.",
+      "=[[x][y]]= shows the link, ~*b*~ the stars.",
+      "# comment *no* [[c][link]]",
+      "#+begin_src lua",
+      "x = *a* -- [[l]]",
+      "#+end_src",
+    })
+    screen:expect("emphasis_parser_objects")
+  end)
+
+  it("markup past 'synmaxcol' drawn by the parser highlighter", function()
+    new({ ui = {} }, 60, 6)
+    screen:org({ string.rep("x", 3100) .. " *bold* end", "next line *bold*" })
+    screen:cmd("setlocal nowrap")
+    screen:input("$")
+    screen:expect("emphasis_parser_long_line")
+  end)
+
+  -- the body of an org src block drawn as Org on the block's face, with
+  -- nothing hidden (org-src-font-lock-fontify-block with org-mode)
+  it("an org src block drawn as Org by the parser highlighter", function()
+    new({ ui = { hide_emphasis_markers = true } }, 60, 10)
+    screen:org({
+      "#+begin_src org",
+      ",* TODO An escaped headline",
+      "#+TITLE: A title",
+      "Some *bold* and [[https://orgmode.org][a link]].",
+      "- [X] done <2026-10-01 Thu>",
+      "| a | b |",
+      "#+end_src",
+      "Some *bold* and [[https://orgmode.org][a link]].",
+    })
+    screen:expect("org_src_parser")
+  end)
+
   -- #119: a closed fold keeps the faces of its headline
   it("folded headlines keep their keyword, priority and tag faces", function()
     new({ todo_keywords = { "TODO", "NEXT", "|", "DONE" } })
@@ -82,33 +144,40 @@ describe("screen snapshot", function()
   end)
 
   -- #121: highlighting goes on after a line of thousands of characters
-  it("highlights after a 2000-character line", function()
+  local LONG_PROSE = string.rep("I would like the board to be set to a certain color. *ok* ", 40):sub(1, 2000)
+  local LONG_LINES = {
+    "* TODO Long lines :tag:",
+    "",
+    LONG_PROSE,
+    "",
+    "- " .. LONG_PROSE .. ":: term",
+    "",
+    "** Prompt *bold* [[https://orgmode.org][link]]",
+    "SCHEDULED: <2026-10-02 Fri>",
+  }
+
+  -- the long lines are drawn whole: their ends too
+  it("highlights a 2000-character line and after it", function()
     new(nil, 60, 10)
-    local prose = string.rep("I would like the board to be set to a certain color. *ok* ", 40):sub(1, 2000)
-    screen:org({
-      "* TODO Long lines :tag:",
-      "",
-      prose,
-      "",
-      "- " .. prose .. ":: term",
-      "",
-      "** Prompt *bold* [[https://orgmode.org][link]]",
-      "SCHEDULED: <2026-10-02 Fri>",
-    })
-    screen:expect("long_line")
+    screen:org(LONG_LINES)
+    screen:expect("long_line_parser")
+    screen:cmd("normal! 3G1930|zs")
+    screen:expect("long_line_parser_end")
   end)
 
-  -- markup that ends past a 'synmaxcol' lowered after the syntax was set
-  -- up isn't drawn, and doesn't go on over the lines below
-  it("follows a lowered 'synmaxcol'", function()
+  local SYNMAXCOL_LINES = {
+    string.rep("word ", 20):sub(1, 96) .. " *starts here and* ends after",
+    "plain text",
+    "* Next *bold*",
+  }
+
+  -- the parser highlighter doesn't stop at 'synmaxcol'
+  it("draws markup past a lowered 'synmaxcol'", function()
     new(nil, 60, 8)
-    screen:org({
-      string.rep("word ", 20):sub(1, 96) .. " *starts here and* ends after",
-      "plain text",
-      "* Next *bold*",
-    })
+    screen:org(SYNMAXCOL_LINES)
     screen:cmd("setlocal synmaxcol=110")
-    screen:expect("synmaxcol_lowered")
+    screen:input("$")
+    screen:expect("synmaxcol_lowered_parser")
   end)
 
   it("conceals link brackets and targets", function()
@@ -122,6 +191,26 @@ describe("screen snapshot", function()
       "A footnote[fn:1] and a radio <<<radio>>> target.",
     })
     screen:expect("links")
+  end)
+
+  -- a macro and a footnote reference opened above the window, over a
+  -- keyword line and list items, are drawn on the rows shown; man: is a
+  -- link only in brackets (as in Emacs without ol-man)
+  it("draws a macro opened above the window", function()
+    new(nil, 60, 6)
+    screen:org({
+      "para {{{m(a",
+      "#+TITLE: over a keyword",
+      "- item",
+      "- item 2",
+      "- item 3",
+      "- b)}}} and [fn:: c",
+      "#+KEY: v",
+      "- item d] e",
+      "plain man:printf(3) and [[man:ls]]",
+    })
+    screen:cmd([[exe "normal! 4\<C-e>"]])
+    screen:expect("objects_above_window")
   end)
 
   it("lists and checkboxes", function()
@@ -198,6 +287,23 @@ describe("screen snapshot", function()
     screen:expect("table")
   end)
 
+  -- (org-fontify-inline-src-blocks: the braces and body of an inline src
+  -- block don't take the faces of the headline, table, comment or block
+  -- they are in)
+  it("inline src blocks", function()
+    new()
+    screen:org({
+      "* TODO Run src_sh{echo hi} now :tag:",
+      "| a | src_sh{in a table} | b |",
+      "- term src_sh{x} :: a description",
+      "# a comment src_sh{y} here",
+      "#+begin_example",
+      "an example src_sh{z} body",
+      "#+end_example",
+    })
+    screen:expect("inline_src")
+  end)
+
   it("source blocks", function()
     new()
     screen:org({
@@ -213,6 +319,39 @@ describe("screen snapshot", function()
       "# a comment",
     })
     screen:expect("blocks")
+  end)
+
+  -- org-fontify-quote-and-verse-blocks: the quote and verse bodies on
+  -- OrgQuoteBlock / OrgVerseBlock, under their Org text
+  it("quote and verse blocks with fontify_quote_and_verse_blocks", function()
+    new({ ui = { fontify_quote_and_verse_blocks = true } })
+    screen:org({
+      "#+begin_quote",
+      "A *quote* with =code=.",
+      "#+end_quote",
+      "#+begin_verse",
+      "  A verse",
+      "#+end_verse",
+    })
+    screen:expect("blocks_quote_verse")
+  end)
+
+  -- ui.highlight_latex_and_related "native": Vim's tex syntax in the
+  -- fragments, over orgSrcBlock (org-src-font-lock-fontify-block "latex")
+  it("LaTeX fragments and environments drawn natively", function()
+    new({ ui = { highlight_latex_and_related = { "native", "entities" } } }, 60, 8)
+    screen:org({
+      "* Math",
+      "Inline $x^2 + y_1$, \\(\\frac{a}{b}\\) and \\alpha here.",
+      "\\begin{equation}",
+      "E = mc^2 % energy",
+      "\\end{equation}",
+      "Not in =$verbatim$=.",
+    })
+    screen:expect("latex_native")
+    -- a fragment typed in is drawn again with its new text
+    screen:input("2G0f$a\\beta <Esc>")
+    screen:expect("latex_native_typed")
   end)
 
   it("source blocks highlighted with tree-sitter", function()
@@ -436,6 +575,38 @@ describe("screen snapshot", function()
     screen:lua([[vim.fn.winrestview({ topline = 8 })]])
     screen:lua([[require("org.ui.context").update_all(true)]])
     screen:expect("context_sticky_headlines")
+  end)
+
+  -- the first org buffer of a session: org.ui.highlight loads with the
+  -- first rows drawn, and what those rows read must be known for an edit
+  -- of another line to draw them again (the bold of line 2 ends with the
+  -- opener deleted on line 1)
+  it("draws again a row whose markup an edit of the line above ended, in the first buffer", function()
+    new(nil, 30, 4)
+    eq(false, screen:lua([[return package.loaded["org.ui.highlight"] ~= nil]]))
+    screen:org({ "a *b", "c* d" })
+    screen:snapshot()
+    screen:input("llx")
+    screen:expect("edit_first_buffer_redraws_row_below")
+  end)
+
+  -- two windows on one buffer: the rows an added or removed line only
+  -- moved are scrolled, not drawn again, in the window not edited
+  it("draws again in the other window a row whose markup a line added or removed changed", function()
+    new(nil, 30, 12)
+    screen:org({ "a *bold", "text* x", "", "y" })
+    screen:cmd("set nofoldenable")
+    screen:cmd("split")
+    screen:snapshot()
+    screen:input("ox<Esc>")
+    screen:expect("two_windows_line_added")
+    screen:input("u")
+    screen:snapshot()
+    screen:input("ggo<Esc>")
+    screen:snapshot()
+    screen:input("dd")
+    screen:cmd("echo ''")
+    screen:expect("two_windows_line_removed")
   end)
 
   it("fails with a diff when the screen differs, and on a missing golden file", function()

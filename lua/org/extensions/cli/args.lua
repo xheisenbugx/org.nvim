@@ -45,7 +45,11 @@ function M.parse_args(argv)
         if not value then
           i = i + 1
           value = argv[i]
-          if value == nil then
+          -- the next word is an option of its own (`--todo --json`): the
+          -- value is missing, not "--json" (`--match=-v` gives a value
+          -- that looks like an option)
+          local next_name = value and (value:match("^(%-%-[%w-]+)=") or value)
+          if value == nil or value == "--" or schema.BY_NAME[next_name] then
             fail(name .. " needs a value", "usage", { flag = name })
           end
         end
@@ -126,13 +130,56 @@ function M.load_config(flags)
       fail("error in " .. file .. ": " .. tostring(res), "config", { file = file })
     end
   end
-  local org = require("org")
-  if type(res) == "table" then
-    org.setup(res)
-  else
-    org.ensure_setup()
+  if res ~= nil and type(res) ~= "table" then
+    config.setup = setup
+    fail(
+      string.format(
+        '%s returns a %s: it must return the options table of setup(), or call require("org").setup() itself',
+        file,
+        type(res)
+      ),
+      "config",
+      { file = file }
+    )
   end
+  local org = require("org")
+  local sok, serr = pcall(function()
+    if type(res) == "table" then
+      org.setup(res)
+    else
+      org.ensure_setup()
+    end
+  end)
   config.setup = setup
+  if not sok then
+    fail("error in " .. tostring(file or "the configuration") .. ": " .. tostring(serr), "config", { file = file })
+  end
+  -- options every command reads: a wrong type would fail as an internal
+  -- error later
+  local function check_type(name, value)
+    local okay = type(value) == "string"
+    if type(value) == "table" then
+      okay = true
+      for _, v in ipairs(value) do
+        okay = okay and type(v) == "string"
+      end
+    end
+    if value ~= nil and not okay then
+      fail(
+        string.format("%s must be a path or a list of paths, not %s", name, vim.inspect(value)),
+        "config",
+        { file = file or vim.NIL, option = name }
+      )
+    end
+  end
+  check_type("agenda_files", config.opts.agenda_files)
+  if config.opts.org_directory ~= nil and type(config.opts.org_directory) ~= "string" then
+    fail(
+      "org_directory must be a path, not " .. vim.inspect(config.opts.org_directory),
+      "config",
+      { file = file or vim.NIL, option = "org_directory" }
+    )
+  end
   -- a config that set things up before the override was in place
   for k, v in pairs(M.OVERRIDES) do
     if type(v) == "table" then

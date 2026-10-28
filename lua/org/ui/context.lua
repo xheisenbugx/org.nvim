@@ -112,22 +112,37 @@ local function ancestors(file, lnum, foreign)
   return out
 end
 
---- The buffer line drawn `rows` screen lines below line `top` of the
---- current window, a closed fold taking one line.
+--- The buffer line drawn `rows` screen lines below the first screen line
+--- of the current window, whose top line is `top`: a closed fold takes
+--- one screen line, a wrapped line as many as it wraps to.
 ---@param top integer
 ---@param rows integer
 ---@param last integer the buffer's last line
 ---@return integer
 local function line_below(top, rows, last)
-  local l = top
-  for _ = 1, rows do
+  local l, used = top, 0
+  -- (the top line scrolled by 'smoothscroll' shows from its skipcol on)
+  local skip = vim.fn.winsaveview().skipcol or 0
+  while true do
     local fend = vim.fn.foldclosedend(l)
+    local h = 1
+    if fend == -1 and vim.wo.wrap then
+      local ok, th = pcall(api.nvim_win_text_height, 0, {
+        start_row = l - 1,
+        end_row = l - 1,
+        start_vcol = l == top and skip > 0 and skip or nil,
+      })
+      h = ok and th.all or 1
+    end
+    if used + h > rows then
+      return l
+    end
+    used = used + h
     l = (fend ~= -1 and fend or l) + 1
     if l > last then
       return last
     end
   end
-  return l
 end
 
 --- Keep `max` of `list`, dropping the outermost ("outer") or innermost
@@ -232,60 +247,9 @@ local function compute(win, parse)
   return list
 end
 
---- The highlighting of line `lnum` of the current window (syntax,
---- concealed text) as `{ col, extmark opts }` pairs added to `out`.
----@param out table[]
----@param lnum integer
----@param text string
-local function syntax_marks(out, lnum, text)
-  local n = math.min(#text, vim.bo.synmaxcol > 0 and vim.bo.synmaxcol or #text)
-  local synID, synconcealed = vim.fn.synID, vim.fn.synconcealed
-  -- runs of one syntax group, and of one concealed region
-  local id_s, id ---@type integer, integer
-  local c_s, c_id, c_repl ---@type integer|nil, integer|nil, string|nil
-  local function flush_id(e)
-    if id and id ~= 0 then
-      local name = vim.fn.synIDattr(id, "name")
-      if name ~= "" then
-        out[#out + 1] = { id_s - 1, { end_col = e, hl_group = name, priority = 50 } }
-      end
-    end
-  end
-  local function flush_conceal(e)
-    if c_s then
-      out[#out + 1] = { c_s - 1, { end_col = e, conceal = c_repl } }
-      c_s = nil
-    end
-  end
-  -- (two passes: alternating synID and synconcealed makes the syntax
-  -- engine parse the line again for each call)
-  for col = 1, n do
-    local cur = synID(lnum, col, 1)
-    if cur ~= id then
-      flush_id(col - 1)
-      id, id_s = cur, col
-    end
-  end
-  flush_id(n)
-  if vim.wo.conceallevel == 0 then
-    return
-  end
-  for col = 1, n do
-    local c = synconcealed(lnum, col)
-    if c[1] == 1 then
-      if not c_s or c[3] ~= c_id then
-        flush_conceal(col - 1)
-        c_s, c_id, c_repl = col, c[3], c[2]
-      end
-    else
-      flush_conceal(col - 1)
-    end
-  end
-  flush_conceal(n)
-end
-
---- The decorations (bullets, hidden stars, numbering, indentation) of
---- line `lnum` of `src`, added to `out`.
+--- The highlighting and decorations (the parser highlighter's groups and
+--- concealed text, bullets, hidden stars, numbering, indentation) of line
+--- `lnum` of `src`, added to `out`.
 ---@param out table[]
 ---@param src integer
 ---@param lnum integer
@@ -308,13 +272,12 @@ end
 ---@type table<integer, { key: string, lines: table<integer, table[]> }>
 local mark_cache = {}
 
---- The marks of line `lnum` of the buffer of `win` (see `syntax_marks`).
+--- The marks of line `lnum` of the buffer of `win` (see `decoration_marks`).
 ---@param win integer
 ---@param src integer
 ---@param lnum integer
----@param text string
 ---@return table[]
-local function line_marks(win, src, lnum, text)
+local function line_marks(win, src, lnum)
   local key = api.nvim_buf_get_changedtick(src) .. ":" .. vim.wo[win].conceallevel
   local c = mark_cache[src]
   if not c or c.key ~= key then
@@ -324,9 +287,6 @@ local function line_marks(win, src, lnum, text)
   local marks = c.lines[lnum]
   if not marks then
     marks = {}
-    api.nvim_win_call(win, function()
-      syntax_marks(marks, lnum, text)
-    end)
     decoration_marks(marks, src, lnum)
     c.lines[lnum] = marks
   end
@@ -398,7 +358,7 @@ local function draw(win, list)
     if gutter > 0 then
       api.nvim_buf_set_extmark(buf, ns, row, blank, { end_col = shift, hl_group = "OrgContextLineNumber" })
     end
-    for _, m in ipairs(line_marks(win, src, hl.line, texts[i]:sub(shift + 1))) do
+    for _, m in ipairs(line_marks(win, src, hl.line)) do
       local mo = m[2]
       if shift > 0 then
         mo = vim.tbl_extend("force", mo, { end_col = mo.end_col and (mo.end_col + shift) or nil })

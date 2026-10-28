@@ -1,0 +1,23 @@
+screen 60x10
+|{1:#+begin_src org}|
+|{2:,* TODO An escaped headline}|
+|{3:#+TITLE:}{2: }{4:A title}|
+|{2:Some *}{5:bold}{2:* and }{6:[[https://orgmode.org][a link]]}{2:.}|
+|{7:-}{2: }{8:[X]}{2: done }{9:<2026-10-01 Thu>}|
+|{10:|}{11: a }{10:|}{11: b }{10:|}|
+|{1:#+end_src}|
+|Some {12:bold} and {13:a link}.|
+
+{1} OrgBlockDelimiter -> Comment
+{2} OrgBlock -> String
+{3} OrgBlock -> String | orgTitleKeyword -> OrgKeyword -> PreProc
+{4} OrgBlock -> String | OrgTitle -> Title [bold]
+{5} OrgBlock -> String | OrgBold [bold]
+{6} OrgBlock -> String | OrgLink -> @markup.link [underline]
+{7} OrgBlock -> String | OrgListBullet -> Special
+{8} OrgBlock -> String | OrgCheckboxChecked -> DiagnosticOk
+{9} OrgBlock -> String | OrgTimestamp -> Underlined [underline]
+{10} OrgBlock -> String | OrgTable -> Normal | OrgTableSeparator -> Delimiter
+{11} OrgBlock -> String | OrgTable -> Normal
+{12} OrgBold [bold]
+{13} OrgLink -> @markup.link [underline]

@@ -1,0 +1,21 @@
+screen 60x8
+|See {1:the }{2:Org}{1: site} and {2:a}.|
+|Overlap: {3:a }{4:b}{5: c} and {6:v *no*} raw.|
+|{7:[[x][y]]} shows the link, {8:*b*} the stars.|
+|{9:# comment *no* link}|
+|{10:#+begin_src lua}|
+|x {11:=} {11:*}a{11:*} {12:-- [[l]]}|
+|{10:#+end_src}|
+
+{1} OrgLink -> @markup.link [underline]
+{2} OrgLink -> @markup.link | OrgBold [bold, underline]
+{3} OrgBold [bold]
+{4} OrgBold | OrgItalic [bold, italic]
+{5} OrgItalic [italic]
+{6} OrgVerbatim -> String
+{7} OrgLink -> @markup.link | OrgVerbatim -> String [underline]
+{8} OrgCode -> String
+{9} OrgComment -> Comment
+{10} OrgBlockDelimiter -> Comment
+{11} Operator
+{12} Comment

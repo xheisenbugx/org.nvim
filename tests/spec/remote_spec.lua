@@ -193,6 +193,51 @@ describe("remote: the server", function()
     ok(not vim.tbl_contains(vim.fn.serverlist(), a))
   end)
 
+  it("says why it can't listen on a socket path that is too long, in setup() and :checkhealth", function()
+    if is_win then
+      return
+    end
+    local dir = vim.fs.normalize(vim.fn.tempname())
+    local a = dir .. "/" .. string.rep("d", remote.MAX_SOCKET_PATH) .. "/org.nvim.sock"
+    local got, err = remote.start(a)
+    eq(nil, got)
+    ok(tostring(err):find(#a .. " bytes long", 1, true), err)
+    ok(tostring(err):find("at most " .. remote.MAX_SOCKET_PATH, 1, true), err)
+    ok(remote.address_problem(scratch_address()) == nil)
+    local config = require("org.config")
+    local saved_env = vim.env.ORG_NVIM_SERVER
+    vim.env.ORG_NVIM_SERVER = nil
+    config.opts.remote.enabled = true
+    config.opts.remote.address = a
+    local warned = {}
+    local notify = vim.notify
+    vim.notify = function(m, level)
+      if level == vim.log.levels.WARN then
+        warned[#warned + 1] = m
+      end
+    end
+    remote.setup()
+    vim.notify = notify
+    ok(not remote.is_server())
+    eq(1, #warned, vim.inspect(warned))
+    ok(warned[1]:find("at most", 1, true), warned[1])
+    local lines = {}
+    local h = {}
+    for _, kind in ipairs({ "start", "ok", "info", "warn", "error" }) do
+      h[kind] = function(msg)
+        lines[#lines + 1] = kind .. ": " .. tostring(msg)
+      end
+    end
+    require("org.health").check_files(h)
+    local report = table.concat(lines, "\n")
+    config.opts.remote.enabled = false
+    config.opts.remote.address = nil
+    remote.setup()
+    vim.env.ORG_NVIM_SERVER = saved_env
+    ok(report:find("session server: the address", 1, true), report)
+    vim.fn.delete(dir, "rf")
+  end)
+
   it("does not serve with ORG_NVIM_SERVER=none or in the command line", function()
     local a = scratch_address()
     local config = require("org.config")

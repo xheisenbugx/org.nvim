@@ -194,9 +194,23 @@ local last_sig = { key = {}, sig = "" }
 ---@return string
 local function signature()
   local cfg = require("org.config").opts
-  local key = { cfg.todo_keywords, cfg.log_into_drawer, cfg.inlinetask_min_level, cfg.property_separators }
+  local key = {
+    cfg.todo_keywords,
+    cfg.log_into_drawer,
+    cfg.inlinetask_min_level,
+    cfg.property_separators,
+    -- (the inline task stars with odd levels)
+    cfg.odd_levels_only == true,
+  }
   local k = last_sig.key
-  if k[1] == key[1] and k[2] == key[2] and k[3] == key[3] and k[4] == key[4] and last_sig.sig ~= "" then
+  if
+    k[1] == key[1]
+    and k[2] == key[2]
+    and k[3] == key[3]
+    and k[4] == key[4]
+    and k[5] == key[5]
+    and last_sig.sig ~= ""
+  then
     return last_sig.sig
   end
   local sig = code_signature() .. "|" .. vim.inspect(key, { newline = "", indent = "" })

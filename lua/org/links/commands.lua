@@ -29,8 +29,8 @@ function M.toggle_link_display()
     vim.wo.conceallevel = 2
   end
   if utils.is_org(bufnr) then
-    vim.cmd("syntax clear")
-    require("org.syntax").apply(bufnr)
+    -- (the decorations hide the links)
+    require("org.ui.decorations").render(bufnr)
   end
   utils.notify(cur and "Literal link display" or "Descriptive link display")
 end

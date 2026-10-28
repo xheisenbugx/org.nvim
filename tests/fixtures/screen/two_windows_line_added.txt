@@ -1,0 +1,14 @@
+screen 30x12
+|a *bold|
+|x|
+|text* x|
+||
+|y|
+|{1:                              }|
+|a *bold|
+|x|
+|text* x|
+||
+|y|
+
+{1} StatusLine

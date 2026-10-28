@@ -1,0 +1,115 @@
+#+TITLE: Quote and verse blocks
+
+* Quote blocks
+
+#+begin_quote
+Plain text in a quote, *bold*, /italic/, =verbatim= and ~code~.
+A [[https://orgmode.org][link]], <2024-01-02 Tue>, a footnote[fn:1] and {{{macro}}}.
+#+end_quote
+
+#+BEGIN_QUOTE
+Upper case delimiters.
+
+After an empty line.
+#+END_QUOTE
+
+  #+begin_quote
+  An indented quote with $x^2$ and \alpha.
+  #+end_quote
+
+#+begin_quote
+- a list item
+- [ ] a checkbox
+- term :: description
+#+end_quote
+
+#+begin_quote
+| a | table |
+|---+-------|
+| 1 | 2     |
+#+end_quote
+
+#+begin_quote
+#+keyword: in the quote
+# a comment line
+: fixed width
+#+end_quote
+
+#+begin_quote
+:DRAWER:
+in a drawer
+:END:
+#+end_quote
+
+#+begin_quote
+#+begin_src emacs-lisp
+(message "src in a quote")
+#+end_src
+#+begin_example
+an example in a quote
+#+end_example
+after the inner blocks
+#+end_quote
+
+#+begin_quote
+#+begin_verse
+a verse in a quote
+#+end_verse
+#+end_quote
+
+#+begin_quote cite
+A begin line with a parameter.
+#+end_quote trailing
+
+#+begin_quote
+#+end_quote
+
+* Verse blocks
+
+#+begin_verse
+  Great clouds overhead
+  Tiny black birds *rise* and fall
+  Snow covers Emacs
+#+end_verse
+
+#+BEGIN_VERSE
+With an [[https://x.org][link]] and =code=.
+#+END_VERSE
+
+- in a list:
+  #+begin_verse
+  a verse in an item
+  #+end_verse
+
+* Not quote blocks
+
+#+begin_src org
+,#+begin_quote
+in a src block
+,#+end_quote
+#+end_src
+
+#+begin_example
+#+begin_quote
+in an example
+#+end_quote
+#+end_example
+
+#+begin_center
+a center block, *bold*
+#+end_center
+
+#+begin_quotes
+not a quote block
+#+end_quotes
+
+* An unclosed quote
+
+#+begin_quote
+runs up to the next headline, *bold*
+
+* After it
+text after
+#+end_quote
+
+[fn:1] The footnote.

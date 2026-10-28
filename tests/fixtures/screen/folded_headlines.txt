@@ -4,12 +4,12 @@ screen 60x12
 |{10:* Open headline without body}|
 
 {1} Folded | OrgHeadlineLevel1 -> Title [bold]
-{2} Folded | OrgTodo -> @comment.error
-{3} Folded | OrgPriorityA -> DiagnosticError
-{4} Folded | OrgLink -> @markup.link [underline]
-{5} Folded | OrgTags -> @property
+{2} Folded | OrgHeadlineLevel1 -> Title | OrgTodo -> @comment.error [bold]
+{3} Folded | OrgHeadlineLevel1 -> Title | OrgPriorityA -> DiagnosticError [bold]
+{4} Folded | OrgHeadlineLevel1 -> Title | OrgLink -> @markup.link [bold, underline]
+{5} Folded | OrgHeadlineLevel1 -> Title | OrgTags -> @property [bold]
 {6} Folded | Comment
 {7} Folded
-{8} Folded | orgBoldDelimiter -> OrgBold [bold]
-{9} Folded | OrgBold [bold]
+{8} Folded | OrgHeadlineLevel1 -> Title | orgBoldDelimiter -> OrgBold [bold]
+{9} Folded | OrgHeadlineLevel1 -> Title | OrgBold [bold]
 {10} OrgHeadlineLevel1 -> Title [bold]

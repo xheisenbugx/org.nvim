@@ -1,0 +1,146 @@
+#+TITLE: Blocks
+
+* Verbatim blocks
+
+#+begin_src emacs-lisp
+(defun f (x) "doc" (* x 2))
+#+end_src
+
+#+BEGIN_SRC
+no language, *not bold*, [[https://x.org][no link]]
+| not | a table |
+#+END_SRC
+
+#+begin_src unknown-language-xyz :results output
+some text in a language Emacs has no mode for
+#+end_src
+
+#+begin_example -n
+an example, =not verbatim=
+  # not a comment
+#+end_example
+
+#+begin_export html
+<b>raw html</b>
+#+end_export
+
+#+begin_src sh
+#+end_src
+
+#+begin_example
+#+end_example
+
+  #+begin_src python
+  print("indented")
+  #+end_src
+
+- an item
+  #+begin_example
+  in the item
+  #+end_example
+
+#+begin_src_x
+the src block's language is _x
+#+end_src
+
+#+begin_src emacs-lisp
+#+begin_quote
+not a quote: the src block goes on
+#+end_quote
+(message "still lisp")
+#+end_src
+
+#+begin_example
+,* a quoted headline
+,#+end_example
+#+end_example
+
+* Org text blocks
+
+#+begin_quote
+A quote with *bold*, =code= and a [[https://orgmode.org][link]].
+# a comment line in the quote
+#+keyword: in the quote
+#+caption: in the quote
+#+begin_src emacs-lisp
+(not a src block)
+#+end_src
+#+end_quote
+
+#+begin_verse
+  Roses are *red*,
+    violets are blue.
+#+end_verse
+
+#+begin_comment
+A comment block with *bold* and =code=.
+#+end_comment
+
+#+begin_center
+Centered *text*.
+#+end_center
+
+#+begin_note
+A special block with a [[https://x.org][link]].
+#+end_note
+
+#+BEGIN_QUOTE
+upper case
+#+END_QUOTE
+
+#+begin_quote with words after
+the name
+#+end_quote and words after
+
+#+begin_verse
+closed by the right name only
+#+end_verse1
+#+end_verse_
+
+#+begin_
+no name
+
+#+end_src
+
+* Captions and dynamic blocks
+
+#+CAPTION: A caption with *bold* and [[https://x.org][a link]]
+| a | b |
+
+#+caption[short]: The long caption
+#+caption[a]: b]: c
+#+CAPTION:
+#+captions: not a caption
+#+CAPTION:    blanks before
+
+#+BEGIN: clocktable :scope file
+#+CAPTION: Inside a dynamic block
+| Headline | Time |
+#+END:
+
+:DRAWER:
+#+begin_example
+in a drawer
+#+end_example
+:END:
+
+* Unterminated blocks
+
+#+begin_src emacs-lisp
+(closed by the headline)
+* Next headline
+
+#+begin_quote
+quoted up to the headline
+** Next
+
+#+begin_verse
+an end line followed by a word of another script
+#+end_verse東京
+#+begin_verse
+and by a Latin letter: no end
+#+end_verseé
+#+end_verse
+
+#+begin_example
+open to the end of the file

@@ -533,6 +533,25 @@ describe("planning line order (make difftest, commands oracle)", function()
   end)
 end)
 
+describe("hour repeaters on a date without a time", function()
+  -- Emacs 9.8.10 org-auto-repeat-maybe: user-error "Cannot repeat in 5
+  -- hour(s) because no hour has been set", the entry stays as it was
+  it("refuses to repeat and leaves the entry unchanged", function()
+    local lines = { "* TODO A", "SCHEDULED: <2026-10-27 Tue +5h>" }
+    local buf = org_buffer(lines, { 1, 0 })
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(msg)
+      msgs[#msgs + 1] = msg
+    end
+    local okc, err = pcall(todo.change_state, nil, "DONE")
+    vim.notify = notify
+    ok(okc, err)
+    eq(lines, buf_lines(buf))
+    eq({ "Cannot repeat in 5 hour(s) because no hour has been set" }, msgs)
+  end)
+end)
+
 describe("org-todo on an empty headline (make difftest, commands oracle)", function()
   it("keeps a space after the keyword, as Emacs inserts ' TODO '", function()
     local buf = org_buffer({ "* ", "* A" }, { 1, 0 })

@@ -17,6 +17,7 @@ local cursor_lnum = shared.cursor_lnum
 local fix_bul = shared.fix_bul
 local fix_ind = shared.fix_ind
 local get_lines = shared.get_lines
+local indent_len = shared.indent_len
 local indent_of = shared.indent_of
 local is_blank = shared.is_blank
 local line_owners = shared.line_owners
@@ -117,7 +118,7 @@ local function shift_text(lines, s, e, ind)
     local l = lines[i]
     if not is_blank(l) and not parser.headline_level(l) then
       local n = indent_of(l)
-      lines[i] = string.rep(" ", math.max(0, n + delta)) .. l:sub(n + 1)
+      lines[i] = string.rep(" ", math.max(0, n + delta)) .. l:sub(indent_len(l) + 1)
     end
   end
 end
@@ -152,7 +153,7 @@ function M.toggle_item()
     for i = s, e do
       local it = M.parse_item_line(lines[i])
       if it and not parser.headline_level(lines[i]) then
-        lines[i] = string.rep(" ", it.indent) .. lines[i]:sub(it.indent + #it.bullet_ws + 1)
+        lines[i] = lines[i]:sub(1, it.ind_len) .. lines[i]:sub(it.ind_len + #it.bullet_ws + 1)
       end
     end
     set_lines(bufnr, s, e, vim.list_slice(lines, s, e))
@@ -252,7 +253,7 @@ function M.toggle_item()
   if arg then
     -- 3. one item holding the region
     local ind = indent_of(first)
-    lines[s] = first:sub(1, ind) .. "- " .. first:sub(ind + 1)
+    lines[s] = first:sub(1, indent_len(first)) .. "- " .. first:sub(indent_len(first) + 1)
     if e > s then
       shift_text(lines, s + 1, e, ind + 2)
     end
@@ -281,17 +282,39 @@ function M.make_subtree()
     utils.warn("Not in a list")
     return
   end
-  local file = files.get_buffer(bufnr)
-  local hl = file:headline_at(struct.first)
-  local level = hl and hl.level + 1 or 1
-  local out = M.list_to_subtree(bufnr, struct, level)
+  local out = M.list_to_subtree(bufnr, struct, M.subtree_start_level(bufnr, struct.first))
   set_lines(bufnr, struct.first, struct.last, out)
   vim.api.nvim_win_set_cursor(0, { math.min(struct.first + #out, vim.api.nvim_buf_line_count(bufnr)), 0 })
 end
 
---- Headline lines for the items of `struct` (org-list-to-subtree).
+--- The level, counted without odd levels (org-reduced-level), of the
+--- headlines a list at `lnum` becomes: one below the entry's, 1 before the
+--- first headline (org-list-make-subtree, org-toggle-heading).
+---@param bufnr integer
+---@param lnum integer
+---@return integer
+function M.subtree_start_level(bufnr, lnum)
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  while hl and hl.inlinetask do
+    hl = hl.parent
+  end
+  if not hl then
+    return 1
+  end
+  local odd = require("org.structure").odd_levels_only(bufnr)
+  return (odd and math.floor((hl.level + 1) / 2) or hl.level) + 1
+end
+
+--- Headline lines for the items of `struct` (org-list-to-subtree): a top
+--- item at `level` (counted without odd levels, see `subtree_start_level`)
+--- and each sub-list one level deeper; with odd levels only, level n has
+--- 2n - 1 stars.
 ---@param items? org.ListItem[] only these top items (default: all)
 function M.list_to_subtree(bufnr, struct, level, items)
+  local odd = require("org.structure").odd_levels_only(bufnr)
+  local function stars(n)
+    return string.rep("*", odd and 2 * n - 1 or n)
+  end
   local todo_cfg = files.get_buffer(bufnr).settings.todo
   local done_kw = todo_cfg:done_names()[1] or "DONE"
   local todo_kw = todo_cfg:todo_names()[1] or "TODO"
@@ -311,7 +334,7 @@ function M.list_to_subtree(bufnr, struct, level, items)
     elseif it.checkbox then
       kw = todo_kw .. " "
     end
-    out[#out + 1] = (string.rep("*", level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
+    out[#out + 1] = (stars(level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
     for l = it.lnum + 1, it.end_lnum do
       if owners[l] == it and not is_blank(lines[l - struct.first + 1]) then
         out[#out + 1] = vim.trim(lines[l - struct.first + 1])

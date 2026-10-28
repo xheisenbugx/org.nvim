@@ -865,8 +865,7 @@ The main differences:
   and they need a terminal image backend. Multi-line fragments are drawn
   in place by hiding their other lines (with image.nvim they stay under
   the line). In indent mode, wrapped rows don't get the virtual
-  indentation, and emphasis doesn't nest inside the same emphasis or
-  inside verbatim.
+  indentation.
 - **Point vs cursor:** Emacs acts between characters, Normal mode on a
   character, so commands that insert "at point" act at the end of the line
   in Normal mode (at the cursor in Insert mode).

@@ -1,0 +1,920 @@
+-- The parser highlighter: emphasis and the hidden parts of links drawn
+-- by the decorations (org.ui.emphasis) instead of syntax regions. What it
+-- draws is checked against Emacs in emacs_fontify_parity_spec.lua; this
+-- spec checks the rest: no syntax regions, no 'synmaxcol' limit, spelling,
+-- the toggles, the cursor and drawing any part of a buffer alone.
+local fuzz = require("tests.helpers.fuzz")
+local hl = require("tests.helpers.highlighter")
+
+local deco = require("org.ui.decorations")
+
+--- The marks the decorations draw on 0-based row `row`, as
+--- "group@start-end" (or "conceal@..."), sorted.
+local function marks(buf, row)
+  local out = {}
+  for _, m in ipairs(deco.line_marks(buf, row)) do
+    local o = m[2]
+    -- (orgSrcBlock: the block part's mark under a src block's body, with
+    -- no attributes; this spec is about emphasis and links)
+    for _, name in ipairs({
+      o.hl_group ~= "orgSrcBlock" and o.hl_group or false,
+      o.conceal == "" and "conceal" or false,
+    }) do
+      if name then
+        out[#out + 1] = string.format("%s@%d-%d", name, m[1], o.end_col or m[1] + 1)
+      end
+    end
+  end
+  table.sort(out)
+  return out
+end
+
+local function has(list, item)
+  return vim.tbl_contains(list, item)
+end
+
+describe("parser highlighter", function()
+  with_config({ ui = { hide_emphasis_markers = true } })
+
+  it("defines no emphasis regions and draws the emphasis as marks", function()
+    local buf = org_buffer({ "a *bold* and =code= x" }, { 1, 0 })
+    for c = 1, 21 do
+      for _, id in ipairs(vim.fn.synstack(1, c)) do
+        ok(not vim.fn.synIDattr(id, "name"):find("^org[BVC][oe]"), vim.fn.synIDattr(id, "name"))
+      end
+    end
+    local m = marks(buf, 0)
+    ok(has(m, "orgBold@3-7"), vim.inspect(m))
+    ok(has(m, "orgBoldDelimiter@2-3") and has(m, "orgBoldDelimiter@7-8"), vim.inspect(m))
+    ok(has(m, "conceal@2-3") and has(m, "conceal@7-8"), vim.inspect(m))
+    ok(has(m, "orgVerbatim@14-18"), vim.inspect(m))
+  end)
+
+  it("hides link brackets with marks, not with the syntax", function()
+    local buf = org_buffer({ "see [[https://x.org][site]] end" }, { 1, 0 })
+    vim.wo.conceallevel = 2
+    for c = 1, 31 do
+      eq(0, vim.fn.synconcealed(1, c)[1])
+    end
+    -- (the link's face is a mark too: org.ui.highlight.object)
+    local function hidden()
+      return vim.tbl_filter(function(m)
+        return m:find("^conceal@") ~= nil
+      end, marks(buf, 0))
+    end
+    eq({ "conceal@25-27", "conceal@4-21" }, hidden())
+    ok(has(marks(buf, 0), "orgLink@4-27"))
+    -- org-toggle-link-display: shown literally
+    require("org.links").toggle_link_display()
+    eq({}, hidden())
+    require("org.links").toggle_link_display()
+    eq({ "conceal@25-27", "conceal@4-21" }, hidden())
+  end)
+
+  it("draws markup past 'synmaxcol' and on very long lines", function()
+    local long = string.rep("word ", 20000) .. "*bold* end"
+    local buf = org_buffer({ long, "next *b*" }, { 1, 0 })
+    ok(vim.bo.synmaxcol > 0 and vim.bo.synmaxcol < #long)
+    local m = marks(buf, 0)
+    ok(has(m, string.format("orgBold@%d-%d", 100001, 100005)), vim.inspect(m))
+    ok(has(marks(buf, 1), "orgBold@6-7"))
+  end)
+
+  it("draws a long line full of unclosed markers in linear time", function()
+    local function time(n)
+      local buf = org_buffer({ string.rep("*a /b _c =d ", n) }, { 1, 0 })
+      local t = vim.uv.hrtime()
+      marks(buf, 0)
+      return (vim.uv.hrtime() - t) / 1e6
+    end
+    time(100)
+    local small, big = time(2000), time(20000)
+    -- ten times the text, well under a hundred times the time
+    ok(big < math.max(small, 1) * 40, string.format("%.1f ms then %.1f ms", small, big))
+  end)
+
+  it("leaves verbatim and code out of spell checking", function()
+    local line = "*bold* =verbatim= ~code~"
+    local buf = org_buffer({ line }, { 1, 0 })
+    -- the spell flag of the mark of highest priority that sets one at col
+    local function spell_at(col)
+      local best, prio
+      for _, m in ipairs(deco.line_marks(buf, 0)) do
+        local o = m[2]
+        if o.spell ~= nil and col >= m[1] and col < (o.end_col or m[1] + 1) and (o.priority or 0) >= (prio or -1) then
+          best, prio = o.spell, o.priority or 0
+        end
+      end
+      return best
+    end
+    eq(nil, spell_at(line:find("bold") - 1))
+    eq(false, spell_at(line:find("verbatim") - 1))
+    eq(false, spell_at(line:find("code") - 1))
+  end)
+
+  it("follows b:org_hide_emphasis_markers (presentation slides)", function()
+    local buf = org_buffer({ "a *b* c" }, { 1, 0 })
+    ok(has(marks(buf, 0), "conceal@2-3"))
+    vim.b[buf].org_hide_emphasis_markers = false
+    deco.render(buf)
+    ok(not has(marks(buf, 0), "conceal@2-3"))
+    ok(has(marks(buf, 0), "orgBoldDelimiter@2-3"))
+  end)
+
+  it("follows b:org_hide_emphasis_markers set since the last redraw", function()
+    local buf = org_buffer({ "a *b* c" }, { 1, 0 })
+    ok(has(marks(buf, 0), "conceal@2-3"))
+    vim.b[buf].org_hide_emphasis_markers = false
+    ok(not has(marks(buf, 0), "conceal@2-3"))
+    vim.b[buf].org_hide_emphasis_markers = nil
+    ok(has(marks(buf, 0), "conceal@2-3"))
+  end)
+
+  it("draws nothing in a src block that starts far above the window", function()
+    local lines = { "* H", "#+begin_src lua" }
+    for i = 1, 400 do
+      lines[#lines + 1] = "x = *a* -- [[l]] " .. i
+    end
+    lines[#lines + 1] = "#+end_src"
+    lines[#lines + 1] = "*after*"
+    local buf = org_buffer(lines, { 1, 0 })
+    eq({}, marks(buf, 300))
+    eq({}, marks(buf, 401))
+    ok(has(marks(buf, #lines - 1), "orgBold@1-6"))
+  end)
+
+  it("draws a row alone as it draws it with the whole buffer", function()
+    -- the scan starts two lines above the rows asked for, in the block
+    -- state there: any row drawn alone gets the marks it gets in a scan of
+    -- the whole buffer
+    local E = require("org.ui.emphasis")
+    for _, seed in ipairs(fuzz.seeds(12)) do
+      local rng = fuzz.rng(seed)
+      local lines = fuzz.doc(rng)
+      local opts = { hide_markers = true, conceal_links = true }
+      local whole = {}
+      E.marks(lines, 0, 0, #lines - 1, opts, whole)
+      local buf = org_buffer(lines, { 1, 0 })
+      for row = 0, #lines - 1 do
+        local alone = {}
+        E.add_marks(buf, row, row, require("org.config").opts.ui, alone)
+        local function key(t)
+          local out = {}
+          for _, m in ipairs(t or {}) do
+            out[#out + 1] = m[1] .. ":" .. vim.inspect(m[2], { newline = "", indent = "" })
+          end
+          table.sort(out)
+          return table.concat(out, " ")
+        end
+        if key(whole[row]) ~= key(alone[row]) then
+          error(fuzz.report(seed, "row " .. row .. " drawn alone differs", lines, lines))
+        end
+      end
+    end
+  end)
+
+  it("draws a row alone like the whole buffer: links over lines, blocks far up", function()
+    local E = require("org.ui.emphasis")
+    local cases = {
+      { "a", "see [[a][first", "second", "third", "fourth]] end", "b" },
+      { "x [[a][b", "* H2", "c]] y" },
+      -- a begin line with no end line is text: the src block after it is one
+      { "#+begin_ex.ample", "#+begin_src python", "", "", "x = '*y*'", "", "x = '*y*'", "#+end_src", "*z*" },
+    }
+    -- a src block with no headline within the look back
+    local far = {}
+    for i = 1, 3100 do
+      far[i] = "text " .. i
+    end
+    vim.list_extend(far, { "#+begin_src python", "x = '*y*'", "x = '*y*'", "x = '*y*'", "#+end_src", "*z*" })
+    cases[#cases + 1] = far
+    for _, lines in ipairs(cases) do
+      local whole = {}
+      E.marks(lines, 0, 0, #lines - 1, { hide_markers = true, conceal_links = true }, whole)
+      local buf = org_buffer(lines, { 1, 0 })
+      for row = math.max(0, #lines - 8), #lines - 1 do
+        local alone = {}
+        E.add_marks(buf, row, row, require("org.config").opts.ui, alone)
+        eq(vim.inspect(whole[row]), vim.inspect(alone[row]), "row " .. row .. ": " .. lines[row + 1])
+      end
+    end
+  end)
+
+  it("moves the cursor over hidden markers and link brackets", function()
+    vim.cmd("syntax on")
+    local function press(keys)
+      vim.cmd("normal! " .. keys)
+      vim.api.nvim_exec_autocmds("CursorMoved", { buffer = 0 })
+    end
+    local function col()
+      return vim.api.nvim_win_get_cursor(0)[2]
+    end
+    org_buffer({ "See [[https://example.org][the site]] end" }, { 1, 2 })
+    eq(2, vim.wo.conceallevel)
+    -- "See " 0-3, "[[https://example.org][" 4-26, "the site" 27-34
+    press("l")
+    eq(3, col())
+    press("l")
+    eq(27, col())
+    org_buffer({ "a *bold* b" }, { 1, 0 })
+    vim.wo.conceallevel = 2
+    press("l")
+    press("l")
+    eq(3, col())
+  end)
+
+  it("draws a buffer with only the org syntax (drill) with the parser highlighter", function()
+    vim.cmd("enew!")
+    local b = vim.api.nvim_get_current_buf()
+    vim.bo[b].bufhidden = "wipe"
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "A *bold* word, [[https://example.org][a link]] <2024-01-02 Tue>" })
+    vim.bo[b].filetype = "org_drill"
+    vim.bo[b].syntax = "org"
+    eq("org", vim.b[b].current_syntax)
+    ok(has(marks(b, 0), "orgBold@3-7"), vim.inspect(marks(b, 0)))
+    ok(hl.has(1, 5, "orgbold"), hl.groups(1, 5))
+    local link = vim.fn.getline(1):find("a link", 1, true)
+    ok(hl.has(1, link, "orglink"), hl.groups(1, link))
+    local ts = vim.fn.getline(1):find("<2024", 1, true)
+    ok(hl.has(1, ts, "orgtimestamp"), hl.groups(1, ts))
+    -- (no syntax regions: synstack() reports no org groups there)
+    eq({}, vim.fn.synstack(1, 5))
+    -- another syntax: no longer drawn
+    vim.bo[b].syntax = "text"
+    eq({}, marks(b, 0))
+  end)
+
+  it("runs no mode hooks and sets no window options for a buffer with only the org syntax", function()
+    local ui = require("org.config").opts.ui
+    local indent, num = ui.indent_mode, ui.num
+    ui.indent_mode, ui.num = true, true
+    local fired = {}
+    local au = vim.api.nvim_create_autocmd("User", {
+      pattern = { "OrgIndentMode", "OrgNumMode" },
+      callback = function(ev)
+        fired[#fired + 1] = ev.match
+      end,
+    })
+    vim.cmd("enew!")
+    local b = vim.api.nvim_get_current_buf()
+    vim.bo[b].bufhidden = "wipe"
+    vim.wo.breakindent = false
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "* H", "A *bold* word" })
+    vim.bo[b].filetype = "org_drill"
+    vim.bo[b].syntax = "org"
+    vim.api.nvim_del_autocmd(au)
+    ui.indent_mode, ui.num = indent, num
+    eq({}, fired)
+    eq(false, vim.wo.breakindent)
+    ok(has(marks(b, 1), "orgBold@3-7"), vim.inspect(marks(b, 1)))
+    -- (one autocmd per such buffer, in one group)
+    eq(1, #vim.api.nvim_get_autocmds({ group = "org.syntax.decorations", buffer = b }))
+    vim.bo[b].syntax = "text"
+    eq(0, #vim.api.nvim_get_autocmds({ group = "org.syntax.decorations", buffer = b }))
+  end)
+
+  it("gives a LaTeX preview with foreground auto the emphasis color", function()
+    require("org.config").opts.ui.latex_preview = { foreground = "auto" }
+    vim.api.nvim_set_hl(0, "OrgBold", { fg = "#ff0000", bold = true })
+    local buf = org_buffer({ "text *bold $x^2$ here* end" }, { 1, 0 })
+    eq("1.000,0.000,0.000", require("org.ui.images")._foreground(buf, 0, 11))
+    require("org.config").opts.ui.latex_preview = nil
+  end)
+
+  it("spans emphasis over one newline, not two, and not after [", function()
+    org_buffer({ "x *multi", "line* y", "[*x*] z", "x *a", "b", "c* d", "*b /it/ c*" }, { 1, 0 })
+    ok(hl.has(1, 5, "orgbold"), hl.groups(1, 5))
+    ok(hl.has(2, 2, "orgbold"), hl.groups(2, 2))
+    eq("", hl.groups(3, 3))
+    eq("", hl.groups(4, 4))
+    ok(hl.has(7, 5, "orgitalic") and hl.has(7, 5, "orgbold"), hl.groups(7, 5))
+  end)
+
+  it("shows only the description of a link, or its target without one", function()
+    local function shown(text)
+      org_buffer({ text }, { 1, 0 })
+      vim.wo.conceallevel = 2
+      local out = {}
+      for c = 1, #text do
+        if not hl.has(1, c, "conceal") then
+          out[#out + 1] = text:sub(c, c)
+        end
+      end
+      return table.concat(out)
+    end
+    eq("3. this is something else", shown("3. this is [[https://www.google.com][something else]]"))
+    eq("* TODO see Link :tag:", shown("* TODO see [[file:a.org::*x][Link]] :tag:"))
+    eq("| cell H | b |", shown("| cell [[*Heading][H]] | b |"))
+    eq("no desc https://example.com end", shown("no desc [[https://example.com]] end"))
+  end)
+end)
+
+-- Emphasis (org-do-emphasis-faces) cases.
+describe("parser highlighter: emphasis", function()
+  before_each(function()
+    require("org.config").opts.ui.hide_emphasis_markers = true
+  end)
+  after_each(function()
+    require("org.config").opts.ui.hide_emphasis_markers = false
+  end)
+
+  local function col(l, s)
+    return assert(vim.fn.getline(l):find(s, 1, true), s)
+  end
+
+  -- org-emphasis-regexp-components: only blanks are forbidden borders
+  it("allows quotes and commas at the borders", function()
+    org_buffer({ [[~'symbol~ and ="quoted"= and =,= and *'q'*]] }, { 1, 0 })
+    vim.wo.conceallevel = 2
+    ok(hl.has(1, 2, "orgcode"), hl.groups(1, 2))
+    ok(hl.has(1, col(1, '"quoted') + 1, "orgverbatim"), hl.groups(1, 16))
+    ok(hl.has(1, col(1, "=,=") + 1, "orgverbatim"), hl.groups(1, col(1, "=,=") + 1))
+    ok(hl.has(1, col(1, "*'q") + 1, "orgbold"), hl.groups(1, col(1, "*'q") + 1))
+    ok(hl.has(1, 1, "conceal"), hl.groups(1, 1))
+  end)
+
+  -- org-element-paragraph-separate
+  it("doesn't continue onto a list item, table row or keyword line", function()
+    org_buffer({ "some *text", "- item* more", "", "other /text", "| x/ y |", "", "x _a", "#+KEY: b_ c" }, { 1, 0 })
+    ok(not hl.has(1, 7, "orgbold"), hl.groups(1, 7))
+    ok(not hl.has(2, 3, "orgbold"), hl.groups(2, 3))
+    ok(not hl.has(4, 8, "orgitalic"), hl.groups(4, 8))
+    ok(not hl.has(7, 4, "orgunderline"), hl.groups(7, 4))
+    ok(not hl.has(1, 6, "conceal"), hl.groups(1, 6))
+  end)
+
+  it("continues onto the next line of the paragraph", function()
+    org_buffer({ "para *bold", "continues here* ok" }, { 1, 0 })
+    ok(hl.has(1, 7, "orgbold"), hl.groups(1, 7))
+    ok(hl.has(2, 1, "orgbold"), hl.groups(2, 1))
+  end)
+
+  -- org-emph-re needs a non-empty text: "==" is no empty markup
+  it("doesn't make an empty emphasis of doubled markers", function()
+    org_buffer({ "Compare a == b and later x =y= z.", "A // comment and later a/b/ c" }, { 1, 0 })
+    ok(not hl.has(1, 11, "orgverbatim") and not hl.has(1, 12, "conceal"), hl.groups(1, 12))
+    ok(hl.has(1, 14, "orgverbatim"), hl.groups(1, 14))
+    ok(hl.has(2, 5, "orgitalic"), hl.groups(2, 5))
+  end)
+
+  it("highlights all markup in list terms", function()
+    org_buffer({ "- term +s+ _u_ :: def", "- [[https://example.com][Example]] :: def", "- =v= :: d" }, { 1, 0 })
+    ok(hl.has(1, 9, "orgstrikethrough"), hl.groups(1, 9))
+    ok(hl.has(1, 13, "orgunderline"), hl.groups(1, 13))
+    ok(hl.has(2, 30, "orglistterm"), hl.groups(2, 30))
+    ok(hl.has(3, 4, "orglistterm") and hl.has(3, 4, "orgverbatim"), hl.groups(3, 4))
+  end)
+
+  -- Emacs refontifies multi-line emphasis (font-lock-multiline)
+  it("redraws the line above when a two-line emphasis is closed", function()
+    local buf = org_buffer({ "para *bold", "continues here", "third" }, { 1, 0 })
+    vim.wo.conceallevel = 2
+    vim.cmd("redraw")
+    local before = vim.fn.screenattr(1, 7)
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    vim.api.nvim_buf_set_text(buf, 1, 14, 1, 14, { "*" })
+    vim.cmd("redraw")
+    local a, s = vim.fn.screenattr(1, 6), vim.fn.screenstring(1, 6)
+    ok(a ~= before, "the first line is drawn bold")
+    vim.cmd("redraw!")
+    eq(vim.fn.screenattr(1, 6), a)
+    eq(vim.fn.screenstring(1, 6), s)
+  end)
+
+  -- E363 / 'redrawtime' on paragraph lines with many unclosed markers
+  it("draws long lines full of markers quickly", function()
+    local msgs = {}
+    for _, line in ipairs({ string.rep("/x ", 320), string.rep("*a *b ", 100), string.rep("call *args and **kw, ", 50) }) do
+      org_buffer({ "* Head", line, "after *bold* text", "* TODO second *bold*" }, { 1, 0 })
+      vim.cmd("messages clear")
+      local t = vim.uv.hrtime()
+      local okr, err = pcall(vim.cmd, "redraw!")
+      ok(okr, tostring(err))
+      ok((vim.uv.hrtime() - t) / 1e6 < 500, "slow redraw")
+      ok(hl.has(4, 3, "orgtodo"), hl.groups(4, 3))
+      ok(hl.has(3, 8, "orgbold"), hl.groups(3, 8))
+      msgs[#msgs + 1] = vim.api.nvim_exec2("messages", { output = true }).output
+    end
+    ok(not table.concat(msgs):find("redrawtime"))
+  end)
+end)
+
+-- Long lines: the same faces as on short ones, and none of the limits of
+-- Vim's syntax ('synmaxcol', 'maxmempattern', 'redrawtime').
+describe("parser highlighter: long lines", function()
+  local gen = require("tests.helpers.gen")
+  local mmp, rdt, smc
+  before_each(function()
+    mmp, rdt, smc = vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol
+    vim.o.maxmempattern = 1000
+    vim.o.redrawtime = 500
+  end)
+  after_each(function()
+    vim.o.maxmempattern, vim.o.redrawtime, vim.go.synmaxcol = mmp, rdt, smc
+  end)
+
+  --- Group `group` (or nothing, "") is drawn at line l, column c.
+  local function is(group, l, c)
+    local at = ("line %d, col %d: %s"):format(l, c, hl.groups(l, c))
+    if group == "" then
+      eq("", hl.groups(l, c), at)
+    else
+      ok(hl.has(l, c, group), at)
+    end
+  end
+
+  local function draw()
+    vim.cmd("messages clear")
+    local okr, err = pcall(vim.cmd, "redraw!")
+    ok(okr, tostring(err))
+    local m = vim.api.nvim_exec2("messages", { output = true }).output
+    ok(not m:find("E363") and not m:find("redrawtime"), m)
+  end
+
+  it("highlights description terms, not the blanks around the bullet", function()
+    local prose = gen.prose(5000)
+    org_buffer({
+      "- term :: desc",
+      "  - [X] boxed *bold* term :: d",
+      "1. ordered :: not a term",
+      "- " .. prose .. " :: long term",
+      "#+begin_quote",
+      "+ quoted :: x",
+      "#+end_quote",
+      "- " .. prose,
+    }, { 1, 0 })
+    draw()
+    is("orgListBullet", 1, 1)
+    is("", 1, 2)
+    is("orgListTerm", 1, 3)
+    -- (Emacs draws the blank and the "::" after a term in org-list-dt)
+    is("orgListTerm", 1, 7)
+    is("", 1, 10)
+    is("orgCheckboxChecked", 2, 5)
+    -- (and the term starts after the bullet's blanks, the checkbox in it)
+    is("orgListTerm", 2, 8)
+    is("orgListTerm", 2, 9)
+    is("orgBold", 2, 16)
+    is("orgListTerm", 4, 3)
+    is("orgListTerm", 4, 4990)
+    -- (a quote body: no colour without ui.fontify_quote_and_verse_blocks)
+    is("", 6, 2)
+    is("orgListTerm", 6, 3)
+    is("", 8, 3)
+  end)
+
+  -- (a padded table: ui_highlight_table_spec.lua)
+
+  it("dims a long headline tagged ARCHIVE", function()
+    org_buffer({ "** TODO plain " .. gen.marked(1500) .. " :work:ARCHIVE:", "* Next" }, { 1, 0 })
+    draw()
+    is("orgHeadlineArchived", 1, 10)
+    is("orgHeadlineLevel1", 2, 1)
+  end)
+
+  it("highlights markup past 'synmaxcol', and it never runs on below", function()
+    vim.go.synmaxcol = 110
+    org_buffer({
+      gen.prose(96) .. " *starts here and* ends after",
+      "plain text",
+      "* Next",
+      "text *b*",
+      gen.prose(5000) .. " ~starts far~ out",
+    }, { 1, 0 })
+    draw()
+    is("orgBold", 1, 100)
+    is("", 2, 1)
+    is("orgHeadlineLevel1", 3, 1)
+    is("orgBold", 4, 7)
+    is("orgCode", 5, #vim.fn.getline(5) - 8)
+  end)
+
+  it("highlights markup over two lines, after a long first line too", function()
+    org_buffer({ "some *bold", "text* and /it/", "", gen.prose(5000) .. " *bold", "text* x" }, { 1, 0 })
+    draw()
+    is("orgBold", 1, 7)
+    is("orgBold", 2, 2)
+    is("orgItalic", 2, 12)
+    is("orgBold", 4, #vim.fn.getline(4) - 1)
+    is("orgBold", 5, 2)
+  end)
+
+  for _, kind in ipairs({ "prose", "marked", "markers", "blob" }) do
+    it("draws a 20,000-character line of " .. kind .. " and the lines after it", function()
+      org_buffer({ "* H", gen[kind](20000), "* After *bold*", "- term :: x" }, { 1, 0 })
+      draw()
+      is("orgHeadlineLevel1", 3, 1)
+      is("orgBold", 3, 11)
+      is("orgListTerm", 4, 3)
+    end)
+  end
+end)
+
+-- Typing keeps the marks of the rows an edit can't change
+-- (org.ui.decorations `carried`): after every edit, each row must be drawn
+-- as a fresh scan of the buffer draws it.
+describe("parser highlighter, after an edit inside a line", function()
+  with_config({
+    ui = {
+      hide_emphasis_markers = true,
+      indent_mode = true,
+      pretty_entities = true,
+      bullets = { "◉", "○" },
+      checkboxes = { " ", "◐", "✓" },
+    },
+  })
+
+  --- Every row's marks, as one string per row: as drawn (`fresh`: as a
+  --- scan of that row alone draws them, with the same parse).
+  local function all_marks(buf, fresh)
+    local ui = fresh and deco.ui_options(buf, require("org.ui.highlight").file_in_use(buf))
+    local out = {}
+    for row = 0, vim.api.nvim_buf_line_count(buf) - 1 do
+      local t = {}
+      local marks = fresh and deco.compute(buf, row, row, ui)[row] or not fresh and deco.line_marks(buf, row) or {}
+      for _, m in ipairs(marks) do
+        local o = vim.tbl_extend("force", {}, m[2])
+        o.ephemeral = nil
+        t[#t + 1] = m[1] .. ":" .. vim.inspect(o, { newline = "", indent = "" })
+      end
+      table.sort(t)
+      out[row + 1] = table.concat(t, " ")
+    end
+    return out
+  end
+
+  --- The inline marks drawn on screen (org.ui.decorations `sync_inline`),
+  --- after a redraw.
+  local function inline_marks(buf)
+    vim.cmd("redraw")
+    local ns = vim.api.nvim_create_namespace("org.decorations.inline")
+    local t = {}
+    local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, { top, 0 }, { bot, -1 }, { details = true })) do
+      local d = m[4]
+      d.ns_id = nil
+      t[#t + 1] = m[2] .. ":" .. m[3] .. vim.inspect(d, { newline = "", indent = "" })
+    end
+    table.sort(t)
+    return table.concat(t, "\n")
+  end
+
+  -- what an edit inserts: plain text, markup markers, link and footnote
+  -- brackets, and what keeps rows from being kept (a star, "#", "\")
+  local CHARS = { "a", "x", " ", " ", "*", "/", "=", "~", "+", "_", "[", "]", "<", ">", "{", "}", "(", ")", '"' }
+  vim.list_extend(CHARS, { "\\", "#", ":", "|", "-", "$", "^", "1", ".", "@", "\t" })
+
+  local root = vim.fn.getcwd() .. "/tests/fixtures/emacs/faces/"
+  local fixtures = {}
+  for _, f in ipairs({ "headline", "list", "date", "meta", "table", "block", "object" }) do
+    vim.list_extend(fixtures, vim.fn.readfile(root .. f .. ".org"))
+  end
+
+  it("keeps rows with the column view loaded and not shown", function()
+    require("org.columns")
+    local buf = org_buffer({ "a *bold* b", "", "c" }, { 1, 0 })
+    all_marks(buf)
+    local carried = deco._carried
+    vim.api.nvim_buf_set_text(buf, 2, 0, 2, 0, { "x" })
+    all_marks(buf)
+    ok(deco._carried > carried)
+  end)
+
+  it("draws every row as a fresh scan does, and keeps rows", function()
+    local carried = deco._carried
+    for _, seed in ipairs(fuzz.seeds(4)) do
+      local rng = fuzz.rng(seed)
+      local lines = fuzz.doc(rng, { crlf = false })
+      -- (and a part of the Emacs faces cases)
+      local from = rng:int(1, #fixtures - 40)
+      vim.list_extend(lines, vim.list_slice(fixtures, from, from + 40))
+      local buf = org_buffer(lines, { 1, 0 })
+      all_marks(buf)
+      for _ = 1, 25 do
+        local n = vim.api.nvim_buf_line_count(buf)
+        local row = rng:int(0, n - 1)
+        local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1]
+        local col = rng:int(0, #line)
+        if #line > 0 and rng:chance(0.3) then
+          col = math.min(col, #line - 1)
+          vim.api.nvim_buf_set_text(buf, row, col, row, col + 1, {})
+        else
+          vim.api.nvim_buf_set_text(buf, row, col, row, col, { rng:pick(CHARS) })
+        end
+        local kept = all_marks(buf)
+        local fresh = all_marks(buf, true)
+        local now = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        for i = 1, #fresh do
+          if kept[i] ~= fresh[i] then
+            error(fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(i - 1, row), now, now))
+          end
+        end
+        -- and the inline marks (indent mode) of the rows on screen
+        vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+        local inline = inline_marks(buf)
+        deco.render(buf)
+        if inline ~= inline_marks(buf) then
+          error(fuzz.report(seed, ("inline marks after an edit of row %d differ"):format(row), now, now))
+        end
+        -- (the redraw computed the rows on screen together, whose marks
+        -- can differ from those of each row alone: a macro over a list
+        -- item; each row alone again, without a redraw)
+        deco.render(buf, true)
+        all_marks(buf)
+      end
+    end
+    -- (rows were kept, not only drawn again)
+    ok(deco._carried > carried)
+  end)
+
+  --- Count the rows computed while `fn` runs.
+  local function computed(fn)
+    local compute, n = deco.compute, 0
+    deco.compute = function(b, s, e, ui)
+      n = n + e - s + 1
+      return compute(b, s, e, ui)
+    end
+    local ok_, err = pcall(fn)
+    deco.compute = compute
+    assert(ok_, err)
+    return n
+  end
+
+  --- The marks of rows `top` to `bot` as drawn, and as the scan of those
+  --- rows together draws them.
+  local function screen_marks(buf, top, bot)
+    local ui = deco.ui_options(buf, require("org.ui.highlight").file_in_use(buf))
+    local fresh = deco.compute(buf, top, bot, ui)
+    local kept, now = {}, {}
+    for row = top, bot do
+      for _, t in ipairs({ { kept, deco.line_marks(buf, row) }, { now, fresh[row] or {} } }) do
+        local out = {}
+        for _, m in ipairs(t[2]) do
+          local o = vim.tbl_extend("force", {}, m[2])
+          o.ephemeral = nil
+          out[#out + 1] = m[1] .. ":" .. vim.inspect(o, { newline = "", indent = "" })
+        end
+        table.sort(out)
+        t[1][row - top + 1] = table.concat(out, " ")
+      end
+    end
+    return kept, now
+  end
+
+  it("computes again only the rows of a screen an edit inside a line can change", function()
+    -- (rows drawn together: an edit of a paragraph line computes again the
+    -- rows whose own scan reads it, not every row the screen's scan read)
+    local buf = org_buffer(require("tests.helpers.gen").headlines(40), { 1, 0 })
+    local row = 0
+    for i, l in ipairs(buf_lines(buf)) do
+      if i > 60 and l:find("^Body") then
+        row = i - 1
+        break
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    vim.cmd("normal! zz")
+    vim.cmd("redraw")
+    local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    ok(bot - top > 15)
+    local carried = deco._carried
+    local n = computed(function()
+      vim.api.nvim_buf_set_text(buf, row, 4, row, 4, { "x" })
+      vim.cmd("redraw")
+    end)
+    eq(carried + 1, deco._carried)
+    ok(n >= 1 and n <= 8, "rows computed: " .. n)
+    local kept, fresh = screen_marks(buf, top, bot)
+    eq(fresh, kept)
+  end)
+
+  it("keeps rows over an edit of a headline's text, not of its stars", function()
+    local buf = org_buffer(require("tests.helpers.gen").headlines(40), { 1, 0 })
+    local row
+    for i, l in ipairs(buf_lines(buf)) do
+      if i > 60 and l:find("^%*+ TODO") then
+        row = i - 1
+        break
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    vim.cmd("normal! zz")
+    vim.cmd("redraw")
+    local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    local col = #buf_lines(buf)[row + 1]:match("^%*+ TODO ")
+    -- the title, the TODO keyword, the tags: the rows around it only
+    for _, edit in ipairs({ { col, col, "x" }, { col - 2, col - 1, "" }, { col - 3, col - 3, "X " } }) do
+      local carried = deco._carried
+      local n = computed(function()
+        vim.api.nvim_buf_set_text(buf, row, edit[1], row, edit[2], { edit[3] })
+        vim.cmd("redraw")
+      end)
+      eq(carried + 1, deco._carried)
+      ok(n >= 1 and n <= 8, "rows computed: " .. n)
+      local kept, fresh = screen_marks(buf, top, bot)
+      eq(fresh, kept)
+    end
+    -- a star more or less: every row
+    for _, edit in ipairs({ { 0, 0, "*" }, { 0, 1, "" }, { 1, 2, "\t" } }) do
+      local n = computed(function()
+        vim.api.nvim_buf_set_text(buf, row, edit[1], row, edit[2], { edit[3] })
+        vim.cmd("redraw")
+      end)
+      ok(n > bot - top, "rows computed: " .. n)
+      local kept, fresh = screen_marks(buf, top, bot)
+      eq(fresh, kept)
+    end
+  end)
+
+  it("looks at the rows near an edit only to keep the others, however many were drawn", function()
+    -- (scrolled through the whole buffer: every row is done)
+    local buf = org_buffer(require("tests.helpers.gen").headlines(400), { 1, 0 })
+    local lines = buf_lines(buf)
+    ok(#lines > 4000)
+    local top
+    while top ~= vim.fn.line("w0") do
+      top = vim.fn.line("w0")
+      vim.cmd("normal! \6")
+      vim.cmd("redraw")
+    end
+    local row
+    for i = math.floor(#lines / 2), #lines do
+      if lines[i]:find("^Body") then
+        row = i - 1
+        break
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    vim.cmd("normal! zz")
+    vim.cmd("redraw")
+    local carried, looked = deco._carried, deco._carried_rows
+    vim.api.nvim_buf_set_text(buf, row, 0, row, 0, { "x" })
+    vim.cmd("redraw")
+    eq(carried + 1, deco._carried)
+    local looked_at = deco._carried_rows - looked
+    ok(looked_at > 0 and looked_at < 400, "rows looked at: " .. looked_at)
+    local t, b = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+    local kept, fresh = screen_marks(buf, t, b)
+    eq(fresh, kept)
+  end)
+
+  it("computes again every row of a screen an edit changes what draws rows together in", function()
+    -- a macro over the items of a list is drawn when the rows are scanned
+    -- together: an edit of any of them computes them all again
+    for _, case in ipairs({
+      { 4, 7, "" }, -- "}}}" -> "}}"
+      { 1, 4, "{" }, -- "{{" -> "{{{"
+      { 2, 3, "x" }, -- an item between
+    }) do
+      local lines = { "para", "- a {{{m(", "- b", "- c", "- d )}}} e", "- f", "g" }
+      if case[3] == "{" then
+        lines[2] = "- a {{m("
+      end
+      for _ = 1, 30 do
+        lines[#lines + 1] = "text"
+      end
+      local buf = org_buffer(lines, { 1, 0 })
+      vim.cmd("redraw")
+      local row, col = case[1], case[2]
+      if case[3] == "" then
+        vim.api.nvim_buf_set_text(buf, row, col, row, col + 1, {})
+      else
+        vim.api.nvim_buf_set_text(buf, row, col, row, col, { case[3] })
+      end
+      vim.cmd("redraw")
+      local kept, fresh = screen_marks(buf, 0, 6)
+      eq(fresh, kept, vim.inspect(case))
+    end
+  end)
+
+  it("draws a screen as a fresh scan of its rows does after edits, and keeps rows", function()
+    local carried = deco._carried
+    for _, seed in ipairs(fuzz.seeds(4)) do
+      local rng = fuzz.rng(seed)
+      local lines = fuzz.doc(rng, { crlf = false })
+      local from = rng:int(1, #fixtures - 40)
+      vim.list_extend(lines, vim.list_slice(fixtures, from, from + 40))
+      local buf = org_buffer(lines, { 1, 0 })
+      for _ = 1, 25 do
+        local n = vim.api.nvim_buf_line_count(buf)
+        vim.api.nvim_win_set_cursor(0, { rng:int(1, n), 0 })
+        vim.cmd("redraw")
+        local top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+        local row = rng:int(top, bot)
+        local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1]
+        local col = rng:int(0, #line)
+        if #line > 0 and rng:chance(0.3) then
+          col = math.min(col, #line - 1)
+          vim.api.nvim_buf_set_text(buf, row, col, row, col + 1, {})
+        else
+          vim.api.nvim_buf_set_text(buf, row, col, row, col, { rng:pick(CHARS) })
+        end
+        vim.cmd("redraw")
+        local now = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        top, bot = vim.fn.line("w0") - 1, vim.fn.line("w$") - 1
+        local kept, fresh = screen_marks(buf, top, bot)
+        for i = 1, #fresh do
+          if kept[i] ~= fresh[i] then
+            error(
+              fuzz.report(seed, ("row %d drawn after an edit of row %d differs"):format(top + i - 1, row), now, now)
+            )
+          end
+        end
+      end
+    end
+    ok(deco._carried > carried)
+  end)
+end)
+
+-- Neovim redraws only the lines an edit changed (and those below, when it
+-- adds or removes lines), while the marks of a row can change with the text
+-- of another: the screen after an edit must be the screen drawn anew.
+describe("parser highlighter, the screen after an edit", function()
+  with_config({ ui = { hide_emphasis_markers = false } })
+
+  --- The attributes of the screen's first `n` rows, one string per row.
+  local function screen(n)
+    vim.cmd("redraw")
+    local out = {}
+    for r = 1, n do
+      local t = {}
+      for c = 1, 30 do
+        t[c] = vim.fn.screenattr(r, c)
+      end
+      out[r] = table.concat(t, ",")
+    end
+    return out
+  end
+
+  --- Run `keys` (typed) in a buffer of `lines` with the cursor at `cursor`,
+  --- and check the screen against a redraw from scratch.
+  local function check(lines, cursor, keys)
+    local buf = org_buffer(lines, { 1, 0 })
+    screen(#lines)
+    vim.api.nvim_win_set_cursor(0, cursor)
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), "xn", false)
+    local drawn = screen(#lines)
+    deco.render(buf)
+    eq(screen(#lines), drawn)
+    return drawn
+  end
+
+  it("redraws the line above that markup closed on the edited line opens on", function()
+    local drawn = check({ "a *bold over", "two lines here" }, { 2, 8 }, "a*<Esc>")
+    -- (the line above is bold now)
+    local plain = check({ "a *bold over", "two lines here" }, { 2, 8 }, "")
+    ok(drawn[1] ~= plain[1])
+  end)
+
+  it("redraws the lines below whose markup an edit opened", function()
+    check({ "plain line", "two lines* here", "" }, { 1, 1 }, "a *<Esc>")
+  end)
+
+  it("redraws the line above when the line closing its markup is deleted", function()
+    check({ "a *bold over", "two lines* here", "next" }, { 2, 0 }, "dd")
+  end)
+
+  it("redraws the lines of a paragraph a link goes on over", function()
+    check({ "see [[https://example.org][a", "description]] here" }, { 2, 11 }, "x")
+  end)
+
+  it("redraws the rows an undo and a redo change", function()
+    check({ "a *bold over", "two lines here", "" }, { 2, 8 }, "a*<Esc>u<C-r>u")
+  end)
+end)
+
+describe("parser highlighter, rows past the last one Neovim expects", function()
+  with_config({ ui = { indent_mode = true } })
+
+  --- The attributes of the screen's rows, one string per row.
+  local function screen()
+    vim.cmd("redraw")
+    local out = {}
+    for r = 1, vim.o.lines - 2 do
+      local t = {}
+      for c = 1, 12 do
+        t[c] = vim.fn.screenattr(r, c)
+      end
+      out[r] = table.concat(t, ",")
+    end
+    return out
+  end
+
+  -- (Neovim tells the decoration provider the rows it drew last, but the
+  -- virtual indentation placed then can make the lines take fewer rows)
+  it("draws the rows a shorter virtual indentation brought on screen", function()
+    local lines = { "* A", "** B" }
+    for i = 1, 60 do
+      -- (wraps after an indentation of 3, not of 2)
+      local l = "*bold* " .. i .. " "
+      lines[#lines + 1] = l .. string.rep("x", vim.o.columns - 2 - #l)
+    end
+    local buf = org_buffer(lines, { 2, 0 })
+    vim.wo.wrap = true
+    screen()
+    vim.cmd("normal! x")
+    local drawn = screen()
+    deco.render(buf)
+    eq(screen(), drawn)
+  end)
+end)

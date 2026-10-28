@@ -383,6 +383,15 @@ describe("export (Emacs features)", function()
     has(h2, "echo none")
   end)
 
+  it("exports nothing for an inline block without a value (Org 9.8.10)", function()
+    -- Emacs: "Nil src_emacs-lisp{nil} end." -> "Nil end."; an empty string
+    -- is still {{{results(==)}}}, the text "==" (Lisp src_emacs-lisp{""})
+    skip_on_windows("runs a sh block")
+    config.opts.babel.evaluate_on_export = true
+    config.opts.babel.confirm_evaluate = false
+    has(html({ "Again src_sh{printf ''} done." }), "<p>\nAgain done.\n</p>")
+  end)
+
   it("numbers lines and resolves coderefs like ox-html", function()
     local lines = {
       "#+begin_src sh -n -r",
@@ -1033,5 +1042,145 @@ describe("export: {{{n}}} counters in keywords follow the document (Emacs 9.8.10
     end
     has(out, "After 6 3 title Title 7-8 4\n")
     has(out, "| #+DATE: Ex {{{n}}}\n")
+  end)
+end)
+
+describe("export: id: links to another file (Emacs 9.8.10)", function()
+  -- org-export-resolve-id-link gives the other file's name; each back-end
+  -- links to that file. org.nvim used to abort with "Unable to resolve link".
+  local dir
+  before_each(function()
+    dir = tmpdir()
+    local other = {
+      "* Other heading",
+      ":PROPERTIES:",
+      ":ID: hunt9-abc",
+      ":END:",
+      "** Sub other",
+      ":PROPERTIES:",
+      ":ID: hunt9-def",
+      ":END:",
+    }
+    vim.fn.writefile(other, dir .. "/other.org")
+    require("org.id").register_lines(other, dir .. "/other.org")
+  end)
+
+  local function exp(backend)
+    pcall(require, "org.export.odt")
+    return (
+      ox.export_as(
+        backend,
+        -- texinfo exports nothing before the first heading (Emacs too)
+        { "* Local", "See [[id:hunt9-abc][an id]] and [[id:hunt9-abc]] and [[id:hunt9-def]]." },
+        { filename = dir .. "/a.org", body_only = true }
+      )
+    )
+  end
+
+  it("html", function()
+    has(
+      exp("html"),
+      'See <a href="other.html#ID-hunt9-abc">an id</a> and <a href="other.html#ID-hunt9-abc">other.org</a>'
+        .. ' and <a href="other.html#ID-hunt9-def">other.org</a>.'
+    )
+  end)
+
+  it("latex", function()
+    has(exp("latex"), "See \\href{other.org}{an id} and \\url{other.org} and \\url{other.org}.")
+  end)
+
+  it("md", function()
+    has(exp("md"), "See [an id](other.md) and <other.md> and <other.md>.")
+  end)
+
+  it("ascii", function()
+    local out = exp("ascii")
+    has(out, "See [an id] and other.org and other.org.")
+    has(out, "[an id] See file other.org")
+  end)
+
+  it("texinfo", function()
+    has(exp("texinfo"), "See @uref{file://other.org,an id} and @uref{file://other.org} and @uref{file://other.org}.")
+  end)
+
+  it("odt", function()
+    has(
+      exp("odt"),
+      'See <text:a xlink:type="simple" xlink:href="../other.org">an id</text:a> and '
+        .. '<text:a xlink:type="simple" xlink:href="../other.org">../other.org</text:a>'
+    )
+  end)
+end)
+
+describe("export: keyword macros read the buffer, not its setup file (Emacs 9.8.10)", function()
+  -- org-macro--find-keyword-value searches the buffer's own lines; the
+  -- #+MACRO definitions of a setup file apply (org-collect-keywords).
+  -- Emacs (ascii, body only):
+  --   a.org: "T= A= D= D2= E= K=local KT= M=from-setup-x"
+  --   b.org: "T=Own D=2021 K="
+  local dir
+  before_each(function()
+    dir = tmpdir()
+    vim.fn.mkdir(dir .. "/sub", "p")
+    vim.fn.writefile({
+      "#+TITLE: Setup Title",
+      "#+AUTHOR: Setup Author",
+      "#+DATE: <2020-01-02 Thu>",
+      "#+EMAIL: s@x",
+      "#+KW: fromsetup",
+      "#+MACRO: m from-setup-$1",
+    }, dir .. "/sub/s.setup")
+  end)
+
+  local function ascii(lines)
+    return (ox.export_as("ascii", lines, { filename = dir .. "/a.org", body_only = true }))
+  end
+
+  it("leaves title, author, date, email and keyword empty without own keywords", function()
+    has(
+      ascii({
+        "#+SETUPFILE: sub/s.setup",
+        "#+KW: local",
+        "#+OPTIONS: email:t",
+        "T={{{title}}} A={{{author}}} D={{{date}}} D2={{{date(%Y)}}} E={{{email}}} K={{{keyword(KW)}}}"
+          .. " KT={{{keyword(TITLE)}}} M={{{m(x)}}}",
+      }),
+      "T= A= D= D2= E= K=local KT= M=from-setup-x"
+    )
+  end)
+
+  it("uses the buffer's own keywords", function()
+    has(
+      ascii({
+        "#+SETUPFILE: sub/s.setup",
+        "#+TITLE: Own",
+        "#+DATE: <2021-03-04 Thu>",
+        "T={{{title}}} D={{{date(%Y)}}} K={{{keyword(KW)}}}",
+      }),
+      "T=Own D=2021 K=\n"
+    )
+  end)
+end)
+
+describe("export: the end of a buffer or subtree without a newline (Emacs 9.8.10)", function()
+  -- Emacs exports the buffer text, whose last line may have no newline,
+  -- and org-narrow-to-subtree leaves out the newline ending a subtree that
+  -- isn't the last: Emacs gives "Text\nlast</p>" for "* Head\nText\nlast"
+  -- without a final newline, and "a text</p>" / "b text</p>" for the
+  -- subtrees of "* A\na text\n* B\nb text"
+  it("ends the last paragraph of a buffer without a final newline", function()
+    local buf = org_buffer({ "* Head", "Text", "last" }, { 1, 0 })
+    vim.bo[buf].eol = false
+    has(export.to_string("html", { bufnr = buf, body_only = true }), "<p>\nText\nlast</p>\n</div>")
+    vim.bo[buf].eol = true
+    has(export.to_string("html", { bufnr = buf, body_only = true }), "<p>\nText\nlast\n</p>\n</div>")
+  end)
+
+  it("ends the last paragraph of a subtree without a newline, unless it ends the buffer", function()
+    local buf = org_buffer({ "* A", "a text", "* B", "b text" }, { 1, 0 })
+    has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 1 }), "<p>\na text</p>")
+    has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 3 }), "<p>\nb text\n</p>")
+    vim.bo[buf].eol = false
+    has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 3 }), "<p>\nb text</p>")
   end)
 end)

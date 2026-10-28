@@ -259,6 +259,20 @@ describe("structure: moving and kill ring", function()
     end)
     eq({ "* A", "** B", "body", "*** A", "**** B", "body", "***** C", "*** C" }, buf_lines(buf))
   end)
+
+  it("a bare line of stars under the Normal-mode cursor sets the level and goes away", function()
+    with_stub(vim, "notify", function() end, function()
+      for _, l in ipairs({ "***", "*** " }) do
+        local buf = org_buffer({ "* A", "b", l, "* C" }, { 3, #l - 1 })
+        structure.paste_subtree({ lines = { "* X", "** Y", "y" } })
+        eq({ "* A", "b", "*** X", "**** Y", "y", "* C" }, buf_lines(buf))
+      end
+      -- an empty buffer: the subtree is its only text (Emacs)
+      local buf = org_buffer({ "" }, { 1, 0 })
+      structure.paste_subtree({ lines = { "* X", "y" } })
+      eq({ "* X", "y" }, buf_lines(buf))
+    end)
+  end)
 end)
 
 describe("structure: toggles", function()
@@ -268,6 +282,22 @@ describe("structure: toggles", function()
     eq("* TODO COMMENT A", buf_lines(buf)[1])
     structure.toggle_comment()
     eq("* TODO A", buf_lines(buf)[1])
+  end)
+
+  it("toggle comment changes only the keyword, like org-toggle-comment", function()
+    -- Emacs 9.8.10: the tags are not realigned, no trailing space is left
+    local cases = {
+      { "* TODO [#A] x :t:", "* TODO [#A] COMMENT x :t:" },
+      { "* ", "* COMMENT" },
+      { "* TODO", "* TODO COMMENT" },
+      { "* COMMENT", "* " },
+      { "* x", "* COMMENT x" },
+    }
+    for _, c in ipairs(cases) do
+      local buf = org_buffer({ c[1] }, { 1, 0 })
+      structure.toggle_comment()
+      eq(c[2], buf_lines(buf)[1])
+    end
   end)
 
   it("toggle heading", function()

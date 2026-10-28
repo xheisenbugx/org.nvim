@@ -496,4 +496,59 @@ describe("pomodoro off", function()
     eq(nil, pomodoro.state)
     eq(nil, clock.state)
   end)
+
+  it("teardown saves the session to its own state_file, not the default one", function()
+    local default = pomodoro.defaults.state_file
+    vim.fn.delete(default)
+    vim.fn.delete(state_file)
+    setup({ system_notification = false })
+    task_buffer()
+    pomodoro.start()
+    vim.fn.delete(state_file)
+    setup(nil)
+    eq(1, vim.fn.filereadable(state_file))
+    eq(0, vim.fn.filereadable(default))
+    vim.fn.delete(state_file)
+  end)
+
+  it("setup() again during work goes on with the same clock", function()
+    vim.fn.delete(state_file)
+    setup({ system_notification = false })
+    local buf = task_buffer()
+    pomodoro.start()
+    eq(1, #lines_matching(buf, "^CLOCK:"))
+    setup({ system_notification = false })
+    eq("work", pomodoro.state and pomodoro.state.phase)
+    ok(clock.state)
+    -- no closed 0:00 line and a second open one
+    eq(1, #lines_matching(buf, "^CLOCK:"))
+    ok(not lines_matching(buf, "^CLOCK:")[1]:find("--", 1, true))
+    setup(nil)
+    eq(nil, clock.state)
+    eq(1, #lines_matching(buf, "^CLOCK:.*=>"))
+    vim.fn.delete(state_file)
+  end)
+end)
+
+describe("pomodoro health", function()
+  local function report(o)
+    local out = {}
+    local h = {}
+    for _, kind in ipairs({ "ok", "warn", "error", "info" }) do
+      h[kind] = function(m)
+        out[#out + 1] = kind .. " " .. m
+      end
+    end
+    pomodoro.health(h, vim.tbl_extend("force", pomodoro.defaults, { system_notification = false }, o))
+    return out
+  end
+
+  it("reports bad durations without an OK line for them", function()
+    eq({ "error pomodoro: work must be a positive number of minutes" }, report({ work = -5 }))
+    eq(
+      { "error pomodoro: long_break_every must be a number of pomodoros, 1 or more" },
+      report({ long_break_every = 0 })
+    )
+    eq({ "ok pomodoro: 25/5/15 min, long break every 4" }, report({}))
+  end)
 end)

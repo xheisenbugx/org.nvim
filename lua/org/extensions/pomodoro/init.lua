@@ -799,7 +799,8 @@ function M.setup(o)
   torn_down = nil
 end
 
-function M.teardown()
+---@param again? boolean set up again right after (the clock keeps running)
+function M.teardown(again)
   if augroup then
     pcall(vim.api.nvim_del_augroup_by_id, augroup)
     augroup = nil
@@ -808,7 +809,9 @@ function M.teardown()
     -- kept in state_file: a following setup() goes on with it
     pcall(save)
     stop_timer()
-    if (M.state.phase == "work" or M.state.phase == "overtime") and not M.state.paused_at then
+    -- set up again (the config sourced again): the next setup() goes on
+    -- with the session and its clock, which is not split
+    if not again and (M.state.phase == "work" or M.state.phase == "overtime") and not M.state.paused_at then
       pcall(clock_out)
     end
     M.state = nil
@@ -821,14 +824,20 @@ function M.teardown()
 end
 
 function M.health(h, o)
+  local bad = false
   for _, k in ipairs({ "work", "short_break", "long_break" }) do
     if not (tonumber(o[k]) and tonumber(o[k]) > 0) then
       h.error(string.format("pomodoro: %s must be a positive number of minutes", k))
+      bad = true
     end
+  end
+  if not (tonumber(o.long_break_every) and tonumber(o.long_break_every) >= 1) then
+    h.error("pomodoro: long_break_every must be a number of pomodoros, 1 or more")
+    bad = true
   end
   if o.system_notification and not require("org.agenda.notifications").desktop_backend() then
     h.warn("pomodoro: no osascript, notify-send or powershell.exe for desktop notifications")
-  else
+  elseif not bad then
     h.ok(
       string.format(
         "pomodoro: %g/%g/%g min, long break every %d",

@@ -165,7 +165,8 @@ describe("present folded slides", function()
       -- the link shows its description, as on an open line
       local col = vim.fn.getline(1):find("[[", 1, true)
       ok(vim.wo.conceallevel >= 2)
-      eq(1, vim.fn.synconcealed(1, col)[1])
+      -- (hidden by a mark of the parser highlighter)
+      ok(require("tests.helpers.highlighter").has(1, col, "conceal"))
     end)
     if not floats_drawn() then
       return

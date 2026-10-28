@@ -270,10 +270,6 @@ local function open(lines)
   return vim.api.nvim_get_current_buf()
 end
 
-local function syn(l, c)
-  return vim.fn.synIDattr(vim.fn.synID(l, c, 1), "name")
-end
-
 --- Inside a describe: no messages before a test, no buffers after it.
 local function setup()
   before_each(function()
@@ -286,107 +282,14 @@ end
 
 describe("perf: long lines", function()
   setup()
-  --- A line of `kind` of `n` characters.
-  local function line(kind, n)
-    return ({
-      prose = gen.prose,
-      marked = gen.marked,
-      markers = gen.markers,
-      bold = function(k)
-        return string.rep("*a* ", math.ceil(k / 4)):sub(1, k)
-      end,
-      list = function(k)
-        return "- " .. gen.prose(k) .. " :: term"
-      end,
-      table = function(k)
-        return "| " .. gen.marked(k) .. " |"
-      end,
-      headline = function(k)
-        return "** TODO " .. gen.marked(k) .. " :tag:"
-      end,
-    })[kind](n)
+  --- A file with a long line of `n` characters of markup between two
+  --- headlines.
+  local function file(n)
+    return { "* Before", gen.marked(n), "* After *bold*" }
   end
-
-  --- A file with one `kind` of long line between two headlines.
-  local function file(kind, n)
-    return { "* Before", line(kind, n), "* After *bold*" }
-  end
-
-  --- Draw the buffer again from scratch (the syntax state of every line
-  --- recomputed).
-  local function redraw_fresh()
-    vim.cmd("syntax clear")
-    vim.b.current_syntax = nil
-    vim.cmd("runtime! syntax/org.lua")
-    vim.cmd("redraw!")
-  end
-
-  for _, kind in ipairs({ "prose", "marked", "markers", "list", "table", "headline" }) do
-    it(kind .. ": 30,000 characters draw in budget, syntax stays on", function()
-      open(file(kind, 30000))
-      vim.cmd("messages clear")
-      budget("draw a 30,000-character " .. kind .. " line", 1000, redraw_fresh)
-      local m = messages()
-      ok(not m:find("redrawtime"), m)
-      ok(not m:find("E363"), m)
-      -- highlighting goes on past the long line (no region leaks into it)
-      eq("OrgHeadlineLevel1", syn(3, 1))
-      eq("OrgBold", syn(3, 11))
-    end)
-  end
-
-  -- How drawing grows with the length of the lines, on a screen of 20 of
-  -- them shorter than 'synmaxcol', where every column is drawn (past it
-  -- nothing more is, so a line twice as long there is no more work). A
-  -- look-behind for a table row on each emphasis marker went back to the
-  -- start of the line: 20 lines of 2,900 characters of bold took 1.4 s to
-  -- draw, 3.7x the time of 1,450.
-  describe("a screen of lines", function()
-    local wrap
-    before_each(function()
-      wrap = vim.wo.wrap
-    end)
-    after_each(function()
-      vim.wo.wrap = wrap
-    end)
-    -- (2n and what a kind adds to a line within 'synmaxcol')
-    local max = math.floor(vim.o.synmaxcol / 2) - 50
-
-    for _, kind in ipairs({ "prose", "marked", "bold", "list", "table", "headline" }) do
-      it(kind .. ": drawing time grows linearly with the lines", function()
-        local buf = open({ "" })
-        -- (a screen row per line: all 20 are drawn)
-        vim.wo.wrap = false
-        local function screen(n)
-          local lines = { "* Before" }
-          for _ = 1, 20 do
-            lines[#lines + 1] = line(kind, n)
-          end
-          lines[#lines + 1] = "* After *bold*"
-          return lines
-        end
-        vim.cmd("messages clear")
-        -- (3 times: n can't grow past 'synmaxcol', the time must be well
-        -- above the timer's noise on a fast machine too)
-        -- (at 2n: n can't grow 4 times within 'synmaxcol')
-        linear("draw 20 " .. kind .. " lines 3x", math.floor(max / 2), function()
-          for _ = 1, 3 do
-            redraw_fresh()
-          end
-        end, function(n)
-          vim.api.nvim_buf_set_lines(buf, 0, -1, false, screen(n))
-        end, max, 2)
-        -- ('redrawtime' caps a drawing that turns syntax off)
-        local m = messages()
-        ok(not m:find("redrawtime"), m)
-        eq("OrgHeadlineLevel1", syn(22, 1))
-        eq("OrgBold", syn(22, 11))
-      end)
-    end
-  end)
 
   it("typing in a 10,000-character line", function()
-    open(file("marked", 10000))
+    open(file(10000))
     vim.api.nvim_win_set_cursor(0, { 2, 100 })
     budget("type 10 chars in a 10,000-character line", 1500, function()
       for _ = 1, 10 do
@@ -410,6 +313,236 @@ describe("perf: long lines", function()
     end)
     budget("lint long lines", 1500, function()
       require("org.lint").lint(0)
+    end)
+  end)
+end)
+
+-- The parser highlighter (org.ui.emphasis): emphasis and link brackets
+-- from a scan of the lines drawn, with no 'synmaxcol' to stop at: the
+-- lines are drawn in full.
+describe("perf: long lines with the parser highlighter", function()
+  setup()
+  with_config({ ui = { hide_emphasis_markers = true } })
+  local deco = require("org.ui.decorations")
+
+  local KINDS = {
+    prose = gen.prose,
+    marked = gen.marked,
+    markers = gen.markers,
+    bold = function(k)
+      return string.rep("*a* ", math.ceil(k / 4)):sub(1, k)
+    end,
+    links = function(k)
+      return string.rep("[[https://x.org/a_b][d *e*]] ", math.ceil(k / 29)):sub(1, k)
+    end,
+    table = function(k)
+      return "| " .. gen.marked(k) .. " |"
+    end,
+    -- many openings that share one closing marker at the end (review of
+    -- the parser highlighter: verbatim showed what each one hid, 30 s for
+    -- 24 KB)
+    far_verbatim = function(k)
+      return string.rep("=a ", math.ceil(k / 3)):sub(1, k) .. "b="
+    end,
+    far_bold = function(k)
+      return string.rep("*a ", math.ceil(k / 3)):sub(1, k) .. "b*"
+    end,
+    far_table = function(k)
+      return "| " .. string.rep("*a ", math.ceil(k / 3)):sub(1, k) .. "b* |"
+    end,
+    open_links = function(k)
+      return string.rep("[[a][", math.ceil(k / 5)):sub(1, k)
+    end,
+  }
+
+  --- Draw the buffer with its decorations computed again.
+  local function redraw_fresh()
+    deco.render(vim.api.nvim_get_current_buf())
+    vim.cmd("redraw!")
+  end
+
+  for _, kind in ipairs({ "prose", "marked", "markers", "bold", "links", "table" }) do
+    it(kind .. ": 100,000 characters draw in budget, markup at the end too", function()
+      local buf = open({ "* Before", KINDS[kind](100000) .. " *end*", "* After *bold*" })
+      vim.cmd("messages clear")
+      budget("draw a 100,000-character " .. kind .. " line (parser)", 1000, redraw_fresh)
+      local m = messages()
+      ok(not m:find("E363"), m)
+      local len = #vim.api.nvim_buf_get_lines(buf, 1, 2, false)[1]
+      -- ("end" is bold: earlier markers may close at its "*" too, as in
+      -- Emacs, and the marks of one kind that overlap are one)
+      local found = false
+      for _, mk in ipairs(deco.line_marks(buf, 1)) do
+        found = found or (mk[2].hl_group == "orgBold" and mk[1] <= len - 4 and mk[2].end_col >= len - 1)
+      end
+      ok(found, "bold at the end of the line")
+    end)
+  end
+
+  for _, kind in ipairs({ "marked", "markers", "bold", "links", "far_verbatim", "far_bold", "far_table", "open_links" }) do
+    it(kind .. ": drawing time grows linearly with the line, past 'synmaxcol'", function()
+      local buf = open({ "" })
+      linear("draw a " .. kind .. " line 3x (parser)", 20000, function()
+        for _ = 1, 3 do
+          redraw_fresh()
+        end
+      end, function(n)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "* Before", KINDS[kind](n), "* After" })
+      end)
+    end)
+  end
+
+  it("typing in a 30,000-character line", function()
+    open({ "* Before", gen.marked(30000), "* After *bold*" })
+    vim.api.nvim_win_set_cursor(0, { 2, 100 })
+    budget("type 10 chars in a 30,000-character line (parser)", 1500, function()
+      for _ = 1, 10 do
+        vim.cmd("normal! ix")
+        vim.cmd("redraw")
+      end
+    end)
+  end)
+end)
+
+-- The parser highlighter as a whole (org.ui.highlight): the marks of the
+-- rows on screen are computed at every changedtick (typing keeps the rows
+-- an edit can't change) and drawn by the decoration provider, one scan per
+-- range of rows a window draws (one per closed fold in an overview).
+describe("perf: the parser highlighter", function()
+  setup()
+  with_config({ ui = { hide_emphasis_markers = true } })
+  local deco = require("org.ui.decorations")
+
+  -- the Emacs faces cases: every kind of element the highlighter draws
+  local CASES = {}
+  for _, name in ipairs({ "headline", "list", "date", "meta", "table", "block", "object" }) do
+    vim.list_extend(CASES, vim.fn.readfile("tests/fixtures/emacs/faces/" .. name .. ".org"))
+  end
+  --- `copies` times every kind of element.
+  local function kinds(copies)
+    local out = {}
+    for _ = 1, copies do
+      vim.list_extend(out, CASES)
+    end
+    return out
+  end
+
+  local function key(k)
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(k, true, false, true), "nx", false)
+  end
+  --- Page through the buffer from the top, drawing each screen.
+  local function page_through()
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.cmd("redraw")
+    local top
+    while top ~= vim.fn.line("w0") and vim.fn.line("w$") < vim.api.nvim_buf_line_count(0) do
+      top = vim.fn.line("w0")
+      key("<C-f>")
+      vim.cmd("redraw")
+    end
+  end
+  --- Draw the screen `times` times, its marks computed again each time.
+  local function fresh(buf, times)
+    for _ = 1, times do
+      deco.render(buf)
+      vim.cmd("redraw!")
+    end
+  end
+  local function middle()
+    vim.api.nvim_win_set_cursor(0, { math.floor(vim.api.nvim_buf_line_count(0) / 2), 0 })
+    vim.cmd("normal! zz")
+  end
+  local function type_chars(n)
+    for _ = 1, n do
+      vim.cmd("normal! ix")
+      vim.cmd("redraw")
+    end
+  end
+
+  it("draws, scrolls and types in a file of every kind of element in budget", function()
+    local buf = open(kinds(40))
+    middle()
+    budget("draw 20 screens of every kind (parser)", 600, function()
+      fresh(buf, 20)
+    end)
+    budget("type 20 chars among every kind (parser)", 300, function()
+      type_chars(20)
+    end)
+    budget("scroll 40 pages of every kind (parser)", 1500, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 40 do
+        key("<C-f>")
+        vim.cmd("redraw")
+      end
+    end)
+    vim.cmd("normal! zM")
+    middle()
+    budget("draw 20 screens of every kind, folded (parser)", 1000, function()
+      fresh(buf, 20)
+    end)
+    budget("type 20 chars among every kind, folded (parser)", 300, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 20 do
+        vim.cmd("normal! Ax")
+        vim.cmd("redraw")
+      end
+    end)
+  end)
+
+  it("pages through every kind of element in time linear in the pages", function()
+    local buf = open({ "" })
+    linear("page through every kind (parser)", 2, page_through, function(n)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, kinds(n))
+      deco.render(buf)
+    end)
+  end)
+
+  it("opens, edits, folds and scrolls 10,000 headlines in budget", function()
+    local lines = gen.headlines(10000)
+    local buf
+    budget("open 10,000 headlines (parser)", 3000, function()
+      buf = open(lines)
+    end)
+    middle()
+    budget("draw 20 screens of 10,000 headlines (parser)", 300, function()
+      fresh(buf, 20)
+    end)
+    -- (an edit inside a line computes again the rows whose own scan reads
+    -- it: 13 ms on a laptop, 22 ms when it was the whole screen)
+    budget("type 20 chars in 10,000 headlines (parser)", 150, function()
+      type_chars(20)
+    end)
+    budget("zM, zR in 10,000 headlines (parser)", 300, function()
+      vim.cmd("normal! zM")
+      vim.cmd("redraw")
+      vim.cmd("normal! zR")
+      vim.cmd("redraw")
+    end)
+    vim.cmd("normal! zM")
+    budget("scroll 40 pages of the overview of 10,000 headlines (parser)", 800, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 40 do
+        key("<C-f>")
+        vim.cmd("redraw")
+      end
+    end)
+    budget("type 20 chars in the overview of 10,000 headlines (parser)", 400, function()
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      for _ = 1, 20 do
+        vim.cmd("normal! Ax")
+        vim.cmd("redraw")
+      end
+    end)
+  end)
+
+  it("pages through the overview of headlines in time linear in the headlines", function()
+    local buf = open({ "" })
+    linear("page through the overview of headlines (parser)", 500, function()
+      vim.cmd("normal! zM")
+      page_through()
+    end, function(n)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, gen.headlines(n))
+      deco.render(buf)
     end)
   end)
 end)
@@ -660,7 +793,7 @@ describe("perf: tables", function()
     local m = messages()
     ok(not m:find("redrawtime"), m)
     ok(not m:find("E363"), m)
-    eq("OrgTable", syn(10, 3))
+    ok(require("tests.helpers.highlighter").has(10, 3, "orgTable"), "the row is drawn as a table")
   end)
 
   it("recalculates formulas linearly", function()
@@ -781,7 +914,7 @@ describe("perf: src blocks", function()
   it("tree-sitter: drawing a block grows linearly with its lines", function()
     -- (the highlights of a row in the middle, as the first row drawn: the
     -- block found, read and parsed; not the redraw, whose syntax syncing
-    -- in a long region is the same with either engine)
+    -- in a long region is the same with either src block engine)
     local ts = require("org.ui.src_highlight")
     local parses
     -- (the slower way: with the injected languages, at any size)

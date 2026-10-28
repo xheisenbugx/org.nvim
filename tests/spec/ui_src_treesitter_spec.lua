@@ -2,6 +2,7 @@
 -- ui.src_highlight_engine), org-src-fontify-natively with tree-sitter.
 
 local ts = require("org.ui.src_highlight")
+local hl = require("tests.helpers.highlighter")
 
 -- the parsers bundled with Neovim (lib/nvim/parser: c, lua, vim, ...),
 -- which the minimal runtimepath leaves out
@@ -90,9 +91,11 @@ describe("tree-sitter src blocks", function()
   end)
 
   it("doesn't include the lua syntax: the body is a plain region", function()
+    -- (the region only keeps the body out of spell checking;
+    -- ui_highlight_block_spec.lua checks the delimiter lines' marks)
     org_buffer({ "* H", "#+begin_src lua", "local x = 1", "#+end_src" })
     eq("orgsrcblock_lua", groups(3, 1))
-    eq("orgsrcblock_lua orgblockdelimiter", groups(2, 1))
+    eq("orgsrcblock_lua orgsrcdelimiter", groups(2, 1))
   end)
 
   it("follows the aliases and src_lang_modes of a language", function()
@@ -268,6 +271,32 @@ describe("tree-sitter src blocks", function()
     ok(groups(2, 1):find("^orgsrcblock_lua lua"), groups(2, 1))
   end)
 
+  it("a #+begin_src line in a raw block opens no language region past it", function()
+    set_ui({ src_highlight_engine = "syntax" })
+    org_buffer({
+      "#+begin_example",
+      "#+begin_src lua",
+      "#+end_example",
+      "local x = 1",
+      "#+begin_comment",
+      "#+begin_src lua",
+      "#+end_comment",
+      "local y = 2",
+      "#+begin_src text",
+      "#+begin_src lua",
+      "#+end_src",
+      "local z = 3",
+      "#+begin_src lua",
+      "local w = 4",
+      "#+end_src",
+    })
+    -- (the lines after each block are a paragraph, checked for spelling)
+    for _, l in ipairs({ 4, 8, 12 }) do
+      eq("", groups(l, 1))
+    end
+    ok(groups(14, 1):find("^orgsrcblock_lua lua"), groups(14, 1))
+  end)
+
   it('src_highlight_engine = "treesitter" leaves a language without a parser plain', function()
     if has_parser("fstab") then
       return
@@ -281,7 +310,10 @@ describe("tree-sitter src blocks", function()
       "local x",
       "#+end_src",
     })
-    eq("orgblock", groups(2, 1))
+    -- (no language region: the parser highlighter draws the body in
+    -- orgBlock; the syntax only keeps it raw text)
+    eq("orgblockraw", groups(2, 1))
+    ok(hl.has(2, 1, "orgblock"), hl.groups(2, 1))
     eq("@keyword.lua", group_at(5, 0))
   end)
 
@@ -289,7 +321,8 @@ describe("tree-sitter src blocks", function()
     set_ui({ src_highlight = false })
     org_buffer({ "#+begin_src lua", "local x = 1", "#+end_src" })
     eq({}, hls(2))
-    eq("orgblock", groups(2, 1))
+    eq("", groups(2, 1))
+    ok(hl.has(2, 1, "orgblock"), hl.groups(2, 1))
   end)
 
   it("draws the highlights as extmarks in the window", function()

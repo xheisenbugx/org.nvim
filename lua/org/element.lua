@@ -92,6 +92,9 @@ local function starts(line)
   end
 end
 
+--- Is `line` an affiliated keyword (#+NAME:, #+CAPTION:, #+ATTR_x: ...)?
+M.is_affiliated = affiliated
+
 local parse
 
 --- Parse the lines [s, e] into a list of elements with `parent`.

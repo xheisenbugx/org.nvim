@@ -3,7 +3,9 @@
 --- `C-f` on a descriptive link goes from the text before it to its
 --- description. In Vim, `l` would step through the hidden `[[target][`
 --- one character at a time with the cursor standing still on screen.
---- After a motion that lands on fully hidden text (syntax conceal at
+--- After a motion that lands on fully hidden text (the markers and link
+--- brackets the parser highlighter hides, or the syntax of a src block's
+--- language conceals, at
 --- 'conceallevel' 2 without a replacement character, or level 3), the
 --- cursor goes on past it in the direction it moved, or back when nothing
 --- visible follows on the line.
@@ -16,7 +18,13 @@ local M = {}
 ---@return boolean
 local function hidden(lnum, col, level)
   local c = vim.fn.synconcealed(lnum, col)
-  return c[1] == 1 and (level >= 3 or c[2] == "")
+  if c[1] == 1 then
+    return level >= 3 or c[2] == ""
+  end
+  -- emphasis markers and link brackets of the parser highlighter
+  local deco = package.loaded["org.ui.decorations"]
+  local repl = deco and deco.concealed(vim.api.nvim_get_current_buf(), lnum - 1, col - 1)
+  return repl ~= nil and (level >= 3 or repl == "")
 end
 
 --- The first byte of the character after the one at `col`, or nil at the

@@ -298,6 +298,11 @@ function M.detach()
   local buf = api.nvim_get_current_buf()
   if t.region then
     forget(buf, t.region.id)
+    -- undo brings the keyword back over the text: render takes it back
+    local st = M.buffers[buf]
+    if st then
+      st.detached = true
+    end
     api.nvim_buf_set_lines(buf, t.row - 1, t.row, false, {})
   else
     local res, err = resolve_at(buf, t.row)

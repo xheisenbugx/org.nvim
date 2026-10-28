@@ -216,17 +216,6 @@ function M.adapt_indentation(bufnr)
   return cfg.adapt_indentation
 end
 
-local function enabled(ui)
-  return ui.bullets
-    or ui.hide_leading_stars
-    or ui.checkboxes
-    or ui.indent_mode
-    or ui.pretty_entities
-    or ui.num
-    or next(ui.src_block_faces or {}) ~= nil
-    or require("org.parser").inlinetask_min_level() ~= nil
-end
-
 local EMPH_PRE = "[%s%(%'\"{%-]"
 local EMPH_POST = "[%s%-%.,:!%?;%'\"%)}%[]"
 
@@ -347,6 +336,28 @@ local function protected_ranges(line)
 end
 M._protected_ranges = protected_ranges
 
+--- Byte ranges of `line` hidden as the path of a described bracket link
+--- ("[[" to "]["), where no entity is displayed.
+local function link_paths(line)
+  local out = {}
+  local init = 1
+  while true do
+    local s = line:find("[[", init, true)
+    if not s then
+      return out
+    end
+    local e = line:find("]]", s + 2, true)
+    if not e then
+      return out
+    end
+    local d = line:find("][", s + 2, true)
+    if d and d < e then
+      out[#out + 1] = { s, d + 1 }
+    end
+    init = e + 2
+  end
+end
+
 local function in_ranges(ranges, pos)
   for _, r in ipairs(ranges) do
     if pos >= r[1] and pos <= r[2] then
@@ -357,7 +368,7 @@ local function in_ranges(ranges, pos)
 end
 
 --- Headline numbering (org-num-mode): row -> text.
-local function numbering(lines, ui)
+local function numbering(lines, ui, bufnr)
   local out = {}
   local nums
   local skip_level
@@ -365,7 +376,7 @@ local function numbering(lines, ui)
   local parser = require("org.parser")
   local footnote_section = cfg.footnote_section
   for i, line in ipairs(lines) do
-    local level = parser.outline_level(line)
+    local level = parser.outline_level(line, bufnr)
     local p = level and parser.parse_headline_line(line)
     if level and p then
       local skip = false
@@ -467,9 +478,10 @@ local function context_at(bufnr, first, min_inline)
     return lvl and not (min_inline and lvl >= min_inline) and lvl or nil
   end
   -- the nearest outline headline above
-  local start, e = 0, first
+  -- (read back in chunks that grow: it is usually near)
+  local start, e, size = 0, first, 16
   while e > 0 do
-    local s = math.max(0, e - 256)
+    local s = math.max(0, e - size)
     local chunk = vim.api.nvim_buf_get_lines(bufnr, s, e, false)
     for i = #chunk, 1, -1 do
       if outline(chunk[i]) then
@@ -479,6 +491,7 @@ local function context_at(bufnr, first, min_inline)
       end
     end
     e = e > 0 and s or e
+    size = math.min(2 * size, 256)
   end
   local level, in_block, src_lang = 0, false, nil
   for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, start, first, false)) do
@@ -525,9 +538,6 @@ local num_cache = {} ---@type table<integer, { tick: integer, ui: table, nums: t
 function M.compute(bufnr, first, last, ui)
   local rows = {}
   ui = ui or M.ui_options(bufnr)
-  if not enabled(ui) then
-    return rows
-  end
   local n = vim.api.nvim_buf_line_count(bufnr)
   first = math.max(0, first or 0)
   last = math.min(n - 1, last or n - 1)
@@ -540,22 +550,24 @@ function M.compute(bufnr, first, last, ui)
     end
     r[#r + 1] = { col, opts, persist }
   end
-  local min_inline = require("org.parser").inlinetask_min_level()
+  local min_inline = require("org.parser").inlinetask_min_level(bufnr)
+  local src_faces = src_face_groups(ui)
+  local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   local level, in_block, src_lang = 0, false, nil
-  if first > 0 then
+  -- (the level draws the prefixes of indent mode; whether a block is open,
+  -- its checkboxes, entities and src block faces)
+  if first > 0 and (ui.indent_mode or boxes or ui.pretty_entities or src_faces) then
     level, in_block, src_lang = context_at(bufnr, first, min_inline)
   end
-  local src_faces = src_face_groups(ui)
   local lines = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
   local bullets = type(ui.bullets) == "table" and ui.bullets or nil
-  local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   local nums = {}
   if ui.num then
     -- numbers count every headline above: computed for the whole buffer
     local tick = vim.api.nvim_buf_get_changedtick(bufnr)
     local nc = num_cache[bufnr]
     if not nc or nc.tick ~= tick or nc.ui ~= ui then
-      nc = { tick = tick, ui = ui, nums = numbering(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), ui) }
+      nc = { tick = tick, ui = ui, nums = numbering(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), ui, bufnr) }
       num_cache[bufnr] = nc
     end
     nums = nc.nums
@@ -660,7 +672,7 @@ function M.compute(bufnr, first, last, ui)
         local item = line:find("^%s*[-+*%w]") and require("org.lists").parse_item_line(line)
         local pre, box
         if item and item.checkbox then
-          local col = item.indent + #item.bullet_ws
+          local col = item.ind_len + #item.bullet_ws
           local counter = line:match("^%[@[^%]]*%][ \t]*", col + 1) or ""
           col = col + #counter
           box = line:match("^%[[ X%-]%]", col + 1)
@@ -690,91 +702,83 @@ function M.compute(bufnr, first, last, ui)
         end
       end
     end
-    -- (not in keywords and comments: org-at-comment-p)
-    if ui.pretty_entities and not in_block and not line:match("^%s*#[%s+]") and not line:match("^%s*#$") then
-      local protected = protected_ranges(line)
-      -- \name, \name{} (org-fontify-entities)
-      local init = 1
-      while true do
-        local s, e, name = line:find("\\(%a+)", init)
-        if not s then
-          break
-        end
-        local nm = name
-        local sym = require("org.entities").utf8(nm)
-        if not sym then
-          -- \sup1, \frac12 and the like end in digits
-          local w = line:match("^\\(%a+%d%d?)", s)
-          if w then
-            sym = require("org.entities").utf8(w)
-            if sym then
-              e = s + #w
-            end
-          end
-        end
-        local after = line:sub(e + 1, e + 1)
-        -- only one-character replacements are shown (org-fontify-entities
-        -- skips \sin, \deg-like operators and other multi-character UTF-8)
-        if sym and vim.fn.strchars(sym) == 1 and not after:match("%a") and not in_ranges(protected, s) then
-          local stop = e
-          if line:sub(e + 1, e + 2) == "{}" then
-            stop = e + 2
-          end
-          set(row, s - 1, { end_col = stop, conceal = sym })
-        end
-        init = e + 1
-      end
-      if scripts then
-        -- x^2, a_{i} (org-raise-scripts)
-        local pos = 2
-        while pos <= #line do
-          local s = line:find("[_^]", pos)
+    -- \name, \name{} (org-fontify-entities): everywhere but in comment
+    -- lines (org-at-comment-p), keywords, emphasis, link descriptions and
+    -- property drawers too; not in the hidden path of a described link
+    local hash = ui.pretty_entities and not in_block and line:find("^%s*#")
+    if ui.pretty_entities and not in_block and line:find("\\", 1, true) then
+      if not (hash and (line:find("^%s*# ") or line:find("^%s*#$"))) then
+        local paths = link_paths(line)
+        local init = 1
+        while true do
+          local s = line:find("\\", init, true)
           if not s then
             break
           end
-          local base = line:sub(s - 1, s - 1)
-          local mark = line:sub(s, s)
-          local body, body_s, body_e, braces
-          if line:sub(s + 1, s + 1) == "{" then
-            local close = line:find("}", s + 2, true)
-            if close then
-              body, body_s, body_e, braces = line:sub(s + 2, close - 1), s + 2, close - 1, true
-            end
-          elseif not braces_only then
-            local b = line:match("^%*", s + 1) or line:match("^[+-]?[%w.,\\]*%w", s + 1)
-            if b then
-              body, body_s, body_e = b, s + 1, s + #b
-            end
-          end
-          if body and s > 1 and base:match("%S") and body ~= "" and not in_ranges(protected, s) then
-            local map = mark == "^" and SUPER or SUB
-            local all = true
-            for ch in body:gmatch(".") do
-              if not map[ch] then
-                all = false
-              end
-            end
-            set(row, s - 1, { end_col = s, conceal = "" })
-            if braces then
-              set(row, s, { end_col = s + 1, conceal = "" })
-              set(row, body_e, { end_col = body_e + 1, conceal = "" })
-            end
-            local grp = mark == "^" and "OrgSuperscript" or "OrgSubscript"
-            if all then
-              for k = body_s, body_e do
-                set(row, k - 1, { end_col = k, conceal = map[line:sub(k, k)] })
-              end
-            else
-              set(row, body_s - 1, { end_col = body_e, hl_group = grp })
-            end
-            pos = (braces and body_e + 2 or body_e + 1)
+          local sym, stop = require("org.entities").pretty_at(line, s)
+          if sym and stop and not in_ranges(paths, s) then
+            set(row, s - 1, { end_col = stop, conceal = sym })
+            init = stop + 1
           else
-            pos = s + 1
+            init = s + 1
           end
         end
       end
     end
+    -- (scripts not in keywords and comments: org-raise-scripts)
+    if scripts and not in_block and not (hash and (line:find("^%s*#[%s+]") or line:find("^%s*#$"))) then
+      local protected = protected_ranges(line)
+      -- x^2, a_{i} (org-raise-scripts)
+      local pos = 2
+      while pos <= #line do
+        local s = line:find("[_^]", pos)
+        if not s then
+          break
+        end
+        local base = line:sub(s - 1, s - 1)
+        local mark = line:sub(s, s)
+        local body, body_s, body_e, braces
+        if line:sub(s + 1, s + 1) == "{" then
+          local close = line:find("}", s + 2, true)
+          if close then
+            body, body_s, body_e, braces = line:sub(s + 2, close - 1), s + 2, close - 1, true
+          end
+        elseif not braces_only then
+          local b = line:match("^%*", s + 1) or line:match("^[+-]?[%w.,\\]*%w", s + 1)
+          if b then
+            body, body_s, body_e = b, s + 1, s + #b
+          end
+        end
+        if body and s > 1 and base:match("%S") and body ~= "" and not in_ranges(protected, s) then
+          local map = mark == "^" and SUPER or SUB
+          local all = true
+          for ch in body:gmatch(".") do
+            if not map[ch] then
+              all = false
+            end
+          end
+          set(row, s - 1, { end_col = s, conceal = "" })
+          if braces then
+            set(row, s, { end_col = s + 1, conceal = "" })
+            set(row, body_e, { end_col = body_e + 1, conceal = "" })
+          end
+          local grp = mark == "^" and "OrgSuperscript" or "OrgSubscript"
+          if all then
+            for k = body_s, body_e do
+              set(row, k - 1, { end_col = k, conceal = map[line:sub(k, k)] })
+            end
+          else
+            set(row, body_s - 1, { end_col = body_e, hl_group = grp })
+          end
+          pos = (braces and body_e + 2 or body_e + 1)
+        else
+          pos = s + 1
+        end
+      end
+    end
   end
+  -- the faces of the text (org.ui.highlight)
+  require("org.ui.highlight").add_marks(bufnr, first, last, ui, rows)
   -- column view rows stand for the whole line (Emacs turns org-num off)
   local colview = package.loaded["org.columns"]
   for lnum in pairs(colview and colview.overlay_lines(bufnr) or {}) do
@@ -831,7 +835,24 @@ end
 -- replacements and showed up in odd places until the next render.)
 -- Results are cached per changedtick.
 local attached = {} ---@type table<integer, boolean>
-local cache = {} ---@type table<integer, { tick: integer, ui: table, rows: table<integer, table[]>, done: table<integer, boolean> }>
+---@class org.ui.decorations.Cache
+---@field tick integer
+---@field ui table
+---@field rows table<integer, table[]>
+---@field done table<integer, boolean>
+---@field text table<integer, string> the text of the rows done
+---@field lo table<integer, integer> per row done, the first row its marks depend on
+---@field hi table<integer, integer> and the last
+---@field wlo table<integer, integer> per row done, the first row its computation read
+---@field whi table<integer, integer> and the last
+---@field spans table<integer, boolean> per row done, whether its computation read the start of a macro or a footnote reference
+---@field ndone integer how many rows are done
+---@field reach { [1]: integer, [2]: integer } how far above and below its row the first and last rows a row done depends on are, at most
+---@field wreach { [1]: integer, [2]: integer } likewise for the rows its computation read
+---@field file? org.File|false the parse org.ui.highlight drew with (false: more than one)
+---@field bvars string the buffer variables the drawing follows
+---@field before? org.ui.decorations.Before what the rows drew before the edits since the last tick drawn
+local cache = {} ---@type table<integer, org.ui.decorations.Cache>
 
 --- The `ui` options the provider draws with. Reading `#+STARTUP` needs a
 --- parse of the buffer, too slow for every redraw of a large file: they
@@ -852,15 +873,316 @@ local function provider_ui(bufnr)
   return c.ui
 end
 
+-- Typing keeps the decorations of the rows it can't change. After an edit
+-- inside one line, the rows whose marks depend on that line (org.ui.highlight
+-- `last_reads`: those a scan of the row alone reads, the paragraphs around
+-- it and the lines that bound them; all the rows the scan of the rows
+-- computed together read, `last_read`, when the line holds what draws rows
+-- together; and every row below a line that holds, or held, the start of
+-- a macro or a footnote reference, or a bracket or quote when its scan read
+-- such a start: one opened or closed there runs on over rows whose scan
+-- didn't read the line) are computed again and the others keep theirs,
+-- when the line before and after the edit holds nothing the scans read
+-- from further away: no line of stars (levels, where blocks end) but a
+-- headline that keeps its stars and the blank after them, no `#` line
+-- (block delimiters, keywords), no backslash (LaTeX environments) and the
+-- same paragraph separation; and the rest is as it
+-- was: the same `ui` options, buffer variables and parse (in-buffer
+-- settings, radio targets), no numbering (it counts every headline above)
+-- and no column view. Anything else computes the rows again.
+
+-- (the rows whose inline marks are placed, see `sync_inline` below)
+local inline_synced = {} ---@type table<integer, { tick: integer, ui: table, rows: table<integer, boolean> }>
+
+--- (how many times rows were kept over an edit, and how many rows done
+--- were looked at to keep them, for the specs)
+M._carried = 0
+M._carried_rows = 0
+---@class org.ui.decorations.Edits
+---@field since integer the changedtick of the cache the edits follow
+---@field tick integer the changedtick after the last of them
+---@field rows table<integer, boolean>|false the rows edited, false when an edit added or removed lines
+---@field first? integer the first row an edit changed
+---@field last? integer the last row an edit changed (or the row before `first`: lines removed)
+---@field shift integer the lines added (less those removed)
+local edits = {} ---@type table<integer, org.ui.decorations.Edits>
+local tracked = {} ---@type table<integer, boolean>
+
+local function on_bytes(_, bufnr, tick, start_row, start_col, _, old_rows, old_col, _, new_rows, new_col)
+  if not attached[bufnr] then
+    tracked[bufnr] = nil
+    edits[bufnr] = nil
+    return true
+  end
+  local e = edits[bufnr]
+  if e then
+    if e.rows and old_rows == 0 and new_rows == 0 then
+      e.rows[start_row] = true
+    else
+      e.rows = false
+    end
+    -- (the rows after the edit move by the lines it added; the row the
+    -- edit ends on is one of them when it only moved, whole lines added
+    -- or removed before it: Neovim scrolls it in the other windows on the
+    -- buffer, it doesn't draw it again)
+    local last = start_row + new_rows
+    if new_col == 0 and old_col == 0 and (start_col == 0 or (new_rows > 0 and old_rows > 0)) then
+      last = last - 1
+    end
+    if e.last and e.last >= start_row then
+      e.last = e.last + new_rows - old_rows
+    end
+    e.first = math.min(e.first or start_row, start_row)
+    e.last = math.max(e.last or last, last)
+    e.shift = e.shift + new_rows - old_rows
+    -- (the changedtick before the edit: the edit makes it tick + 1)
+    e.tick = tick + 1
+  end
+end
+
+-- (a reload replaces every line without on_bytes: nothing is kept over it)
+local function on_reload(_, bufnr)
+  local e = edits[bufnr]
+  if e then
+    e.rows = false
+  end
+end
+
+-- (`:edit!` and unloading the buffer stop the listener: `attach` starts it
+-- again when the buffer is set up anew)
+local function on_detach(_, bufnr)
+  tracked[bufnr] = nil
+  edits[bufnr] = nil
+end
+
+--- The buffer variables the decorations follow (org.ui.highlight `add_marks`).
+local function bvars(bufnr)
+  local b = vim.b[bufnr]
+  return tostring(b.org_hide_emphasis_markers) .. tostring(b.org_link_descriptive)
+end
+
+--- Whether an edit that turned line `old` into `new` changes only the
+--- rows whose scan reads it (see above).
+local function local_edit(old, new)
+  -- (a headline that keeps its stars and the blank after them: the rows
+  -- after it read only its level and that it is one)
+  local stars = old:match("^%*+[ \t]")
+  if stars and (stars ~= new:match("^%*+[ \t]") or old:find("^%*+[ \t]*$") or new:find("^%*+[ \t]*$")) then
+    return false
+  end
+  for _, l in ipairs({ old, new }) do
+    if (not stars and l:byte(1) == 42) or l:find("^%s*#") or l:find("\\", 1, true) then
+      return false
+    end
+  end
+  local sep = require("org.ui.emphasis").separates
+  return sep(old) == sep(new)
+end
+
+--- `c` brought to changedtick `tick`, its rows an edit may have changed
+--- dropped (see above), or nil when it can't be.
+---@param c org.ui.decorations.Cache
+---@return org.ui.decorations.Cache?
+local function carried(bufnr, c, tick, ui)
+  local e = edits[bufnr]
+  if not (e and e.rows and e.since == c.tick and e.tick == tick and next(e.rows)) or c.ui ~= ui or ui.num then
+    return nil
+  end
+  local colview = package.loaded["org.columns"]
+  if colview and next(colview.overlay_lines(bufnr) or {}) then
+    return nil
+  end
+  local hl = package.loaded["org.ui.highlight"]
+  if c.file == false or (hl and c.file and hl.file_in_use(bufnr) ~= c.file) or c.bvars ~= bvars(bufnr) then
+    return nil
+  end
+  -- (whether an edited line holds what draws rows together, and whether
+  -- the scan of the lines after it reads it differently)
+  -- (and the first row from which on every row is dropped: a macro or a
+  -- footnote reference opened, or closed, there can run on over any row
+  -- below, whatever it read)
+  local together, above = false, false
+  local below = math.huge
+  local E = package.loaded["org.ui.emphasis"]
+  for row in pairs(e.rows) do
+    local old = c.text[row]
+    local new = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
+    if not (old and new and local_edit(old, new)) then
+      return nil
+    end
+    local spans = hl ~= nil and (hl.spans_paragraphs(old) or hl.spans_paragraphs(new))
+    together = together or spans
+    if spans or (c.spans[row] and (old:find('[][(){}<>"]') or new:find('[][(){}<>"]'))) then
+      below = math.min(below, row)
+    end
+    above = above or E ~= nil and E.line_above(old) ~= E.line_above(new)
+  end
+  local lo, hi = together and c.wlo or c.lo, together and c.whi or c.hi
+  local up = above and 1 or 0
+  -- (the inline marks of the rows kept stay where they are)
+  local synced = inline_synced[bufnr] ---@type { tick: integer, ui: table, rows: table<integer, boolean> }?
+  if synced and not (synced.tick == c.tick and synced.ui == ui) then
+    synced = nil
+  end
+  -- (what the rows dropped drew, see `redraw_changed`)
+  local before = { rows = {}, done = {}, edits = e } ---@type org.ui.decorations.Before
+  local function drop(row)
+    M._carried_rows = M._carried_rows + 1
+    for edited in pairs(e.rows) do
+      if row >= below or (lo[row] - up <= edited and edited <= hi[row]) then
+        before.rows[row], before.done[row] = c.rows[row], true
+        c.rows[row], c.done[row], c.text[row] = nil, nil, nil
+        c.lo[row], c.hi[row], c.wlo[row], c.whi[row], c.spans[row] = nil, nil, nil, nil, nil
+        c.ndone = c.ndone - 1
+        if synced then
+          synced.rows[row] = nil
+        end
+        return
+      end
+    end
+  end
+  -- (only the rows whose reads can reach an edited row, unless every row
+  -- below one is dropped: the rows done grow with every screen drawn since
+  -- the cache was made, all the rows of the file once scrolled through)
+  local reach = together and c.wreach or c.reach
+  local min, max = math.huge, -1
+  for edited in pairs(e.rows) do
+    min, max = math.min(min, edited), math.max(max, edited)
+  end
+  local from, to = min - reach[2], max + reach[1] + up
+  if below == math.huge and to - from <= 4 * c.ndone then
+    for row = from, to do
+      if c.done[row] then
+        drop(row)
+      end
+    end
+  else
+    for row in pairs(c.done) do
+      drop(row)
+    end
+  end
+  if synced then
+    synced.tick = tick
+  end
+  c.tick = tick
+  c.before = before
+  M._carried = M._carried + 1
+  return c
+end
+
+-- Neovim redraws the lines an edit changed (and scrolls those below when it
+-- added or removed lines), but the marks of a row can change with the text
+-- of another: markup over two lines, a link over the lines of a paragraph,
+-- the end line of a block. So the rows drawn again after an edit are
+-- compared with what they drew before it, and those whose marks changed
+-- and that Neovim doesn't redraw are redrawn too.
+
+---@class org.ui.decorations.Before
+---@field rows table<integer, table[]> the marks of the rows before the edits, by their rows before them
+---@field done table<integer, boolean>
+---@field edits? org.ui.decorations.Edits nil: not known
+
+--- What the rows of `c` drew before the edits since (see above), for
+--- a cache of the edited text made anew.
+---@param c org.ui.decorations.Cache
+---@return org.ui.decorations.Before
+local function before_edits(bufnr, c)
+  local e = edits[bufnr]
+  return { rows = c.rows, done = c.done, edits = e and e.since == c.tick and e or nil }
+end
+
+--- Whether two lists of marks (`compute`) draw the same.
+local function same_marks(a, b)
+  if a == b then
+    return true
+  end
+  a, b = a or {}, b or {}
+  if #a ~= #b then
+    return false
+  end
+  for k = 1, #a do
+    local x, y = a[k], b[k]
+    if x[1] ~= y[1] or x[3] ~= y[3] or x[4] ~= y[4] then
+      return false
+    end
+    local ox, oy = x[2], y[2]
+    for key, v in pairs(ox) do
+      local w = oy[key]
+      if v ~= w and not (type(v) == "table" and type(w) == "table" and vim.deep_equal(v, w)) then
+        return false
+      end
+    end
+    for key in pairs(oy) do
+      if ox[key] == nil then
+        return false
+      end
+    end
+  end
+  return true
+end
+
+--- Redraw the rows of [s, e] (computed again at `c.tick`) whose marks
+--- changed with an edit of other rows (see above).
+---@param c org.ui.decorations.Cache
+local function redraw_changed(bufnr, c, s, e)
+  local before = c.before ---@type org.ui.decorations.Before
+  local ed = before.edits
+  local lo, hi ---@type integer?, integer?
+  for row = s, e do
+    -- (the row it was before the edits, nil when Neovim redraws it anyway:
+    -- the rows edited; it scrolls those below the lines added or removed)
+    local old ---@type integer?
+    if not ed then
+      old = row
+    elseif ed.rows then
+      old = not ed.rows[row] and row or nil
+    elseif ed.first and row < ed.first then
+      old = row
+    elseif ed.last and row > ed.last then
+      old = row - ed.shift
+    end
+    if old and before.done[old] and not same_marks(before.rows[old], c.rows[row]) then
+      lo, hi = lo or row, row
+    end
+  end
+  if lo then
+    pcall(vim.api.nvim__redraw, { buf = bufnr, range = { lo, hi + 1 } })
+  end
+end
+
 --- Decorations of rows [top, bot] at the current changedtick, computed
 --- once per tick for the rows windows actually draw.
 local function rows_for(bufnr, top, bot)
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
   local ui = provider_ui(bufnr)
   local c = cache[bufnr]
-  if not c or c.tick ~= tick or c.ui ~= ui then
-    c = { tick = tick, ui = ui, rows = {}, done = {} }
+  -- (`b:org_hide_emphasis_markers` and the like set since: drawn anew, on
+  -- the next redraw of the window)
+  if not c or c.tick ~= tick or c.ui ~= ui or c.bvars ~= bvars(bufnr) then
+    local old = c
+    local kept = old and old.tick ~= tick and carried(bufnr, old, tick, ui)
+    c = kept
+      or {
+        tick = tick,
+        ui = ui,
+        rows = {},
+        done = {},
+        text = {},
+        lo = {},
+        hi = {},
+        wlo = {},
+        whi = {},
+        spans = {},
+        ndone = 0,
+        reach = { 0, 0 },
+        wreach = { 0, 0 },
+        bvars = bvars(bufnr),
+        before = old and before_edits(bufnr, old) or nil,
+      }
     cache[bufnr] = c
+    if tracked[bufnr] then
+      edits[bufnr] = { since = tick, tick = tick, rows = {}, shift = 0 }
+    end
   end
   local s = top
   while s <= bot and c.done[s] do
@@ -871,23 +1193,52 @@ local function rows_for(bufnr, top, bot)
     e = e - 1
   end
   if s <= e then
+    local hl = package.loaded["org.ui.highlight"]
+    if hl then
+      hl.last_read, hl.last_reads, hl.last_spans = nil, nil, false
+    end
     for row, marks in pairs(M.compute(bufnr, s, e, ui)) do
       c.rows[row] = marks
     end
-    for row = s, e do
-      c.done[row] = true
+    -- (`compute` loads org.ui.highlight the first time: what it read is
+    -- known from then on, the rows of the first buffer drawn too)
+    hl = hl or package.loaded["org.ui.highlight"]
+    if c.before then
+      redraw_changed(bufnr, c, s, e)
+    end
+    -- (the rows the computation read: the rows themselves, or the window
+    -- org.ui.highlight scanned for them; and those each row depends on)
+    local read = hl and hl.last_read
+    local reads = read and hl.last_reads
+    local spans = hl and hl.last_spans or false
+    for k, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, s, e + 1, false)) do
+      local row = s + k - 1
+      if not c.done[row] then
+        c.ndone = c.ndone + 1
+      end
+      c.done[row], c.text[row] = true, line
+      local wlo, whi = read and read[1] or row, read and read[2] or row
+      local rlo, rhi = reads and reads.lo[row] or wlo, reads and reads.hi[row] or whi
+      c.wlo[row], c.whi[row], c.spans[row] = wlo, whi, spans
+      c.lo[row], c.hi[row] = rlo, rhi
+      local reach, wreach = c.reach, c.wreach
+      reach[1], reach[2] = math.max(reach[1], row - rlo), math.max(reach[2], rhi - row)
+      wreach[1], wreach[2] = math.max(wreach[1], row - wlo), math.max(wreach[2], whi - row)
+    end
+    local file = hl and hl.file_in_use(bufnr) or nil
+    if c.file == nil then
+      c.file = file
+    elseif c.file ~= file then
+      c.file = false
     end
   end
   return c.rows
 end
 
-local current ---@type table<integer, table[]>?
-
 -- Inline virtual text (indent mode) can't be ephemeral, so those marks are
 -- real extmarks in their own namespace, rebuilt for the rows a window is
 -- about to draw whenever the text changed.
 local ns_inline = vim.api.nvim_create_namespace("org.decorations.inline")
-local inline_synced = {} ---@type table<integer, { tick: integer, ui: table, rows: table<integer, boolean> }>
 
 --- Marks drawn as real extmarks instead of ephemeral ones: inline virtual
 --- text (which can't be ephemeral) and overlays that must be placed after
@@ -954,68 +1305,216 @@ local function drawn_ranges(win, top, bot)
   return ok and out or { { top, bot } }
 end
 
-vim.api.nvim_set_decoration_provider(ns, {
+--- Spell checking outside a redraw (`]s`, `[s`, `z=`, spellbadword()):
+--- the `spell` of the marks of rows [srow, erow], as ephemeral marks that
+--- Neovim reads for the words it looks at. (Drawing reads them from
+--- on_line; without this, `]s` would stop on the words the screen doesn't
+--- mark, in verbatim, links, tags, ...)
+local function spell_nav(bufnr, srow, erow)
+  local last = vim.api.nvim_buf_line_count(bufnr) - 1
+  erow = math.min(math.max(erow or srow, srow), last)
+  if srow > erow then
+    return
+  end
+  local rows = rows_for(bufnr, srow, erow)
+  for row = srow, erow do
+    for _, m in ipairs(rows[row] or {}) do
+      local o = m[2]
+      if o.spell ~= nil and not is_persistent(m) then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, m[1], {
+          end_col = o.end_col,
+          end_row = o.end_row,
+          spell = o.spell,
+          priority = o.priority,
+          ephemeral = true,
+        })
+      end
+    end
+  end
+end
+
+--- Compute the rows from `row` on (a screenful at most), drawn past the
+--- rows on_win computed; their inline marks (real extmarks, which can't be
+--- placed while the screen is drawn) are placed right after the redraw.
+local function late_rows(bufnr, row)
+  local last = math.min(row + 60, vim.api.nvim_buf_line_count(bufnr) - 1)
+  if last < row then
+    return
+  end
+  local rows = rows_for(bufnr, row, last)
+  for r = row, last do
+    for _, m in ipairs(rows[r] or {}) do
+      if is_persistent(m) then
+        vim.schedule(function()
+          if attached[bufnr] and vim.api.nvim_buf_is_valid(bufnr) then
+            last = math.min(last, vim.api.nvim_buf_line_count(bufnr) - 1)
+            sync_inline(bufnr, rows_for(bufnr, row, last), row, last)
+          end
+        end)
+        return
+      end
+    end
+  end
+end
+
+--- The rows of `bufnr` window `win` draws, [toprow, botrow], computed for
+--- on_line.
+local function draw_win(win, bufnr, toprow, botrow)
+  -- (`botrow` is the last row of the last redraw: the virtual indentation
+  -- placed below can make the lines take fewer screen rows, no less than
+  -- a row each; the rows past it are computed by on_line, but their
+  -- indentation would come a redraw late)
+  if vim.wo[win].wrap and provider_ui(bufnr).indent_mode then
+    botrow = math.max(botrow, toprow + vim.api.nvim_win_get_height(win) - 1)
+  end
+  botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
+  local ranges = (vim.wo[win].foldenable and botrow - toprow > 0) and drawn_ranges(win, toprow, botrow)
+    or { { toprow, botrow } }
+  for _, r in ipairs(ranges) do
+    sync_inline(bufnr, rows_for(bufnr, r[1], r[2]), r[1], r[2])
+  end
+end
+
+-- An error raised in a decoration provider is reported by Neovim on every
+-- redraw, at every keystroke: the callbacks catch it, draw nothing for that
+-- window and report each error once.
+local reported = {} ---@type table<string, boolean>
+local function failed(err)
+  err = tostring(err)
+  if reported[err] then
+    return
+  end
+  reported[err] = true
+  vim.schedule(function()
+    require("org.utils").notify("org.nvim: drawing the buffer failed: " .. err, vim.log.levels.ERROR)
+  end)
+end
+
+local function on_spell_nav(_, _, bufnr, srow, _, erow)
+  if not attached[bufnr] then
+    return
+  end
+  local ok, err = pcall(spell_nav, bufnr, srow, erow)
+  if not ok then
+    failed(err)
+  end
+end
+
+local provider = {
   on_win = function(_, win, bufnr, toprow, botrow)
     if not attached[bufnr] then
       return false
     end
-    botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
-    local ranges = (vim.wo[win].foldenable and botrow - toprow > 0) and drawn_ranges(win, toprow, botrow)
-      or { { toprow, botrow } }
-    for _, r in ipairs(ranges) do
-      current = rows_for(bufnr, r[1], r[2])
-      sync_inline(bufnr, current, r[1], r[2])
+    local ok, err = pcall(draw_win, win, bufnr, toprow, botrow)
+    if not ok then
+      failed(err)
+      return false
     end
-    return current ~= nil and next(current) ~= nil
+    -- (on_line computes the rows past `botrow`: on_line is needed even
+    -- when the rows on_win was told of draw nothing)
+    return true
   end,
   on_line = function(_, _, bufnr, row)
-    local marks = current and current[row]
+    local c = cache[bufnr]
+    if not (c and c.done[row]) then
+      -- a row past the last one on_win was told of: Neovim guesses it from
+      -- the last redraw, and draws more rows when an edit or a fold made the
+      -- lines take fewer screen rows
+      local ok, err = pcall(late_rows, bufnr, row)
+      if not ok then
+        failed(err)
+        return
+      end
+      c = cache[bufnr]
+    end
+    local marks = c and c.rows[row]
     if not marks then
       return
     end
     for _, m in ipairs(marks) do
       if not is_persistent(m) then
-        local opts = vim.tbl_extend("force", m[2], { ephemeral = true })
+        -- (org.ui.emphasis makes its marks ephemeral: no copy per redraw)
+        local opts = m[2].ephemeral and m[2] or vim.tbl_extend("force", m[2], { ephemeral = true })
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, m[1], opts)
       end
     end
   end,
-})
+  -- (not in the documented API, but what vim.treesitter's highlighter
+  -- uses for the same purpose)
+  _on_spell_nav = on_spell_nav,
+}
+if not pcall(vim.api.nvim_set_decoration_provider, ns, provider) then
+  provider._on_spell_nav = nil
+  vim.api.nvim_set_decoration_provider(ns, provider)
+end
 
 --- The decorations drawn on 0-based `row` of `bufnr`, as `{ col, opts }`
 --- pairs for `nvim_buf_set_extmark` (the sticky headline context copies
---- them), from the per-changedtick cache. Empty when the buffer draws none.
+--- them), from the per-changedtick cache, each with what drew it third
+--- ("parser", "emphasis": the parser highlighter). Empty when the buffer
+--- draws none.
 ---@param bufnr integer
 ---@param row integer
----@return { [1]: integer, [2]: vim.api.keyset.set_extmark }[]
+---@return { [1]: integer, [2]: vim.api.keyset.set_extmark, [3]: string? }[]
 function M.line_marks(bufnr, row)
   if not attached[bufnr] then
     return {}
   end
   local out = {}
   for _, m in ipairs(rows_for(bufnr, row, row)[row] or {}) do
-    out[#out + 1] = { m[1], m[2] }
+    local o = m[2]
+    if o.ephemeral then
+      -- (callers set these marks for good)
+      o = vim.tbl_extend("force", {}, o)
+      o.ephemeral = nil
+    end
+    out[#out + 1] = { m[1], o, m[4] }
   end
   return out
 end
 
---- Recompute on the next redraw (e.g. after `ui` options changed).
-function M.render(bufnr)
+--- What the parser highlighter (org.ui.emphasis) hides at byte `col`
+--- (0-based) of row `row`: "" for a concealed emphasis marker or link
+--- bracket, nil when it hides nothing there. (Syntax concealing is
+--- `synconcealed()`; the entities shown as UTF-8 aren't hidden text.)
+---@param bufnr integer
+---@param row integer
+---@param col integer
+---@return string?
+function M.concealed(bufnr, row, col)
+  if not attached[bufnr] then
+    return nil
+  end
+  for _, m in ipairs(rows_for(bufnr, row, row)[row] or {}) do
+    local o = m[2]
+    if (m[4] == "emphasis" or m[4] == "parser") and o.conceal and col >= m[1] and col < (o.end_col or m[1] + 1) then
+      return o.conceal
+    end
+  end
+  return nil
+end
+
+--- Recompute on the next redraw (e.g. after `ui` options changed), and
+--- redraw now unless `later`.
+---@param later? boolean
+function M.render(bufnr, later)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
   cache[bufnr] = nil
+  edits[bufnr] = nil
   ui_cache[bufnr] = nil
   num_cache[bufnr] = nil
   inline_synced[bufnr] = nil
   vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
-  pcall(vim.api.nvim__redraw, { buf = bufnr, valid = false })
+  pcall(vim.api.nvim__redraw, { buf = bufnr, valid = false, flush = not later })
 end
 
 --- Indent mode wraps lines with 'breakindent', set for the buffer in the
---- windows that show it (not globally: other buffers keep theirs).
+--- windows that show it (not globally: other buffers keep theirs; nor in a
+--- buffer that only sets 'syntax' to org, like the drill window).
 local function set_win_opts(bufnr, win)
-  if vim.api.nvim_win_get_buf(win) == bufnr and M.ui_options(bufnr).indent_mode then
+  if vim.api.nvim_win_get_buf(win) == bufnr and vim.bo[bufnr].filetype == "org" and M.ui_options(bufnr).indent_mode then
     vim.wo[win][0].breakindent = true
     vim.wo[win][0].wrap = true
   end
@@ -1024,28 +1523,28 @@ end
 --- Stop drawing the decorations of `bufnr` (its filetype changed).
 function M.detach(bufnr)
   attached[bufnr] = nil
+  -- (the BufWipeout autocmd that forgets the rest goes with the group)
   pcall(vim.api.nvim_del_augroup_by_name, "org.decorations." .. bufnr)
+  local hl = package.loaded["org.ui.highlight"]
+  if hl then
+    hl.detach(bufnr)
+  end
   M.render(bufnr)
 end
 
----@param force? boolean attach even when nothing is enabled (toggles)
+---@param force? boolean attached by a toggle (the modes the buffer starts
+--- with don't run their hooks)
 function M.attach(bufnr, force)
   local ui = M.ui_options(bufnr)
-  if not enabled(ui) and not force then
-    -- (a reload that turned the decorations off: nothing stale stays)
-    if attached[bufnr] then
-      M.detach(bufnr)
-    end
-    return
-  end
   if ui.indent_mode then
     for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
       set_win_opts(bufnr, win)
     end
   end
-  if not attached[bufnr] and not force then
+  if not attached[bufnr] and not force and vim.bo[bufnr].filetype == "org" then
     -- the modes turned on when the buffer is set up (org-startup-indented,
-    -- org-startup-numerated) run their hooks
+    -- org-startup-numerated) run their hooks (in org buffers only: not in
+    -- one that only sets 'syntax' to org)
     if ui.indent_mode then
       mode_hook("OrgIndentMode", bufnr, true)
     end
@@ -1053,7 +1552,15 @@ function M.attach(bufnr, force)
       mode_hook("OrgNumMode", bufnr, true)
     end
   end
+  local first = not attached[bufnr]
   attached[bufnr] = true
+  if not tracked[bufnr] then
+    tracked[bufnr] = vim.api.nvim_buf_attach(bufnr, false, {
+      on_bytes = on_bytes,
+      on_reload = on_reload,
+      on_detach = on_detach,
+    }) or nil
+  end
   local group = vim.api.nvim_create_augroup("org.decorations." .. bufnr, { clear = true })
   vim.api.nvim_create_autocmd("BufWinEnter", {
     group = group,
@@ -1068,15 +1575,27 @@ function M.attach(bufnr, force)
     callback = function()
       attached[bufnr] = nil
       cache[bufnr] = nil
+      edits[bufnr], tracked[bufnr] = nil, nil
       ui_cache[bufnr] = nil
       num_cache[bufnr] = nil
       inline_synced[bufnr] = nil
+      local hl = package.loaded["org.ui.highlight"]
+      if hl then
+        hl.detach(bufnr)
+      end
     end,
   })
-  M.render(bufnr)
+  -- (a buffer attached as it is opened is drawn when the opening is done:
+  -- drawing it now, before the rest of its setup, would draw it twice)
+  M.render(bufnr, first)
 end
 
 function M.refresh(bufnr)
+  if not attached[bufnr] and vim.api.nvim_buf_is_valid(bufnr) and vim.b[bufnr].org_attached then
+    -- (an org buffer not drawn yet)
+    M.attach(bufnr)
+    return
+  end
   M.render(bufnr)
 end
 

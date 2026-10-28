@@ -76,6 +76,32 @@ local function is_path(address)
   return not is_win and not address:match("^[%w.-]+:%d+$")
 end
 
+--- The longest path a unix socket address can have (sockaddr_un's
+--- sun_path, less its NUL): 103 bytes on macOS and the BSDs, 107 on Linux.
+M.MAX_SOCKET_PATH = (vim.fn.has("mac") == 1 or vim.fn.has("bsd") == 1) and 103 or 107
+
+--- Why Neovim can't listen on `address`, or nil: a socket path longer
+--- than the system allows (serverstart() only says "invalid argument").
+---@param address string
+---@return string|nil
+function M.address_problem(address)
+  if is_path(address) and #address > M.MAX_SOCKET_PATH then
+    return string.format(
+      "the address %s is %d bytes long; a socket path can have at most %d: set remote.address "
+        .. "(or $ORG_NVIM_SERVER) to a shorter path",
+      address,
+      #address,
+      M.MAX_SOCKET_PATH
+    )
+  end
+  return nil
+end
+
+--- Why the last start() failed (nil when it listens, or another Neovim
+--- does): `:checkhealth org` reports it.
+---@type string|nil
+M.start_error = nil
+
 --- Connect to `address`: an RPC channel, or nil and the error.
 ---@param address string
 ---@return integer|nil chan, string|nil err
@@ -129,6 +155,10 @@ function M.start(address)
   if listening(address) then
     return nil, "another Neovim listens on " .. address
   end
+  local problem = M.address_problem(address)
+  if problem then
+    return nil, problem
+  end
   if is_path(address) then
     local st = vim.uv.fs_stat(address)
     if st and st.type ~= "socket" then
@@ -145,7 +175,7 @@ function M.start(address)
   end
   local ok, res = pcall(vim.fn.serverstart, address)
   if not ok then
-    return nil, tostring(res)
+    return nil, "cannot listen on " .. address .. ": " .. tostring(res):gsub("^Vim:", "")
   end
   M.serving = address
   return address
@@ -183,7 +213,13 @@ function M.setup()
   if M.serving and M.serving ~= want then
     M.stop()
   end
-  M.start(want)
+  local served, err = M.start(want)
+  M.start_error = nil
+  if not served and not listening(want) then
+    -- an address nothing can listen on: say so once, not on every focus
+    M.start_error = err
+    require("org.utils").warn("Session server: " .. tostring(err))
+  end
   group = vim.api.nvim_create_augroup("org_remote", { clear = true })
   vim.api.nvim_create_autocmd("FocusGained", {
     group = group,

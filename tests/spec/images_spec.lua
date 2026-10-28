@@ -766,9 +766,14 @@ describe("images in place of the link", function()
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
     images.show_links(buf, 1, 1)
     images.sync()
+    -- (hidden by a mark of the parser highlighter)
     local concealed = vim.fn.synconcealed(1, 1)[1] == 1
+    for _, m in ipairs(require("org.ui.decorations").line_marks(buf, 0)) do
+      concealed = concealed or (m[1] == 0 and m[2].conceal == "" and vim.wo.conceallevel >= 2)
+    end
     -- only "site " shows before the image
-    eq(concealed and 6 or 31, live()[1].col)
+    ok(concealed, "the link brackets are hidden")
+    eq(6, live()[1].col)
   end)
 end)
 

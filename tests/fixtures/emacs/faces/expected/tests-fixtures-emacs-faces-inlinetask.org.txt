@@ -1,0 +1,12 @@
+1	14:meta-line
+2	8:document-info-keyword,1:.,33:document-title
+7	11:level-1
+8	13:level-2
+10	16:level-8,4:level-8+todo,35:level-8,4:level-8+priority,1:level-8,6:level-8+tag
+12	65:level-7
+14	27:hide,3:inlinetask,4:inlinetask+todo,27:inlinetask,6:inlinetask+tag
+16	27:hide,6:inlinetask
+18	29:hide,3:inlinetask,4:done+inlinetask,1:inlinetask,28:headline-done+inlinetask
+19	28:hide,33:inlinetask
+21	17:level-3
+22	29:hide,6:inlinetask

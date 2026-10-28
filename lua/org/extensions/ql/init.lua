@@ -259,16 +259,37 @@ local function views_file()
   return type(f) == "string" and f ~= "" and vim.fs.normalize(f) or nil
 end
 
+-- The views saved in file `f`: {} when there is no file yet, nil and an
+-- error when it can't be read or isn't a JSON object.
+---@return table<string, table>|nil, string|nil
+local function read_views(f)
+  if not utils.exists(f) then
+    return {}
+  end
+  local lines = utils.readfile(f)
+  if not lines then
+    return nil, "cannot read " .. f
+  end
+  if not next(lines) or (#lines == 1 and vim.trim(lines[1]) == "") then
+    return {}
+  end
+  local ok, data = pcall(vim.json.decode, table.concat(lines, "\n"))
+  if not ok or type(data) ~= "table" or vim.islist(data) and next(data) ~= nil then
+    return nil, "cannot read " .. f .. ": not a JSON object of views"
+  end
+  return data
+end
+
 --- Views saved from search buffers (name -> view).
 ---@return table<string, table>
 function M.saved_views()
   local f = views_file()
-  if not f or vim.fn.filereadable(f) == 0 then
+  if not f then
     return {}
   end
-  local ok, data = pcall(vim.json.decode, table.concat(vim.fn.readfile(f), "\n"))
-  if not ok or type(data) ~= "table" then
-    utils.warn("org-ql: cannot read " .. f)
+  local data, err = read_views(f)
+  if not data then
+    utils.warn("org-ql: " .. tostring(err))
     return {}
   end
   return data
@@ -294,10 +315,27 @@ function M.save_view(name, v)
     utils.error("org-ql: this view can't be saved (a Lua function in it?)")
     return false
   end
-  local all = M.saved_views()
+  -- a file that can't be read is left alone: writing over it would lose
+  -- every view in it
+  local all, err = read_views(f)
+  if not all then
+    utils.error("org-ql: " .. tostring(err) .. "; view " .. name .. " not saved (fix or move the file)")
+    return false
+  end
   all[name] = vim.json.decode(encoded)
-  vim.fn.mkdir(vim.fn.fnamemodify(f, ":h"), "p")
-  vim.fn.writefile({ vim.json.encode(all) }, f)
+  -- written to a temporary file renamed over it, so that a failed write
+  -- never leaves half a file
+  local tmp = f .. ".tmp" .. vim.fn.getpid()
+  local wok, werr = pcall(utils.writefile, tmp, { vim.json.encode(all) })
+  if wok then
+    local renamed, rerr = vim.uv.fs_rename(tmp, f)
+    wok, werr = renamed ~= nil, rerr
+  end
+  if not wok then
+    pcall(vim.uv.fs_unlink, tmp)
+    utils.error("org-ql: cannot save view " .. name .. ": " .. tostring(werr))
+    return false
+  end
   utils.notify("Saved org-ql view " .. name)
   return true
 end

@@ -137,9 +137,12 @@ describe("agenda: timestamps outside timestamp objects", function()
     eq({ "Src" }, day_titles({ "* Src", "  src_sh{echo x} and " .. stamp }))
   end)
 
-  it("lists active timestamps inside drawers, not on CLOCK lines", function()
+  -- Emacs Org 9.8.10 (org-agenda-list): a CLOCK line takes inactive
+  -- timestamps (org-element-clock-line-re), so one with active ones, or
+  -- with text after its duration, is a paragraph whose timestamps count
+  it("lists active timestamps inside drawers and on lines that are no clocks", function()
     eq(
-      { "Drawer", "Logbook", "Prop" },
+      { "Clock", "Clock text", "Drawer", "Logbook", "Prop" },
       day_titles({
         "* Prop",
         "  :PROPERTIES:",
@@ -157,6 +160,14 @@ describe("agenda: timestamps outside timestamp objects", function()
         "* Clock",
         "  :LOGBOOK:",
         "  CLOCK: <2026-09-25 Fri 10:00>--<2026-09-25 Fri 11:00> =>  1:00",
+        "  :END:",
+        "* Clock text",
+        "  :LOGBOOK:",
+        "  CLOCK: [2026-09-25 Fri 10:00]--[2026-09-25 Fri 11:00] =>  1:00 x " .. stamp,
+        "  :END:",
+        "* Real clock",
+        "  :LOGBOOK:",
+        "  CLOCK: [2026-09-25 Fri 10:00]--[2026-09-25 Fri 11:00] =>  1:00",
         "  :END:",
       })
     )

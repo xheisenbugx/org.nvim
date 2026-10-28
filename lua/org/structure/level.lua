@@ -16,6 +16,7 @@ local M = require("org.structure")
 local buf = shared.buf
 local cursor = shared.cursor
 local current_headline = shared.current_headline
+local current_outline_headline = shared.current_outline_headline
 local exit_visual = shared.exit_visual
 local get_lines = shared.get_lines
 local relevel = shared.relevel
@@ -71,8 +72,8 @@ local function change_level(hl, file, delta, subtree)
   vim.api.nvim_win_set_cursor(0, { pos[1], math.max(0, math.min(pos[2] + shift, #l)) })
 end
 
-local function headline_for_level_change()
-  local hl, file = current_headline()
+local function headline_for_level_change(subtree)
+  local hl, file = (subtree and current_outline_headline or current_headline)()
   if not hl then
     utils.warn("Not on a headline")
     return nil
@@ -95,12 +96,12 @@ function M.demote_heading()
 end
 
 function M.promote_subtree()
-  local hl, file = headline_for_level_change()
+  local hl, file = headline_for_level_change(true)
   if hl then
     for _ = 1, math.max(vim.v.count, 1) do
       local was_top = hl.level == 1
       change_level(hl, file, -1, true)
-      hl, file = current_headline()
+      hl, file = current_outline_headline()
       if was_top or not hl or hl.level == 1 then
         break
       end
@@ -109,11 +110,11 @@ function M.promote_subtree()
 end
 
 function M.demote_subtree()
-  local hl, file = headline_for_level_change()
+  local hl, file = headline_for_level_change(true)
   if hl then
     for _ = 1, math.max(vim.v.count, 1) do
       change_level(hl, file, 1, true)
-      hl, file = current_headline()
+      hl, file = current_outline_headline()
     end
   end
 end

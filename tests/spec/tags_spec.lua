@@ -53,6 +53,15 @@ describe("properties", function()
 end)
 
 -- Emacs Org 9.8 parity (expectations checked against Emacs in batch mode)
+describe("tags: alignment with a tab in the title", function()
+  it("counts the tab up to the next multiple of 8 columns (Emacs 9.8.10)", function()
+    local buf = org_buffer({ "* a\tb" }, { 1, 0 })
+    require("org.tags").set_tags(nil, { "a" })
+    -- "* a\tb" is 9 columns wide: the tags end at column 77
+    eq("* a\tb" .. string.rep(" ", 65) .. ":a:", buf_lines(buf)[1])
+  end)
+end)
+
 describe("tags: Emacs parity", function()
   local config = require("org.config")
   local search = require("org.agenda.search")
@@ -308,35 +317,6 @@ describe("properties: Emacs parity", function()
     local res = properties.set_effort(nil, "")
     ok(res ~= false)
     eq({ "* X" }, buf_lines(buf))
-  end)
-end)
-
-describe("priority and tag faces", function()
-  it("ui.priority_faces / ui.tag_faces highlight cookies and tags", function()
-    local ui = require("org.config").opts.ui
-    local saved_p, saved_t = ui.priority_faces, ui.tag_faces
-    ui.priority_faces = { A = "ErrorMsg", ["10"] = { fg = "#123456" } }
-    ui.tag_faces = { urgent = ":foreground red :weight bold" }
-    local ok_, err = pcall(function()
-      org_buffer({ "* TODO [#A] Task :urgent:x:", "* [#10] N" })
-      require("org.syntax").apply(0)
-      require("org.highlights").apply_todo_faces()
-      local function group_at(l, c)
-        local names = {}
-        for _, id in ipairs(vim.fn.synstack(l, c)) do
-          names[#names + 1] = vim.fn.synIDattr(id, "name")
-        end
-        return table.concat(names, " ")
-      end
-      local line = buf_lines()[1]
-      ok(group_at(1, line:find("#A", 1, true)):find("orgPriorityFace_A"), group_at(1, 9))
-      ok(group_at(1, line:find("urgent", 1, true)):find("orgTagFace_urgent"), group_at(1, line:find("urgent")))
-      ok(not group_at(1, line:find("x:", 1, true)):find("orgTagFace"))
-      ok(group_at(2, 4):find("orgPriorityFace_10"), group_at(2, 4))
-      eq("#ff0000", string.format("#%06x", vim.api.nvim_get_hl(0, { name = "orgTagFace_urgent" }).fg))
-    end)
-    ui.priority_faces, ui.tag_faces = saved_p, saved_t
-    assert(ok_, err)
   end)
 end)
 

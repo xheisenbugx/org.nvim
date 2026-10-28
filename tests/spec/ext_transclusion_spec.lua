@@ -462,6 +462,20 @@ describe("transclusion highlight", function()
     eq({ { { "a       b" } } }, highlight.code({ "a\tb" }, nil))
   end)
 
+  -- (org-fontify-quote-and-verse-blocks)
+  it("draws quote and verse bodies as Org text, on their group with fontify_quote_and_verse_blocks", function()
+    local lines = { "#+begin_quote", "a *b*", "#+end_quote", "#+begin_verse", "v", "#+end_verse" }
+    local c = highlight.org(lines)
+    eq({ { "a ", nil }, { "*b*", "OrgBold" } }, c[2])
+    eq({ { "v", nil } }, c[5])
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = true
+    c = highlight.org(lines)
+    require("org.config").opts.ui.fontify_quote_and_verse_blocks = nil
+    eq({ { "a ", "OrgQuoteBlock" }, { "*b*", "OrgBold" } }, c[2])
+    eq({ { "v", "OrgVerseBlock" } }, c[5])
+    eq("OrgBlockDelimiter", c[6][1][2])
+  end)
+
   it("marks up emphasis only at word boundaries", function()
     local c = highlight.inline("a*b* and *bold* 2*3", nil)
     local found = {}
@@ -498,6 +512,27 @@ describe("transclusion", function()
     "#+transclude: [[file:code.py]] :lines 3-4 :src python",
     "Tail",
   }
+
+  it("reports bad options in :checkhealth", function()
+    local out = {}
+    local h = {}
+    for _, kind in ipairs({ "ok", "warn", "error", "info" }) do
+      h[kind] = function(m)
+        out[#out + 1] = kind .. " " .. m
+      end
+    end
+    T.health(h, vim.tbl_extend("force", T.defaults, { mode = "bogus", max_depth = -1, debounce = "x" }))
+    eq(
+      'error transclusion: mode must be "virtual", "materialized" or false, not "bogus"'
+        .. " (nothing is shown until transclusion_add)",
+      out[1]
+    )
+    eq("error transclusion: max_depth must be a number, 0 or more, not -1", out[2])
+    eq('error transclusion: debounce must be a number, 0 or more, not "x"', out[3])
+    out = {}
+    T.health(h, vim.tbl_extend("force", T.defaults, { mode = false }))
+    ok(out[1]:match("^ok transclusion: mode false"), out[1])
+  end)
 
   it("is off unless enabled, and its export hook is inert then", function()
     setup()

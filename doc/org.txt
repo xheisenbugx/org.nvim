@@ -478,9 +478,11 @@ Inside tmux the terminal is the one of the attached client.
 org.nvim extensions ~
 - each enabled extension, its stability (|org-extensions-stability|) and
   the checks of its own `health` function (|org-extensions|): the external
-  programs it needs and its paths
-- an extension enabled in setup() that isn't loaded (a misspelt name, or
-  an error in its module) is an error
+  programs it needs, its paths and options it can't use (pomodoro's
+  durations, transclusion's `mode`, super_agenda's `groups`, ...)
+- an extension enabled in setup() that isn't loaded (a misspelt name, a
+  module that is shared code such as `views_util`, or an error in its
+  module) is an error
 
 org.nvim development (Emacs parity) ~
 Shown only when Emacs is installed or `ORG_EMACS` / `ORG_LISP_DIR` is set:
@@ -619,7 +621,10 @@ stars alone is text, like in Emacs): >org
                 for <M-k> / <M-j>.
 Promotion keeps the spacing of the headline and realigns its tags. With
 `odd_levels_only` (`#+STARTUP: odd`, org-odd-levels-only) the level changes
-by two.
+by two, and levels count the odd ones only (org-reduced-level: 1, 3, 5
+stars are levels 1, 2, 3) where Emacs counts them so: `LEVEL` in matches
+and stuck projects, the agenda's `%l`, clock table `:maxlevel`, `:level`
+and `:scope treeN`.
 
 List items follow org-list rules: an item with children cannot be outdented
 alone (use <M-H>), the first item of a list cannot be indented alone, and
@@ -667,7 +672,8 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 with a count). Clones lose CLOCK lines and get a new ID, or
                 none with `clone_delete_id`. With a repeating timestamp,
                 the copies lose the repeater and one more copy after them
-                keeps it.
+                keeps it. Hours on a date without a time move it only past
+                midnight (`+30h` is the next day) and add no time.
 
                                                                  *org-sort*
 <prefix>hs      Sort the children of the current headline, the top-level
@@ -835,16 +841,20 @@ These have no default keys; for Emacs-style Insert mode keys: >lua
       end_of_line = "<C-e>", kill_line = "<C-k>" } }
 <
 Indentation and filling                               *org-indent* *org-fill*
-'indentexpr' follows org-indent-line, so `==`, `=` and new lines (`o`, `O`)
-are indented like in Emacs: headlines, footnote definitions and diary sexps
-at column 0; the first line of an element like its previous sibling, else
-like the contents of its parent (after the bullet of an item; at the
-headline level + 1 with `adapt_indentation`); other lines like the line
-above. List items keep their indentation (move them with <M-h> / <M-l>),
-and `=` keeps the contents of example, export and verse blocks. Lines of a
-src block keep their relative indentation at the block's content
-indentation (Emacs asks the language's major mode). <Tab> in body text
-indents the same way (`cycle_emulate_tab`).
+'indentexpr' follows org-indent-line, so new lines (`o`, `O`) are indented
+like in Emacs: headlines, footnote definitions and diary sexps at column
+0; the first line of an element like its previous sibling, else like the
+contents of its parent (after the bullet of an item; at the headline level
++ 1 with `adapt_indentation`); other lines like the line above. <Tab> in
+body text indents the same way (`cycle_emulate_tab`).
+In org buffers `=` (`indent_operator`) is org-indent-region, Emacs's
+indent-region-function in Org: `={motion}`, `==`, `{count}==` and `=` in
+Visual mode indent those lines like `:Org indent_region` (below), so plain
+lists and example and export blocks move as a whole, the contents of
+example, export and verse blocks keep their relative indentation, and the
+code of a src block moves to the block's content indentation keeping its
+own layout (Emacs asks the language's major mode). Vim's own `=`
+(`:normal! =`) indents line by line with 'indentexpr'.
 :Org indent_region  Indent the Visual selection, or the buffer, like
                 org-indent-region: lists, example and export blocks move
                 as a whole, node properties are aligned
@@ -881,9 +891,15 @@ They are not entries of their own (the text around them belongs to the
 entry), fold up to END with <Tab>, promote / demote together with their END
 line (never below the minimum level) and show only their last two stars
 (also the first one, as a marker, with `inlinetask_show_first_star`,
-org-inlinetask-show-first-star). In the agenda, a timestamp in the text
-after an END line (up to the next headline) shows as an entry titled "END",
-with the inline task's tags, as in Emacs.
+org-inlinetask-show-first-star). With odd levels only (`#+STARTUP: odd`,
+`odd_levels_only`) an inline task needs 2 * `inlinetask_min_level` - 1
+stars, as in Emacs: 29 for 15, and 15 stars is then a level 8 headline. In
+the agenda, a timestamp in the text after an END line (up to the next
+headline) shows as an entry titled "END", with the inline task's tags, as
+in Emacs. Subtree commands on an inline task act on the entry around it,
+as in Emacs: a new heading gets that entry's level, a pasted subtree goes
+before the next real headline, and promoting, demoting, cutting or copying
+the subtree takes the entry's subtree.
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.
@@ -1278,7 +1294,9 @@ keyword of its sequence, like Emacs. The `REPEAT_TO_STATE` property or
 `todo_repeat_to_state` (a keyword, or `true` for the previous state) choose
 another state. A SCHEDULED date without a repeater is removed. The state
 change is logged and `LAST_REPEAT` set when `log_repeat` is enabled
-(`LAST_REPEAT` is also set when the entry has clock lines).
+(`LAST_REPEAT` is also set when the entry has clock lines). An hour
+repeater (`+5h`) on a date without a time is an error, and the entry is
+left as it was.
   +N   shift by N units once
   ++N  shift until the date is in the future, keeping the weekday
   .+N  shift to N units after today
@@ -1618,6 +1636,10 @@ Timestamps:
                 On a repeater or warning, the number never goes below 1
                 (warning: 0) and the unit letter cycles d, w, m, y. Only
                 `+N` repeaters and `-N` warnings are changed, like Emacs.
+                A time that doesn't exist locally (skipped by a daylight
+                saving change) becomes the one after the gap, as Emacs's
+                encode-time makes it (02:30 -> 03:30); so do clones and
+                repeaters.
 <S-Up/Down>     (ctx) Same as <C-a> / <C-x>. On minutes, step by the
                 second value of `time_stamp_rounding_minutes` (5) and
                 round to it; a count steps by exactly that many minutes.
@@ -1831,6 +1853,11 @@ Clock lines go into the LOGBOOK drawer: >org
     CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 11:30] =>  1:30
     :END:
 <
+As in Emacs, a clock line has nothing after its duration (`CLOCK:` in
+any case); a line with text after it is a paragraph and its time is not
+counted. A naked `CLOCK: => 2:00` adds two hours to the entry's clock
+sums, whatever their time range.
+
 The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
 for none, a number N for "once there are N clock lines"), then
 `clock.into_drawer`, then the log drawer. With `log_note_clock_out` (or
@@ -2703,9 +2730,12 @@ Stuck projects                                         *org-stuck-projects*
 
 `agenda.stuck_projects` (org-stuck-projects): projects matching `match`
 ("+LEVEL=2/-DONE") are stuck unless a heading of their subtree, the
-project heading included, has one of `todo_keywords` ({ "TODO", "NEXT",
-"NEXTACTION" }; "*" = any not-done keyword) or `tags` ("*" = any tag), or
-the subtree text matches the Vim regexp `text`.
+project heading included (inline tasks too), starts with one of
+`todo_keywords` ({ "TODO", "NEXT", "NEXTACTION" }; "*" = any not-done
+keyword of the agenda files) or has one of `tags` ("*" = any tag), or the
+subtree text matches the Vim regexp `text`. Like Emacs, the keywords are
+words on the heading line: one that isn't a TODO keyword in that file
+counts too.
 
 Search view                                            *org-agenda-search*
 
@@ -3482,7 +3512,10 @@ address yourself (`remote.address = "~/.cache/nvim/org.sock"`): >sh
       "luaeval('vim.inspect(require([[org.api]]).clock.status())')"
 <
 Requests run in that Neovim with its configuration, not the command
-line's. `:checkhealth org` says whether this Neovim is the server.
+line's. `:checkhealth org` says whether this Neovim is the server. An
+address it can't listen on (a socket path longer than the system allows,
+103 bytes on macOS, 107 on Linux) is a warning at startup and in
+`:checkhealth org`; set a shorter `remote.address`.
 
 Plain links through tags files                                   *org-ctags*
 Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
@@ -3797,6 +3830,11 @@ Targets:
                                       is called interactively there
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
+                                      (as in Emacs, where ol-man isn't
+                                      loaded by default, it is drawn as
+                                      a link only in brackets:
+                                      `[[man:printf(3)]]`; <CR> opens it
+                                      either way)
   info:emacs#Top                      the `info` program in a terminal
                                       (exported to HTML as a link to the
                                       manual's URL in
@@ -4344,7 +4382,11 @@ Normal mode:
                   CSV/TSV/whitespace (Visual mode; count 4: comma, 16:
                   tab, N: N+ spaces; at most
                   `table_convert_region_max_lines` lines, also for
-                  table_import)
+                  table_import). Without a count, tabs separate the
+                  fields when every line has one, else commas when every
+                  line has one, else spaces; the table starts at column
+                  0 and a blank line inside is an empty row
+                  (org-table-convert-region)
   <prefix>T-      insert a hline (<C-c>- with a count: above)
   <prefix>Tf      recalculate the whole table
   <prefix>Ts      sort rows (<C-c>^, see below)
@@ -5325,13 +5367,16 @@ parsed, each once for its text: moving around or editing elsewhere
 doesn't parse a block again; a longer block is parsed again from the tree
 it had after an edit in it. Other
 languages get their Vim syntax (`syntax/<lang>.vim`) included into the
-org syntax, as before. The language name goes through `src_lang_modes`
+buffer's syntax. The language name goes through `src_lang_modes`
 first (`elisp` → `lisp`, `shell` → `sh` → the bash parser).
 `ui.src_highlight_engine` chooses: "auto" (the default), "treesitter"
 (languages without a parser stay plain) or "syntax" (always the Vim
 syntax); `ui.src_highlight = false` turns both off. A parser installed
 while the file is open is used after <C-c><C-c> on a `#+` line (which
-refreshes the buffer's setup) or when the file is opened again.
+refreshes the buffer's setup) or when the file is opened again. As in
+Emacs, a block shows its text as typed: the Vim syntax of json and
+markdown blocks is included without its concealing (`g:vim_json_conceal`,
+`g:markdown_syntax_conceal` stay as you set them for your own files).
 TAB on a line of a src block (`src_tab_acts_natively`, default true)
 indents it for its language, like a round trip through the edit buffer:
 the body gets the block's content indentation and the line the
@@ -5403,8 +5448,10 @@ clocktable parameters (the output matches Emacs 9.8):
                 adds a <40> width row instead
   :header "text"  replace the `#+CAPTION:` line
 
-columnview parameters: `:id local|global|file:path|ID` (default local),
-`:maxlevel`, `:skip-empty-rows`, `:indent`, `:format`, `:match` (tags /
+columnview parameters: `:id local|global|file:path|ID` (default local; a
+local or ID view covers the subtree of the entry holding the `COLUMNS`
+property that entry inherits, else the entry's own subtree, as column view
+does), `:maxlevel`, `:skip-empty-rows`, `:indent`, `:format`, `:match` (tags /
 property match), `:exclude-tags (a b)` (inherited tags count), `:hlines t|N`
 (a hline before each entry, or each entry of level N or less), `:vlines t`
 (column groups), `:link t` (link items to their headings), `:formatter`
@@ -5716,7 +5763,10 @@ comma, macros may use other macros), `export.global_macros` (strings or Lua
 functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
 `{{{date(FMT)}}}`, `{{{time(FMT)}}}`, `{{{modification-time(FMT)}}}`,
 `{{{input-file}}}`, `{{{keyword(NAME)}}}`, `{{{property(NAME[,search])}}}`,
-`{{{n(name[,-|N])}}}` and `{{{results(...)}}}`.
+`{{{n(name[,-|N])}}}` and `{{{results(...)}}}`. Like Emacs, `{{{title}}}`,
+`{{{author}}}`, `{{{email}}}`, `{{{date}}}` and `{{{keyword(NAME)}}}` read
+the keywords written in the file itself (and its `#+INCLUDE`d text), not
+those of a `#+SETUPFILE`; the `#+MACRO` definitions of a setup file apply.
 `{{{modification-time(FMT,t)}}}` takes the date of the file's last Git
 commit (Emacs asks any VC back-end). As in Emacs, macros are replaced in
 the text before it is parsed: a macro that expands to nothing on a line
@@ -6839,7 +6889,10 @@ Options under `ui`:
                          characters have one, else the script is
                          highlighted with OrgSuperscript / OrgSubscript and
                          only the markers are hidden (Neovim cannot raise
-                         text). Not in blocks, code, verbatim or links.
+                         text). Entities are shown everywhere but in
+                         comment lines and src, example, export and
+                         comment blocks (|org-differences|); scripts not
+                         in keyword lines, code, verbatim or links.
   num                    number headlines with virtual text like
                          org-num-mode (#+STARTUP: num / nonum); num_max_level,
                          num_skip_commented, num_skip_footnotes,
@@ -6849,6 +6902,10 @@ Options under `ui`:
   fontify_done_headline  dim DONE headlines
   fontify_todo_headline  highlight the text of TODO headlines with
                          OrgHeadlineTodo (org-fontify-todo-headline)
+  fontify_quote_and_verse_blocks  the bodies of quote and verse blocks
+                         on OrgQuoteBlock / OrgVerseBlock, under their
+                         Org text (org-fontify-quote-and-verse-blocks);
+                         false by default like Emacs: Org text only
   level_color_stars_only the level color on the stars only
                          (org-level-color-stars-only)
   hidden_keywords        keywords shown without their "#+KEYWORD:" part:
@@ -6860,17 +6917,18 @@ Options under `ui`:
                          (org-highlight-latex-and-related), none by
                          default like Emacs: "latex" (fragments $..$,
                          \(..\), \[..\], $$..$$ and \begin{..}
-                         environments, OrgLatex), "native" (the same with
-                         Vim's tex syntax inside), "script" (x^2, a_{i}),
-                         "entities" (\alpha)
+                         environments, OrgLatex), "native" (the same
+                         drawn by Vim's tex syntax, with the entities and
+                         scripts listed; |org-highlighter-latex|),
+                         "script" (x^2, a_{i}), "entities" (\alpha)
   src_highlight          highlight src blocks in their language
                          (org-src-fontify-natively); false: plain text
   src_highlight_engine   "auto" (default): with tree-sitter when Neovim
                          has a parser and a highlights query for the
                          language, else with its Vim syntax;
                          "treesitter": tree-sitter only (other languages
-                         stay plain); "syntax": the Vim syntax only, as
-                         before. See |org-src-highlight|.
+                         stay plain); "syntax": the Vim syntax only.
+                         See |org-src-highlight|.
   src_block_faces        face of src block bodies by language, like
                          todo_keyword_faces: { python = { bg = "#e5ffb8" } }
                          ("" = blocks without a language)
@@ -7220,8 +7278,105 @@ Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
 break, and bold, italic, underline and strike-through can nest.
 
+                                                          *org-highlighter*
+Org buffers are drawn by the parser highlighter: the decoration provider,
+from a scan of the lines on screen (org.ui.highlight and its parts,
+emphasis and hidden link parts in org.ui.emphasis). Vim |:syntax| only
+draws the languages of src and export blocks that tree-sitter doesn't
+(|org-src-highlight|), as regions over their bodies.
+
+It ports Emacs's own fontification (org-set-font-lock-defaults:
+org-fontify-meta-lines-and-blocks, org-do-emphasis-faces,
+org-activate-links, ...). On the example files and the fixtures of hard
+cases (26,503 lines), it draws the faces Emacs Org 9.8.12 draws on every
+byte of all but 9 lines, each a known difference with its reason
+(tests/spec/emacs_faces_*_spec.lua, against tests/fixtures/emacs/faces/).
+Every marker that can open emphasis is tried on its own, so markup may
+overlap the way it does in Emacs (`*a /b* c/` is bold and italic), nested
+and overlapping faces combine (bold inside a headline keeps the headline's
+color), markup in link descriptions, macros, property values and comment
+blocks is drawn, and verbatim and code show the link brackets and markers
+inside them. Its scan takes time linear in the length of a line, so it has
+none of the limits of syntax regions: everything is drawn past 'synmaxcol'
+and markup over two lines however long the first is, a long line full of
+markers can't run out of 'maxmempattern' (E363) and turn highlighting
+off, and an emphasis or block whose end can't be found never runs on over
+the lines below. Typing computes again only the rows an edit inside a line
+can change (an edit of a headline's text too, not of its stars), however
+much of the file was drawn before. Loading it sets LuaJIT's `sizemcode`
+(the size of each machine code area) to 256 KB: on arm64, a new area of
+the default size often couldn't be placed once a large file was open, and
+every compiled trace was thrown away each time.
+
+It draws with the highlight groups below (`OrgBold`, `OrgVerbatim`, ...,
+and the `org...` group names linked to them, such as `orgBoldDelimiter`,
+so a colorscheme that sets either keeps working) and follows `ui.hide_emphasis_markers`,
+`ui.conceal_links`, toggle_link_display and the cursor rules of
+|org-conceal-cursor|. What it draws isn't a syntax group, so `synID()`,
+`synstack()` and |:Inspect| don't report it (plugins that ask the syntax
+what is under the cursor see plain text there; `:Org inspect` lists it).
+Only once a src block's language is drawn by its Vim syntax do the bodies
+of src, export, example and comment blocks get syntax regions: the
+language's, and `orgBlockRaw` (no colour) keeping the others raw text. A buffer that sets 'syntax' to org without being
+an org buffer, like the drill window, is drawn by it too, until its
+'syntax' changes. What isn't prose (verbatim, code, links, timestamps,
+...) is left out of spell checking with extmarks (|org-highlighter-spell|), and `ui.highlight_latex_and_related`
+"native" draws fragments with marks of Vim's tex groups
+(|org-highlighter-latex|). Calling `setup()` again draws the org buffers
+already open with the new options. An error raised while drawing (a bug:
+please report it) is shown once, and the window it happened in is drawn
+without the highlighting while the error lasts.
+                                                *org-highlighter-spell*
+With 'spell' set, `]s`, `[s`, |z=| and |spellbadword()| skip what the
+screen leaves out. Checked:
+paragraphs, headline titles, list items, comments, quote and verse
+blocks, the text of bold, italic, underline and strike-through (in table
+rows too, where nothing else is checked). Not checked: the TODO
+keyword, priority and tags of a headline, keywords (`#+TITLE:` and the
+like, the keyword and its value), block delimiter lines, src, example and
+export blocks (but what the language's syntax checks, such as its
+comments), tables, drawer lines and properties, planning and clock lines,
+timestamps, links (their description too: Emacs removes flyspell's marks
+from links), footnote labels, targets, macros, inline src blocks,
+export snippets, LaTeX, verbatim and code. It follows what Emacs's
+flyspell checks (org-mode-flyspell-verify, which asks org-element): it
+checks the body of comment blocks and
+the text of `#+CAPTION:` (not its links and timestamps), and the footnotes,
+targets and inline src blocks of a comment; it doesn't check the
+emphasis in a list item's tag, a link over two lines, or keyword and
+block lines in a quote block; and verbatim is what org-element finds, left
+to right, so `=a "b"=, the rest=` checks ", the rest" (font-lock, which
+tries every marker, draws it as verbatim too).
+                                                *org-highlighter-latex*
+With `ui.highlight_latex_and_related = { "native" }`, the parser
+highlighter draws what it finds (`$x$`, `\(..\)`, `\[..\]`, `$$..$$` and
+`\begin{..}` environments, and the entities and scripts when listed too)
+the way Emacs's org-do-latex-and-related does then: the text is drawn as a
+TeX file of its own would be, with the groups of Vim's tex syntax
+(texMathZoneX, texStatement, ...), over `orgSrcBlock` (org-block, as the
+body of a src block drawn by its language), and in place of `OrgLatex`.
+It is shown as typed: tex's concealing and its error groups are left out.
+Without a tex syntax on 'runtimepath', fragments get `OrgBlock` alone.
+Like Emacs, nothing is drawn where the byte after the start of the match
+is verbatim, code, underline or a special keyword. The tex groups are
+marks, not syntax: `synstack()` and |:Inspect| don't list them (`:Org
+inspect` does). A fragment seen first while the screen is drawn gets its
+colours right after, on the next redraw. Difference: Emacs takes the faces
+of bold, italic and the like off a fragment drawn natively; here the tex
+groups only go over them.
+
+`:Org inspect` (no default key) shows what is drawn under the cursor,
+like |:Inspect| but with the marks it doesn't see: the decorations and
+the parser highlighter's groups (drawn anew on each redraw, ephemeral
+extmarks) and citations, each with its priority, whether it is spell
+checked and whether it hides the text, then the syntax groups, tree-sitter
+captures and extmarks |:Inspect| lists.
+
 Quote and verse block contents are highlighted as ordinary Org (lists,
-tables, timestamps, markup) on top of OrgQuoteBlock; center, special
+tables, timestamps, markup), on top of OrgQuoteBlock (quote) and
+OrgVerseBlock (verse, linked to OrgQuoteBlock) only with
+`ui.fontify_quote_and_verse_blocks` (off by default, as Emacs's
+org-fontify-quote-and-verse-blocks); center, special
 (`#+begin_note`...) and dynamic (`#+BEGIN:`) blocks highlight only their
 delimiter lines. Every block ends at the next headline, whether or not it
 has its `#+end` line. `#+begin_export LANG` blocks get LANG's syntax, as
@@ -7233,15 +7388,48 @@ OrgStatistic (org-checkbox-statistics-done/-todo); OrgSexpDate is diary
 sexps (`<%%(...)>`, `%%(...)` lines) and OrgArchived the text of headlines
 tagged ARCHIVE.
 
+The body of a `#+begin_src org` block (and of
+`#+begin_export org` and `#+begin_example org`, as Emacs fontifies them
+too) is drawn as Org text on OrgBlock, the way Emacs's
+org-src-fontify-natively draws it: as if the body were a buffer of its own
+(keywords, comments, lists, tables, drawers, timestamps, footnotes, links
+and markup, and blocks that open and close in it), from the lines around
+the rows on screen like the rest of the buffer. As in Emacs, the lines are
+taken as typed: a line escaped with a comma (`,* Heading`, `,#+TITLE:`) is
+no headline or keyword there, and nothing in the body is hidden (emphasis
+markers and link brackets show, the markers without the emphasis face when
+`ui.hide_emphasis_markers` is on). The language is matched as Emacs does,
+case and all, through `src_lang_modes` (a language mapped to "org" is drawn
+the same); `ui.src_highlight = false` leaves the body plain OrgBlock. The
+body is never drawn with a tree-sitter org parser or a Vim syntax for org,
+even when one is installed: this drawing wins.
+
+An inline src block (`src_LANG{BODY}`) is
+drawn wherever its text is, as Emacs's org-fontify-inline-src-blocks does:
+in a headline, a table, a list term, a link description, a comment, a
+keyword line, or the body of a block. Its braces and body don't take the
+face of what they are in (OrgInlineSrcMarker and OrgInlineSrc alone, no
+headline, table, link or OrgBlock colour under them), while `src_LANG` and
+`[HEADERS]` keep it under their own. What a link hides stays hidden. In
+the body of a src or export block, the language's Vim syntax still draws
+under the braces (a decoration can't take a syntax group's attributes
+off, so `<b>src_sh{x}</b>` in an html export block keeps its bold).
+
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
+The parser highlighter (|org-highlighter|) draws these and the `org...`
+group names linked to them (`orgBoldDelimiter`, `orgLinkPlain`, ...; group
+names ignore case, so `orgTodo` is `OrgTodo`), as decorations, not syntax
+groups.
   - `OrgHeadlineLevel1..8` (linked to the colorscheme's markdown
     headings)
-  - `OrgTodo`, `OrgDone`, `OrgHeadlineDone`, `OrgHeadlineComment`,
+  - `OrgTodo`, `OrgDone`, `OrgHeadlineTodo`, `OrgHeadlineDone`,
+    `OrgHeadlineComment`,
     `OrgPriority`, `OrgPriorityA`, `OrgPriorityB`, `OrgPriorityC`,
     `OrgTags`, `OrgTimestamp`, `OrgTimestampInactive`, `OrgPlanning`,
     `OrgClockDuration`, `OrgClockSum`, `OrgDrawer`, `OrgPropertyKey`,
     `OrgPropertyValue`, `OrgKeyword`, `OrgKeywordValue`, `OrgTitle`,
-    `OrgComment`, `OrgBlock`, `OrgQuoteBlock`, `OrgBlockDelimiter`,
+    `OrgComment`, `OrgBlock`, `OrgQuoteBlock`, `OrgVerseBlock`,
+    `OrgBlockDelimiter`,
     `OrgBold`, `OrgItalic`, `OrgUnderline`, `OrgStrikethrough`,
     `OrgVerbatim`, `OrgCode`, `OrgLink`, `OrgListBullet`, `OrgListTerm`,
     `OrgCheckbox`, `OrgCheckboxChecked`, `OrgCheckboxPartial`,
@@ -7250,8 +7438,9 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
     `OrgInlineSrcMarker`, `OrgInlineSrcLang`, `OrgExportSnippetMarker`,
     `OrgExportSnippetBackend`, `OrgFootnote`, `OrgTarget`, `OrgLatex`,
     `OrgHorizontalRule`, `OrgMacro`, `OrgHiddenStars`, `OrgSuperscript`,
-    `OrgSubscript`, `OrgInlinetask`, `OrgSparseMatch`, `OrgBabelRunning`,
-    `OrgBabelOutput`, `OrgCommandPreview`
+    `OrgSubscript`, `OrgInlinetask`, `OrgInlinetaskFirstStar`,
+    `OrgSparseMatch`, `OrgBabelRunning`, `OrgBabelOutput`,
+    `OrgCommandPreview`
   - `OrgContext`, `OrgContextLineNumber`, `OrgContextBottom`
     (|org-context|)
   - `OrgMenuKey`, `OrgMenuHeading`, `OrgMenuDesc`, `OrgMenuMore`,
@@ -7949,6 +8138,8 @@ Section `org` (default key: action):
   >>                               demote_heading
   <s                               promote_subtree
   >s                               demote_subtree
+  =                                indent_operator (org-indent-region,
+                                   |org-indent|)
   <M-h> <M-l> <M-k> <M-j>          meta_left/right/up/down
   <M-Left> <M-Right>               meta_left/right (in addition to
                                    <M-h>/<M-l>)
@@ -8985,9 +9176,7 @@ Differences from Emacs:
 
 - Display: in indent mode (org-indent-mode) rows that wrap don't get the
   virtual indentation (Emacs sets a wrap-prefix; Neovim has no per-line
-  one). Emphasis doesn't nest inside the same kind of emphasis or inside
-  verbatim/code: Emacs fontifies `*a *b* c*` and `=x *y* z=` twice,
-  org.nvim highlights the outer span only. In the agenda clock report,
+  one). In the agenda clock report,
   links are replaced by their description in the text (Emacs keeps the
   link and hides its brackets). A shrunk table column shows its full
   fields on the cursor line in modes missing from 'concealcursor' (Visual
@@ -8996,13 +9185,24 @@ Differences from Emacs:
   line of a closed fold, is drawn below the line or shown as its link text
   (Emacs makes that screen line as tall as the image). A wrapped line
   breaks by its full text, hidden link targets included, so a long link
-  near the window edge leaves a gap (|org-links-wrap|). Vim draws syntax
-  up to 'synmaxcol' (3000) of a line: emphasis is highlighted when it
-  ends before that column, so a long line can't leave the lines below it
-  bold. Emphasis over two lines is highlighted only when its part on the
-  first line is at most 'synmaxcol' characters long: looking further for
-  the end of every marker would make drawing a long line take time
-  quadratic in its length.
+  near the window edge leaves a gap (|org-links-wrap|). A macro whose
+  `}}}`, or a footnote reference whose closing bracket, comes after the
+  next headline is not drawn (Emacs's font-lock paints it over the
+  headline and the lines up to its end): the rows of a window are drawn
+  from the lines back to the headline above them at most. With
+  `ui.pretty_entities`, entities aren't shown as their character in src,
+  example, export and comment blocks, where they are code (Emacs shows
+  them there too, like everywhere but in comment lines), nor in the
+  hidden target of a described link.
+
+- Inline tasks: promoting one at the minimum level is refused. With odd
+  levels only, Emacs compares the new stars with org-inlinetask-min-level
+  itself and so promotes a 29 stars inline task to 27 stars, a headline
+  (its END line becoming a headline too).
+
+- `ui.highlight_latex_and_related` "native" (|org-highlighter-latex|)
+  draws LaTeX with Vim's tex syntax, not latex-mode's faces, and over the
+  bold, italic and the like around it, which Emacs takes off.
 
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or
@@ -9042,6 +9242,9 @@ Differences from Emacs:
   holding an e-mail address) is left as written and the references after
   it are still replaced; Emacs stops replacing the `@` references that
   come after it.
+- Converting text to a table (C-c | on a region, `table_import`) writes a
+  `|` in the data as `\vert{}`; Emacs copies it as it is, where it then
+  splits the field.
 - Footnote sorting and renumbering leave src, example, export and comment
   blocks alone: a line starting with `[fn:N]` inside one is code, not a
   definition. Emacs renumbers such lines too.
@@ -9071,7 +9274,10 @@ Differences from Emacs:
   own input, so time spent in other applications counts as idle there.
   The mode line entry is the |org-api| statusline component; a click
   handler pops up the clock menu (|org-clock-menu|). Timers use counts, so a countdown's C-u (default timer)
-  has no count form: a count is always minutes.
+  has no count form: a count is always minutes. A naked clock line
+  (`CLOCK: => 2:00`, no timestamps) inside a source or example block is
+  text, not time (Emacs's org-clock-sum finds it with a regexp and adds
+  it to the entry).
 - Citations (|org-cite|): keys are chosen with `vim.ui.select`, and
   cancelling it is Emacs' empty input; `basic_complete_key_crm_separator`
   is a Vim regexp read at an `input()` prompt (Emacs uses
@@ -9096,6 +9302,13 @@ Differences from Emacs:
 - Agenda column view (|org-agenda-columns|) writes a parent's summary
   back to its property only in agenda files loaded in a buffer (Emacs
   visits every agenda file, so it updates them all, without saving).
+- Agenda sorting by TODO state (`todo-state-up` / `-down`) ranks each
+  entry by the keyword sequence of its own file. Emacs's org-cmp-todo-state
+  ranks both entries it compares by the keywords of the first one's file
+  (a keyword missing there ranks as no keyword), so with files that have
+  different keyword sets its order depends on which entry the sort
+  compares first; and it takes a keyword as done when it is done in any
+  agenda file.
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - By default capture edits the text in a separate buffer and stores it at
@@ -9125,6 +9338,10 @@ Differences from Emacs:
   C-0 C-c C-w (a count cannot be 0) is `:Org refile_cache_clear` or
   C-u C-u C-u C-c C-w. Agenda archives-mode and view toggles (`va`, `v[`,
   ...) stay on until toggled off.
+- An inline src block or call without a value (`src_emacs-lisp{nil}`,
+  `src_sh{printf ''}`) gets `{{{results(==)}}}` in the buffer, which the
+  next run replaces. Emacs inserts only the space before a result, so
+  every run adds another one. On export both show nothing.
 - Babel sessions (|org-babel| Sessions) are live REPLs in terminal
   buffers for shells, python, js/node, ruby (irb), R, julia, ocaml,
   scheme, haskell (ghci) and SQL; other languages have none. Emacs has
@@ -9230,7 +9447,10 @@ Differences from Emacs:
   isn't searched for: a page number becomes `#page=5`, another option the
   anchor (Emacs searches the PDF's raw bytes as text, which aborts the
   export or gives `#MissingReference`). Other files are searched as in
-  Emacs.
+  Emacs. In ODT, the leading blanks of every line of a verse block become
+  `<text:s/>` / `<text:tab/>`, so the indentation shows (Emacs joins the
+  lines before encoding them and so encodes only the first line's: the
+  others' spaces collapse into one in the document).
 - Links (|org-links|):
   - `elisp:(sexp)` links are evaluated in a separate `emacs --batch`
     (`babel.emacs_lisp`), not in the editor, after `links.confirm_elisp`
@@ -9342,19 +9562,29 @@ Differences from Emacs:
     <prefix>nb and <prefix>ne. Narrowing edits the region in a separate
     buffer instead of hiding the rest of the buffer.
   - A count repeats promote / demote (<M-h>, <<); Emacs ignores it.
+  - Pasting a subtree on a line of bare stars (`***`) pastes it at that
+    many stars, as org-paste-subtree's documentation says; Emacs takes the
+    level of the headline above when no space follows the stars.
   - Element commands work on whole lines.
   - Speed commands work in Insert mode at the start of a headline (where
     Emacs would insert the letter); Normal mode keeps Vim's letters.
   - Pretty sub/superscripts can't be raised: Unicode super/subscript
     characters are used when they exist, else a highlight.
+  - Plain lists: a tab in an item's indentation counts up to the next
+    multiple of 8 columns, as in Emacs (Org fixes tab-width at 8). A
+    line whose indentation a list command changes is re-indented with
+    spaces ('expandtab'); Emacs uses tabs from column 8 on when
+    `indent-tabs-mode` is on, its default. Lines it doesn't move keep
+    their tabs.
+  - Indenting or outdenting a list item moves the text it owns with it,
+    text after its sub-list included. Emacs lines that text up with the
+    sub-list's last item instead, which can hand it to another item or
+    end the list.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
-  - Indentation (|org-indent|): `=` indents line by line with
-    org-indent-line, so a list or an example block is not moved as a
-    whole like org-indent-region (C-M-\) does; `:Org indent_region` does
-    that. Src block code keeps its own relative indentation instead of
-    being indented by the language's major mode (Emacs's
-    org-src-tab-acts-natively).
+  - Indentation (|org-indent|): src block code keeps its own relative
+    indentation instead of being indented by the language's major mode
+    (Emacs's org-src-tab-acts-natively), with `=` and with <Tab>.
   - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
     fill-column (70); src blocks are not filled (Emacs uses the language's
     major mode); `gq` over a comment of several paragraphs fills each of
@@ -9558,8 +9788,10 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
                |vim.health|. Keep it fast and quiet: look for programs
                with |executable()|, stat paths, bound any file scan; no
                network, no prompts, no slow commands
-  `teardown`   `function()`, undoes `setup` when a later `setup()` turns
-               the extension off or sets it up again
+  `teardown`   `function(again)`, undoes `setup` when a later `setup()`
+               turns the extension off or sets it up again (`again` is
+               true then); `require("org.extensions").opts(name)` still
+               gives the options it was set up with
   `stability`  `"stable"` or `"experimental"`, as above. A built-in
                extension without it is experimental; `:checkhealth org`
                shows it for a third-party extension that sets it
@@ -9686,7 +9918,8 @@ Commands ~
 All of them are also actions, for `mappings`. Results open in the agenda
 buffer, so the agenda keys work on them. Saved views are kept in
 `views_file` and listed with the configured ones (which win on a name
-clash). The same view can be an agenda custom command:
+clash). A `views_file` that can't be read as JSON is left alone: saving
+a view then fails with an error instead of writing over it. The same view can be an agenda custom command:
 >lua
     agenda = { custom_commands = {
       q = { type = "org-ql", query = "(and (todo) (scheduled :to today))",
@@ -10460,8 +10693,10 @@ starts the break.
 The running pomodoro is kept in `state_file`, so a Neovim started while it
 still runs (or is paused, or in overtime) goes on with it; one that ended
 in the meantime is dropped, and one another Neovim is running is left to
-it. The clock is not touched then (see `clock.persist`, |org-clock|); after
-a second `setup()` in the same Neovim a running pomodoro clocks in again.
+it. The clock is not touched then (see `clock.persist`, |org-clock|). A
+second `setup()` in the same Neovim that keeps the extension on goes on
+with the pomodoro and its clock; one that turns it off clocks out, and
+turning it on again clocks back in.
 
 Each phase change is announced through the clock's notifier
 (`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a
@@ -10774,7 +11009,10 @@ entry renamed on one side is still recognised when the rest of it did not
 change, when its text stayed similar (`rename_similarity`: that share of
 its lines, drawers and child titles is unchanged), or, for a headline
 without text, when it sits between the same two neighbours. An entry that
-got an `ID` on one side (as org-roam does) is matched by its title. Then:
+got an `ID` on one side (as org-roam does) is matched by its title.
+Siblings with the same title are told apart by their text (the same text,
+else the most similar, else their order), so deleting one of them on one
+side and editing another on the other doesn't conflict. Then:
 
   - Changes to different entries never conflict, even on adjacent lines.
   - An entry moved or refiled to another parent (by ID) or reordered is
@@ -10810,8 +11048,12 @@ Body text conflicts always get markers.
 Conflict markers wrap only the lines in conflict (the headline and
 planning line of one entry, one property line, or a few lines of text):
 >
-        * WAITING Plan the offsite                                    :team:
-      35. Migrating from nvim-orgmode ............... |org-migrate|
+    <<<<<<< HEAD
+    * WAITING Plan the offsite                                    :team:
+    =======
+    * DONE Plan the offsite                                       :team:
+    CLOSED: [2026-09-29 Tue 18:10]
+    >>>>>>> phone
     Venue ideas.
 <
 Files with CRLF line ends or a UTF-8 BOM keep them. An ID used by two
@@ -11232,7 +11474,9 @@ itself. Returning a table keeps it independent of your plugin manager:
     }
 <
 Your whole init.lua works as `--config` too, but then every call loads all
-your plugins. `--files GLOB` (repeatable, or comma-separated) replaces
+your plugins. A file that fails, returns something else than a table, or
+gives `agenda_files` or `org_directory` a value of the wrong type is a
+`config` error (exit 2). `--files GLOB` (repeatable, or comma-separated) replaces
 `agenda_files`, and `--dir DIR` sets `org_directory`.
 
 Nothing waits for input: prompts, confirmations and dangling-clock
@@ -11260,7 +11504,9 @@ DATE, a property VALUE, or a TARGET with nothing after it (`show`, `id`,
 `clock in`, `archive`) takes the remaining words. So quote a TARGET of
 several words that other arguments follow (`set`, `note`, `refile`):
 `org set todo "Buy milk" DONE`. A word no argument takes is a usage
-error (exit 2), never dropped.
+error (exit 2), never dropped. An option that takes a value is missing it
+when the next word is an option itself (`--todo --json`); give a value
+that looks like an option as `--match=-boss`.
 
 Reading:
 `org agenda [VIEW] [--date DATE] [--span N] [--csv]`
@@ -11288,10 +11534,15 @@ Reading:
     either side optional, a single date for that day, or `any`, `none`),
     `--file FILE` (one of the agenda files), `--match MATCH` and
     `--limit N`. Archived and commented subtrees are left out unless
-    `--archived`.
+    `--archived`. A `--todo` that is no keyword of the files is a
+    `bad_value` error, as is a `--match` (here and in `search`) with
+    text it can't read: where Emacs ignores the rest of a match from the
+    first thing it can't read (`+work +boss` is `+work`), the CLI says
+    so instead of quietly giving other headings.
 `org show TARGET [--children]`
     A heading with its properties, planning, clocks, plain timestamps
-    and body text; `--children` adds the child entries.
+    and body text; `--children` adds the child entries (the whole
+    subtree, each entry as the heading is shown).
 `org clock [status] [--short] [--format FMT]`
     The running clock: the one saved in `clock.persist_file` (with
     `clock.persist`), else the first open CLOCK line in the agenda files.
@@ -11398,7 +11649,8 @@ Writing (each saves the files it changed):
 Every command writes its result to stdout and messages to stderr (`-v`
 adds org.nvim's own messages, `-q` hides warnings). Exit codes: 0 done,
 1 failed or nothing found (`search`, `clock out` without a clock), 2 bad
-usage, 3 input needed, 4 the file has unsaved changes in a running Neovim.
+usage, 3 input needed, 4 the file is busy (unsaved changes in a running
+Neovim, another `org` writing) or changed on disk while the command ran.
 
 A write refuses a file that a running Neovim has unsaved changes in (its
 swap file says so), and `--force` writes anyway. Every file a command
@@ -11413,6 +11665,17 @@ exit code 3 and writes nothing, so give `crypt.key` (or `CRYPTKEY`) a
 public key for writes from the shell. Every write, a capture too,
 touches the clock stamp file, so a Neovim with the extension enabled
 rereads the files (see below).
+
+Write commands run one at a time: each holds a lock
+(`stdpath("state")/org/cli-write.lock`) while it reads and writes, so
+parallel calls (a script capturing in a loop, an agent's tools) wait for
+each other and none loses another's change. One that waits longer than
+`lock_timeout` seconds fails with `file_busy` (exit 4); a lock left by
+an `org` that is gone is taken over. A file another program writes
+while a command changes it (Neovim saving it, a sync tool) is not
+written over: the command fails with `file_changed` (exit 4) and you run
+it again. Without the session server only; with it, the commands run in
+its Neovim one after the other anyway.
 
 JSON                                                *org-extensions-cli-json*
 `--json` makes every command print one JSON object, the envelope:
@@ -11445,7 +11708,11 @@ the exit code of the error:
                          with `--field`; a confirmation or a passphrase
                          can't be answered)
   `file_busy` (4)        unsaved changes in a running Neovim:
-                         `details.file`, `details.pid`
+                         `details.file`, `details.pid`; or another `org`
+                         kept the write lock: `details.lock`
+  `file_changed` (4)     another program wrote `details.file` while the
+                         command changed it; it was not written, run the
+                         command again
 
 In JSON mode stdout holds nothing but that object and stderr stays empty
 unless `-v`, so `2>&1` is safe. A command that finds nothing exits 0
@@ -11648,6 +11915,8 @@ Options (`extensions.cli`) ~
   `capture_template`   template key of `org capture` without `-t` (nil)
   `status_format`      format of `org clock status --short` ("%e %t")
   `watch_clock`        a running Neovim follows the shell's clock (true)
+  `lock_timeout`       seconds a write waits for another `org` writing
+                       before it fails with `file_busy` (10)
   `mcp.read_only`      `org mcp` lists only the tools that don't change
                        files, as `--read-only` (false)
 
@@ -12537,6 +12806,13 @@ write run from inside another autocommand that isn't `++nested` (some
 auto-save plugins), skip all of this: the file is cleaned again when you
 leave the buffer, stay idle (`CursorHold`) or Neovim loses focus, but
 not after `:noautocmd wq`.
+
+Commands that copy a subtree elsewhere copy its keywords, not the text
+inserted under them: refile (and refile a copy), archive, cut and copy
+subtree, clone, roam's extract, and the `:w` of an edit buffer (an Org
+source's own inserted transclusions show in it too). Undo after
+`transclusion_detach` brings the keyword back with its text inserted
+again, not with a copy of it as well.
 
 Transclusions are drawn when an org buffer is shown, redrawn when the
 buffer or a source buffer changes (`live`) or a source is written, and,

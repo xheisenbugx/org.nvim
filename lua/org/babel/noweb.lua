@@ -71,6 +71,10 @@ end
 --- Library of Babel: named blocks ingested from other files (`lob_ingest`).
 M.library = {}
 
+-- key of M._noweb_seen set once every block was scanned for :noweb-ref
+-- (the `buffer-processed` entry of Emacs' cache); no reference has a NUL
+local NOWEB_SCANNED = "\0scanned"
+
 --- Expansion (list of lines) of the noweb reference `ref`.
 local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   if ref:find("%(.*%)") then
@@ -110,10 +114,13 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
       local link_block = first and b or (M._noweb_parent or b)
       local beg_c, end_c = require("org.babel.tangle").comment_links(bufnr, b, ctx.file, nil, true, link_block)
       local cs, ce = require("org.babel.tangle").comment_delims(b.lang)
-      local out = { cs .. beg_c .. ce }
+      -- c-wrap: comment-region puts the comment start after the text's
+      -- indentation, then org-trim: " ends here" (no block name) is
+      -- "# ends here"
+      local out = { cs .. vim.trim(beg_c) .. ce }
       vim.list_extend(out, body)
       -- ob-tangle wraps the body as "BEG\nBODY\nEND\n": an empty line follows
-      vim.list_extend(out, { cs .. end_c .. ce, "" })
+      vim.list_extend(out, { cs .. vim.trim(end_c) .. ce, "" })
       body = out
     end
     return body
@@ -134,7 +141,17 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
     return vim.deepcopy(lob.body)
   end
   -- all blocks with a matching :noweb-ref, each followed by its own
-  -- :noweb-sep when another one comes after it
+  -- :noweb-sep when another one comes after it. The first such lookup
+  -- rebuilds Emacs' reference cache from every block: the named blocks
+  -- looked up before are forgotten, and their next link comment points
+  -- at them again
+  local seen = M._noweb_seen
+  if seen and not seen[NOWEB_SCANNED] then
+    for k in pairs(seen) do
+      seen[k] = nil
+    end
+    seen[NOWEB_SCANNED] = true
+  end
   local text, sep
   for _, b in ipairs(ctx.all) do
     if not b.call and not in_commented(ctx.file, b.start) then

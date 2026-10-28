@@ -32,6 +32,7 @@ local M = {}
 ---@field drawers { name: string, start: integer, ["end"]: integer }[]
 ---@field logbook { start: integer, ["end"]: integer }|nil
 ---@field clocks { start: table, ["end"]: table|nil, minutes: integer|nil, line: integer }[]
+---@field naked_clock_minutes integer minutes of `CLOCK: => H:MM` lines without timestamps
 ---@field timestamps { date: table, line: integer, start_col: integer, end_col: integer, in_title?: boolean, in_property?: boolean }[]
 ---@field block_ranges { date: table, line: integer, start_col: integer, end_col: integer }[] active date
 --- ranges that are no timestamp objects (in a block other than a src block,
@@ -63,6 +64,7 @@ local SECTION_FIELDS = {
   drawers = true,
   logbook = true,
   clocks = true,
+  naked_clock_minutes = true,
   timestamps = true,
   block_ranges = true,
   first_inactive = true,
@@ -179,7 +181,7 @@ end
 ---@field properties_range integer[]|nil {start, end} of the file-level property drawer
 ---@field bufnr? integer the buffer it was parsed from (set by org.files)
 ---@field _log_drawer string the drawer state changes and notes go into, upper-cased
----@field _min_inline? integer inlinetask_min_level when the file was parsed
+---@field _min_inline? integer the fewest stars of an inline task when the file was parsed (inlinetask_min_level)
 local File = {}
 File.__index = File
 M.File = File
@@ -581,16 +583,24 @@ local function parse_property_drawer(lines, from, to)
   return drawer
 end
 
-M.CLOCK_CLOSED_PATTERN = "^%s*CLOCK:%s*(%[[^%]]+%])%-%-(%[[^%]]+%])%s*=>%s*(%-?%d+):(%d+)"
-M.CLOCK_OPEN_PATTERN = "^%s*CLOCK:%s*(%[[^%]]+%])%s*$"
+-- org-element-clock-line-re: "CLOCK:" (any case), blanks, then an inactive
+-- timestamp, a range with a duration or a range alone; nothing after it.
+-- Anything else (text after the duration, no blank after "CLOCK:") is a
+-- paragraph, whose time no clock sum counts.
+local CLOCK_PREFIX = "^%s*[Cc][Ll][Oo][Cc][Kk]:[ \t]+()"
+M.CLOCK_CLOSED_PATTERN = "^(%[[^%]]+%])%-%-(%[[^%]]+%])[ \t]+=>[ \t]+(%-?%d+):(%d%d)[ \t]*$"
+M.CLOCK_OPEN_PATTERN = "^(%[[^%]]+%])[ \t]*$"
 
 --- Parse a CLOCK line.
+---@param line string
 ---@return table|nil { start, end?, minutes? }
 function M.parse_clock_line(line)
-  if not line:find("CLOCK:", 1, true) then
+  local at = line:match(CLOCK_PREFIX)
+  if not at then
     return nil
   end
-  local s, e, h, m = line:match(M.CLOCK_CLOSED_PATTERN)
+  local rest = line:sub(at)
+  local s, e, h, m = rest:match(M.CLOCK_CLOSED_PATTERN)
   if s then
     local ds, de = date.parse(s), date.parse(e)
     if not ds or not de then
@@ -603,14 +613,14 @@ function M.parse_clock_line(line)
     return { start = ds, ["end"] = de, minutes = mins }
   end
   -- closed clock without "=>" duration
-  s, e = line:match("^%s*CLOCK:%s*(%[[^%]]+%])%-%-(%[[^%]]+%])%s*$")
+  s, e = rest:match("^(%[[^%]]+%])%-%-(%[[^%]]+%])[ \t]*$")
   if s then
     local ds, de = date.parse(s), date.parse(e)
     if ds and de then
       return { start = ds, ["end"] = de, minutes = date.elapsed_minutes(ds, de) }
     end
   end
-  s = line:match(M.CLOCK_OPEN_PATTERN)
+  s = rest:match(M.CLOCK_OPEN_PATTERN)
   if s then
     local ds = date.parse(s)
     if ds then
@@ -618,6 +628,16 @@ function M.parse_clock_line(line)
     end
   end
   return nil
+end
+
+--- The minutes of a "naked" clock line, `CLOCK: => H:MM` with no
+--- timestamps, which org-clock-sum adds to the entry whatever the report's
+--- time range (its regexp, not org-element's: text after the time is fine).
+---@param line string
+---@return integer|nil
+function M.parse_naked_clock(line)
+  local h, m = line:match("^%s*[Cc][Ll][Oo][Cc][Kk]:[ \t]*=>[ \t]+(%d+):(%d+)")
+  return h and tonumber(h) * 60 + tonumber(m) or nil
 end
 
 M.parse_planning = parse_planning
@@ -811,13 +831,14 @@ local DRAWER_END = "^%s*:[Ee][Nn][Dd]:%s*$"
 ---@param from integer
 ---@param to integer
 ---@param log_drawer string
----@param min_inline? integer inline tasks start at this level
+---@param min_inline? integer inline tasks have this many stars or more
 function parse_section(hl, lines, from, to, log_drawer, min_inline)
   hl.planning = {}
   hl.properties = {}
   hl.property_base = {}
   hl.drawers = {}
   hl.clocks = {}
+  hl.naked_clock_minutes = 0
   hl.timestamps = {}
   hl.block_ranges = {}
 
@@ -926,6 +947,9 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
       break
     end
     local line = lines[i]
+    -- the line's clock (false: none), parsed once
+    ---@type table|false|nil
+    local clock
     if tail then
       if i > verbatim_end and line:find("^%s*#%+") then
         verbatim_end = M.verbatim_block_end(lines, i, to) or verbatim_end
@@ -973,7 +997,8 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
       elseif not (line:find("^%s*[#:]") and no_objects(line)) then
         -- text, in a drawer too (LOGBOOK notes, :org-gcal:); a CLOCK
         -- line's timestamps are the clock's
-        local is_clock = line:find("CLOCK:", 1, true) and line:match("^%s*CLOCK:")
+        clock = line:find(":", 1, true) and M.parse_clock_line(line) or false
+        local is_clock = clock
         if not (is_clock and in_drawer) then
           for _, item in ipairs(object_stamps(line)) do
             if not item.date.active and not hl.first_inactive and not is_clock then
@@ -997,10 +1022,16 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
     end
     -- a CLOCK line in a block or a LaTeX environment is text, not a clock
     -- (org-clock-sum only counts clock elements)
-    local clock = i > verbatim_end and line:find("CLOCK:", 1, true) and M.parse_clock_line(line)
-    if clock then
-      clock.line = i
-      hl.clocks[#hl.clocks + 1] = clock
+    if i > verbatim_end then
+      if clock == nil then
+        clock = line:find(":", 1, true) and M.parse_clock_line(line) or false
+      end
+      if clock then
+        clock.line = i
+        hl.clocks[#hl.clocks + 1] = clock
+      elseif line:find("=>", 1, true) then
+        hl.naked_clock_minutes = hl.naked_clock_minutes + (M.parse_naked_clock(line) or 0)
+      end
     end
     i = i + 1
   end
@@ -1044,7 +1075,7 @@ function M.parse(lines, filename, base)
 
   local stack = {}
   local headlines = file.headlines
-  local min_inline = M.inlinetask_min_level()
+  local min_inline = M.inlinetask_min_level(settings)
   file._min_inline = min_inline
   local skip_to = 0
   for i, line in ipairs(lines) do
@@ -1131,11 +1162,62 @@ function M.parse(lines, filename, base)
   return file
 end
 
---- Level from which headlines are inline tasks (org-inlinetask-min-level),
---- nil when inline tasks are off.
-function M.inlinetask_min_level()
+--- Whether the file of `src` uses only odd levels (org-odd-levels-only):
+--- its `#+STARTUP: odd` / `oddeven`, else the `odd_levels_only` option.
+--- `src` is a file, its settings, a buffer number or nil (the current
+--- buffer). For a buffer, the last parse of it is used, even one of older
+--- text: like Emacs, which reads #+STARTUP when Org mode starts, and so
+--- that redraw-time code (folds, highlights) doesn't parse on each change.
+---@param src? table|integer
+---@return boolean
+function M.odd_levels(src)
+  local settings
+  if type(src) == "table" then
+    settings = src.settings or src
+  else
+    local files = require("org.files")
+    local bufnr = (src == nil or src == 0) and vim.api.nvim_get_current_buf() or src --[[@as integer]]
+    local file = files.last_buffer(bufnr)
+    if not file then
+      local ok, f = pcall(files.get_buffer, bufnr)
+      file = ok and f or nil
+    end
+    settings = file and file.settings
+  end
+  local st = settings and settings.startup or {}
+  if st.odd then
+    return true
+  elseif st.oddeven then
+    return false
+  end
+  return require("org.config").opts.odd_levels_only == true
+end
+
+--- The level of a heading with `stars` stars, counting only odd levels
+--- when `odd` (org-reduced-level: 1, 3, 5 stars are levels 1, 2, 3).
+---@param stars integer
+---@param odd boolean
+---@return integer
+function M.reduced_level(stars, odd)
+  if odd and stars > 0 then
+    return 1 + math.floor(stars / 2)
+  end
+  return stars
+end
+
+--- The fewest stars of an inline task, nil when inline tasks are off: the
+--- `inlinetask_min_level` option (org-inlinetask-min-level), or with odd
+--- levels only (`M.odd_levels`) 2 * that - 1 stars, as
+--- org-inlinetask-outline-regexp and org-element count them (15 -> 29).
+---@param src? table|integer the file, its settings or a buffer
+--- (nil: the current buffer) whose odd levels setting applies
+---@return integer|nil
+function M.inlinetask_min_level(src)
   local v = require("org.config").opts.inlinetask_min_level
-  return type(v) == "number" and v or nil
+  if type(v) ~= "number" then
+    return nil
+  end
+  return M.odd_levels(src) and 2 * v - 1 or v
 end
 
 --- The text after the END line of inline task `hl`, up to the next heading,
@@ -1202,9 +1284,12 @@ end
 
 --- Level of `line` as an outline headline: nil for text and, when inline
 --- tasks are on, for inline tasks (org-with-limited-levels).
-function M.outline_level(line)
+---@param line string
+---@param src? table|integer whose odd levels apply (see
+--- inlinetask_min_level; nil: the current buffer)
+function M.outline_level(line, src)
   local lvl = M.headline_level(line)
-  local min = lvl and M.inlinetask_min_level()
+  local min = lvl and M.inlinetask_min_level(src)
   if min and lvl >= min then
     return nil
   end
@@ -1409,6 +1494,13 @@ end
 
 function Headline:is_done()
   return self.todo ~= nil and self.file.settings.todo:is_done(self.todo)
+end
+
+--- The headline's level with its file's odd levels setting applied
+--- (org-reduced-level), what LEVEL matches and clock tables count.
+---@return integer
+function Headline:reduced_level()
+  return M.reduced_level(self.level, M.odd_levels(self.file))
 end
 
 function Headline:is_todo()
@@ -1799,11 +1891,14 @@ end
 function Headline:clocked_minutes(from_min, to_min, include_children)
   local total = 0
   local function sum(h)
+    -- a naked `CLOCK: => H:MM` counts whatever the range (org-clock-sum)
+    total = total + (h.naked_clock_minutes or 0)
     for _, c in ipairs(h.clocks) do
-      if c.minutes then
+      if c["end"] then
         local s = c.start:minutes()
         if (not from_min or s >= from_min) and (not to_min or s < to_min) then
-          total = total + c.minutes
+          -- from the timestamps, not the `=> H:MM` text, like org-clock-sum
+          total = total + date.elapsed_minutes(c.start, c["end"])
         end
       end
     end

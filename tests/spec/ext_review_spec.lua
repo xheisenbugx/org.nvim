@@ -691,13 +691,19 @@ describe("review extension", function()
   end)
 
   it("teardown closes the window and keeps the state", function()
+    local default = review.defaults.state_file
+    vim.fn.delete(default)
     setup({})
     review.start()
     review.next()
     local win = review.session.win
+    vim.fn.delete(dir .. "/review.json")
     setup(nil)
     eq(nil, review.session)
     eq(false, vim.api.nvim_win_is_valid(win))
+    -- saved in its own state_file, not the default one
+    eq(1, vim.fn.filereadable(dir .. "/review.json"))
+    eq(0, vim.fn.filereadable(default))
     setup({})
     review.start()
     eq(2, review.session.index)

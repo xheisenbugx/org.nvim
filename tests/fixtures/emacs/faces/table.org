@@ -1,0 +1,110 @@
+* Tables
+
+| Name | Qty | Price |
+|------+-----+-------|
+| a    |   2 |  1.50 |
+|------+-----+-------|
+| <l5> | <r> | <c10> |
+| <>   | <8> | <l>   |
+| x |<r>| < r > | <L> |
+#+TBLFM: $3=$1*$2;%.2f::@>$4=vsum(@I..@II)
+#+tblfm: $2=1
+
+Field formulas in cells:
+
+| a | =vsum(@2..@3) | := $1 | =b |
+| a | b :=c | =   |
+|=x|:=y|
+| a | :x | = |
+| a | b
+| =open
+|  := trailing   
+
+Marking column:
+
+|   | Student | Prob 1 |
+| ! |         |     P1 |
+| # | Maxi    |     12 |
+| * | Ann     |      3 |
+| _ |         |     lo |
+| ^ |         |     hi |
+| $ | max=50  |        |
+| / | x |
+| /|y|z|
+| # x | 1 |
+| #|
+|#|
+| ! | only two |
+
+Odd rows:
+
+|
+|   
+|-
+|x
+  | indented | row |   
+	| tab | row |
+|-----
+|---+---|  
+| a | b |   trailing
+
+table.el:
+
++-----+-----+
+| a   | b   |
++=====+=====+
++--
++-+
++--+  
+  +---+---+
++- x
+++--
+
+Cookies outside tables: a | <l5> b and x |<r> and | <c3>.
+
+* Heading with | <l2> cookie
+
+- item
+  | in | list |
+  | =f | <l> |
+
+#+begin_quote
+| in | quote |
+| := 1 | <r> |
+#+end_quote
+
+#+begin_src emacs-lisp
+| in | src |
+| := 1 | <r> |
+#+end_src
+
+#+begin_example
+| in | example |
++---+---+
+#+end_example
+
+#+begin_comment
+| in | comment |
+#+end_comment
+
+#+begin_center
+| in | center | <l> |
+#+end_center
+
+:PROPERTIES:
+:TABLE: | <l> |
+:END:
+
+#+NAME: tbl
+#+CAPTION: a | <r> caption
+| a | *b* | =c= | [[https://x.org][link]] | <2026-01-01 Thu> |
+| ~a | b~ | /x/ |
+
+: | fixed | <l> |
+# | comment | <l> |
+
+| x |  
+Text after table | <c> here.
+
+| <%%(diary-float t 4 2)> | =<%%(x)>= | a |
+| $ | <%%(memq 1 2)> | x |

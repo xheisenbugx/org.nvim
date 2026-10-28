@@ -227,7 +227,9 @@ function M.write(b, sync)
   if not e then
     return false
   end
-  local edited = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+  -- an Org source's own keywords show their text in the edit buffer too:
+  -- that text is not the source's
+  local edited = utils.file_lines(b)
   if sync and vim.deep_equal(edited, e.orig) then
     return true
   end

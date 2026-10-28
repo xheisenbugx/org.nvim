@@ -113,7 +113,7 @@ end
 ---------------------------------------------------------------------------
 
 -- 'foldtext' is empty, so Neovim draws a closed fold's first line as it
--- draws it open, with its syntax groups and concealed text: a folded heading
+-- draws it open, with its highlighting and concealed text: a folded heading
 -- keeps the faces of its TODO keyword, tags, links... as in Emacs, where
 -- folding only hides the text after it. The ellipsis after it, and after
 -- a heading whose text is hidden while its fold is open (Emacs shows "..."

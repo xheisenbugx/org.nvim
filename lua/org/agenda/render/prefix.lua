@@ -156,8 +156,14 @@ local function ampm(s)
   return hs .. ":" .. m .. suffix
 end
 
---- The time field of an item (the `%t` value).
-function M.time_string(start, stop)
+--- The time field of an item (the `%t` value). `wrap`: `stop` is the
+--- start plus default_appointment_duration, which Emacs writes as a
+--- duration ("1d 0:45") and shows by its time of day ("0:45", not the
+--- "+0:45" of an end time written past midnight).
+---@param start? integer
+---@param stop? integer
+---@param wrap? boolean
+function M.time_string(start, stop, wrap)
   if not start then
     return ""
   end
@@ -169,7 +175,7 @@ function M.time_string(start, stop)
     s = ampm(s)
   end
   if stop then
-    local e = fmt_hm(stop)
+    local e = fmt_hm(wrap and stop >= 1440 and stop % 1440 or stop)
     if use_ampm then
       e = ampm(e)
     end
@@ -245,7 +251,7 @@ function M.prefix(item, kind)
           v = vim.fn.strcharpart(v, 0, max - 1)
         end
       elseif var == "time" then
-        v = M.time_string(item.time, item.end_time)
+        v = M.time_string(item.time, item.end_time, item.end_time_default)
       elseif var == "level" then
         v = item.level_str or (item.level and string.rep(" ", item.level)) or ""
       elseif var == "extra" then

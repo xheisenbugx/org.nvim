@@ -369,6 +369,25 @@ describe("lists: statistics cookies (make difftest, commands oracle)", function(
     eq({ "* G [/]", "** P [100%]", "- [ ] box", "*** DONE a" }, buf_lines(buf))
   end)
 
+  it("updating every cookie (C-u C-c #) gives TODO counts to entries with child headlines", function()
+    -- org-update-checkbox-count over the buffer, then
+    -- org-update-parent-todo-statistics on every headline
+    local cases = {
+      { { "* P [/]", "- [ ] x", "- [X] y", "- [X] z", "** TODO a", "** TODO b" }, "* P [0/2]" },
+      { { "* P [/]", "- [X] x", "** plain" }, "* P [0/0]" },
+      { { "* P [/]", "- [X] x", "- [ ] y", "* Q [%]", "text" }, "* P [1/2]" },
+      { { "* P [/]", ":PROPERTIES:", ":COOKIE_DATA: checkbox", ":END:", "- [X] x", "** TODO a" }, "* P [1/1]" },
+    }
+    for _, c in ipairs(cases) do
+      local buf = org_buffer(c[1], { 1, 0 })
+      lists.update_all_statistics(buf)
+      eq(c[2], buf_lines(buf)[1])
+    end
+    local buf = org_buffer({ "* G [/]", "** P [/]", "- [X] x", "*** TODO a", "*** DONE b", "** TODO c" }, { 1, 0 })
+    lists.update_all_statistics(buf)
+    eq({ "* G [0/1]", "** P [1/2]" }, vim.list_slice(buf_lines(buf), 1, 2))
+  end)
+
   it("realigns the tags after a cookie changed", function()
     local buf = org_buffer({ "* P [/] :x:", "** TODO a" }, { 2, 0 })
     require("org.todo").select_or_cycle()
@@ -399,5 +418,67 @@ describe("lists: parents of ill-formed lists (org-list-parents-alist, make difft
     local src = { "+ [ ] @@html:<b>@@", "  1.", "   -", " 2. 42 [[#custom][custom id]] task" }
     local out = require("org.export.ox").export_as("org", src, { body_only = true })
     eq("- [ ] 1. \n  - \n- 42 [[#custom][custom id]] task\n", out)
+  end)
+end)
+
+describe("lists: tab indentation (current-indentation, tab-width 8)", function()
+  -- Org fixes tab-width at 8: "\t- b" is indented 8 columns, so it is a
+  -- sub-item of "- a" and of "    - b" alike, and lines whose indentation
+  -- doesn't change are left alone (tabs kept)
+  it("toggles a tab-indented child and updates its parents", function()
+    local t = { "* H [/]", "- [ ] a", "    - [ ] b", "\t- [ ] c", "- [ ] d" }
+    local buf = org_buffer(t, { 4, 3 })
+    lists.toggle_checkbox()
+    eq({ "* H [1/2]", "- [X] a", "    - [X] b", "\t- [X] c", "- [ ] d" }, buf_lines(buf))
+  end)
+
+  it("keeps tabs on lines whose indentation doesn't change", function()
+    local buf = org_buffer({ "- [ ] a", "\t- [ ] b" }, { 2, 2 })
+    lists.toggle_checkbox()
+    eq({ "- [X] a", "\t- [X] b" }, buf_lines(buf))
+    buf = org_buffer({ "\t- [ ] b", "\t- [ ] c" }, { 1, 2 })
+    lists.toggle_checkbox()
+    eq({ "\t- [X] b", "\t- [ ] c" }, buf_lines(buf))
+  end)
+
+  it("inserts an item at the tab-indented item's indentation", function()
+    local buf = org_buffer({ "\t- b" }, { 1, 4 })
+    lists.new_item({ pos = { 1, 4 }, split = false })
+    eq({ "\t- b", "\t- " }, buf_lines(buf))
+  end)
+
+  it("outdents a tab-indented item with its body", function()
+    local buf = org_buffer({ "- a", "\t- b", "\t  text" }, { 2, 1 })
+    require("org.actions").run("shift_meta_left")
+    eq({ "- a", "- b", "  text" }, buf_lines(buf))
+  end)
+
+  it("moves a tab-indented sub-item among its siblings", function()
+    local buf = org_buffer({ "1. a", "\t1. x", "\t3. y" }, { 2, 2 })
+    require("org.actions").run("meta_down")
+    eq({ "1. a", "   1. y", "   2. x" }, buf_lines(buf))
+  end)
+
+  it("measures indentation in columns", function()
+    eq(8, lists.parse_item_line("\t- b").indent)
+    eq(9, lists.parse_item_line("  \t - b").indent)
+    eq(1, lists.parse_item_line("\t- b").ind_len)
+  end)
+end)
+
+describe("lists: list to headings with odd levels (org-list-to-subtree)", function()
+  -- one level below the entry, counted without odd levels: under a level
+  -- 3 headline (reduced level 2) items get 5 stars, sub-items 7
+  local O = { "#+STARTUP: odd", "* A", "*** B", "- item", "  - sub", "text" }
+  it("C-c * turns the item into a level 5 headline", function()
+    local buf = org_buffer(O, { 4, 0 })
+    require("org.actions").run("ctrl_c_star")
+    eq({ "#+STARTUP: odd", "* A", "*** B", "***** item", "  - sub", "text" }, buf_lines(buf))
+  end)
+
+  it("list_make_subtree uses odd levels for sub-lists", function()
+    local buf = org_buffer(O, { 4, 0 })
+    require("org.actions").run("list_make_subtree")
+    eq({ "#+STARTUP: odd", "* A", "*** B", "***** item", "******* sub", "text" }, buf_lines(buf))
   end)
 end)

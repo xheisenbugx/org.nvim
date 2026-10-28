@@ -206,4 +206,43 @@ describe("visibility with inline tasks and text before the first headline", func
       S3 = "vvvvvv",
     })
   end)
+
+  -- TAB on a headline: CHILDREN folds the inline tasks of its text
+  -- (org-inlinetask-hide-tasks 'children, from org-cycle-hook)
+  it("TAB to CHILDREN folds the inline tasks of the entry", function()
+    vim.fn.writefile({
+      "#+STARTUP: content",
+      "* Top",
+      "top text",
+      S .. " TODO inline task",
+      "inline body",
+      S .. " END",
+      "after inline",
+      "** Child",
+      "child text",
+      S .. " inline no end",
+      "* Second",
+    }, path)
+    vim.cmd("silent! only!")
+    vim.cmd("silent! %bwipeout!")
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    local echo = vim.api.nvim_echo
+    vim.api.nvim_echo = function() end
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    local got = {}
+    for i = 1, 3 do
+      fold.cycle()
+      got["T" .. i] = shown()
+    end
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    fold.cycle()
+    got.inline = shown()
+    vim.api.nvim_echo = echo
+    eq({
+      T1 = "vvhhhhhhhhv",
+      T2 = "vvvvhhvvhhv",
+      T3 = "vvvvvvvvvvv",
+      inline = "vvvvhhvvvvv",
+    }, got)
+  end)
 end)

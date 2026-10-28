@@ -8,6 +8,25 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.0.0] - 2026-10-28
+
+### ⚠ Breaking changes
+
+- **ui:** Draw all highlighting with the parser engine and make it the default ([#300](https://github.com/xheisenbugx/org.nvim/pull/300))
+- **ui:** Remove the syntax highlighter; the parser highlighter is the only one ([#302](https://github.com/xheisenbugx/org.nvim/pull/302))
+
+### Features
+
+- **ui:** Draw emphasis from a port of Emacs fontification (ui.highlighter = "parser") ([#298](https://github.com/xheisenbugx/org.nvim/pull/298))
+
+### Fixes
+
+- **syntax:** Show json and markdown src blocks as typed ([#299](https://github.com/xheisenbugx/org.nvim/pull/299))
+- **ui:** Close the parser highlighter's Emacs differences and the [#300](https://github.com/xheisenbugx/org.nvim/pull/300) follow-ups ([#301](https://github.com/xheisenbugx/org.nvim/pull/301))
+- **config:** No removed-option warning for ui.highlighter, which no release had ([#303](https://github.com/xheisenbugx/org.nvim/pull/303))
+- **ui:** A #+begin_src line in a raw block no longer colours what follows ([#304](https://github.com/xheisenbugx/org.nvim/pull/304))
+- About 50 bugs from an area-by-area comparison with Emacs Org 9.8.10 ([#305](https://github.com/xheisenbugx/org.nvim/pull/305))
+
 ## [v2.16.3] - 2026-10-26
 
 ### Fixes
@@ -547,6 +566,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.3...v3.0.0
 [v2.16.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.2...v2.16.3
 [v2.16.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.1...v2.16.2
 [v2.16.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.0...v2.16.1

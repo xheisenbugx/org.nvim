@@ -333,6 +333,24 @@ local function foreground(bufnr, row, col)
         end
       end
     end
+    -- the emphasis of the parser highlighter: ephemeral marks, which
+    -- inspect_pos() doesn't see, drawn over the rest (the deepest last)
+    local deco = package.loaded["org.ui.decorations"]
+    if deco then
+      local marks = {}
+      for _, m in ipairs(deco.line_marks(bufnr, row)) do
+        local o = m[2]
+        if o.hl_group and col >= m[1] and col < (o.end_col or m[1] + 1) then
+          marks[#marks + 1] = o
+        end
+      end
+      table.sort(marks, function(a, b)
+        return (a.priority or 0) < (b.priority or 0)
+      end)
+      for _, o in ipairs(marks) do
+        groups[#groups + 1] = o.hl_group
+      end
+    end
     for k = #groups, 1, -1 do
       local c = groups[k] and hl_color(groups[k], "fg")
       if c then
@@ -459,6 +477,8 @@ end
 
 --- Render `text` (a fragment of `bufnr` at `row`/`col`, 0-based) to an
 --- image in the image directory and call `cb(path)` or `cb(nil, err)`.
+M._foreground = foreground
+
 function M.render_latex(text, bufnr, cb, row, col)
   local process, err = M.latex_process()
   if not process then

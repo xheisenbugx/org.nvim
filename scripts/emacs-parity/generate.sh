@@ -2,7 +2,7 @@
 # Regenerate the Emacs parity fixtures under tests/fixtures/emacs/.
 #
 #   scripts/emacs-parity/generate.sh [area...]    (areas: visibility agenda
-#                                                  export clocktable lint)
+#                                                  export clocktable lint fontify faces chars)
 #
 # EMACS   the Emacs binary (default: emacs)
 # ORG_DIR an Org 9.8.12 checkout/ELPA dir put first on the load-path
@@ -14,7 +14,7 @@ root=$(cd "$here/../.." && pwd)
 EMACS=${EMACS:-emacs}
 
 if [ $# -eq 0 ]; then
-  set -- visibility agenda export clocktable lint
+  set -- visibility agenda export clocktable lint fontify faces chars
 fi
 
 for area in "$@"; do

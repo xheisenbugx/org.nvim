@@ -141,6 +141,33 @@ describe("extensions", function()
     ok(errors[1] and errors[1]:find("no_such_extension", 1, true), vim.inspect(errors))
     ok(not require("org.extensions").enabled("no_such_extension"))
   end)
+
+  it("says in one line that a name is unknown, and refuses shared code", function()
+    local errors = {}
+    local notify = vim.notify
+    vim.notify = function(msg)
+      errors[#errors + 1] = msg
+    end
+    setup({ extensions = { no_such_extension = {}, views_util = true } })
+    vim.notify = notify
+    table.sort(errors)
+    eq({
+      "Unknown extension no_such_extension (no lua/org/extensions/no_such_extension in 'runtimepath')",
+      "views_util is not an extension (org.extensions.views_util is shared code)",
+    }, errors)
+    ok(not require("org.extensions").enabled("views_util"))
+  end)
+
+  it("gives teardown the options it was set up with, and whether it stays on", function()
+    local seen = {}
+    package.loaded["org.extensions.testext"].teardown = function(again)
+      seen[#seen + 1] = { again, require("org.extensions").opts("testext").greeting }
+    end
+    setup({ extensions = { testext = { greeting = "one" } } })
+    setup({ extensions = { testext = { greeting = "two" } } })
+    setup()
+    eq({ { true, "one" }, { false, "two" } }, seen)
+  end)
 end)
 
 describe("built-in extensions", function()

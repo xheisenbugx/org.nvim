@@ -579,11 +579,65 @@ function Date:add(n, unit, clamp)
   return c
 end
 
---- Shift the start and range end together.
+--- `d` shifted like org-timestamp-change: hours or minutes on a date
+--- without a time count from 00:00 and move the day only when they cross
+--- one; the date keeps having no time.
+---@param d org.Date
+---@param n integer
+---@param unit string
+---@return org.Date
+local function change(d, n, unit)
+  local c = d:add(n, unit)
+  if (unit == "h" or unit == "min") and not d.hour then
+    c = c:clone({ hour = vim.NIL, min = vim.NIL, end_hour = vim.NIL, end_min = vim.NIL })
+  end
+  return c:normalize()
+end
+
+--- The date with a local time that doesn't exist (skipped by a daylight
+--- saving change) moved to the one Emacs's encode-time gives: 02:30 on a
+--- spring-forward day in New York is 03:30. A range's end time moves by
+--- as much. Other dates are returned as they are.
+---@return org.Date
+function Date:normalize()
+  if not self.hour then
+    return self
+  end
+  local t = os.date("*t", self:to_time()) --[[@as osdate]]
+  local min = self.min or 0
+  if t.hour == self.hour and t.min == min and t.day == self.day then
+    return self
+  end
+  -- only forward, out of a gap (encode-time); a C library that maps the
+  -- time to an earlier one (the Windows runtime) leaves it as written
+  local moved = (M.days_from_civil(t.year, t.month, t.day) - self:days()) * 1440
+    + (t.hour * 60 + t.min)
+    - (self.hour * 60 + min)
+  if moved <= 0 then
+    return self
+  end
+  local c = self:clone({ year = t.year, month = t.month, day = t.day, hour = t.hour, min = t.min })
+  if self.end_hour then
+    local delta = (t.hour * 60 + t.min) - (self.hour * 60 + min)
+    if t.day ~= self.day then
+      delta = delta + 1440 * (M.days_from_civil(t.year, t.month, t.day) - self:days())
+    end
+    local e = (self.end_hour * 60 + (self.end_min or 0) + delta) % 1440
+    c.end_hour, c.end_min = floor(e / 60), e % 60
+  end
+  return c
+end
+
+--- Shift the start and range end together (org-timestamp-change: a date
+--- without a time stays without one).
+---@param n integer
+---@param unit? string
+---@return org.Date
 function Date:add_with_range(n, unit)
-  local c = self:add(n, unit)
+  unit = unit or "d"
+  local c = change(self, n, unit)
   if self.range_end then
-    c.range_end = self.range_end:add(n, unit)
+    c.range_end = change(self.range_end, n, unit)
   end
   return c
 end
@@ -887,7 +941,7 @@ function next_repeat(ts, now, today)
     else
       base = ts:clone({ year = today.year, month = today.month, day = today.day })
     end
-    local shifted = base:add(n, unit)
+    local shifted = base:add(n, unit):normalize()
     if ts.range_end then
       local delta = ts.range_end:days() - ts:days()
       shifted.range_end = ts.range_end:add(shifted:days() + delta - ts.range_end:days(), "d")

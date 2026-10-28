@@ -84,13 +84,6 @@ describe("table.el tables", function()
       eq(vim.list_extend({ "* H" }, SPANS), buf_lines(buf))
     end)
 
-    it("highlights the borders like table lines", function()
-      org_buffer(vim.list_extend({ "* H" }, SPANS))
-      vim.cmd("syntax sync fromstart")
-      eq("orgtable", vim.fn.synIDattr(vim.fn.synID(2, 3, 1), "name"):lower())
-      eq("orgtable", vim.fn.synIDattr(vim.fn.synID(3, 3, 1), "name"):lower())
-    end)
-
     it("is one element for the structure commands", function()
       local buf = org_buffer(vim.list_extend({ "* H", "Para" }, SPANS), { 5, 0 })
       local e = require("org.element").at(buf, 5)

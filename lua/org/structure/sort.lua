@@ -363,7 +363,7 @@ function M.sort(sorting_type)
         return
       end
       start, stop, what = hl.children[1].line, hl.end_line, "children"
-      local min_inline = parser.inlinetask_min_level()
+      local min_inline = parser.inlinetask_min_level(bufnr)
       if min_inline then
         for _, l in ipairs(get_lines(bufnr, hl.line + 1, start - 1)) do
           local lv = l:byte(1) == 42 and parser.headline_level(l)

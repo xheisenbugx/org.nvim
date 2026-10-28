@@ -1120,6 +1120,9 @@
 ---Highlight the text of TODO headlines (OrgHeadlineTodo).
 ---(Emacs `org-fontify-todo-headline`, default: `false`)
 ---@field fontify_todo_headline? boolean
+---Highlight the bodies of quote and verse blocks (OrgQuoteBlock, OrgVerseBlock).
+---(Emacs `org-fontify-quote-and-verse-blocks`, default: `false`)
+---@field fontify_quote_and_verse_blocks? boolean
 ---The headline level color on the stars only.
 ---(Emacs `org-level-color-stars-only`, default: `false`)
 ---@field level_color_stars_only? boolean

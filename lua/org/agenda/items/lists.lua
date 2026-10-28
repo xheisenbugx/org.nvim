@@ -231,13 +231,31 @@ function M.stuck(files, opts)
   opts = opts or {}
   local sp = vim.tbl_extend("force", config.opts.agenda.stuck_projects or {}, (opts.block or {}).stuck_projects or {})
   local pred = require("org.agenda.search").compile(sp.match or "+LEVEL=2/-DONE")
+  -- the keywords are text, as in Emacs's regexp on the heading lines: a
+  -- word that isn't a keyword in that file counts too; "*" stands for
+  -- every not-done keyword of the agenda files (org-todo-keywords-for-agenda
+  -- less org-done-keywords-for-agenda)
   local kws, tags = {}, {}
-  local any_kw, any_tag = false, false
+  local any_tag = false
   for _, k in ipairs(sp.todo_keywords or {}) do
     if k == "*" then
-      any_kw = true
+      local done = {}
+      for _, f in ipairs(files) do
+        local todo = f.settings and f.settings.todo
+        for _, name in ipairs(todo and todo:names() or {}) do
+          if todo:is_done(name) then
+            done[name] = true
+          else
+            kws[name] = true
+          end
+        end
+      end
+      for name in pairs(done) do
+        kws[name] = nil
+      end
+    else
+      kws[k] = true
     end
-    kws[k] = true
   end
   for _, t in ipairs(sp.tags or {}) do
     if t == "*" then
@@ -246,11 +264,12 @@ function M.stuck(files, opts)
     tags[t] = true
   end
   local text_re = sp.text and sp.text ~= "" and vim.regex(sp.text) or nil
-  if not next(kws) and not next(tags) and not text_re then
+  if not (sp.todo_keywords and #sp.todo_keywords > 0) and not next(tags) and not text_re then
     error("Missing information to identify unstuck projects")
   end
   local function unstuck(h)
-    if h.todo and (kws[h.todo] or (any_kw and h:is_todo())) then
+    local word = h.file.lines[h.line]:match("^%*+[ \t]+([^ \t]+)")
+    if word and kws[word] then
       return true
     end
     for _, t in ipairs(h.tags) do
@@ -260,12 +279,15 @@ function M.stuck(files, opts)
     end
     return false
   end
-  local function subtree_active(h)
-    if unstuck(h) then
-      return true
-    end
-    for _, c in ipairs(h.children) do
-      if subtree_active(c) then
+  -- every heading of the subtree, inline tasks included, the project too
+  local function subtree_active(hl)
+    local hls = hl.file.headlines
+    for i = hl.index, #hls do
+      local h = hls[i]
+      if h.line > hl.end_line then
+        break
+      end
+      if unstuck(h) then
         return true
       end
     end

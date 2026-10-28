@@ -287,6 +287,19 @@ function M.update_all_statistics(bufnr)
       update_section(bufnr, file, h, h.line + 1, h.body_end)
     end
   end
+  -- then, like org-update-statistics-cookies with C-u, the parent of every
+  -- headline counts its TODO children (org-update-parent-todo-statistics
+  -- over the buffer), over the checkbox count of an entry with both; the
+  -- cookies are on headline lines, so line numbers don't change
+  local order = {}
+  for _, h in ipairs(files.get_buffer(bufnr).headlines) do
+    if not h.inlinetask then
+      order[#order + 1] = h.line
+    end
+  end
+  for _, l in ipairs(order) do
+    M.update_parent_todo_statistics(bufnr, l)
+  end
 end
 
 --- C-c # (org-update-statistics-cookies): update the cookies of the

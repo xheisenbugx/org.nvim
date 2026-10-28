@@ -1,0 +1,284 @@
+Emphasis cases for the fontify parity fixture: each paragraph or headline
+is a case, and the blank lines keep markup of one from going on into the
+next.
+
+* Kinds and nesting
+*bold* /italic/ _under_ +strike+ =verbatim= ~code~
+
+Body with *bold /it/ x*, =v *no*= and ~c~.
+
+*a /b *c* d/ e*
+
+/a *b/ c*
+
+x /a *b/ c*
+
+=v *no*= and *a =b* c=
+
+*a* *b*c* d
+
+a*b* c *d*e *f*
+
+== and ~~ and ** ok
+
+*x **
+
+"*q*" (*p*) {*b*} -*d*- '*s*' *x*. *y*, *z*; *w*! *v*? *u*: *t*[ *r*]
+
+Repeaters: +, ++ and .+
+
+=params.name == "Ada"=, =t= gives =true=, numbers
+
+* Over a line break
+para *bold
+continues here* ok
+
+one *two
+three
+four* five
+
+a *b
+
+c* d
+
+a *b
+- c* d
+
+x /a
+#+begin_quote
+b/ y
+#+end_quote
+
+* *bold* headline
+** *bold* two
+*** *bold* three
+**** /italic/ and *bold* four
+*** WAITING Level three
+* DONE *bold* and /it/ done :tag:
+** DONE [#A] =v= x
+* TODO a *b
+c* d
+
+* Lists
+- *term* :: x
+- *a :: b* c
++ =t= :: *d*
+- [X] *t* :: v
+1. *one* :: two
+- item *a
+  b* c
+
+* Tables
+| =v= | *b* |
+| *a | b* |
+|---+---|
+| =a+b |
+| x *y* z |
++--+--+
+| a | =b= |
+#+TBLFM: $2=*1*
+
+* Links and objects
+see [[https://x.org][desc *b*]] and *[[a]]*
+
+=[[x][y]]= raw ~[[a]]~
+
+*a [[b][c]] d*
+
+https://x.com/a-_b_ and <https://y.org/*a* b> *c*
+
+file:a_b_c.org _ok_
+
+<2024-01-01 Mon> *b* [2024-01-02 Tue]--[2024-01-03 Wed] /i/
+
+{{{macro(*a*)}}} *b*
+
+@@html:<b>*x*</b>@@ src_sh{echo *a*} *c* [fn:1] [fn:: *in* note] [1/2] [50%]
+
+a [[b][multi
+line *x*]] c
+
+[[target]] and [[t2][desc]] and [[file:a.org::*Head][head]]
+
+* Lines without markup
+# comment *no* [[a][b]]
+#+TITLE: *t* [[x][y]]
+#+AUTHOR: [[a]] *b*
+#+OPTIONS: *x*
+#+CAPTION: *cap* [[a][b]]
+:PROPERTIES:
+:KEY: *v* [[a][b]]
+:END:
+: fixed *no*
+CLOCK: [2024-01-01 Mon 10:00] *b*
+SCHEDULED: <2024-01-01 Mon> *s*
+
+#+begin_src lua
+x = *a* -- [[l]]
+#+end_src
+*after*
+
+#+begin_example
+*a*
+#+begin_src
+*b*
+#+end_example
+*c*
+
+#+BEGIN: clocktable
+*in* dyn
+#+END:
+
+%%(diary) *a*
+
+#+begin_center
+*centered*
+#+end_center
+
+#+begin_verse
+/verse/ *x*
+#+end_verse
+
+#+begin_comment
+*no*
+#+end_comment
+
+* Found in review
+A line break after markup: *bold*\\
+=verbatim=\\ and /italic/\ too.
+
+x *a
+#+begin_quote b* y
+
+x *a
+#+BEGIN_QUOTE b* y
+
+x *a
+clock: b* y
+
+#+begin_quote *b* x
+quoted
+#+END_QUOTE *b* x
+
+#+begin_foo *b*
+#+end_foo
+
+#+begin_quote [[x][y]]
+#+end_quote
+
+x ~a
+#+: b~ c
+
+: x _a
+b_ y
+
+x [[a][b
+
+c]] y
+
+x [[a][b
+* H2
+c]] y
+
+x [[a][b
+| c]] y
+
+x [[a][b
+- c]] y
+
+see [[a][first
+second
+third
+fourth]] end
+
+[[a\\]] and [[c:\\dir\\][d]] and [[e\]f][g]]
+
+#+begin_src
+*a*
+#+end_src
+
+#+begin_src foo *x*
+*a*
+#+end_src *z*
+
+* Found by fuzzing against Emacs
+#+begin_quote
+#+NAME: *b* x
+# *b* x
+#+end_quote
+
+#+begin_quote
+#+begin_src python
+x = *b* + /i/
+#+end_src
+#+end_quote
+
+x *a*\ y
+
+a +9m>
+  + b +s+ x
+
+#+foo *b* x
+#+1: *b* x
+
+x *b* y
+x *b*　y and x *b* y
+
+x [[a\\]] y
+
+x *a
+#+begin_src b* c
+y
+#+end_src
+
+#+foo: *a
+b* c
+
+: x *a
+b* c
+
+x *a
+#+begin_foo b* c
+#+end_foo
+
+x https://x.org/a[[*Head]] y
+
+x [[a][b
+#+NAME: c]] y
+
+| a |
+*a | b* x
+
+|---+---|
++a+ x
+
+x *a src_sh{x} b* y
+x *a src_sh{=x=} b* y
+x ~a src_sh{x} b~ y
+x *a src_sh{{x}} b* y
+x *a src_sh{} b* y
+
+* Found by the second fuzz run
+#+end_center *a* [[b]] x
+#+end_centerx *a* y
+
+#+begin_src_x *a* y
+*b*
+#+end_src
+
+#+begin_verse *a* y
+*b*
+#+end_verse_ *c*
+
+#+begin_verse *a* y
+#+end_verse1 *c*
+
+x *a \src_sh{x} b* y
+
+* An unterminated block (last: it reaches the end of the file)
+#+begin_example
+*
+_u_ x
+
+#+begin_src *b* y
+*c*

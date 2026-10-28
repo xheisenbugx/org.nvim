@@ -245,8 +245,9 @@ function M.cycle_limit_level()
     end
     return odd and 2 * max - 1 or max
   end
-  local min_inline = parser.inlinetask_min_level()
-  if min_inline then
+  -- org-get-limited-outline-regexp: org-inlinetask-min-level - 1 levels
+  local min_inline = config.opts.inlinetask_min_level
+  if type(min_inline) == "number" then
     max = min_inline - 1
     return odd and 2 * max - 1 or max
   end
@@ -366,6 +367,15 @@ function M.cycle()
         end
       end
       M.unconceal(0, hl.line + 1, hl.end_line)
+      -- the inline tasks of its text folded (org-inlinetask-hide-tasks
+      -- 'children, from org-cycle-hook)
+      if hl.body_end > hl.line and parser.inlinetask_min_level() then
+        for _, r in ipairs(regions(curbuf(), hl.line + 1, hl.body_end)) do
+          if r.kind == "inlinetask" and r.start > hl.line and r.start <= hl.body_end then
+            close_at(r.start)
+          end
+        end
+      end
       open_items(hl.line + 1, hl.body_end)
       -- "integrate": every list shows its top-level items, folded
       for _, list in ipairs(body_lists) do

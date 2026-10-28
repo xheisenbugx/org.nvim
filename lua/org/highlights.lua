@@ -4,7 +4,7 @@
 --- config (`vim.api.nvim_set_hl`) can override them. Headline levels link
 --- to the colorscheme's markdown heading colours when available.
 ---
---- Groups (syntax name -> highlight group):
+--- Groups (group name the highlighter draws -> highlight group):
 ---   orgHeadlineLevel1..8 -> OrgHeadlineLevel1..8     orgTodo -> OrgTodo
 ---   orgDone -> OrgDone   orgPriority{A,B,C} -> OrgPriority{A,B,C}   orgTags -> OrgTags
 ---   orgTimestamp -> OrgTimestamp   orgTimestampInactive -> OrgTimestampInactive
@@ -26,7 +26,7 @@ local function first_existing(names, fallback)
   return fallback
 end
 
---- Static links: syntax group -> target group.
+--- Static links: group the highlighter draws -> target group.
 M.links = {
   orgTodo = "OrgTodo",
   orgDone = "OrgDone",
@@ -56,7 +56,7 @@ M.links = {
   orgComment = "OrgComment",
   orgBlock = "OrgBlock",
   orgQuoteBlock = "OrgQuoteBlock",
-  orgDynamicBlock = "OrgBlock",
+  orgVerseBlock = "OrgVerseBlock",
   orgBlockDelimiter = "OrgBlockDelimiter",
   orgBold = "OrgBold",
   orgBoldDelimiter = "OrgBold",
@@ -72,8 +72,6 @@ M.links = {
   orgCodeDelimiter = "OrgCode",
   orgLink = "OrgLink",
   orgLinkPlain = "OrgLink",
-  orgLinkBracket = "OrgLink",
-  orgLinkTargetHidden = "OrgLink",
   orgRadioLink = "OrgLink",
   orgListBullet = "OrgListBullet",
   orgListTerm = "OrgListTerm",
@@ -133,6 +131,7 @@ local function defaults()
     OrgComment = { link = "Comment" },
     OrgBlock = { link = first_existing({ "@markup.raw.block" }, "String") },
     OrgQuoteBlock = { link = first_existing({ "@markup.quote" }, "Normal") },
+    OrgVerseBlock = { link = "OrgQuoteBlock" },
     OrgBlockDelimiter = { link = "Comment" },
     OrgBold = { bold = true },
     OrgItalic = { italic = true },

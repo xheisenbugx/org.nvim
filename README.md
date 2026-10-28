@@ -46,6 +46,10 @@ formulas, Babel and export.
   tree-sitter parser, external binary or companion plugin.
 - 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
   so you can edit a file in Emacs today and in Neovim tomorrow.
+- 🎨 **Highlighting that matches Emacs.** Headlines, lists, dates,
+  tables, blocks, links and markup are drawn the way Emacs Org draws
+  them, byte for byte, and highlighting is never switched off on long
+  lines.
 - ⌨️ **Keys that fit Vim.** Context-aware keys fall back to normal Vim
   behaviour when they don't apply (`>>` still indents, `<C-a>` still
   increments). Press `g?` in an org or agenda buffer to see what's

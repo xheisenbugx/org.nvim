@@ -241,8 +241,9 @@ local function archive_point(abuf, loc, d, open_line)
     local file = files.get_buffer(abuf)
     return file.headlines[1] and file.preamble_end or line_count(abuf), 1
   end
-  -- point-max, then a newline
-  return line_count(abuf), 1, not open_line
+  -- point-max, then a newline: a blank line unless the file didn't end in
+  -- a newline (that one ends its last line)
+  return line_count(abuf), 1, not open_line and vim.bo[abuf].eol
 end
 
 --- Mark the archived entry done (org-archive-mark-done), without logging.
@@ -335,7 +336,7 @@ function M.archive_subtree(target, opts)
     return
   end
   local s, e = hl.line, hl.end_line
-  local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+  local lines = utils.file_lines(bufnr, s, e)
   local same = file.filename and vim.fs.normalize(loc.filename) == file.filename
   local title = hl:plain_title()
   local closed = hl.planning.closed
@@ -436,6 +437,12 @@ function M.archive_subtree(target, opts)
   local rs, re = source:rows()
   source:del()
   if rs and re then
+    -- org-cut-subtree takes the blank lines up to the next heading too
+    -- (blank lines the archived copy put after the subtree, in the same file)
+    local n = vim.api.nvim_buf_line_count(bufnr)
+    while re < n and is_blank(get_line(bufnr, re + 1)) do
+      re = re + 1
+    end
     vim.api.nvim_buf_set_lines(bufnr, rs - 1, re, false, {})
   else
     utils.warn("The archived subtree was removed from " .. utils.abbreviate(file.filename))
@@ -482,8 +489,8 @@ function M.archive_to_sibling(target)
     end
   end
   local s, e = hl.line, hl.end_line
-  local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
   if sib == hl then
+    local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
     -- the archive sibling itself: Emacs goes to its end, cuts it and
     -- pastes it there one level deeper, so it moves under the sibling
     -- before it (under the parent when it is the first child)
@@ -509,6 +516,8 @@ function M.archive_to_sibling(target)
     utils.notify(string.format('Subtree "%s" moved to archive sibling', hl:plain_title()))
     return up and up.line or s
   end
+  -- the copy leaves out text shown in the buffer only (transclusion)
+  local lines = utils.file_lines(bufnr, s, e)
   local source = assert(marks.range(bufnr, s, e))
   local parent = hl.parent and marks.set(bufnr, hl.parent.line)
   local sib_line

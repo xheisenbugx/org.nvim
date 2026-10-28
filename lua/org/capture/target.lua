@@ -285,10 +285,15 @@ function M.ensure_datetree(bufnr, parent_lnum, d, tree_type, reversed)
 end
 
 --- Find the headline for a file+headline target, creating it at the end
---- of the file when missing.
+--- of the file when missing. The title matches without regard to case,
+--- like the re-search-forward of org-capture-set-target-location (with
+--- case-fold-search on).
 local function find_or_create_headline(bufnr, title)
   local file = files.get_buffer(bufnr)
-  local hl = file:find_by_title(title)
+  local want = utils.lower(title)
+  local hl = file:find_headline(function(h)
+    return utils.lower(h:plain_title()) == want or utils.lower(h.title) == want
+  end)
   if hl then
     return hl.line
   end

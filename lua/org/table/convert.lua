@@ -53,23 +53,38 @@ local function split_csv(line)
   return out
 end
 
---- Convert lines of CSV/TSV/whitespace data into table lines.
+--- Convert lines of CSV/TSV/whitespace data into table lines, like
+--- org-table-convert-region: without `sep`, tabs separate the fields
+--- when every line has one, else commas (CSV) when every line has one,
+--- else spaces or tabs. The table starts at column 0, a blank line inside
+--- the data is an empty row; blank lines before and after the data are
+--- kept as they are.
 ---@param sep? "tab"|"csv"|"space"|integer an integer N splits on N+ spaces or tabs
 function M.convert_lines(lines, sep)
-  local indent = (lines[1] or ""):match("^(%s*)")
-  if not sep then
-    local joined = table.concat(lines, "\n")
-    if joined:find("\t") then
-      sep = "tab"
-    elseif joined:find(",") then
-      sep = "csv"
-    else
-      sep = "space"
-    end
+  local first, last = 1, #lines
+  while first <= last and lines[first]:match("^%s*$") do
+    first = first + 1
   end
-  local t = { indent = indent, rows = {}, ncols = 1 }
-  for _, l in ipairs(lines) do
-    if not l:match("^%s*$") then
+  while last >= first and lines[last]:match("^%s*$") do
+    last = last - 1
+  end
+  if not sep then
+    local all_tab, all_comma = true, true
+    for i = first, last do
+      local l = lines[i]
+      if not l:match("^%s*$") then
+        all_tab = all_tab and l:find("\t", 1, true) ~= nil
+        all_comma = all_comma and l:find(",", 1, true) ~= nil
+      end
+    end
+    sep = all_tab and "tab" or all_comma and "csv" or "space"
+  end
+  local t = { indent = "", rows = {}, ncols = 1 }
+  for idx = first, last do
+    local l = lines[idx]
+    if l:match("^%s*$") then
+      t.rows[#t.rows + 1] = { cells = { "" } }
+    else
       local cells
       if sep == "tab" then
         cells = vim.split(vim.trim(l), "\t", { plain = true })
@@ -88,8 +103,13 @@ function M.convert_lines(lines, sep)
       t.ncols = math.max(t.ncols, #cells)
     end
   end
+  if #t.rows == 0 then
+    return vim.list_slice(lines, 1, #lines)
+  end
   pad_rows(t)
-  return M.render(t)
+  local out = vim.list_slice(lines, 1, first - 1)
+  vim.list_extend(out, M.render(t))
+  return vim.list_extend(out, vim.list_slice(lines, last + 1, #lines))
 end
 
 --- Separator for a count given to a conversion command, like Emacs'

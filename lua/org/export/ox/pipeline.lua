@@ -151,6 +151,10 @@ function export_as(backend, lines, opts)
   local file0 = parser_mod.parse(lines, filename)
   local todo = file0.settings.todo
   M.display_custom_times = custom_times_p(opts.bufnr, file0)
+  -- the fewest stars of an inline task: org-inlinetask-min-level, 2 * that
+  -- - 1 with odd levels only (org-element--current-element)
+  local min_inline = c.inlinetask_min_level or 15
+  min_inline = parser_mod.odd_levels(file0) and 2 * min_inline - 1 or min_inline
   local hooks = c.hooks or {}
   -- before-processing hook (org-export-before-processing-functions)
   for _, f in ipairs(M.as_list(hooks.before_processing)) do
@@ -160,7 +164,7 @@ function export_as(backend, lines, opts)
     end
   end
   -- keywords are read from the whole buffer
-  local keywords = M.collect_keywords(lines, dir, nil, nil, filename)
+  local keywords, own_keywords = M.collect_keywords(lines, dir, nil, nil, filename)
   local subtree
   if opts.subtree_line then
     subtree = subtree_region(lines, opts.subtree_line, todo)
@@ -195,12 +199,15 @@ function export_as(backend, lines, opts)
       vim.list_extend(full, work)
       vim.list_extend(full, lines, subtree.last + 1)
     end
-    keywords = M.collect_keywords(full, dir, nil, nil, filename)
+    keywords, own_keywords = M.collect_keywords(full, dir, nil, nil, filename)
   end
   work = M.delete_comment_trees(work, todo)
   local babel_cfg = require("org.config").opts.babel or {}
   local ctx = {
     keywords = keywords,
+    -- without the setup files' keywords: {{{title}}}, {{{author}}},
+    -- {{{date}}}, {{{email}}} and {{{keyword}}} read the buffer only
+    own_keywords = own_keywords,
     filename = filename,
     babel = babel_cfg.evaluate_on_export and not opts.no_babel and true or false,
     -- opts.no_eval_macros: leave (eval ...) macros unrun (the live preview)
@@ -275,7 +282,7 @@ function export_as(backend, lines, opts)
     end
     local mopts = {
       todo = todo,
-      inlinetask_min_level = c.inlinetask_min_level or 15,
+      inlinetask_min_level = min_inline,
       alpha = require("org.lists").opt("allow_alphabetical"),
       term = ({ ["."] = "%.", [")"] = "%)" })[require("org.lists").opt("ordered_item_terminator")],
       parsed_keywords = parsed,
@@ -351,6 +358,22 @@ function export_as(backend, lines, opts)
     (require("org.config").opts.links or {}).abbreviations or {},
     file0.settings.link_abbrevs or {}
   )
+  local no_final_newline = opts.no_final_newline
+  if no_final_newline == nil then
+    -- Emacs exports the buffer text: a file without a final newline ends
+    -- its last paragraph without one ("last</p>"). 'fixeol' only adds it
+    -- on write (Emacs' require-final-newline).
+    local bufnr = opts.bufnr
+    no_final_newline = bufnr ~= nil
+      and vim.api.nvim_buf_is_valid(bufnr)
+      and not vim.bo[bufnr].eol
+      and #lines == vim.api.nvim_buf_line_count(bufnr)
+    -- org-narrow-to-subtree stops before the newline ending a subtree,
+    -- unless it ends the buffer
+    if subtree and subtree.last < #lines then
+      no_final_newline = true
+    end
+  end
   local popts = {
     todo = todo,
     link_types = link_types,
@@ -358,9 +381,9 @@ function export_as(backend, lines, opts)
     abbrevs = abbrevs,
     radio = radio,
     macro = expander,
-    no_final_newline = opts.no_final_newline,
+    no_final_newline = no_final_newline or nil,
     footnote_section = c.footnote_section or require("org.config").opts.footnote_section,
-    inlinetask_min_level = c.inlinetask_min_level or 15,
+    inlinetask_min_level = min_inline,
     alpha = require("org.lists").opt("allow_alphabetical"),
     term = ({ ["."] = "%.", [")"] = "%)" })[require("org.lists").opt("ordered_item_terminator")],
   }

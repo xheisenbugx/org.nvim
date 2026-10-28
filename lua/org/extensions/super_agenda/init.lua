@@ -1150,7 +1150,8 @@ function M.grouper(b, rows, block, ctx, add, day)
   if groups == nil then
     groups = opts().groups
   end
-  if not groups or groups == false or #groups == 0 or #rows == 0 then
+  -- not a list (a mistyped option, reported by :checkhealth org): ungrouped
+  if type(groups) ~= "table" or #groups == 0 or #rows == 0 then
     return false
   end
   local o = opts()
@@ -1370,6 +1371,10 @@ function M.teardown()
 end
 
 function M.health(h, o)
+  if o.groups ~= nil and type(o.groups) ~= "table" then
+    h.error("super_agenda: groups must be a list of groups, not " .. vim.inspect(o.groups))
+    return
+  end
   local ok, err = pcall(M.group, {}, o.groups or {})
   if ok then
     h.ok(string.format("super_agenda: %d group(s)", #(o.groups or {})))
