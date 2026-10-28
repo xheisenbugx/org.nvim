@@ -4323,7 +4323,9 @@ aligned.
 
 In Insert mode:
   <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
-  <CR>           same column in the next row
+  <CR>           same column in the next row; after the last `|` of a
+                 row (only blanks after the cursor) or before its first
+                 one, a plain newline that splits the table (org-return)
   <S-CR>         copy the field down (see below)
   <M-CR>         move the text after the cursor to the start of the field
                  below (org-table-wrap-region; `meta_return_split_line`

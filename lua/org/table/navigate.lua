@@ -136,6 +136,24 @@ function M.next_row()
   after_motion()
 end
 
+--- Insert-mode <CR> in a table (org-return): the same column in the next
+--- row, except before the first column or after the last one (only
+--- blanks before or after the cursor), where it returns `false` so that
+--- <CR> inserts a plain newline and splits the table, as in Emacs. Outside
+--- Insert mode (`:Org table_next_row`, the menu) the cursor sits on a
+--- character, so it always moves to the next row. orgtbl-mode's <CR>
+--- (orgtbl-ret) calls `next_row` directly and has no such check.
+function M.return_key()
+  if vim.fn.mode():sub(1, 1) == "i" and M.at_cursor() then
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+    local line = vim.api.nvim_get_current_line()
+    if line:sub(col + 1):match("^%s*$") or line:sub(1, col):match("^%s*$") then
+      return false
+    end
+  end
+  return M.next_row()
+end
+
 --- Insert an hline below the current row and move to the first field of
 --- the row after it, creating that row when the table ends there or
 --- another hline follows. With a count (or `same_column`) keep the column.

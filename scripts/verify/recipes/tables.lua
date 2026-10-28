@@ -87,6 +87,37 @@ return {
     },
   },
   {
+    name = "<CR> after the last | of a row starts a new line (org-return)",
+    files = { ["shop.org"] = { "* Shopping", "" } },
+    open = "shop.org",
+    cursor = { 2, 0 },
+    steps = {
+      { key = "i" },
+      { type = "|Item|Qty|" },
+      {
+        note = "at the end of the row <CR> is a plain newline, no new row",
+        key = "{{org_insert.table_next_row}}",
+        expect = { buffer = "^|Item|Qty|$", line = "^$", mode = "i" },
+      },
+      { type = "|-" },
+      {
+        note = "|- then Tab turns into an hline and opens the first row",
+        key = "{{org_insert.insert_tab}}",
+        expect = { screen = { "| Item | Qty |", "|------+-----|" }, mode = "i" },
+      },
+      { key = "<Esc>" },
+      { cmd = "write" },
+      {
+        expect = {
+          file = {
+            "shop.org",
+            lines = { "* Shopping", "| Item | Qty |", "|------+-----|", "|      |     |" },
+          },
+        },
+      },
+    },
+  },
+  {
     name = "a TBLFM formula fills a column and recalculates after an edit",
     files = { ["stock.org"] = priced },
     open = "stock.org",
