@@ -93,6 +93,33 @@ describe("diagrams: plantuml includes", function()
   end)
 end)
 
+describe("diagrams: plantuml include cycles", function()
+  it("keys includes that include each other, missing files and !includesub once", function()
+    local render = require("org.extensions.diagrams.render")
+    local dir = tmpdir()
+    vim.fn.writefile({ "!include b.puml", "A" }, dir .. "/a.puml")
+    vim.fn.writefile({ "!include a.puml", "!include_once a.puml", "B" }, dir .. "/b.puml")
+    vim.fn.writefile({ "!startsub PART", "C", "!endsub" }, dir .. "/c.puml")
+    local text = "!include a.puml\n!includesub c.puml!PART\n!include missing.puml\n  !include_many b.puml"
+    local digest = render.include_digest(text, dir)
+    -- every file once, however often it is included, the missing one by name
+    local _, files = digest:gsub("%.puml%z", "")
+    eq(4, files)
+    ok(digest:find(dir .. "/missing.puml\0", 1, true), digest)
+    -- the same files give the same key; a change in one gives another
+    eq(digest, render.include_digest(text, dir))
+    vim.fn.writefile({ "!include a.puml", "B changed" }, dir .. "/b.puml")
+    ok(render.include_digest(text, dir) ~= digest)
+    -- a chain deeper than 4 levels stops instead of following it all
+    for i = 1, 8 do
+      vim.fn.writefile({ "!include d" .. (i + 1) .. ".puml" }, dir .. "/d" .. i .. ".puml")
+    end
+    local deep = render.include_digest("!include d1.puml", dir)
+    ok(deep:find("d4.puml", 1, true), deep)
+    eq(nil, deep:find("d6.puml", 1, true))
+  end)
+end)
+
 describe("diagrams: cleaning", function()
   local real_notify
   before_each(function()
