@@ -150,7 +150,10 @@ jobs:
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
-      - name: doc/tags matches doc/org.txt
+      # doc/tags is generated (and gitignored): what can break is
+      # :helptags itself, a duplicate *tag* in doc/org.txt. An error in a
+      # -c command doesn't change Neovim's exit status, so catch it.
+      - name: helptags builds doc/tags without errors
         run: |
-          nvim --headless -u NONE -c "helptags doc" -c q
-          git diff --exit-code doc/tags
+          nvim --headless -u NONE \
+            -c 'try | helptags doc | catch | call writefile([v:exception], "/dev/stderr") | cquit 1 | endtry' -c q

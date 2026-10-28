@@ -71,6 +71,17 @@ describe("verify driver", function()
     ok(res.steps[1].why:find("a.org is", 1, true), res.steps[1].why)
   end)
 
+  it("reads a file written with CRLF line ends as its lines", function()
+    local res = run({
+      name = "crlf",
+      steps = {
+        { lua = [[vim.fn.writefile({ "* One\r", "body\r" }, (...) .. "/dos.org")]] },
+        { expect = { file = { "dos.org", lines = { "* One", "body" } } } },
+      },
+    })
+    ok(res.ok, why(res))
+  end)
+
   it("fails a step that leaves an error, unless it allows one", function()
     local notify = [[vim.notify("broken", vim.log.levels.ERROR)]]
     local res = run({ name = "error", steps = { { lua = notify } } })
@@ -102,6 +113,31 @@ describe("verify driver", function()
     })
     ok(res.ok, why(res))
     ok(vim.env.HOME ~= nil and not vim.env.HOME:find("org-verify-files-", 1, true))
+  end)
+
+  it("waits twice for a busy screen, and fails one that never settles", function()
+    local Screen = require("tests.screen")
+    local saved = Screen.timeout
+    Screen.timeout = 1000
+    -- the buffer changes every millisecond (faster than a settle round)
+    -- for `...` ms (-1: until the child quits)
+    local busy = [[
+      local ms, t0, n = ..., vim.uv.now(), 0
+      _G.__verify_timer = vim.uv.new_timer()
+      _G.__verify_timer:start(0, 1, vim.schedule_wrap(function()
+        n = n + 1
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { "tick " .. n })
+        if ms >= 0 and vim.uv.now() - t0 > ms then
+          _G.__verify_timer:stop()
+        end
+      end))
+    ]]
+    local ok_res = run({ name = "busy", steps = { { lua = busy:gsub("%.%.%.", "1500") } } })
+    local stuck = run({ name = "stuck", steps = { { lua = busy:gsub("%.%.%.", "-1") } } })
+    Screen.timeout = saved
+    ok(ok_res.ok, why(ok_res))
+    eq(false, stuck.ok)
+    ok(why(stuck):find("didn't settle", 1, true), why(stuck))
   end)
 
   it("names the step that failed when the target has no such scenario", function()
@@ -172,6 +208,28 @@ describe("verify-org feature map", function()
   local actions = require("org.actions").list
   local index = table.concat(vim.fn.readfile(features .. "/README.md"), "\n")
 
+  -- the keys and actions an extension adds once enabled (none is enabled
+  -- here): section -> name -> true
+  local ext_keys = {}
+  for name in vim.fs.dir(root .. "/lua/org/extensions") do
+    name = name:gsub("%.lua$", "")
+    local loaded, ext = pcall(require, "org.extensions." .. name)
+    if loaded and type(ext) == "table" then
+      for section, keys in pairs(type(ext.mappings) == "table" and ext.mappings or {}) do
+        ext_keys[section] = ext_keys[section] or {}
+        for key in pairs(keys) do
+          ext_keys[section][key] = true
+        end
+      end
+      for action in pairs(type(ext.actions) == "table" and ext.actions or {}) do
+        for _, section in ipairs({ "org", "global" }) do
+          ext_keys[section] = ext_keys[section] or {}
+          ext_keys[section][action] = true
+        end
+      end
+    end
+  end
+
   for _, file in ipairs(files) do
     it(file .. " names things that exist", function()
       local h = assert(header(features .. "/" .. file), file .. " has no header")
@@ -188,6 +246,7 @@ describe("verify-org feature map", function()
           and (
             (type(maps[section]) == "table" and maps[section][name] ~= nil)
             or ((section == "org" or section == "global") and actions[name] ~= nil)
+            or (ext_keys[section] and ext_keys[section][name])
           )
         ok(known, file .. ": no key or action " .. key)
       end

@@ -216,6 +216,9 @@ local function list(v)
   return type(v) == "table" and v or { v }
 end
 
+--- The lines of a file, without their line ends. A CR before the LF is
+--- left out too: on Windows a new file written by `:write` (a `cmd`
+--- step) gets 'fileformat' dos, as it does for a user.
 local function read_file(path)
   local f = io.open(path, "rb")
   if not f then
@@ -223,7 +226,7 @@ local function read_file(path)
   end
   local s = f:read("*a")
   f:close()
-  return vim.split((s:gsub("\n$", "")), "\n", { plain = true })
+  return vim.split((s:gsub("\r?\n$", "")), "\r?\n")
 end
 
 --- Why `expect` doesn't hold (nil when it does).
@@ -318,6 +321,36 @@ local function write(path, lines)
   f:close()
 end
 
+--- The directories of the tree-sitter parsers Neovim ships, for the child.
+--- Under `make test` the runtimepath is only the plugin and $VIMRUNTIME,
+--- which leaves out lib/nvim/parser (beside share/nvim/runtime): without
+--- it a `lua` buffer's ftplugin (vim.treesitter.start()) fails in the
+--- child and its error blocks it on a Press ENTER prompt.
+local function parser_dirs()
+  local dirs = record.parser_dirs()
+  local runtime = vim.fs.normalize(vim.env.VIMRUNTIME or "")
+  local lib = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(runtime))) .. "/lib/nvim"
+  if runtime ~= "" and vim.uv.fs_stat(lib .. "/parser") and not vim.tbl_contains(dirs, lib) then
+    dirs[#dirs + 1] = lib
+  end
+  return dirs
+end
+
+--- Wait for the child's screen to stop changing. A busy machine (a full
+--- parallel `make test`) can keep a child working through typed keys past
+--- tests/screen.lua's timeout, so a second wait is allowed before a
+--- screen that never settles fails the step.
+---@param screen table
+local function settle(screen)
+  local ok, err = pcall(screen.snapshot, screen)
+  if not ok and tostring(err):find("didn't settle", 1, true) then
+    ok, err = pcall(screen.snapshot, screen)
+  end
+  if not ok then
+    error(err, 0)
+  end
+end
+
 --- Play scenario `sc`, writing its evidence to `evidence`.
 ---@param sc table
 ---@param evidence string a directory
@@ -346,7 +379,7 @@ function M.run(sc, evidence)
   local ok, err = pcall(function()
     screen =
       Screen.new({ width = sc.width or M.width, height = sc.height or M.height, now = sc.now or M.now, setup = setup })
-    screen:lua(SETUP, record.parser_dirs())
+    screen:lua(SETUP, parser_dirs())
     if sc.open then
       screen:lua(OPEN, dir .. "/" .. sc.open, sc.cursor or vim.NIL)
     end
@@ -373,7 +406,7 @@ function M.run(sc, evidence)
       elseif step.lua then
         screen:lua(step.lua, dir)
       end
-      screen:snapshot()
+      settle(screen)
       local lines = M.plain(screen)
       local state = screen:lua(STATE)
       if step.expect and not why then
@@ -384,7 +417,7 @@ function M.run(sc, evidence)
             break
           end
           vim.wait(50)
-          screen:snapshot()
+          settle(screen)
           lines = M.plain(screen)
           local again = screen:lua(STATE)
           vim.list_extend(again.errors, state.errors)

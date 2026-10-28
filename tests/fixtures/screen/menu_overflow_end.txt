@@ -1,0 +1,38 @@
+screen 80x24
+|{1:#+TITLE:} {2:Hello}|
+|                 {3:╭────────────────}{4: Org Export }{3:─────────────────╮}|
+|{5:* A}              {3:│}{6:  }{7:s}{6:  Export scope                    }{8:buffer}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:v}{6:  Visible only                       }{10:off}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:f}{6:  Force publishing                   }{10:off}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:a}{6:  Async export                       }{10:off}{6:  }{3:│}|
+|{9:                 }{3:│}{6: }{11:Export}{6:                                      }{3:│}|
+|{9:                 }{3:│}{6:  }{7:c}{6:  Export to iCalendar                  }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:h}{6:  Export to HTML                       }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:l}{6:  Export to LaTeX                      }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:i}{6:  Export to Texinfo                    }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:k}{6:  Export with KOMA Scrlttr2            }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:M}{6:  Export to MAN                        }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:m}{6:  Export to Markdown                   }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:O}{6:  Export to Org                        }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:o}{6:  Export to ODT                        }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:d}{6:  Export to DOCX (pandoc)              }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:t}{6:  Export to Plain Text                 }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:P}{6:  Publish                              }{12:›}{6:  }{3:│}|
+|{9:                 }{3:│}{6:  }{7:p}{6:  Other format via pandoc                 }{3:│}|
+|{9:                 }{3:│}{6:  }{7:&}{6:  Export stack                            }{3:│}|
+|{9:                 }{3:│}{6:  }{7:#}{6:  Insert default export template          }{3:│}|
+|{9:                 }{3:╰──────────}{13: ↑ DEL more · q/Esc quit }{3:──────────╯}|
+
+{1} orgTitleKeyword -> OrgKeyword -> PreProc
+{2} OrgTitle -> Title [bold]
+{3} FloatBorder
+{4} FloatTitle [bold]
+{5} OrgHeadlineLevel1 -> Title [bold]
+{6} NormalFloat
+{7} NormalFloat | OrgMenuKey -> Special
+{8} NormalFloat | OrgMenuValue -> Constant
+{9} NonText
+{10} NormalFloat | OrgMenuOff -> Comment
+{11} NormalFloat | OrgMenuHeading -> Title [bold]
+{12} NormalFloat | OrgMenuMore -> Comment
+{13} FloatFooter [bold]

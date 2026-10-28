@@ -222,10 +222,81 @@ function M._menu_lines(items, footer, compact)
   return lines, hls
 end
 
+--- Keys that scroll a menu taller than the screen, as `org-scroll` scrolls
+--- Emacs's export dispatcher (SPC / DEL by a screen, C-n / C-p and the
+--- arrows by a line), plus Vim's <C-d> / <C-u>, the page keys and the
+--- mouse wheel: a number of lines, or "page" / "half" forward or back
+--- ("-page", "-half"). A key a menu entry uses keeps choosing it.
+local SCROLL_KEYS = {
+  [" "] = "page",
+  [vim.keycode("<PageDown>")] = "page",
+  [vim.keycode("<PageUp>")] = "-page",
+  ["\4"] = "half",
+  ["\21"] = "-half",
+  ["\14"] = 1,
+  ["\16"] = -1,
+  [vim.keycode("<Down>")] = 1,
+  [vim.keycode("<Up>")] = -1,
+  [vim.keycode("<ScrollWheelDown>")] = 3,
+  [vim.keycode("<ScrollWheelUp>")] = -3,
+}
+
+--- The name of the first of `keys` ({ key, name } pairs) no entry `used`
+--- takes, else `fallback`.
+---@param keys string[][]
+---@param used table<string, boolean>
+---@param fallback string
+---@return string
+local function free_key(keys, used, fallback)
+  for _, k in ipairs(keys) do
+    if not used[k[1]] then
+      return k[2]
+    end
+  end
+  return fallback
+end
+
+--- The menu's footer: which way more entries are when they don't all fit
+--- (`top` is the first of `nlines` rows shown, `height` of them) and the
+--- key that scrolls each way (`down`, `up`), <BS> back (`back`: in a
+--- submenu), quit.
+---@param top integer
+---@param height integer
+---@param nlines integer
+---@param back boolean
+---@param quit string
+---@param down string
+---@param up string
+---@return string
+local function menu_footer(top, height, nlines, back, quit, down, up)
+  local parts = {}
+  if nlines > height then
+    local above, below = top > 1, top + height - 1 < nlines
+    local keys = {}
+    if below then
+      keys[#keys + 1] = down
+    end
+    if above then
+      keys[#keys + 1] = up
+      -- <BS> scrolls back while there is more above, then goes back
+      back = back and up ~= "DEL"
+    end
+    parts[#parts + 1] = (above and "↑" or "") .. (below and "↓" or "") .. " " .. table.concat(keys, "/") .. " more"
+  end
+  if back then
+    parts[#parts + 1] = "BS back"
+  end
+  parts[#parts + 1] = quit
+  return table.concat(parts, " · ")
+end
+
 --- Show a key-driven menu and return the selected item's value (or the
 --- item when it has no value). Blocks until a key is pressed. <BS> goes
 --- back from a submenu, <Esc> quits, and so does `q` unless an entry of
 --- the menu shown uses it (a user's TODO keyword, template or command key).
+--- A menu taller than the screen scrolls (`SCROLL_KEYS`, unless an entry
+--- uses the key) and its footer says which way more entries are; <BS>
+--- scrolls back up before it goes back.
 ---@param opts { title: string, items: org.MenuItem[], footer?: string[] }
 ---@return any|nil
 function M.menu(opts)
@@ -244,18 +315,59 @@ function M.menu(opts)
     for _, l in ipairs(lines) do
       width = math.max(width, utils.width(l) + 2)
     end
+    local used = {}
+    for _, it in ipairs(items) do
+      if not it.heading and it.key then
+        used[it.key] = true
+      end
+    end
     local q_quits = M.q_quits(items)
     local quit = q_quits and "q/Esc quit" or "Esc quit"
-    local buf, win = M.float(lines, {
-      title = title,
-      width = width,
-      footer = #stack > 0 and ("BS back · " .. quit) or quit,
-    })
+    local back = #stack > 0
+    local down = free_key({ { " ", "SPC" }, { "\4", "C-d" }, { "\14", "C-n" } }, used, "Down")
+    local up = free_key({ { "\127", "DEL" }, { "\21", "C-u" }, { "\16", "C-p" } }, used, "Up")
+    local height = math.max(1, math.min(#lines, vim.o.lines - 4))
+    local function footer_at(t)
+      return menu_footer(t, height, #lines, back, quit, down, up)
+    end
+    -- wide enough for every footer scrolling shows (at the top, in the
+    -- middle, at the end), so none is cut off
+    for _, t in ipairs({ 1, 2, #lines - height + 1 }) do
+      width = math.max(width, utils.width(footer_at(t)) + 4)
+    end
+    local buf, win = M.float(lines, { title = title, width = width, footer = footer_at(1) })
     for _, h in ipairs(hls) do
       vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], { end_col = h[3], hl_group = h[4] })
     end
+    height = vim.api.nvim_win_get_height(win)
+    vim.wo[win].scrolloff = 0
+    local top = 1
+    --- Show the menu from row `t`, kept within the rows there are.
+    local function scroll_to(t)
+      top = math.max(1, math.min(t, #lines - height + 1))
+      vim.api.nvim_win_set_cursor(win, { top, 0 })
+      vim.api.nvim_win_call(win, function()
+        vim.fn.winrestview({ topline = top })
+      end)
+      vim.api.nvim_win_set_config(win, { footer = " " .. footer_at(top) .. " ", footer_pos = "center" })
+    end
+    scroll_to(1)
     vim.cmd("redraw")
-    local ch = utils.getchar()
+    local ch
+    while true do
+      ch = utils.getchar()
+      local step = ch and not used[ch] and #lines > height and SCROLL_KEYS[ch] or nil
+      if not step and ch and bs[ch] and not used[ch] and top > 1 then
+        step = "-page"
+      end
+      if not step then
+        break
+      end
+      local page, half = math.max(1, height - 2), math.max(1, math.floor(height / 2))
+      local n = ({ page = page, ["-page"] = -page, half = half, ["-half"] = -half })[step] or step
+      scroll_to(top + n)
+      vim.cmd("redraw")
+    end
     if vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end

@@ -98,6 +98,10 @@ describe("archive_subtree (Emacs parity)", function()
     return vim.list_extend(vim.deepcopy(H), t)
   end
 
+  -- Emacs's auto-mode-alist has no .org_archive, so org-archive-subtree
+  -- (org-archive.el) turns Org mode on in the new buffer with
+  -- org-insert-mode-line-in-empty-file: the mode line, then
+  -- org-archive-file-header-format (checked with Org 9.8.10 in batch).
   it("writes Emacs's header to a new archive file, with a mode line for non-.org names", function()
     local src, a = ar("* A\n* B", { "* A" }, "%s_archive::")
     eq({ "* B" }, src)
