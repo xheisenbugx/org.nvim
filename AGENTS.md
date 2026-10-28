@@ -20,6 +20,7 @@ make coverage-check                        # coverage/ against the floors in scr
 make fuzz                                  # fuzz specs with 40x the seeds, random start
 make bench                                 # first open and a 50,000-headline agenda, timed (CONTRIBUTING.md)
 make extensions-report                     # each extension against the promotion criteria (CONTRIBUTING.md)
+make verify RECIPE=agenda                  # drive a feature in a child Neovim, check screen and files (verify-org skill)
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
@@ -55,6 +56,23 @@ make extensions-report                     # each extension against the promotio
   a missing nil check) rather than silencing it. To make a module strict,
   add its path as one line there and fix what `make typecheck` reports;
   never remove a path to get a pass (CONTRIBUTING.md, "Strict paths").
+
+## Verifying a change
+
+Passing specs aren't proof that a user's path works. After a user-visible
+change, use the `verify-org` skill (`.claude/skills/verify-org/SKILL.md`).
+Its feature map (`features/<area>.md`) says how to reach each feature,
+what each step should show, and what can mislead a check. Run the area's
+recipe with `make verify RECIPE=<area>`, add a scenario for what you
+changed (for a bug, see it fail first), read the evidence screens, and say
+what you didn't check. Areas without a feature file are verified by hand
+(the skill's tmux section). Change the feature file with the area.
+
+Claude Code hooks in `.claude/settings.json` refuse Edit / Write of files
+only a make target writes (`tests/fixtures/screen/`,
+`tests/fixtures/emacs/`, `docs/playground/`) and run stylua on Lua files
+after an edit. Shell commands aren't checked: the AGENTS.md rules still
+apply there.
 
 ## Layout
 
@@ -103,6 +121,8 @@ make extensions-report                     # each extension against the promotio
 | `tests/run.lua`, `tests/minimal_init.lua` | the test runner and headless init |
 | `tests/spec/*_spec.lua`, `tests/fixtures/` | specs and the fixture org files |
 | `tests/screen.lua`, `tests/fixtures/screen/` | screen snapshot helper and its golden files |
+| `scripts/verify/`, `.claude/skills/verify-org/` | the verify driver and its recipes; the feature map and skill that use them |
+| `.claude/settings.json`, `.claude/hooks/` | the Claude Code hooks (generated files guard, stylua after edits) |
 
 ## How the code fits together
 

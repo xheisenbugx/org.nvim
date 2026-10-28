@@ -528,6 +528,53 @@ screen:close()                      -- in an after_each, so a failure closes it 
 gives up after `ORG_SCREEN_TIMEOUT` ms (10000), so a prompt in the child
 fails the spec instead of hanging it.
 
+## Verifying in a running Neovim
+
+Specs stub prompts and call functions directly, so they can pass while the
+path a user takes is broken: a key that doesn't reach the action, a capture
+that files the entry one level too deep, an agenda edit that never reaches
+the file. `make verify` checks that path.
+[`scripts/verify/drive.lua`](scripts/verify/drive.lua) plays the scenarios
+of `scripts/verify/recipes/<area>.lua` in a child Neovim (the screen
+snapshots' one, `tests/screen.lua`). It types keys, reads the screen and
+the files on disk, and fails a step when what it expects doesn't happen or
+the step leaves an error:
+
+```lua
+{
+  name = "a note goes under its headline",
+  files = { ["notes.org"] = { "* Notes", "* Other" } },
+  setup = setup, -- capture.templates with n = { ..., target = "{{dir}}/notes.org", headline = "Notes" }
+  steps = {
+    { key = "{{global.capture}}n", expect = { mode = "i" } },
+    { type = "Parking is on level 3" },
+    { key = "<Esc>{{capture.finalize}}" },
+    { expect = { file = { "notes.org", lines = { "* Notes", "** Parking is on level 3", "* Other" } } } },
+  },
+}
+```
+
+Keys are written as `{{section.name}}` and resolved to the default
+mapping, as in the tutor lessons. Each scenario gets HOME and XDG
+directories of its own, and the clock is fixed at Monday 2026-10-12 09:00.
+
+```sh
+make verify                    # every recipe
+make verify RECIPE=capture     # one (or several, space-separated; recipe:scenario-prefix for one scenario)
+```
+
+The output names a directory of evidence: the screen as text after every
+step, and `report.md`. `tests/spec/verify_spec.lua` runs every recipe, so a
+scenario keeps guarding what it checked.
+
+The recipes go with a feature map for coding agents,
+[`.claude/skills/verify-org/`](.claude/skills/verify-org/SKILL.md). It has
+one file per area: how a user reaches the feature, what each step should
+show, the gotchas, and where the code, specs, help and Emacs source are.
+The spec checks each file's header against the code. Agents load it as a
+skill, and the files are plain markdown that a person can read too. When
+you change a mapped area, update its scenarios and feature file with it.
+
 ## Documentation website
 
 The website at <https://org-nvim.com/> is generated, never

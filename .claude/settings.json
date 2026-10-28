@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nvim --headless --clean -l \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_generated.lua"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nvim --headless --clean -l \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format_lua.lua"
+          }
+        ]
+      }
+    ]
+  }
+}
