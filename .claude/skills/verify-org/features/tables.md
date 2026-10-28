@@ -31,6 +31,7 @@ empty table.
 | type `\|Item\|Qty\|`, `{{org_insert.table_next_row}}` | a plain new line below the row, no new row (org-return) |
 | `{{org.table_insert_hline}}` on a row | `\|--------+-----\|` below it |
 | `{{org.shift_meta_down}}` (M-J) | an empty row above the cursor's |
+| `{{org.table_insert_row}}`; with a count | an empty row above the cursor's; below it |
 | `{{org.shift_meta_right}}` (M-L) | an empty column left of the cursor's |
 | `{{org.context_action}}` on `#+TBLFM: $4=$2*$3` | column 4 filled in every data row |
 | change a field, `{{org.table_recalc}}` | the formula column recomputed |
@@ -49,9 +50,10 @@ empty table.
   aligned only on `{{org_insert.insert_tab}}`, `{{org_insert.table_prev_field}}`,
   `{{org_insert.table_next_row}}` or leaving Insert mode. Check the screen
   after one of those.
-- `{{org.table_insert_row}}` (`<prefix>Tr`) puts the new row below the
-  cursor; `{{org.shift_meta_down}}` (M-J) and the menu put it above, as
-  Emacs org-table-insert-row does. `{{org.table_insert_column}}` and
+- `{{org.table_insert_row}}` (`<prefix>Tr`), `{{org.shift_meta_down}}`
+  (M-J) and the menu all put the new row above the cursor's, as Emacs
+  org-table-insert-row does; with a count (`4{{org.table_insert_row}}`,
+  Emacs C-u) the row goes below. `{{org.table_insert_column}}` and
   `{{org.shift_meta_right}}` both insert left of the cursor's column.
 - Put the cursor in a field with `at` and `col` (`{ at = "Pears", col = "3" }`):
   the structure keys act on the cursor's row and column.

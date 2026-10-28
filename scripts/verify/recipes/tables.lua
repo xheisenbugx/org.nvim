@@ -118,6 +118,42 @@ return {
     },
   },
   {
+    name = "table_insert_row puts the row above, with a count below",
+    files = { ["stock.org"] = stock },
+    open = "stock.org",
+    steps = {
+      { at = "Pears", col = "3" },
+      {
+        note = "org-table-insert-row: a row above the cursor's",
+        key = "{{org.table_insert_row}}",
+        expect = { line = "^|%s+|%s+|%s+|$" },
+      },
+      { at = "Apples", col = "12" },
+      {
+        note = "with a count (C-u): a row below the cursor's",
+        key = "4{{org.table_insert_row}}",
+        expect = { line = "^|%s+|%s+|%s+|$" },
+      },
+      { cmd = "write" },
+      {
+        expect = {
+          file = {
+            "stock.org",
+            lines = {
+              "* Stock",
+              "| Item   | Qty | Price |",
+              "|--------+-----+-------|",
+              "| Apples |  12 |     2 |",
+              "|        |     |       |",
+              "|        |     |       |",
+              "| Pears  |   3 |     5 |",
+            },
+          },
+        },
+      },
+    },
+  },
+  {
     name = "a TBLFM formula fills a column and recalculates after an edit",
     files = { ["stock.org"] = priced },
     open = "stock.org",
