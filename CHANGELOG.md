@@ -8,6 +8,18 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.1.0] - 2026-10-28
+
+### Features
+
+- Verify-org for every area, scrolling menus, tables like Emacs ([#311](https://github.com/xheisenbugx/org.nvim/pull/311))
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore(agents):** Verify-org skill, feature map and verify driver ([#308](https://github.com/xheisenbugx/org.nvim/pull/308))
+
+</details>
+
 ## [v3.0.0] - 2026-10-28
 
 ### ⚠ Breaking changes
@@ -566,6 +578,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.0.0...v3.1.0
 [v3.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.3...v3.0.0
 [v2.16.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.2...v2.16.3
 [v2.16.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.1...v2.16.2
