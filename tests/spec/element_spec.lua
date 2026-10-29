@@ -189,6 +189,9 @@ describe("element parser", function()
     eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", ":NOEND:", "x" }))
     eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "\\begin{eq}", "x" }))
     eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "#+begin_quote", "x" }))
+    -- org-element--latex-begin-environment / -end-environment
+    eq({ { "paragraph", 1, 1, 4 } }, parse({ "text", "\\begin{equation}", "x \\end{equation} more", "last" }))
+    eq({ { "paragraph", 1, 1, 5 } }, parse({ "text", "\\begin{my-env}", "x", "\\end{my-env}", "last" }))
     -- closed, they do
     eq({ { "paragraph", 1, 1, 1 }, { "drawer", 2, 2, 3 } }, parse({ "text", ":DR:", ":END:" }))
     eq({ { "paragraph", 1, 1, 1 }, { "latex-environment", 2, 2, 3 } }, parse({ "text", "\\begin{eq}", "\\end{eq}" }))

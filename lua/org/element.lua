@@ -121,13 +121,15 @@ local function closed(lines, k, e, kind)
     end
     close = "^%s*#%+end_" .. vim.pesc(name:lower()) .. "%s*$"
   else
-    local env = line:match("\\begin{([^}]+)}")
+    -- org-element--latex-begin-environment / -end-environment: a name of
+    -- letters, digits and `*`, and `\end{name}` ending its line
+    local env = line:match("^%s*\\begin{([%w*]+)}")
     if not env then
-      return true
+      return false
     end
-    local needle = "\\end{" .. env .. "}"
+    close = "\\end{" .. vim.pesc(env) .. "}%s*$"
     for j = k, e do
-      if lines[j]:find(needle, 1, true) then
+      if lines[j]:match(close) then
         return true
       end
     end

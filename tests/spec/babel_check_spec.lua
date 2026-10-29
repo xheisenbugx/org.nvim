@@ -339,6 +339,56 @@ describe("babel: demarcating blocks, re-indented", function()
     eq("#+begin_src sh", buf_lines(buf)[4])
   end)
 
+  it("gives the new blocks the affiliated keywords but #+NAME", function()
+    -- Emacs writes them lower-case (org-element-interpret-data)
+    local buf = org_buffer({
+      "#+NAME: foo",
+      "#+HEADER: :var x=1",
+      "#+ATTR_LATEX: :width 1",
+      "#+begin_src sh",
+      "echo 1",
+      "echo 2",
+      "#+end_src",
+    }, { 6, 0 })
+    babel.demarcate_block()
+    eq({
+      "#+NAME: foo",
+      "#+HEADER: :var x=1",
+      "#+ATTR_LATEX: :width 1",
+      "#+begin_src sh",
+      "  echo 1",
+      "#+end_src",
+      "",
+      "#+HEADER: :var x=1",
+      "#+ATTR_LATEX: :width 1",
+      "#+begin_src sh",
+      "  echo 2",
+      "#+end_src",
+    }, buf_lines(buf))
+    eq({ 10, 0 }, vim.api.nvim_win_get_cursor(0))
+  end)
+
+  it("reads only affiliated keywords above #+begin_src as the block's", function()
+    -- #+RESULTS: is one (the cursor is in the block), #+TITLE: is not
+    local lines = { "#+RESULTS: foo", "#+begin_src sh", "echo a", "#+end_src" }
+    local buf = org_buffer(lines, { 1, 0 })
+    local msgs, prompts = prompted({}, babel.demarcate_block)
+    eq({ "Select within the source block body to split it" }, msgs)
+    eq({}, prompts)
+    eq(lines, buf_lines(buf))
+    org_buffer({ "#+TITLE: t", "#+begin_src sh", "echo a", "#+end_src" }, { 1, 0 })
+    local _
+    _, prompts = prompted({}, babel.demarcate_block)
+    eq({ "Lang: " }, prompts)
+  end)
+
+  it("asks for the language on the blank line before the next list item", function()
+    -- the blank line is the item's, not the block's
+    org_buffer({ "- item", "  #+begin_src python", "  x", "  #+end_src", "", "- two" }, { 5, 0 })
+    local _, prompts = prompted({}, babel.demarcate_block)
+    eq({ "Lang: " }, prompts)
+  end)
+
   it("asks for the language elsewhere, on the block's results too", function()
     for _, case in ipairs({
       { { "#+begin_src sh", "echo", "#+end_src", "text", "" }, 5 },

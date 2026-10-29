@@ -9625,6 +9625,12 @@ Differences from Emacs:
     indentation instead of being indented by the language's major mode
     (Emacs's org-src-tab-acts-natively), with `=`, with <Tab> and in the
     blocks <prefix>bd splits a block into.
+  - <prefix>bd (org-babel-demarcate-block) splitting a block in a list
+    item keeps the new blocks in the item (Emacs writes them at column 0,
+    out of the list); a block with `-i` (or src_preserve_indentation)
+    keeps its code's indentation (Emacs strips it); the empty block it
+    inserts has a blank line for the code, with the cursor on it (Emacs
+    leaves none and puts the cursor after the language).
   - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
     fill-column (70); src blocks are not filled (Emacs uses the language's
     major mode); `gq` over a comment of several paragraphs fills each of

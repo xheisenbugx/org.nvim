@@ -354,22 +354,19 @@ end
 
 --- The language of the src block whose blank lines after it `lnum` is on
 --- (org-babel-get-src-block-info there gives the block), or nil.
-local function language_before(lines, list, lnum)
+local function language_before(bufnr, lines, list, lnum)
   if not lines[lnum] or not lines[lnum]:match("^%s*$") then
     return nil
   end
+  -- the blank lines must be the block's own (not an item's before the
+  -- next item)
+  local el = require("org.element").at(bufnr, lnum)
+  if not (el and el.type == "src-block" and lnum > el.clast) then
+    return nil
+  end
   for _, x in ipairs(list) do
-    if not x.call and x.finish < lnum then
-      local blank = true
-      for k = x.finish + 1, lnum do
-        if not lines[k]:match("^%s*$") then
-          blank = false
-          break
-        end
-      end
-      if blank then
-        return x.lang
-      end
+    if not x.call and x.finish == el.clast then
+      return x.lang
     end
   end
 end
@@ -384,16 +381,14 @@ function M.demarcate_block()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local lnum = cursor[1]
   local lines, list = M._buffer_blocks(bufnr)
-  -- the src block (its #+NAME / #+HEADER lines too) the cursor is in
-  local b
+  -- the src block (its affiliated keywords, #+NAME, #+HEADER ..., too)
+  -- the cursor is in
+  local is_affiliated = require("org.element").is_affiliated
+  local b, top
   for _, x in ipairs(list) do
     if not x.call then
-      local top = x.start
-      while
-        top > 1
-        and lines[top - 1]:match("^%s*#%+[%a_]+:")
-        and not lines[top - 1]:match("^%s*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss]")
-      do
+      top = x.start
+      while top > 1 and is_affiliated(lines[top - 1]) do
         top = top - 1
       end
       if lnum >= top and lnum <= x.finish then
@@ -425,13 +420,24 @@ function M.demarcate_block()
       end
     end
     local begin_line, end_line = lines[b.start], lines[b.finish]
+    -- the new blocks keep the affiliated keywords but #+NAME and #+CAPTION
+    local keywords = {}
+    for k = top, b.start - 1 do
+      local key = lines[k]:match("^%s*#%+([%w_%-]+)"):upper()
+      if key ~= "NAME" and key ~= "CAPTION" then
+        keywords[#keywords + 1] = lines[k]
+      end
+    end
     local parts = cut_body(vim.list_slice(lines, b.start + 1, b.finish - 1), points)
-    local new, firsts = {}, {}
+    local new, firsts, heads = {}, {}, {}
     for k, part in ipairs(parts) do
+      firsts[k] = b.start + #new
       if k > 1 then
         new[#new + 1] = ""
+        firsts[k] = b.start + #new
+        vim.list_extend(new, keywords)
       end
-      firsts[k] = b.start + #new
+      heads[k] = b.start + #new
       new[#new + 1] = begin_line
       vim.list_extend(new, part)
       new[#new + 1] = end_line
@@ -444,12 +450,12 @@ function M.demarcate_block()
       local last = (firsts[k + 1] and firsts[k + 1] - 2) or (b.start + #new - 1)
       indent.indent_region(bufnr, firsts[k], last)
     end
-    vim.api.nvim_win_set_cursor(0, { firsts[#firsts], 0 })
+    vim.api.nvim_win_set_cursor(0, { heads[#heads], 0 })
     return
   end
   -- outside a block: wrap the selection (or insert an empty block); in
   -- the blank lines after a block, in a block of its language
-  local lang = language_before(lines, list, lnum)
+  local lang = language_before(bufnr, lines, list, lnum)
   if not lang then
     local prev
     for _, x in ipairs(list) do
