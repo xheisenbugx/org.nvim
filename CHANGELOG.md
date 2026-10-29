@@ -8,6 +8,73 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.0] - 2026-10-28
+
+### Features
+
+- **cli:** Org lsp for other editors, agenda index at startup, extensions ready for promotion ([#313](https://github.com/xheisenbugx/org.nvim/pull/313))
+
+## [v3.1.0] - 2026-10-28
+
+### Features
+
+- Verify-org for every area, scrolling menus, tables like Emacs ([#311](https://github.com/xheisenbugx/org.nvim/pull/311))
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore(agents):** Verify-org skill, feature map and verify driver ([#308](https://github.com/xheisenbugx/org.nvim/pull/308))
+
+</details>
+
+## [v3.0.0] - 2026-10-28
+
+### ⚠ Breaking changes
+
+- **ui:** Draw all highlighting with the parser engine and make it the default ([#300](https://github.com/xheisenbugx/org.nvim/pull/300))
+- **ui:** Remove the syntax highlighter; the parser highlighter is the only one ([#302](https://github.com/xheisenbugx/org.nvim/pull/302))
+
+### Features
+
+- **ui:** Draw emphasis from a port of Emacs fontification (ui.highlighter = "parser") ([#298](https://github.com/xheisenbugx/org.nvim/pull/298))
+
+### Fixes
+
+- **syntax:** Show json and markdown src blocks as typed ([#299](https://github.com/xheisenbugx/org.nvim/pull/299))
+- **ui:** Close the parser highlighter's Emacs differences and the [#300](https://github.com/xheisenbugx/org.nvim/pull/300) follow-ups ([#301](https://github.com/xheisenbugx/org.nvim/pull/301))
+- **config:** No removed-option warning for ui.highlighter, which no release had ([#303](https://github.com/xheisenbugx/org.nvim/pull/303))
+- **ui:** A #+begin_src line in a raw block no longer colours what follows ([#304](https://github.com/xheisenbugx/org.nvim/pull/304))
+- About 50 bugs from an area-by-area comparison with Emacs Org 9.8.10 ([#305](https://github.com/xheisenbugx/org.nvim/pull/305))
+
+## [v2.16.3] - 2026-10-26
+
+### Fixes
+
+- **lists, export:** Match Emacs on ill-formed list parents and lone line breaks ([#296](https://github.com/xheisenbugx/org.nvim/pull/296))
+
+## [v2.16.2] - 2026-10-23
+
+### Fixes
+
+- **fold:** Make Tab cycle reliably inside closed folds and around short child folds ([#292](https://github.com/xheisenbugx/org.nvim/pull/292))
+
+## [v2.16.1] - 2026-10-22
+
+### Fixes
+
+- **agenda:** Make `0 r` show every TODO keyword ([#290](https://github.com/xheisenbugx/org.nvim/pull/290))
+
+## [v2.16.0] - 2026-10-22
+
+### Features
+
+- LSP completion/formatting/hints/lenses, src block LSP, sticky context, plugin adapters, more Babel sessions, in-place capture and [#285](https://github.com/xheisenbugx/org.nvim/pull/285) follow-ups ([#287](https://github.com/xheisenbugx/org.nvim/pull/287))
+
+## [v2.15.0] - 2026-10-21
+
+### Features
+
+- Review batch — attachment export, more Babel languages, health, docs, tutor, CI and refactors ([#285](https://github.com/xheisenbugx/org.nvim/pull/285))
+
 ## [v2.14.4] - 2026-10-21
 
 ### Fixes
@@ -517,6 +584,14 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.1.0...v3.2.0
+[v3.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.0.0...v3.1.0
+[v3.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.3...v3.0.0
+[v2.16.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.2...v2.16.3
+[v2.16.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.1...v2.16.2
+[v2.16.1]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.0...v2.16.1
+[v2.16.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.15.0...v2.16.0
+[v2.15.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.14.4...v2.15.0
 [v2.14.4]: https://github.com/xheisenbugx/org.nvim/compare/v2.14.3...v2.14.4
 [v2.14.3]: https://github.com/xheisenbugx/org.nvim/compare/v2.14.2...v2.14.3
 [v2.14.2]: https://github.com/xheisenbugx/org.nvim/compare/v2.14.1...v2.14.2
