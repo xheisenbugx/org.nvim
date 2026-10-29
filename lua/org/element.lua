@@ -97,6 +97,51 @@ M.is_affiliated = affiliated
 
 local parse
 
+--- Kinds of element whose first line ends a paragraph only when the
+--- element is closed further down (org-element-paragraph-parser).
+local OPENERS = { block = true, drawer = true, ["latex-environment"] = true }
+
+--- Whether the drawer, `#+BEGIN_x` block or LaTeX environment opened on
+--- line k has its closing line in [k + 1, e]. A `#+BEGIN:` line (a
+--- dynamic block) always ends a paragraph, like any keyword.
+---@param lines string[]
+---@param k integer
+---@param e integer
+---@param kind string
+---@return boolean
+local function closed(lines, k, e, kind)
+  local line = lines[k]
+  local close
+  if kind == "drawer" then
+    close = "^%s*:[Ee][Nn][Dd]:%s*$"
+  elseif kind == "block" then
+    local name = line:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+    if not name then
+      return true
+    end
+    close = "^%s*#%+end_" .. vim.pesc(name:lower()) .. "%s*$"
+  else
+    local env = line:match("\\begin{([^}]+)}")
+    if not env then
+      return true
+    end
+    local needle = "\\end{" .. env .. "}"
+    for j = k, e do
+      if lines[j]:find(needle, 1, true) then
+        return true
+      end
+    end
+    return false
+  end
+  for j = k + 1, e do
+    local l = kind == "block" and lines[j]:lower() or lines[j]
+    if l:match(close) then
+      return true
+    end
+  end
+  return false
+end
+
 --- Parse the lines [s, e] into a list of elements with `parent`.
 ---@param lines string[]
 ---@return org.Element[]
@@ -302,7 +347,11 @@ parse = function(lines, s, e, parent, first_is_item_text)
       while k + 1 <= e do
         local l = lines[k + 1]
         local rule = require("org.table.el").is_rule(l)
-        if is_blank(l) or parser.headline_level(l) or starts(l) or affiliated(l) or rule then
+        if is_blank(l) or parser.headline_level(l) or affiliated(l) or rule then
+          break
+        end
+        local kind1 = starts(l)
+        if kind1 and not (OPENERS[kind1] and not closed(lines, k + 1, e, kind1)) then
           break
         end
         k = k + 1

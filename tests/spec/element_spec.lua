@@ -183,15 +183,17 @@ describe("element parser", function()
     eq({ { "paragraph", 1, 1, 2 } }, parse({ "#+BEGIN: clocktable", "x" }))
   end)
 
-  it(
-    "doesn't end a paragraph at a line that only looks like a drawer or LaTeX start",
-    known("an unterminated :NAME: or \\begin{..} line splits the paragraph", function()
-      -- org-element-paragraph-parser only stops at a drawer or an
-      -- environment that is closed further down
-      eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", ":NOEND:", "x" }))
-      eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "\\begin{eq}", "x" }))
-    end)
-  )
+  it("doesn't end a paragraph at a line that only looks like a drawer, block or LaTeX start", function()
+    -- org-element-paragraph-parser only stops at a drawer, a block or an
+    -- environment that is closed further down
+    eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", ":NOEND:", "x" }))
+    eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "\\begin{eq}", "x" }))
+    eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "#+begin_quote", "x" }))
+    -- closed, they do
+    eq({ { "paragraph", 1, 1, 1 }, { "drawer", 2, 2, 3 } }, parse({ "text", ":DR:", ":END:" }))
+    eq({ { "paragraph", 1, 1, 1 }, { "latex-environment", 2, 2, 3 } }, parse({ "text", "\\begin{eq}", "\\end{eq}" }))
+    eq({ { "paragraph", 1, 1, 1 }, { "quote-block", 2, 2, 3 } }, parse({ "text", "#+begin_quote", "#+end_quote" }))
+  end)
 
   it("parses a section: planning, property drawer, drawers, footnotes", function()
     local buf = org_buffer({
