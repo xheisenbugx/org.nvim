@@ -225,10 +225,9 @@ function M.open(opts)
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
   vim.bo[buf].modified = false
-  if opts.filetype and opts.filetype ~= "" then
-    local ft = opts.exact_filetype and opts.filetype
-      or vim.filetype.match({ filename = "x." .. opts.filetype })
-      or opts.filetype
+  local filetype = opts.filetype
+  if filetype and filetype ~= "" then
+    local ft = opts.exact_filetype and filetype or vim.filetype.match({ filename = "x." .. filetype }) or filetype
     vim.bo[buf].filetype = ft
   end
 
@@ -257,10 +256,11 @@ function M.open(opts)
     end
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     if opts.to_source then
-      lines = opts.to_source(lines)
-      if lines == nil then
+      local converted = opts.to_source(lines)
+      if converted == nil then
         return false, "Cannot convert edits for the source; edit buffer kept open"
       end
+      lines = converted
     end
     if object then
       vim.api.nvim_buf_set_text(src, pos[1], pos[2], detail.end_row, detail.end_col, lines)

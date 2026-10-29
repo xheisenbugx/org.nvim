@@ -50,7 +50,7 @@ function basic.goto_key(bufnr, key)
   end
   if target then
     vim.api.nvim_win_set_cursor(0, { target, col })
-    pcall(vim.cmd, "normal! zv")
+    pcall(vim.api.nvim_command, "normal! zv")
   end
 end
 

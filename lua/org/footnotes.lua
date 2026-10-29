@@ -51,7 +51,7 @@ function M.literal_lines(lines)
 end
 
 --- Footnote at the cursor.
----@return { kind: "reference"|"definition"|"inline", label: string|nil, start_col: integer, end_col: integer }|nil
+---@return { kind: "reference"|"definition"|"inline", label: string|nil, text: string|nil, start_col: integer, end_col: integer }|nil
 function M.at_point(bufnr, lnum, col)
   if not lnum then
     lnum, col = utils.cursor()
@@ -137,7 +137,7 @@ end
 local function jump(lnum, col)
   vim.cmd("normal! m'")
   vim.api.nvim_win_set_cursor(0, { lnum, (col or 1) - 1 })
-  pcall(vim.cmd, "normal! zv")
+  pcall(vim.api.nvim_command, "normal! zv")
 end
 
 --- Heading that collects definitions, or nil (config `footnote_section`).
@@ -527,7 +527,7 @@ function M.new_footnote(opts)
   vim.cmd("normal! m'")
   local l = vim.api.nvim_buf_get_lines(bufnr, target - 1, target, false)[1]
   vim.api.nvim_win_set_cursor(0, { target, math.min(#def, #l) })
-  pcall(vim.cmd, "normal! zv")
+  pcall(vim.api.nvim_command, "normal! zv")
   if not opts.no_insert and not vim.g.org_test then
     vim.cmd("startinsert!")
   end
@@ -539,7 +539,7 @@ end
 ---------------------------------------------------------------------------
 
 --- Every footnote reference of `lines`, in buffer order.
----@return { lnum: integer, s: integer, e: integer, label: string|nil, text: string|nil }[]
+---@return { lnum: integer, s: integer, e: integer, label: string|nil, text: string|nil, nested: string|nil }[]
 function M.collect_references(lines)
   local out = {}
   local literal = M.literal_lines(lines)
@@ -692,7 +692,7 @@ end
 --- are removed and one is created at the end of the buffer with every
 --- definition, each after a blank line; with `footnote_section` false,
 --- each goes at the end of the outline section of its first reference.
----@param entries { block: string[], ref_lnum: integer|nil }[]
+---@param entries { block: string[], ref_lnum: integer|nil, after_previous?: boolean, placed?: boolean }[]
 local function insert_definitions(lines, entries)
   local name = section_name()
   local text = table.concat(lines, "\n") .. (#lines > 0 and "\n" or "")

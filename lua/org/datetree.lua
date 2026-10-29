@@ -51,7 +51,7 @@ function M.cleanup(bufnr)
       and files.get_buffer(bufnr):headline_at(l)
     local parent = hl and hl.parent
     local ptitle = parent and vim.api.nvim_buf_get_lines(bufnr, parent.line - 1, parent.line, false)[1]
-    if ptitle and ptitle:match("^%*+[ \t]+%d%d%d%d%-[01]%d%-[0-3]%d") then
+    if hl and ptitle and ptitle:match("^%*+[ \t]+%d%d%d%d%-[01]%d%-[0-3]%d") then
       local want = string.format("%d-%02d-%02d", y, m, d)
       if not ptitle:match("^%*+[ \t]+" .. vim.pesc(want)) then
         local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line - 1, hl.end_line, false)

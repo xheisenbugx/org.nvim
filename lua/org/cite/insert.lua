@@ -134,7 +134,8 @@ function basic.complete_key(bufnr, multiple)
   local bib = M.parse_bibliography(bufnr)
   local tbl = #bib > 0 and basic.completion_table(bib) or nil
   if not tbl then
-    user_error("No bibliography set")
+    -- user_error aborts; the return is for the type checker
+    return user_error("No bibliography set")
   end
   local function fmt_item(item)
     return item[1]
@@ -398,7 +399,7 @@ function M.allowed_p(bufnr, row, col)
   local ok = false
   if t == nil or t == "paragraph" then
     ok = true
-  elseif t == "block" then
+  elseif el and t == "block" then
     local head = vim.api.nvim_buf_get_lines(bufnr, el.first - 1, el.first, false)[1] or ""
     ok = head:lower():match("^%s*#%+begin_verse") ~= nil and row > el.first and row <= (el.cend or el.clast)
   elseif t == "footnote-definition" then
