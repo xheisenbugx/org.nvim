@@ -663,6 +663,24 @@ function M.verbatim_block_end(lines, i, to)
   end
 end
 
+--- The END line of the verse block `lines[i]` begins, nil when it begins
+--- none or none closes it up to `to`.
+---@param lines string[]
+---@param i integer
+---@param to integer
+---@return integer|nil
+local function verse_block_end(lines, i, to)
+  local name = lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+  if not (name and name:lower() == "verse") then
+    return nil
+  end
+  for k = i + 1, to do
+    if lines[k]:match("^%s*#%+[Ee][Nn][Dd]_[Vv][Ee][Rr][Ss][Ee]%s*$") then
+      return k
+    end
+  end
+end
+
 --- Whether `line` is a comment, a fixed-width line or a keyword (other
 --- than CAPTION): Emacs finds no timestamp objects there.
 local function no_objects(line)
@@ -932,6 +950,9 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
   local in_drawer = nil
   local verbatim_end = 0
   local verbatim_src = false
+  -- the END line of the verse block the line is in: its lines are objects
+  -- only (org-element-verse-block-parser), no drawer, block or clock
+  local verse_end = 0
   -- the first :END: line after the current one (false: none up to `to`),
   -- found once for all the drawers before it
   ---@type integer|false
@@ -951,8 +972,9 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
     ---@type table|false|nil
     local clock
     if tail then
-      if i > verbatim_end and line:find("^%s*#%+") then
+      if i > verbatim_end and i > verse_end and line:find("^%s*#%+") then
         verbatim_end = M.verbatim_block_end(lines, i, to) or verbatim_end
+        verse_end = verse_block_end(lines, i, to) or verse_end
       end
       if i > verbatim_end and line:find("\\begin{", 1, true) then
         verbatim_end = latex_environment_end(lines, i, to) or verbatim_end
@@ -972,12 +994,16 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
       end
       in_drawer = nil
     else
-      local dname = not in_drawer and line:match("^%s*:([%w_%-\128-\255]+):%s*$")
+      local in_verse = i <= verse_end
+      local dname = not in_drawer and not in_verse and line:match("^%s*:([%w_%-\128-\255]+):%s*$")
       local block_end, block_name
-      if line:find("^%s*#%+") then
+      if not in_verse and line:find("^%s*#%+") then
         block_end, block_name = M.verbatim_block_end(lines, i, to)
+        if not block_end then
+          verse_end = verse_block_end(lines, i, to) or verse_end
+        end
       end
-      block_end = block_end or (line:find("\\begin{", 1, true) and latex_environment_end(lines, i, to))
+      block_end = block_end or (not in_verse and line:find("\\begin{", 1, true) and latex_environment_end(lines, i, to))
       if dname and dname:upper() ~= "END" and next_end and next_end <= i then
         next_end = false
         for k = i + 1, to do
@@ -994,10 +1020,10 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
         -- like org-element-drawer-parser, a drawer without an :END: line
         -- in its section is a paragraph, whose timestamps count
         in_drawer = { name = dname, start = i }
-      elseif not (line:find("^%s*[#:]") and no_objects(line)) then
+      elseif in_verse or not (line:find("^%s*[#:]") and no_objects(line)) then
         -- text, in a drawer too (LOGBOOK notes, :org-gcal:); a CLOCK
-        -- line's timestamps are the clock's
-        clock = line:find(":", 1, true) and M.parse_clock_line(line) or false
+        -- line's timestamps are the clock's, unless it's verse
+        clock = not in_verse and line:find(":", 1, true) and M.parse_clock_line(line) or false
         local is_clock = clock
         if not (is_clock and in_drawer) then
           for _, item in ipairs(object_stamps(line)) do
@@ -1022,7 +1048,7 @@ function parse_section(hl, lines, from, to, log_drawer, min_inline)
     end
     -- a CLOCK line in a block or a LaTeX environment is text, not a clock
     -- (org-clock-sum only counts clock elements)
-    if i > verbatim_end then
+    if i > verbatim_end and i > verse_end then
       if clock == nil then
         clock = line:find(":", 1, true) and M.parse_clock_line(line) or false
       end
