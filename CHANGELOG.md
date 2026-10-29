@@ -8,6 +8,19 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.1] - 2026-10-29
+
+### Fixes
+
+- **parser:** Read no clock from a CLOCK line inside a verse block ([#317](https://github.com/xheisenbugx/org.nvim/pull/317))
+- **element, babel:** Narrow to block, element motions, C-c : and C-c C-v d like Emacs ([#318](https://github.com/xheisenbugx/org.nvim/pull/318))
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore:** Verify maps for outline editing and TODO, element coverage, 21 more strict modules ([#315](https://github.com/xheisenbugx/org.nvim/pull/315))
+
+</details>
+
 ## [v3.2.0] - 2026-10-28
 
 ### Features
@@ -584,6 +597,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.0...v3.2.1
 [v3.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.1.0...v3.2.0
 [v3.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.0.0...v3.1.0
 [v3.0.0]: https://github.com/xheisenbugx/org.nvim/compare/v2.16.3...v3.0.0
