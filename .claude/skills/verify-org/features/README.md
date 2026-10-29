@@ -30,7 +30,9 @@ module, spec or help tag fails the suite instead of leaving the map wrong:
 | [links](links.md) | following heading and file links, storing and inserting links, creating a missing heading |
 | [lists](lists.md) | new items, checkboxes and `[n/m]` cookies, numbering and bullets |
 | [refile](refile.md) | refile and copy through the target picker, archive file, ARCHIVE tag, Archive sibling |
+| [structure](structure.md) | inserting headings, promote / demote, moving, cutting, pasting and cloning subtrees, sorting, narrowing, heading motions |
 | [tables](tables.md) | typing and realigning, rows / columns / hlines, `#+TBLFM` formulas |
+| [todo](todo.md) | TODO cycling and fast selection, keyword sets, CLOSED / LOGBOOK / notes, priorities, tags |
 
 To map a new area (habits, mobile, citations, the mouse, more
 extensions), write `<area>.md` with the header above and
