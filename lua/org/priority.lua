@@ -127,7 +127,7 @@ function M.shift(target, dir)
     return nil
   end
   local bufnr, file, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not (bufnr and file and hl) then
     return nil
   end
   local r = M.range(file)
@@ -187,7 +187,7 @@ end
 --- (org-priority-show, C-u C-c ,): 1000 × (lowest − priority).
 function M.show(target)
   local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not (bufnr and hl) then
     return nil
   end
   local v = M.get_priority(hl)
@@ -208,7 +208,7 @@ function M.set(target, value)
     return nil
   end
   local bufnr, file, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not (bufnr and file and hl) then
     return nil
   end
   local r = M.range(file)
@@ -238,7 +238,7 @@ function M.set(target, value)
     local s = tostring(value):upper()
     v = #s == 1 and s:byte() or nil
   end
-  if not valid(v, r) then
+  if not v or not valid(v, r) then
     utils.warn(string.format("Priority must be between %s and %s", M.to_string(r.hi), M.to_string(r.lo)))
     return nil
   end

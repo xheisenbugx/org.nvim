@@ -36,7 +36,7 @@ local function reveal(lnum, detail)
     return
   end
   if not pcall(fold.show_context, lnum, detail) then
-    pcall(vim.cmd, "normal! zv")
+    pcall(vim.api.nvim_command, "normal! zv")
   end
 end
 

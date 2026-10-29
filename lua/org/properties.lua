@@ -377,7 +377,7 @@ function M.next_allowed_value(dir)
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local name, value, hl = M.at_property_line(bufnr, lnum)
-  if not name then
+  if not (name and hl) then
     return false
   end
   local allowed = hl:get_allowed_values(name)
@@ -407,7 +407,7 @@ function M.property_action()
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local name, _, hl = M.at_property_line(bufnr, lnum)
-  if not name then
+  if not (name and hl) then
     return false
   end
   local choice = require("org.ui").menu({
@@ -446,7 +446,7 @@ end
 --- Set the effort estimate (org-set-effort).
 function M.set_effort(target, value)
   local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not (bufnr and hl) then
     return nil
   end
   local prop = config.opts.effort_property or "Effort"
@@ -486,7 +486,7 @@ end
 --- Returns true when handled (never false, so the key does not fall back).
 function M.toggle_ordered(target)
   local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
+  if not (bufnr and hl) then
     return nil
   end
   local v = hl.properties.ORDERED
@@ -496,9 +496,11 @@ function M.toggle_ordered(target)
   local track = config.opts.track_ordered_property_with_tag
   if track then
     local tag = type(track) == "string" and track or "ORDERED"
+    -- the drawer edit re-parsed the buffer; the tags are the headline's own
+    local cur = files.get_buffer(bufnr):headline_on(hl.line) or hl
     local tags = vim.tbl_filter(function(t)
       return t ~= tag
-    end, files.get_buffer(bufnr):headline_on(hl.line).tags)
+    end, cur.tags)
     if ordered then
       tags[#tags + 1] = tag
     end

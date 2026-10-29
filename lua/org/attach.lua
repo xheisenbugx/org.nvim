@@ -153,10 +153,10 @@ function M.dir_for(target, create_id)
   end
   if method == "ask" then
     local c = utils.getchar("Create new ID [1] property or DIR [2] property for attachments?")
-    method = c == "1" and "id" or (c == "2" and "dir" or nil)
-    if not method then
+    if c ~= "1" and c ~= "2" then
       return nil, hl
     end
+    method = c == "1" and "id" or "dir"
   end
   if method == "id" then
     id = require("org.id").get_create({ bufnr = bufnr, lnum = hl.line })
@@ -458,7 +458,7 @@ function M.set_directory(target, dir)
       completion = "dir",
       cancelreturn = vim.NIL,
     })
-    if not ok or v == vim.NIL or vim.trim(v) == "" then
+    if not ok or type(v) ~= "string" or vim.trim(v) == "" then
       return nil
     end
     dir = vim.trim(v)
@@ -530,7 +530,7 @@ end
 
 local function prompt_path(prompt, completion)
   local ok, v = pcall(vim.fn.input, { prompt = prompt, completion = completion or "file", cancelreturn = vim.NIL })
-  if not ok or v == vim.NIL or vim.trim(v) == "" then
+  if not ok or type(v) ~= "string" or vim.trim(v) == "" then
     return nil
   end
   return vim.trim(v)
@@ -600,7 +600,9 @@ local function new_attachment(target)
     local dir, hl = M.dir_for(target, true)
     if dir then
       vim.fn.mkdir(dir, "p")
-      set_tag(target.bufnr, hl.line)
+      if hl then
+        set_tag(target.bufnr, hl.line)
+      end
       vim.cmd("split " .. vim.fn.fnameescape(dir .. "/" .. vim.trim(name)))
     end
   end
@@ -814,7 +816,7 @@ function M.attach_from_file_manager(paths)
     done[#done + 1] = M.attach_file(p, nil, target)
   end
   if (cfg().method or "cp") == "mv" and vim.bo.filetype == "netrw" then
-    pcall(vim.cmd, "edit")
+    pcall(vim.api.nvim_command, "edit")
   end
   return done
 end
