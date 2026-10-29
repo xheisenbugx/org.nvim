@@ -283,12 +283,22 @@ describe("org-forward-element", function()
     eq({ "Cannot move further down" }, msgs)
   end)
 
-  it(
-    "goes past the section from the blank lines at its start",
-    known("org.nvim goes to the section's first element", function()
-      eq(5, lnum_after({ "* H", "", "", "para", "* G" }, { 2, 0 }, E.forward))
-    end)
-  )
+  it("goes past the subtree from the blank lines at the start of its section", function()
+    -- org-element-at-point gives the headline there
+    eq(5, lnum_after({ "* H", "", "", "para", "* G" }, { 2, 0 }, E.forward))
+    eq(6, lnum_after({ "* H", "** I", "", "", "para", "* G" }, { 3, 0 }, E.forward))
+    eq(6, lnum_after({ "* H", "", "", "para", "** I", "* G" }, { 2, 0 }, E.forward))
+    -- to the end of the buffer, without an error
+    local cur, msgs = run({ "* H", "", "", "para" }, { 2, 0 }, E.forward)
+    eq(4, cur[1])
+    eq({}, msgs)
+  end)
+
+  it("stays on the blank lines at the start of the buffer", function()
+    local cur, msgs = run({ "", "", "para", "* G" }, { 1, 0 }, E.forward)
+    eq(1, cur[1])
+    eq({ "No element at point" }, msgs)
+  end)
 end)
 
 describe("org-backward-element", function()

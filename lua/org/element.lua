@@ -478,18 +478,19 @@ function M.forward()
   end
   local el = M.at(bufnr, lnum)
   if not el then
-    -- blank lines at the start of a section: to the next element
-    local els = M.section(bufnr, lnum)
-    for _, e in ipairs(els) do
-      if e.first > lnum then
-        return goto_line(e.first)
-      end
-    end
     if lnum >= nlines then
       utils.warn("Cannot move further down")
       return
     end
-    return goto_line(math.min(nlines, select(3, M.section(bufnr, lnum)) + 1))
+    -- blank lines at the start of a section: org-element-at-point gives
+    -- the headline, so past its subtree (no error at the end of the
+    -- buffer); at the start of the buffer, no element
+    local _, _, _, sec_hl = M.section(bufnr, lnum)
+    if not sec_hl then
+      utils.warn("No element at point")
+      return
+    end
+    return goto_line(math.min(nlines, sec_hl.end_line + 1))
   end
   if lnum >= nlines then
     utils.warn("Cannot move further down")
