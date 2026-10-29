@@ -200,6 +200,8 @@ end)
 -- with org-edit-src-content-indentation 0 (Emacs re-indents the bodies of
 -- the blocks it writes).
 describe("babel: demarcating blocks", function()
+  with_config({ edit_src_content_indentation = 0 })
+
   it("splits a block in three around the selected lines", function()
     local buf = org_buffer({ "#+begin_src sh :results output", "echo 1", "echo 2", "echo 3", "#+end_src" }, { 3, 0 })
     vim.cmd("normal! V")
@@ -235,5 +237,116 @@ describe("babel: demarcating blocks", function()
     local buf = org_buffer({ "* H", "x = 1" }, { 2, 0 })
     prompted({}, babel.demarcate_block)
     eq({ "* H", "x = 1" }, buf_lines(buf))
+  end)
+end)
+
+-- Emacs 31.1 with Org 9.8.10 and its default org-edit-src-content-indentation
+-- (2): org-babel-demarcate-block re-indents every block it writes
+-- (org-indent-block; Emacs's language major mode does the code, org.nvim
+-- keeps its layout) and leaves the cursor on the last block.
+describe("babel: demarcating blocks, re-indented", function()
+  local SPLIT = {
+    "#+begin_src sh",
+    "  echo a",
+    "#+end_src",
+    "",
+    "#+begin_src sh",
+    "  echo b",
+    "#+end_src",
+  }
+
+  it("re-indents both blocks and goes to the second", function()
+    local buf = org_buffer({ "#+begin_src sh", "echo a", "echo b", "#+end_src" }, { 3, 0 })
+    babel.demarcate_block()
+    eq(SPLIT, buf_lines(buf))
+    eq({ 5, 0 }, vim.api.nvim_win_get_cursor(0))
+  end)
+
+  it("keeps the code's own layout", function()
+    local buf = org_buffer({ "#+begin_src python", "if x:", "    y", "    z", "w", "#+end_src" }, { 3, 0 })
+    babel.demarcate_block()
+    eq({
+      "#+begin_src python",
+      "  if x:",
+      "#+end_src",
+      "",
+      "#+begin_src python",
+      "      y",
+      "      z",
+      "  w",
+      "#+end_src",
+    }, buf_lines(buf))
+  end)
+
+  it("splits a line at the cursor", function()
+    local buf = org_buffer({ "#+begin_src sh", "echo a", "echo b", "#+end_src" }, { 3, 3 })
+    babel.demarcate_block()
+    eq(
+      { "#+begin_src sh", "  echo a", "  ech", "#+end_src", "", "#+begin_src sh", "  o b", "#+end_src" },
+      buf_lines(buf)
+    )
+    eq({ 6, 0 }, vim.api.nvim_win_get_cursor(0))
+  end)
+
+  it("moves a block under a headline to the headline's indentation", function()
+    local buf = org_buffer({ "* H", "  #+begin_src sh", "    echo a", "    echo b", "  #+end_src" }, { 4, 4 })
+    babel.demarcate_block()
+    eq({ "* H", unpack(SPLIT) }, buf_lines(buf))
+  end)
+
+  it("keeps the name on the first block and the blank lines after the last", function()
+    local buf = org_buffer(
+      { "#+NAME: x", "#+BEGIN_SRC sh :var a=1", "echo a", "echo b", "#+END_SRC", "", "", "after" },
+      { 4, 0 }
+    )
+    babel.demarcate_block()
+    eq({
+      "#+NAME: x",
+      "#+BEGIN_SRC sh :var a=1",
+      "  echo a",
+      "#+END_SRC",
+      "",
+      "#+BEGIN_SRC sh :var a=1",
+      "  echo b",
+      "#+END_SRC",
+      "",
+      "",
+      "after",
+    }, buf_lines(buf))
+  end)
+
+  it("adds an empty block from the #+end_src line", function()
+    local buf = org_buffer({ "#+begin_src sh", "echo a", "#+end_src" }, { 3, 0 })
+    babel.demarcate_block()
+    eq({ "#+begin_src sh", "  echo a", "#+end_src", "", "#+begin_src sh", "#+end_src" }, buf_lines(buf))
+  end)
+
+  it("doesn't split from the #+begin_src line or the lines above it", function()
+    for _, lnum in ipairs({ 1, 2 }) do
+      local lines = { "#+NAME: x", "#+begin_src sh", "echo a", "#+end_src" }
+      local buf = org_buffer(lines, { lnum, 0 })
+      local msgs, prompts = prompted({}, babel.demarcate_block)
+      eq({ "Select within the source block body to split it" }, msgs)
+      eq({}, prompts)
+      eq(lines, buf_lines(buf))
+    end
+  end)
+
+  it("writes a block of the previous block's language in the blank lines after it", function()
+    local buf = org_buffer({ "#+begin_src sh", "echo", "#+end_src", "", "", "text" }, { 4, 0 })
+    local _, prompts = prompted({}, babel.demarcate_block)
+    eq({}, prompts)
+    eq("#+begin_src sh", buf_lines(buf)[4])
+  end)
+
+  it("asks for the language elsewhere, on the block's results too", function()
+    for _, case in ipairs({
+      { { "#+begin_src sh", "echo", "#+end_src", "text", "" }, 5 },
+      { { "#+begin_src sh", "echo", "#+end_src", "", "#+RESULTS:", ": x" }, 5 },
+    }) do
+      org_buffer(case[1], { case[2], 0 })
+      local _, prompts = prompted({}, babel.demarcate_block)
+      eq({ "Lang: " }, prompts)
+    end
   end)
 end)

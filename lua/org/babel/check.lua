@@ -319,49 +319,140 @@ function M.open_result()
   return show_scratch(vim.split(text, "\n", { plain = true }), "", "org-babel-results")
 end
 
---- C-c C-v d: split the block at the cursor into two blocks, wrap the
---- visual selection in a new block, or insert an empty block
---- (org-babel-demarcate-block).
+--- The pieces of a src block's body between `points` ({ row, col0 }
+--- positions from the body's start to its end, in order), each a list of
+--- lines like org-babel-demarcate-block cuts them: a piece starting
+--- mid-line is padded to its column, and a cut line's blank left part is
+--- dropped.
+---@param body string[]
+---@param points integer[][]
+---@return string[][]
+local function cut_body(body, points)
+  local text = table.concat(body, "\n") .. (#body > 0 and "\n" or "")
+  local first_row = points[1][1]
+  local function offset(p)
+    local o = 0
+    for r = first_row, p[1] - 1 do
+      o = o + #body[r - first_row + 1] + 1
+    end
+    return math.min(o + p[2], #text)
+  end
+  local parts = {}
+  for k = 1, #points - 1 do
+    local piece = text:sub(offset(points[k]) + 1, offset(points[k + 1]))
+    if k > 1 then
+      piece = string.rep(" ", points[k][2]) .. piece
+    end
+    local ls = vim.split(piece, "\n", { plain = true })
+    if ls[#ls] == "" or ls[#ls]:match("^%s*$") then
+      table.remove(ls)
+    end
+    parts[k] = ls
+  end
+  return parts
+end
+
+--- The language of the src block whose blank lines after it `lnum` is on
+--- (org-babel-get-src-block-info there gives the block), or nil.
+local function language_before(lines, list, lnum)
+  if not lines[lnum] or not lines[lnum]:match("^%s*$") then
+    return nil
+  end
+  for _, x in ipairs(list) do
+    if not x.call and x.finish < lnum then
+      local blank = true
+      for k = x.finish + 1, lnum do
+        if not lines[k]:match("^%s*$") then
+          blank = false
+          break
+        end
+      end
+      if blank then
+        return x.lang
+      end
+    end
+  end
+end
+
+--- C-c C-v d: split the block at the cursor into two blocks (three
+--- around the visual selection), wrap the selection in a new block, or
+--- insert an empty block (org-babel-demarcate-block).
 function M.demarcate_block()
   local bufnr = vim.api.nvim_get_current_buf()
   local mode = vim.fn.mode()
   local visual = mode == "v" or mode == "V" or mode == "\22"
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local b = M.at_block(bufnr, lnum)
-  local function header_of(block)
-    local l = vim.api.nvim_buf_get_lines(bufnr, block.start - 1, block.start, false)[1]
-    return l, vim.api.nvim_buf_get_lines(bufnr, block.finish - 1, block.finish, false)[1]
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local lnum = cursor[1]
+  local lines, list = M._buffer_blocks(bufnr)
+  -- the src block (its #+NAME / #+HEADER lines too) the cursor is in
+  local b
+  for _, x in ipairs(list) do
+    if not x.call then
+      local top = x.start
+      while
+        top > 1
+        and lines[top - 1]:match("^%s*#%+[%a_]+:")
+        and not lines[top - 1]:match("^%s*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss]")
+      do
+        top = top - 1
+      end
+      if lnum >= top and lnum <= x.finish then
+        b = x
+        break
+      end
+    end
   end
-  if b and not b.call and lnum > b.start and lnum <= b.finish then
-    local begin_line, end_line = header_of(b)
-    local s, e = lnum, lnum - 1
+  if b then
+    -- the cuts, { row, col0 }: the body runs from the line after
+    -- #+begin_src to the start of the #+end_src line
+    local points = { { b.start + 1, 0 } }
     if visual then
-      local srow, _, erow = utils.visual_range()
+      local srow, scol, erow, ecol = utils.visual_range()
       utils.exit_visual()
-      s, e = math.max(srow, b.start + 1), math.min(erow, b.finish - 1)
-    end
-    local body = vim.api.nvim_buf_get_lines(bufnr, b.start, b.finish - 1, false)
-    local rel_s, rel_e = s - b.start, e - b.start
-    local new = { begin_line }
-    vim.list_extend(new, vim.list_slice(body, 1, rel_s - 1))
-    vim.list_extend(new, { end_line, "", begin_line })
-    vim.list_extend(new, vim.list_slice(body, rel_s, rel_e))
-    if visual then
-      vim.list_extend(new, { end_line, "", begin_line })
-      vim.list_extend(new, vim.list_slice(body, rel_e + 1))
+      points[2] = mode == "v" and { srow, scol - 1 } or { srow, 0 }
+      local eline = lines[erow] or ""
+      local stop = utils.char_end(eline, ecol)
+      points[3] = (mode == "v" and stop < #eline) and { erow, stop } or { erow + 1, 0 }
     else
-      vim.list_extend(new, vim.list_slice(body, rel_s))
+      points[2] = { lnum, cursor[2] }
     end
-    new[#new + 1] = end_line
+    points[#points + 1] = { b.finish, 0 }
+    for k = 2, #points do
+      local p, q = points[k - 1], points[k]
+      if q[1] < p[1] or (q[1] == p[1] and q[2] < p[2]) then
+        utils.warn("Select within the source block body to split it")
+        return
+      end
+    end
+    local begin_line, end_line = lines[b.start], lines[b.finish]
+    local parts = cut_body(vim.list_slice(lines, b.start + 1, b.finish - 1), points)
+    local new, firsts = {}, {}
+    for k, part in ipairs(parts) do
+      if k > 1 then
+        new[#new + 1] = ""
+      end
+      firsts[k] = b.start + #new
+      new[#new + 1] = begin_line
+      vim.list_extend(new, part)
+      new[#new + 1] = end_line
+    end
     vim.api.nvim_buf_set_lines(bufnr, b.start - 1, b.finish, false, new)
-    vim.api.nvim_win_set_cursor(0, { s + 3, 0 })
+    -- each block re-indented, like org-indent-block, in order: a block
+    -- lines up with the one before it
+    local indent = require("org.indent")
+    for k = 1, #firsts do
+      local last = (firsts[k + 1] and firsts[k + 1] - 2) or (b.start + #new - 1)
+      indent.indent_region(bufnr, firsts[k], last)
+    end
+    vim.api.nvim_win_set_cursor(0, { firsts[#firsts], 0 })
     return
   end
-  -- outside a block: wrap the selection (or insert an empty block)
-  local lang = b and not b.call and b.lang or nil
+  -- outside a block: wrap the selection (or insert an empty block); in
+  -- the blank lines after a block, in a block of its language
+  local lang = language_before(lines, list, lnum)
   if not lang then
     local prev
-    for _, x in ipairs(blocks_mod.parse_blocks(buf_lines(bufnr))) do
+    for _, x in ipairs(list) do
       if not x.call and x.finish < lnum then
         prev = x
       end
