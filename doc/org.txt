@@ -703,7 +703,10 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 previous one is closed unless it has changes. A count N
                 takes the subtree of the ancestor at level N and keeps the
                 previous one (with "dedicated-frame": in a new tab).
-<prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
+<prefix>nb      Narrow to the block at the cursor (org-narrow-to-block):
+                the element at the cursor must be the block, so in a
+                quote, center or special block it works on the begin
+                line, not on the paragraphs inside ("Not in a block").
 <prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
                                                         *org-cycle-level*
@@ -812,7 +815,8 @@ Commands work on whole lines: on the first line of a list item they act on
 the item.
 <M-}> / <M-{>   Next / previous element at the same level
                 (org-forward-element / org-backward-element); on a
-                headline, the next / previous sibling.
+                headline, the next / previous sibling; <M-}> from the
+                blank lines right after a headline goes past its subtree.
 <C-c><C-^>      Up to the parent element, or the headline (org-up-element).
 <C-c><C-_>      Down to the first element inside (org-down-element).
 <prefix>v       Select the element (org-mark-element); again in Visual

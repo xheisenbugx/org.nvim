@@ -1403,16 +1403,20 @@ mode keys, runs them in the edit buffer and writes the result back
 
 ** Split, wrap and insert blocks: <prefix>bd
 =<prefix>bd= (=org-babel-demarcate-block=):
-- inside a block: split it in two at the cursor line,
+- inside a block: split it in two at the cursor (mid-line, at its
+  column), re-indent both and go to the second,
+- on a Visual selection inside a block: make the lines a block of their own,
 - on a Visual selection outside blocks: wrap the lines in a new block,
-- elsewhere: insert an empty block (it asks for the language).
+- elsewhere: insert an empty block (it asks for the language, except in
+  the blank lines right after a block, which give that block's language).
 
 #+begin_src lua :results output
 print("first half")
 print("second half")
 #+end_src
 
-*Try:* put the cursor on =print("second half")= and press =<prefix>bd=.
+*Try:* put the cursor at the start of =print("second half")= (=0=) and
+press =<prefix>bd=.
 
 *Expect:* two blocks, both =#+begin_src lua :results output=, with one
 =print= each.
