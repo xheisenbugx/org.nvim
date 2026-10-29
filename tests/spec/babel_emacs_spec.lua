@@ -275,16 +275,18 @@ describe("babel (Emacs header args)", function()
   it("demarcates (splits) a block at the cursor", function()
     local buf = org_buffer({ "#+begin_src sh :results output", "echo 1", "echo 2", "#+end_src" }, { 3, 0 })
     babel.demarcate_block()
+    -- org-babel-demarcate-block re-indents both blocks (content
+    -- indentation 2) and leaves point on the second one's #+begin_src
     eq({
       "#+begin_src sh :results output",
-      "echo 1",
+      "  echo 1",
       "#+end_src",
       "",
       "#+begin_src sh :results output",
-      "echo 2",
+      "  echo 2",
       "#+end_src",
     }, buf_lines(buf))
-    eq(6, vim.api.nvim_win_get_cursor(0)[1])
+    eq(5, vim.api.nvim_win_get_cursor(0)[1])
   end)
 
   it("removes all results", function()

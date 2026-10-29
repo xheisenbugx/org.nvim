@@ -703,7 +703,10 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 previous one is closed unless it has changes. A count N
                 takes the subtree of the ancestor at level N and keeps the
                 previous one (with "dedicated-frame": in a new tab).
-<prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
+<prefix>nb      Narrow to the block at the cursor (org-narrow-to-block):
+                the element at the cursor must be the block, so in a
+                quote, center or special block it works on the begin
+                line, not on the paragraphs inside ("Not in a block").
 <prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
                                                         *org-cycle-level*
@@ -812,7 +815,8 @@ Commands work on whole lines: on the first line of a list item they act on
 the item.
 <M-}> / <M-{>   Next / previous element at the same level
                 (org-forward-element / org-backward-element); on a
-                headline, the next / previous sibling.
+                headline, the next / previous sibling; <M-}> from the
+                blank lines right after a headline goes past its subtree.
 <C-c><C-^>      Up to the parent element, or the headline (org-up-element).
 <C-c><C-_>      Down to the first element inside (org-down-element).
 <prefix>v       Select the element (org-mark-element); again in Visual
@@ -4804,9 +4808,13 @@ same results in both editors.
 <prefix>bg / br    Go to a named block / a named result.
 <prefix>bu         Go to the head of the block.
 <prefix>bo         Open the result (follows a file link, or shows it).
-<prefix>bd         Split the block at the cursor into two; in Visual mode
+<prefix>bd         Split the block at the cursor into two (mid-line at
+                   the cursor's column), re-indent the blocks like
+                   org-indent-block and go to the last one; in Visual mode
                    wrap the selection in a new block (or, inside a block,
-                   make it a block of its own); elsewhere insert a block.
+                   make it a block of its own); elsewhere insert a block,
+                   in the blank lines after a block of the same language
+                   without asking for one.
 <prefix>bi         Add the named blocks of a file to the Library of Babel,
                    so #+CALL, :var and noweb can use them everywhere
                    (also <C-c><C-v><Tab>).
@@ -9615,7 +9623,14 @@ Differences from Emacs:
     `:Org checkbox_radio_mode` (no mode line lighter).
   - Indentation (|org-indent|): src block code keeps its own relative
     indentation instead of being indented by the language's major mode
-    (Emacs's org-src-tab-acts-natively), with `=` and with <Tab>.
+    (Emacs's org-src-tab-acts-natively), with `=`, with <Tab> and in the
+    blocks <prefix>bd splits a block into.
+  - <prefix>bd (org-babel-demarcate-block) splitting a block in a list
+    item keeps the new blocks in the item (Emacs writes them at column 0,
+    out of the list); a block with `-i` (or src_preserve_indentation)
+    keeps its code's indentation (Emacs strips it); the empty block it
+    inserts has a blank line for the code, with the cursor on it (Emacs
+    leaves none and puts the cursor after the language).
   - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
     fill-column (70); src blocks are not filled (Emacs uses the language's
     major mode); `gq` over a comment of several paragraphs fills each of

@@ -183,15 +183,20 @@ describe("element parser", function()
     eq({ { "paragraph", 1, 1, 2 } }, parse({ "#+BEGIN: clocktable", "x" }))
   end)
 
-  it(
-    "doesn't end a paragraph at a line that only looks like a drawer or LaTeX start",
-    known("an unterminated :NAME: or \\begin{..} line splits the paragraph", function()
-      -- org-element-paragraph-parser only stops at a drawer or an
-      -- environment that is closed further down
-      eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", ":NOEND:", "x" }))
-      eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "\\begin{eq}", "x" }))
-    end)
-  )
+  it("doesn't end a paragraph at a line that only looks like a drawer, block or LaTeX start", function()
+    -- org-element-paragraph-parser only stops at a drawer, a block or an
+    -- environment that is closed further down
+    eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", ":NOEND:", "x" }))
+    eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "\\begin{eq}", "x" }))
+    eq({ { "paragraph", 1, 1, 3 } }, parse({ "text", "#+begin_quote", "x" }))
+    -- org-element--latex-begin-environment / -end-environment
+    eq({ { "paragraph", 1, 1, 4 } }, parse({ "text", "\\begin{equation}", "x \\end{equation} more", "last" }))
+    eq({ { "paragraph", 1, 1, 5 } }, parse({ "text", "\\begin{my-env}", "x", "\\end{my-env}", "last" }))
+    -- closed, they do
+    eq({ { "paragraph", 1, 1, 1 }, { "drawer", 2, 2, 3 } }, parse({ "text", ":DR:", ":END:" }))
+    eq({ { "paragraph", 1, 1, 1 }, { "latex-environment", 2, 2, 3 } }, parse({ "text", "\\begin{eq}", "\\end{eq}" }))
+    eq({ { "paragraph", 1, 1, 1 }, { "quote-block", 2, 2, 3 } }, parse({ "text", "#+begin_quote", "#+end_quote" }))
+  end)
 
   it("parses a section: planning, property drawer, drawers, footnotes", function()
     local buf = org_buffer({
@@ -281,12 +286,22 @@ describe("org-forward-element", function()
     eq({ "Cannot move further down" }, msgs)
   end)
 
-  it(
-    "goes past the section from the blank lines at its start",
-    known("org.nvim goes to the section's first element", function()
-      eq(5, lnum_after({ "* H", "", "", "para", "* G" }, { 2, 0 }, E.forward))
-    end)
-  )
+  it("goes past the subtree from the blank lines at the start of its section", function()
+    -- org-element-at-point gives the headline there
+    eq(5, lnum_after({ "* H", "", "", "para", "* G" }, { 2, 0 }, E.forward))
+    eq(6, lnum_after({ "* H", "** I", "", "", "para", "* G" }, { 3, 0 }, E.forward))
+    eq(6, lnum_after({ "* H", "", "", "para", "** I", "* G" }, { 2, 0 }, E.forward))
+    -- to the end of the buffer, without an error
+    local cur, msgs = run({ "* H", "", "", "para" }, { 2, 0 }, E.forward)
+    eq(4, cur[1])
+    eq({}, msgs)
+  end)
+
+  it("stays on the blank lines at the start of the buffer", function()
+    local cur, msgs = run({ "", "", "para", "* G" }, { 1, 0 }, E.forward)
+    eq(1, cur[1])
+    eq({ "No element at point" }, msgs)
+  end)
 end)
 
 describe("org-backward-element", function()
@@ -573,6 +588,14 @@ describe("org-narrow-to-element / org-narrow-to-block", function()
     eq(nil, out)
     eq({ "Not in a block" }, msgs)
   end)
+
+  it("doesn't narrow from a paragraph inside a greater block", function()
+    -- org-narrow-to-block only looks at org-element-at-point, here the
+    -- quote block's paragraph, not at the elements around it
+    local out, msgs = narrowed({ "* H", "#+begin_quote", "para", "#+end_quote" }, { 3, 0 }, E.narrow_to_block)
+    eq(nil, out)
+    eq({ "Not in a block" }, msgs)
+  end)
 end)
 
 describe("org-next-block / org-previous-block", function()
@@ -644,11 +667,21 @@ describe("org-toggle-fixed-width", function()
     eq({ "a", "", "b", "" }, out)
   end)
 
-  it(
-    "marks the blank lines in a region at the common indentation",
-    known("org.nvim writes no space after the colon of a blank line", function()
-      local _, _, out = run({ "* H", "  a", "", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
-      eq({ "* H", "  : a", "  : ", "  :   b" }, out)
-    end)
-  )
+  -- Emacs 31.1 with Org 9.8.10, org-toggle-fixed-width over the region
+  it("marks the blank lines in a region at the common indentation", function()
+    local _, _, out = run({ "* H", "  a", "", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
+    eq({ "* H", "  : a", "  : ", "  :   b" }, out)
+  end)
+
+  it("marks the blank lines right after a headline with a bare colon", function()
+    local _, _, out = run({ "* H", "", "  a", "", "    b" }, { 1, 0 }, visual(E.toggle_fixed_width))
+    eq({ ": * H", ":", ":   a", ": ", ":     b" }, out)
+    _, _, out = run({ "* H", "  ", "", "  a" }, { 1, 0 }, visual(E.toggle_fixed_width))
+    eq({ ": * H", ":  ", ":", ":   a" }, out)
+  end)
+
+  it("pads a short blank line to the common indentation, keeps a long one's spaces", function()
+    local _, _, out = run({ "* H", "  a", " ", "      ", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
+    eq({ "* H", "  : a", "  : ", "  :     ", "  :   b" }, out)
+  end)
 end)
