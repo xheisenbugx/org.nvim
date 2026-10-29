@@ -8,7 +8,7 @@
 # (CONTRIBUTING.md, "Coverage floors").
 lua/org/api                          94
 lua/org/parser.lua                   95
-lua/org/element.lua                  77
+lua/org/element.lua                  97
 lua/org/files.lua                    94
 lua/org/date.lua                     92
 lua/org/timestamps.lua               92
@@ -29,7 +29,7 @@ lua/org/mobile.lua                   89
 lua/org/mobile                       87
 lua/org/capture.lua                  99
 lua/org/capture                      87
-lua/org/babel                        82
+lua/org/babel                        86
 lua/org/extensions                   82
 lua/org/table.lua                    94
 lua/org/table                        84

@@ -465,10 +465,14 @@ function M.set_property(bufnr, lnum, name, value)
 end
 
 --- Ensure a drawer named `name` exists after the meta lines; returns its
---- (start, end) line numbers.
+--- (start, end) line numbers. `lnum` is on or under a headline.
+---@param bufnr integer
+---@param lnum integer
+---@param name string
+---@return integer start, integer end
 function M.ensure_drawer(bufnr, lnum, name)
   local file = files.get_buffer(bufnr)
-  local hl = file:headline_at(lnum)
+  local hl = assert(file:headline_at(lnum), "ensure_drawer: not under a headline")
   for _, d in ipairs(hl.drawers) do
     if d.name:upper() == name:upper() then
       return d.start, d["end"]
@@ -486,6 +490,7 @@ end
 ---@param hl? org.Headline
 ---@return string|nil
 function M.log_drawer_name(hl)
+  ---@type string|boolean|nil
   local d = require("org.config").opts.log_into_drawer
   if hl then
     local startup = hl.file.settings.startup

@@ -233,8 +233,9 @@ usually the annotation, instead of silencing it.
 The files and directories listed in `scripts/typecheck_strict.txt`
 (`lua/org/api/`, the parser and the core modules around it, structure,
 lists, clock, agenda, table, babel, capture, links, columns, mobile,
-export, pickers, health, folding, the UI, config migration, file reload
-and every extension) are held to those hint checks too: in them, a `need-check-nil` or a `param-type-mismatch` fails
+export, pickers, health, folding, the UI, config migration, file reload,
+properties, priorities, footnotes, attachments, citations, the editing
+helpers and every extension) are held to those hint checks too: in them, a `need-check-nil` or a `param-type-mismatch` fails
 `make typecheck` like any other warning, so code that is already clean
 can't slip back. `make typecheck` runs `scripts/typecheck.lua`, which does
 one lua-language-server pass over the whole repository with the hint

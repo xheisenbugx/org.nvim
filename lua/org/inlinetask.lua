@@ -30,11 +30,6 @@ function M.min_level(bufnr)
   return parser.inlinetask_min_level(bufnr)
 end
 
---- The number of stars of a new inline task (org-inlinetask-insert-task).
-local function stars_count()
-  return M.min_level()
-end
-
 --- The inline task containing `lnum`, or nil.
 function M.task_at(bufnr, lnum)
   if not M.min_level(bufnr) then
@@ -50,7 +45,9 @@ end
 --- cursor, or around the Visual selection, with `inlinetask_default_state`
 --- unless a count is given.
 function M.insert()
-  if not M.min_level() then
+  -- the number of stars of a new inline task (org-inlinetask-insert-task)
+  local stars_count = M.min_level()
+  if not stars_count then
     utils.warn("Inline tasks are off: set inlinetask_min_level (Emacs: 15)")
     return
   end
@@ -68,10 +65,10 @@ function M.insert()
     utils.warn("Cannot nest inline tasks")
     return
   end
-  local stars = string.rep("*", stars_count()) .. " "
+  local stars = string.rep("*", stars_count) .. " "
   local state = (not no_state) and require("org.config").opts.inlinetask_default_state or nil
   local head = stars .. (state and (state .. " ") or "")
-  if s then
+  if s and e then
     vim.api.nvim_buf_set_lines(bufnr, e, e, false, { stars .. "END" })
     vim.api.nvim_buf_set_lines(bufnr, s - 1, s - 1, false, { head })
     vim.api.nvim_win_set_cursor(0, { s, #head })

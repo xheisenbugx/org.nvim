@@ -97,6 +97,53 @@ M.is_affiliated = affiliated
 
 local parse
 
+--- Kinds of element whose first line ends a paragraph only when the
+--- element is closed further down (org-element-paragraph-parser).
+local OPENERS = { block = true, drawer = true, ["latex-environment"] = true }
+
+--- Whether the drawer, `#+BEGIN_x` block or LaTeX environment opened on
+--- line k has its closing line in [k + 1, e]. A `#+BEGIN:` line (a
+--- dynamic block) always ends a paragraph, like any keyword.
+---@param lines string[]
+---@param k integer
+---@param e integer
+---@param kind string
+---@return boolean
+local function closed(lines, k, e, kind)
+  local line = lines[k]
+  local close
+  if kind == "drawer" then
+    close = "^%s*:[Ee][Nn][Dd]:%s*$"
+  elseif kind == "block" then
+    local name = line:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+    if not name then
+      return true
+    end
+    close = "^%s*#%+end_" .. vim.pesc(name:lower()) .. "%s*$"
+  else
+    -- org-element--latex-begin-environment / -end-environment: a name of
+    -- letters, digits and `*`, and `\end{name}` ending its line
+    local env = line:match("^%s*\\begin{([%w*]+)}")
+    if not env then
+      return false
+    end
+    close = "\\end{" .. vim.pesc(env) .. "}%s*$"
+    for j = k, e do
+      if lines[j]:match(close) then
+        return true
+      end
+    end
+    return false
+  end
+  for j = k + 1, e do
+    local l = kind == "block" and lines[j]:lower() or lines[j]
+    if l:match(close) then
+      return true
+    end
+  end
+  return false
+end
+
 --- Parse the lines [s, e] into a list of elements with `parent`.
 ---@param lines string[]
 ---@return org.Element[]
@@ -302,7 +349,11 @@ parse = function(lines, s, e, parent, first_is_item_text)
       while k + 1 <= e do
         local l = lines[k + 1]
         local rule = require("org.table.el").is_rule(l)
-        if is_blank(l) or parser.headline_level(l) or starts(l) or affiliated(l) or rule then
+        if is_blank(l) or parser.headline_level(l) or affiliated(l) or rule then
+          break
+        end
+        local kind1 = starts(l)
+        if kind1 and not (OPENERS[kind1] and not closed(lines, k + 1, e, kind1)) then
           break
         end
         k = k + 1
@@ -429,18 +480,19 @@ function M.forward()
   end
   local el = M.at(bufnr, lnum)
   if not el then
-    -- blank lines at the start of a section: to the next element
-    local els = M.section(bufnr, lnum)
-    for _, e in ipairs(els) do
-      if e.first > lnum then
-        return goto_line(e.first)
-      end
-    end
     if lnum >= nlines then
       utils.warn("Cannot move further down")
       return
     end
-    return goto_line(math.min(nlines, select(3, M.section(bufnr, lnum)) + 1))
+    -- blank lines at the start of a section: org-element-at-point gives
+    -- the headline, so past its subtree (no error at the end of the
+    -- buffer); at the start of the buffer, no element
+    local _, _, _, sec_hl = M.section(bufnr, lnum)
+    if not sec_hl then
+      utils.warn("No element at point")
+      return
+    end
+    return goto_line(math.min(nlines, sec_hl.end_line + 1))
   end
   if lnum >= nlines then
     utils.warn("Cannot move further down")
@@ -783,14 +835,12 @@ function M.narrow_to_element()
   return narrow(bufnr, el.first, el.last, el.type)
 end
 
---- org-narrow-to-block (C-x n b).
+--- org-narrow-to-block (C-x n b): only the element at the cursor counts,
+--- so a paragraph inside a quote block is "Not in a block".
 function M.narrow_to_block()
   local bufnr = vim.api.nvim_get_current_buf()
   local el = M.at(bufnr, cursor()[1])
-  while el and not el.type:match("block") do
-    el = el.parent
-  end
-  if not el then
+  if not (el and el.type:match("block")) then
     utils.warn("Not in a block")
     return
   end
@@ -896,15 +946,24 @@ function M.toggle_fixed_width()
       if min_ind == math.huge then
         min_ind = 0
       end
+      -- like org-toggle-fixed-width: ": " at the common indentation (a
+      -- shorter blank line padded to it), but a bare ":" at the start of
+      -- the blank lines right after a headline
+      local after_headline = false
       for i, l in ipairs(lines) do
-        if l:match("^%s*:%s") or l:match("^%s*:$") then
-          out[i] = l
-        elseif parser.headline_level(l) then
+        if parser.headline_level(l) then
           out[i] = ": " .. l
-        elseif is_blank(l) then
-          out[i] = string.rep(" ", min_ind) .. ":"
+          after_headline = true
+        elseif after_headline and is_blank(l) then
+          out[i] = ":" .. l
         else
-          out[i] = string.rep(" ", min_ind) .. ": " .. l:sub(min_ind + 1)
+          after_headline = false
+          if l:match("^%s*:%s") or l:match("^%s*:$") then
+            out[i] = l
+          else
+            local pre = l:sub(1, min_ind)
+            out[i] = pre .. string.rep(" ", min_ind - #pre) .. ": " .. l:sub(min_ind + 1)
+          end
         end
       end
     end

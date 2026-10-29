@@ -316,6 +316,7 @@ end
 ---@return boolean
 function M.handle_file(path, action, sep)
   sep = sep or " "
+  ---@type string|nil
   local method = cfg().dnd_method or "ask"
   if method == "ask" then
     method = choose("What to do with file?", {
@@ -491,6 +492,8 @@ function M.setup_paste()
   end
   M._paste_wrapped = true
   local orig = vim.paste
+  -- wrapping the runtime's vim.paste is the point, not a mistake
+  ---@diagnostic disable-next-line: duplicate-set-field
   vim.paste = function(lines, phase)
     if phase == -1 and vim.bo.filetype == "org" and cfg().dnd_paste ~= false then
       local paths = M.parse_dropped(table.concat(lines, "\n"))

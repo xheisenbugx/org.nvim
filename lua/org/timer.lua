@@ -219,9 +219,13 @@ end
 local function arm_countdown()
   stop_countdown_timer()
   local st = M.state
+  if not st then
+    return
+  end
   local remaining = M.value()
-  countdown_timer = vim.uv.new_timer()
-  countdown_timer:start(math.floor(remaining * 1000), 0, function()
+  local timer = assert(vim.uv.new_timer())
+  countdown_timer = timer
+  timer:start(math.floor(remaining * 1000), 0, function()
     vim.schedule(function()
       if M.state ~= st then
         return

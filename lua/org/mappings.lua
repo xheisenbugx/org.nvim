@@ -42,7 +42,7 @@ local function fallback(lhs, mode)
         end
         return
       elseif map.rhs and map.rhs ~= "" then
-        local rhs = map.rhs
+        local rhs = map.rhs ---@type string checked just above
         if map.expr == 1 then
           rhs = vim.api.nvim_eval(rhs)
         end
@@ -104,7 +104,7 @@ local function set_repeat(name, lhs, count)
   local win = vim.api.nvim_get_current_win()
   local cursor = vim.api.nvim_win_get_cursor(win)
   skip_next = true
-  pcall(vim.cmd, "normal! " .. (count > 0 and count or "") .. "g@l")
+  pcall(vim.api.nvim_command, "normal! " .. (count > 0 and count or "") .. "g@l")
   skip_next = false
   pcall(vim.api.nvim_win_set_cursor, win, cursor)
 end

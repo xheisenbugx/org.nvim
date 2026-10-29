@@ -75,7 +75,7 @@ function M.on_move()
     return
   end
   local s, e = M.key_at(bufnr, pos.line, pos.column - 1)
-  if not s then
+  if not (s and e) then
     clear()
     return
   end
