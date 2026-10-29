@@ -573,6 +573,14 @@ describe("org-narrow-to-element / org-narrow-to-block", function()
     eq(nil, out)
     eq({ "Not in a block" }, msgs)
   end)
+
+  it("doesn't narrow from a paragraph inside a greater block", function()
+    -- org-narrow-to-block only looks at org-element-at-point, here the
+    -- quote block's paragraph, not at the elements around it
+    local out, msgs = narrowed({ "* H", "#+begin_quote", "para", "#+end_quote" }, { 3, 0 }, E.narrow_to_block)
+    eq(nil, out)
+    eq({ "Not in a block" }, msgs)
+  end)
 end)
 
 describe("org-next-block / org-previous-block", function()

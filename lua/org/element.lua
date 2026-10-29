@@ -783,14 +783,12 @@ function M.narrow_to_element()
   return narrow(bufnr, el.first, el.last, el.type)
 end
 
---- org-narrow-to-block (C-x n b).
+--- org-narrow-to-block (C-x n b): only the element at the cursor counts,
+--- so a paragraph inside a quote block is "Not in a block".
 function M.narrow_to_block()
   local bufnr = vim.api.nvim_get_current_buf()
   local el = M.at(bufnr, cursor()[1])
-  while el and not el.type:match("block") do
-    el = el.parent
-  end
-  if not el then
+  if not (el and el.type:match("block")) then
     utils.warn("Not in a block")
     return
   end
