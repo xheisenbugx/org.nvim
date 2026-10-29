@@ -125,6 +125,29 @@ describe("fuzz regressions", function()
     eq(15, file.headlines[1]:clocked_minutes())
   end)
 
+  it("reads no clock from a CLOCK line inside a verse block", function()
+    -- a verse block holds objects only (org-element-verse-block-parser), so
+    -- org-element-at-point there is no clock and org-clock-sum skips it; a
+    -- quote block holds elements, its CLOCK line is a clock
+    local file = require("org.parser").parse({
+      "* H",
+      "#+begin_verse",
+      "CLOCK: [2029-03-06 Wed 07:00]--[2029-03-06 Wed 20:30] => 13:30",
+      "<2029-03-07 Thu>",
+      "#+END_VERSE",
+      "#+begin_quote",
+      "CLOCK: [2024-01-01 Mon 12:00]--[2024-01-01 Mon 12:15] =>  0:15",
+      "#+end_quote",
+    })
+    local h = file.headlines[1]
+    eq(1, #h.clocks)
+    eq(7, h.clocks[1].line)
+    eq(15, h:clocked_minutes())
+    -- the verse block's timestamps are objects all the same
+    eq(1, #h.timestamps)
+    eq(4, h.timestamps[1].line)
+  end)
+
   it("reads a lower-case [x] as an unchecked box", function()
     -- Emacs Org 9.8.10: org-list reads "[x]" as a box, counts it as
     -- unchecked ([0/2]) and C-c C-c checks it ("[X]")
