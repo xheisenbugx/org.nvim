@@ -664,11 +664,21 @@ describe("org-toggle-fixed-width", function()
     eq({ "a", "", "b", "" }, out)
   end)
 
-  it(
-    "marks the blank lines in a region at the common indentation",
-    known("org.nvim writes no space after the colon of a blank line", function()
-      local _, _, out = run({ "* H", "  a", "", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
-      eq({ "* H", "  : a", "  : ", "  :   b" }, out)
-    end)
-  )
+  -- Emacs 31.1 with Org 9.8.10, org-toggle-fixed-width over the region
+  it("marks the blank lines in a region at the common indentation", function()
+    local _, _, out = run({ "* H", "  a", "", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
+    eq({ "* H", "  : a", "  : ", "  :   b" }, out)
+  end)
+
+  it("marks the blank lines right after a headline with a bare colon", function()
+    local _, _, out = run({ "* H", "", "  a", "", "    b" }, { 1, 0 }, visual(E.toggle_fixed_width))
+    eq({ ": * H", ":", ":   a", ": ", ":     b" }, out)
+    _, _, out = run({ "* H", "  ", "", "  a" }, { 1, 0 }, visual(E.toggle_fixed_width))
+    eq({ ": * H", ":  ", ":", ":   a" }, out)
+  end)
+
+  it("pads a short blank line to the common indentation, keeps a long one's spaces", function()
+    local _, _, out = run({ "* H", "  a", " ", "      ", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
+    eq({ "* H", "  : a", "  : ", "  :     ", "  :   b" }, out)
+  end)
 end)

@@ -944,15 +944,24 @@ function M.toggle_fixed_width()
       if min_ind == math.huge then
         min_ind = 0
       end
+      -- like org-toggle-fixed-width: ": " at the common indentation (a
+      -- shorter blank line padded to it), but a bare ":" at the start of
+      -- the blank lines right after a headline
+      local after_headline = false
       for i, l in ipairs(lines) do
-        if l:match("^%s*:%s") or l:match("^%s*:$") then
-          out[i] = l
-        elseif parser.headline_level(l) then
+        if parser.headline_level(l) then
           out[i] = ": " .. l
-        elseif is_blank(l) then
-          out[i] = string.rep(" ", min_ind) .. ":"
+          after_headline = true
+        elseif after_headline and is_blank(l) then
+          out[i] = ":" .. l
         else
-          out[i] = string.rep(" ", min_ind) .. ": " .. l:sub(min_ind + 1)
+          after_headline = false
+          if l:match("^%s*:%s") or l:match("^%s*:$") then
+            out[i] = l
+          else
+            local pre = l:sub(1, min_ind)
+            out[i] = pre .. string.rep(" ", min_ind - #pre) .. ": " .. l:sub(min_ind + 1)
+          end
         end
       end
     end
