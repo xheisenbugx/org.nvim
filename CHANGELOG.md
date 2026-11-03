@@ -8,6 +8,13 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.2] - 2026-11-03
+
+### Fixes
+
+- **images:** Place side-by-side images right on Neovim with conceal-aware 'wrap' ([#322](https://github.com/xheisenbugx/org.nvim/pull/322))
+- **archive:** Ask to create a missing archive directory instead of failing with E212 ([#321](https://github.com/xheisenbugx/org.nvim/pull/321))
+
 ## [v3.2.1] - 2026-10-29
 
 ### Fixes
@@ -597,6 +604,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.1...v3.2.2
 [v3.2.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.0...v3.2.1
 [v3.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.1.0...v3.2.0
 [v3.1.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.0.0...v3.1.0

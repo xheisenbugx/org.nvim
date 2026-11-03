@@ -209,6 +209,54 @@ describe("archive_subtree (Emacs parity)", function()
     eq(with_header({ "* CANCELLED A" }), a)
     vim.fn.delete(dir, "rf")
   end)
+
+  -- org-archive-subtree opens the archive with find-file-noselect and
+  -- saves it with save-buffer; basic-save-buffer (files.el) asks
+  -- "Directory `DIR' does not exist; create? " and runs
+  -- (make-directory dir t) on y, (error "Canceled") on n.
+  describe("into a directory that doesn't exist", function()
+    local real_confirm
+    before_each(function()
+      real_confirm = utils.confirm
+    end)
+    after_each(function()
+      utils.confirm = real_confirm
+    end)
+
+    local function archive_into_missing(answer)
+      local dir = tmpdir()
+      setup(dir, { archive_location = ".archive/%s::" })
+      local p = dir .. "/f.org"
+      utils.writefile(p, { "* Keep", "* Old task", "body" })
+      vim.cmd("edit! " .. p)
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+      local asked
+      utils.confirm = function(msg)
+        asked = msg
+        return answer
+      end
+      archive.archive_subtree()
+      return dir, asked
+    end
+
+    it("asks to create it, then creates it and saves the archive", function()
+      local dir, asked = archive_into_missing(true)
+      local adir = vim.fs.normalize(dir .. "/.archive")
+      ok(asked and asked:match("^Directory `.*/%.archive/' does not exist; create%? $"), asked)
+      eq(1, vim.fn.isdirectory(adir))
+      eq({ "* Old task", "body" }, vim.list_slice(utils.readfile(adir .. "/f.org"), 5))
+      eq({ "* Keep" }, buf_lines())
+      vim.fn.delete(dir, "rf")
+    end)
+
+    it("keeps the subtree and creates nothing when the answer is no", function()
+      local dir, asked = archive_into_missing(false)
+      ok(asked)
+      eq(0, vim.fn.isdirectory(dir .. "/.archive"))
+      eq({ "* Keep", "* Old task", "body" }, buf_lines())
+      vim.fn.delete(dir, "rf")
+    end)
+  end)
 end)
 
 describe("archive", function()

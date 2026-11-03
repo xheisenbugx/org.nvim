@@ -3733,7 +3733,10 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
                 (Emacs org-archive-subtree has no such guard and loses
                 the subtree; this follows org-refile's check).
                 Archive and hidden-target refile save failures keep the
-                source text in place and report the write error.
+                source text in place and report the write error. An
+                archive or refile file in a directory that doesn't exist
+                asks to create the directory first, as saving does in
+                Emacs; no keeps the source text ("Canceled").
                 User autocmds `OrgArchive` (source buffer, before the
                 subtree is removed; org-archive-hook) and
                 `OrgArchiveFinalize` (archive buffer;
