@@ -102,10 +102,17 @@ end
 -- concealed_before() results: key -> columns
 local hidden_cache, hidden_count = {}, 0
 
+-- Neovim with conceal-aware 'wrap' (0.13, neovim#42370) lays out a line it
+-- wraps at its extmark-concealed width: screenpos() leaves out the text
+-- images drawn in place hide (a real extmark), but still counts
+-- `:syn-conceal` and ephemeral conceal like the parser highlighter's. The
+-- API that came with it tells it apart from the Neovims before.
+local reflows_conceal = (vim.api --[[@as table]])["nvim__buf_set_conceal_provider"] ~= nil
+
 --- Screen columns hidden before byte `col` of line `lnum` in `win`, which
 --- screenpos() still counts: text concealed by the parser highlighter (the
 --- brackets and targets of links) or by syntax and the text of images
---- drawn in place (in `list`).
+--- drawn in place (in `list`), unless Neovim reflows the line.
 local function concealed_before(win, bufnr, lnum, col, list)
   local level = vim.wo[win].conceallevel
   if col == 0 or level < 2 then
@@ -127,7 +134,9 @@ local function concealed_before(win, bufnr, lnum, col, list)
     mode = (mode == "V" or mode == "\22") and "v" or mode
     syntax = vim.wo[win].concealcursor:find(mode, 1, true) ~= nil
   end
-  local parts = { win, bufnr, vim.b[bufnr].changedtick, lnum, col, level, tostring(syntax) }
+  -- (a line the cursor reveals is laid out with its text, as before)
+  local reflowed = reflows_conceal and syntax and vim.wo[win].wrap
+  local parts = { win, bufnr, vim.b[bufnr].changedtick, lnum, col, level, tostring(syntax), tostring(reflowed) }
   for _, r in ipairs(ranges) do
     parts[#parts + 1] = r[1] .. "-" .. r[2]
   end
@@ -148,7 +157,9 @@ local function concealed_before(win, bufnr, lnum, col, list)
         mine = mine or (i >= r[1] and i < r[2])
       end
       if mine then
-        hidden = hidden + w
+        if not reflowed then
+          hidden = hidden + w
+        end
         region = nil
       elseif syntax then
         local sc = vim.fn.synconcealed(lnum, i + 1)

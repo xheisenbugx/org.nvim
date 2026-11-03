@@ -663,6 +663,17 @@ describe("images in place of the link", function()
     eq({ y, 5 }, { l[1].row, l[1].col })
     -- "see " + 10 columns of image + " and "
     eq({ y, 20 }, { l[2].row, l[2].col })
+    -- Neovim 0.13 wraps lines at their extmark-concealed width, and
+    -- screenpos() leaves out the link text the first image hides; without
+    -- 'wrap' it counts it, as Neovim before did
+    vim.wo.wrap = false
+    local placed, err = pcall(function()
+      images.sync()
+      l = live()
+      eq({ { y, 5 }, { y, 20 } }, { { l[1].row, l[1].col }, { l[2].row, l[2].col } })
+    end)
+    vim.wo.wrap = true
+    assert(placed, err)
   end)
 
   it("fits an image in the columns left after the text before it", function()
