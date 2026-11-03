@@ -1098,9 +1098,26 @@ end
 --- org's background saves), but the `org.write_hooks` pre/post hooks run
 --- exactly as they do for `:w` (crypt's encrypt_on_save, transclusion,
 --- ...). A hook that vetoes makes this return false and its message.
+---
+--- A file whose directory doesn't exist asks to create it, as
+--- basic-save-buffer does in Emacs; no (and every prompt inside
+--- `M.noninteractive`) returns false and "Canceled".
 ---@return boolean ok, string? err
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    local name = vim.api.nvim_buf_get_name(bufnr)
+    local dir = vim.fn.fnamemodify(name, ":p:h")
+    -- (a URL like scp://host/f.org isn't a local directory to create)
+    if not name:match("^%a[%w+.-]+://") and not vim.uv.fs_stat(dir) then
+      if not M.confirm(("Directory `%s/' does not exist; create? "):format(vim.fs.normalize(dir))) then
+        return false, "Canceled"
+      end
+      local made, merr = pcall(M.mkdir_p, dir)
+      if not made then
+        merr = tostring(merr)
+        return false, merr:match("E%d+:[^\n]*") or merr:match("^[^\n]*")
+      end
+    end
     local hooks = require("org.write_hooks")
     local hok, herr, run = hooks.run_pre(bufnr, "save_buffer")
     if not hok then

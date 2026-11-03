@@ -253,6 +253,27 @@ describe("capture, archive and refile data preservation", function()
     eq({ "* Unsaved" }, buf_lines(target))
   end)
 
+  -- basic-save-buffer (files.el): "Directory `DIR' does not exist; create? ",
+  -- (make-directory dir t) on y, (error "Canceled") on n
+  it("asks before saving into a missing directory, and cancels without a yes", function()
+    local path = dir .. "/new/sub/file.org"
+    local buf = utils.load_buffer(path)
+    buffers[#buffers + 1] = buf
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "* New" })
+    -- prompts answer no inside org.api calls
+    local _, _, saved, err = utils.noninteractive(utils.save_buffer, buf)
+    eq({ false, "Canceled" }, { saved, err })
+    eq(0, vim.fn.isdirectory(dir .. "/new"))
+    local real_confirm = utils.confirm
+    utils.confirm = function()
+      return true
+    end
+    saved, err = utils.save_buffer(buf)
+    utils.confirm = real_confirm
+    eq({ true }, { saved, err })
+    eq({ "* New" }, utils.readfile(path))
+  end)
+
   it("does not finalize clock state or last-stored position before a capture is saved", function()
     local target, path = file("capture-clock-readonly", { "* Inbox" }, true)
     vim.bo[target].readonly = true
