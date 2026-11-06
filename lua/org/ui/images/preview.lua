@@ -260,7 +260,7 @@ local function add(bufnr, kind, spec, src, backend)
   -- in place of the text (org-link-preview's display property) when the
   -- backend can
   local inline = opts().placement ~= "below" and backend.inline == true
-  local pw, ph = M.png_size(file)
+  local pw, ph = M.image_size(file)
   local size = { pw = pw, ph = ph, width = spec.width, kind = kind }
   if inline then
     local line = vim.api.nvim_buf_get_lines(bufnr, spec.row - 1, spec.row, false)[1] or ""

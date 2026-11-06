@@ -166,23 +166,115 @@ end
 -- Image files
 ---------------------------------------------------------------------------
 
---- Pixel size of a PNG file, from its IHDR chunk.
+local function u16be(s, i)
+  local a, b = s:byte(i, i + 1)
+  return a * 256 + b
+end
+
+local function u16le(s, i)
+  local a, b = s:byte(i, i + 1)
+  return b * 256 + a
+end
+
+local function u24le(s, i)
+  local a, b, c = s:byte(i, i + 2)
+  return (c * 256 + b) * 256 + a
+end
+
+local function u32le(s, i)
+  return u16le(s, i + 2) * 65536 + u16le(s, i)
+end
+
+--- Pixel size of a JPEG from its first SOF segment: the markers before it
+--- (APPn, EXIF, tables) are skipped by their lengths.
+---@param f file*
 ---@return integer? width, integer? height
-function M.png_size(path)
+local function jpeg_size(f)
+  local pos = 2
+  while true do
+    f:seek("set", pos)
+    local seg = f:read(9)
+    if not seg or #seg < 4 or seg:byte(1) ~= 0xFF then
+      return nil
+    end
+    local marker = seg:byte(2)
+    if marker == 0xFF then
+      -- fill byte before the marker
+      pos = pos + 1
+    elseif marker == 0x01 or (marker >= 0xD0 and marker <= 0xD8) then
+      -- TEM, RSTn, SOI: no length
+      pos = pos + 2
+    elseif marker == 0xD9 or marker == 0xDA then
+      -- EOI, or SOS (the image data) before any SOF
+      return nil
+    elseif marker >= 0xC0 and marker <= 0xCF and marker ~= 0xC4 and marker ~= 0xC8 and marker ~= 0xCC then
+      if #seg < 9 then
+        return nil
+      end
+      return u16be(seg, 8), u16be(seg, 6)
+    else
+      pos = pos + 2 + u16be(seg, 3)
+    end
+  end
+end
+
+--- Pixel size of a PNG, JPEG, GIF, BMP or WebP file, from its header
+--- (Emacs shows an image at its own size whatever its format). nil for
+--- another format or a file that can't be read.
+---@param path string
+---@return integer? width, integer? height
+function M.image_size(path)
   local f = io.open(path, "rb")
   if not f then
     return nil
   end
-  local head = f:read(24)
+  local head = f:read(30) or ""
+  local w, h
+  if head:sub(1, 8) == "\137PNG\r\n\26\n" and #head >= 24 then
+    w, h = u16be(head, 17) * 65536 + u16be(head, 19), u16be(head, 21) * 65536 + u16be(head, 23)
+  elseif head:sub(1, 2) == "\255\216" then
+    w, h = jpeg_size(f)
+  elseif head:match("^GIF8[79]a") and #head >= 10 then
+    w, h = u16le(head, 7), u16le(head, 9)
+  elseif head:sub(1, 2) == "BM" and #head >= 26 then
+    if u32le(head, 15) == 12 then
+      w, h = u16le(head, 19), u16le(head, 21)
+    else
+      w, h = u32le(head, 19), u32le(head, 23)
+      -- a negative height: the rows are stored top-down
+      h = h >= 2147483648 and 4294967296 - h or h
+    end
+  elseif head:sub(1, 4) == "RIFF" and head:sub(9, 12) == "WEBP" then
+    local chunk = head:sub(13, 16)
+    if chunk == "VP8 " and #head >= 30 and head:sub(24, 26) == "\157\1\42" then
+      w, h = u16le(head, 27) % 16384, u16le(head, 29) % 16384
+    elseif chunk == "VP8L" and #head >= 25 and head:byte(21) == 0x2F then
+      local bits = u32le(head, 22)
+      w, h = bits % 16384 + 1, math.floor(bits / 16384) % 16384 + 1
+    elseif chunk == "VP8X" and #head >= 30 then
+      w, h = u24le(head, 25) + 1, u24le(head, 28) + 1
+    end
+  end
   f:close()
-  if not head or #head < 24 or head:sub(1, 8) ~= "\137PNG\r\n\26\n" then
+  if w and h and w > 0 and h > 0 then
+    return w, h
+  end
+  return nil
+end
+
+--- Pixel size of a PNG file, from its IHDR chunk.
+---@param path string
+---@return integer? width, integer? height
+function M.png_size(path)
+  local f = io.open(path, "rb")
+  local head = f and f:read(8)
+  if f then
+    f:close()
+  end
+  if head ~= "\137PNG\r\n\26\n" then
     return nil
   end
-  local function u32(i)
-    local a, b, c, d = head:byte(i, i + 3)
-    return ((a * 256 + b) * 256 + c) * 256 + d
-  end
-  return u32(17), u32(21)
+  return M.image_size(path)
 end
 
 local function executable(name)
