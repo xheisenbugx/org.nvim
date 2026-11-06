@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.3] - 2026-11-06
+
+### Fixes
+
+- **images:** Size JPEG, GIF, BMP and WebP previews from their pixels ([#325](https://github.com/xheisenbugx/org.nvim/pull/325))
+
 ## [v3.2.2] - 2026-11-03
 
 ### Fixes
@@ -604,6 +610,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.2...v3.2.3
 [v3.2.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.1...v3.2.2
 [v3.2.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.0...v3.2.1
 [v3.2.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.1.0...v3.2.0
