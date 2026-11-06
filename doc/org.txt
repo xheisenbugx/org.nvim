@@ -7157,6 +7157,10 @@ An ORG-IMAGE-ACTUAL-WIDTH property (inherited: t, nil, a number or (n))
 overrides it. `ui.images.max_width` (org-image-max-width) caps the width:
 "fill-column" ('textwidth', else 70 columns), "window", a number of pixels
 or a fraction of the window. `ui.images.max_height` caps the rows.
+The own size is read from the file: PNG, JPEG, GIF, BMP and WebP with
+every backend, other formats (SVG, TIFF, ...) only with the native one,
+which draws a PNG copy; snacks and image.nvim get those in a box as wide
+as the cap and 10 rows high, and fit the image into it.
 
 Alignment (org-image-align): an image link alone in its paragraph is
 drawn at `ui.images.align` ("left", "center" or "right"), or as its

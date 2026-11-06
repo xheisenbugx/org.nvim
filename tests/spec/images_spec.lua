@@ -18,6 +18,34 @@ local function png(name, w, h)
   return path
 end
 
+--- A file `name` holding `bytes` (a header is all the size readers need).
+local function raw(name, bytes)
+  local path = dir .. "/" .. name
+  local f = assert(io.open(path, "wb"))
+  f:write(bytes)
+  f:close()
+  return path
+end
+
+local function u16be(n)
+  return string.char(math.floor(n / 256) % 256, n % 256)
+end
+
+local function u16le(n)
+  return string.char(n % 256, math.floor(n / 256) % 256)
+end
+
+local function u32le(n)
+  return u16le(n % 65536) .. u16le(math.floor(n / 65536))
+end
+
+--- A baseline JPEG of `w` x `h` pixels: SOI, a JFIF APP0 segment, SOF0.
+local function jpeg(name, w, h)
+  local app0 = "\255\224" .. u16be(16) .. "JFIF\0\1\1\1\0\72\0\72\0\0"
+  local sof = "\255\192" .. u16be(17) .. "\8" .. u16be(h) .. u16be(w) .. "\3" .. string.rep("\0", 9)
+  return raw(name, "\255\216" .. app0 .. sof .. "\255\217")
+end
+
 local function file_buffer(name, lines)
   local path = dir .. "/" .. name
   vim.fn.writefile(lines, path)
@@ -85,6 +113,46 @@ describe("image previews", function()
   it("reads the size of a PNG", function()
     eq({ 400, 200 }, { images.png_size(dir .. "/cat.png") })
     eq({}, { images.png_size(dir .. "/missing.png") })
+  end)
+
+  it("reads the size of JPEG, GIF, BMP and WebP files", function()
+    eq({ 1803, 1035 }, { images.image_size(jpeg("page.jpg", 1803, 1035)) })
+    -- a progressive JPEG (SOF2) after an EXIF segment
+    local exif = "\255\225" .. u16be(8) .. "Exif\0\0"
+    local sof2 = "\255\194" .. u16be(17) .. "\8" .. u16be(30) .. u16be(40) .. "\3" .. string.rep("\0", 9)
+    eq({ 40, 30 }, { images.image_size(raw("prog.jpeg", "\255\216" .. exif .. sof2)) })
+    eq({ 320, 240 }, { images.image_size(raw("a.gif", "GIF89a" .. u16le(320) .. u16le(240) .. "\0\0\0")) })
+    local bmp = "BM" .. string.rep("\0", 12) .. u32le(40) .. u32le(64) .. u32le(0xFFFFFFFF - 31)
+    -- a negative height: the rows are stored top-down
+    eq({ 64, 32 }, { images.image_size(raw("a.bmp", bmp)) })
+    local function webp(chunk, body)
+      return raw("a.webp", "RIFF" .. u32le(30) .. "WEBP" .. chunk .. u32le(#body) .. body)
+    end
+    eq({ 200, 100 }, { images.image_size(webp("VP8 ", "\0\0\0\157\1\42" .. u16le(200) .. u16le(100))) })
+    local w, h = 199, 99
+    local bits = w + h * 16384
+    eq({ 200, 100 }, { images.image_size(webp("VP8L", "\47" .. u32le(bits))) })
+    eq({ 200, 100 }, { images.image_size(webp("VP8X", "\0\0\0\0" .. u16le(199) .. "\0" .. u16le(99) .. "\0")) })
+    eq({ 400, 200 }, { images.image_size(dir .. "/cat.png") })
+    eq({}, { images.image_size(raw("bad.jpg", "\255\216\255")) })
+    eq({}, { images.image_size(raw("a.svg", "<svg/>")) })
+  end)
+
+  it("sizes a JPEG like a PNG of the same pixels", function()
+    -- snacks and image.nvim draw the file itself, without a PNG copy
+    local sizes = {}
+    images._backend = {
+      name = "snacks",
+      show = function(_, p)
+        sizes[#sizes + 1] = { p.width, p.height }
+      end,
+      hide = function() end,
+    }
+    png("wide.png", 400, 200)
+    jpeg("wide.jpg", 400, 200)
+    local buf = file_buffer("both.org", { "[[file:wide.png]]", "", "[[file:wide.jpg]]" })
+    images.show_links(buf, 1, 3)
+    eq({ { 40, 10 }, { 40, 10 } }, sizes)
   end)
 
   it("fits an image into the cells it may use, keeping its shape", function()
