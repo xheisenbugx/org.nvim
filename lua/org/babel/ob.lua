@@ -118,6 +118,21 @@ function M.sh(s)
   return vim.fn.shellescape(s)
 end
 
+--- The argv that runs the shell command line `cmd`: `sh -c` where `sh`
+--- is on $PATH (Emacs's `shell-file-name` on POSIX, Git's sh on Windows),
+--- else 'shell' with 'shellcmdflag' (cmd.exe /s /c, PowerShell -Command).
+---@param cmd string
+---@return string[]
+function M.shell_argv(cmd)
+  if vim.fn.executable("sh") == 1 then
+    return { "sh", "-c", cmd }
+  end
+  local argv = { vim.o.shell }
+  vim.list_extend(argv, vim.split(vim.o.shellcmdflag, "%s+", { trimempty = true }))
+  argv[#argv + 1] = cmd
+  return argv
+end
+
 --- `org-trim`.
 function M.trim(s)
   return (s:gsub("^[ \t\n\r]+", ""):gsub("[ \t\n\r]+$", ""))

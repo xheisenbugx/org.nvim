@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.4] - 2026-11-07
+
+### Fixes
+
+- **babel:** Run shell commands without sh on Windows ([#330](https://github.com/xheisenbugx/org.nvim/pull/330))
+
 ## [v3.2.3] - 2026-11-06
 
 ### Fixes
@@ -610,6 +616,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.3...v3.2.4
 [v3.2.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.2...v3.2.3
 [v3.2.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.1...v3.2.2
 [v3.2.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.0...v3.2.1

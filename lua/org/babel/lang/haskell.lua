@@ -382,7 +382,7 @@ function M.export_to_lhs(arg)
   local texfile = base .. ".tex"
   local cmd = string.format("%s %s > %s", (ob.opts("haskell") or {}).lhs2tex or "lhs2tex", ob.sh(lhs), ob.sh(texfile))
   require("org.utils").notify("running " .. cmd)
-  vim.system({ "sh", "-c", cmd }):wait()
+  vim.system(ob.shell_argv(cmd)):wait()
   open_file(texfile)
   return texfile
 end
