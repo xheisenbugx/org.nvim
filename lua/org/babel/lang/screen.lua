@@ -15,7 +15,7 @@ end
 --- `org-babel-screen-session-socketname`: the socket of `session` from
 --- `screen -ls`, or nil.
 function M.socketname(session)
-  local res = vim.system({ "sh", "-c", screen() .. " -ls" }, { text = true }):wait()
+  local res = vim.system(ob.shell_argv(screen() .. " -ls"), { text = true }):wait()
   for _, l in ipairs(vim.split(res.stdout or "", "\n", { plain = true })) do
     if (l:find("(Attached)", 1, true) or l:find("(Detached)", 1, true)) and l:find(session, 1, true) then
       return vim.split(vim.trim(l), "%s+")[1]

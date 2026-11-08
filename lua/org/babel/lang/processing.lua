@@ -109,7 +109,7 @@ function M.view_sketch()
     ob.sh(dir),
     ob.sh(dir .. "/output")
   )
-  vim.system({ "sh", "-c", cmd }, { text = true }, function(res)
+  vim.system(ob.shell_argv(cmd), { text = true }, function(res)
     if res.code ~= 0 then
       vim.schedule(function()
         babel.error_notify(res.code, (res.stdout or "") .. (res.stderr or ""))
