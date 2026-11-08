@@ -76,7 +76,8 @@ describe("babel without sh", function()
 
   local function script_text(lang, header)
     local dir = vim.fn.tempname()
-    vim.fn.mkdir(dir, "p")
+    -- `Users` too: on Windows the backslashes below are separators
+    vim.fn.mkdir(dir .. "/Users", "p")
     local n = 0
     -- a temporary file name with a backslash, as tempname() gives on Windows
     vim.fn.tempname = function()
