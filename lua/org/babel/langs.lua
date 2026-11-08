@@ -1013,7 +1013,7 @@ end
 
 --- Build how to run a block with an external program. Returns a spec:
 --- `{ steps = { { cmd = argv|string, stdin?, script?, env? } }, result_file? }`.
---- A string `cmd` runs through `sh -c`.
+--- A string `cmd` runs through `sh -c` (else 'shell', see `ob.shell_argv`).
 ---@param ctx { cmd: string[], ext: string, graphics_file?: string, colnames?: table }
 function M.prepare(lang, body, args, vars, ctx)
   local fam = M.family(lang)
@@ -1027,6 +1027,12 @@ function M.prepare(lang, body, args, vars, ctx)
     return tmp
   end
   local cmdline = args.cmdline and vim.split(unq(args.cmdline), "%s+", { trimempty = true }) or {}
+  -- a file name inside a script's quoted string: forward slashes, as
+  -- Emacs writes them on Windows too (a `\U` of C:\Users is an escape in
+  -- Python and Lua strings)
+  local function code_path(p)
+    return (p:gsub("\\", "/"))
+  end
   if fam == "python" then
     local full = M.expand_generic(body, args, M.var_lines(lang, vars, args))
     if value and args["return"] then
@@ -1041,12 +1047,12 @@ function M.prepare(lang, body, args, vars, ctx)
         .. "\ndef main():\n"
         .. python_shift(full)
         .. "\n\n__org_babel_python_format_value(main(), '"
-        .. spec.result_file
+        .. code_path(spec.result_file)
         .. "', "
         .. py_params(args)
         .. ")"
     elseif ctx.graphics_file then
-      code = preamble .. fmt(PY_GRAPHICS, full, ctx.graphics_file)
+      code = preamble .. fmt(PY_GRAPHICS, full, code_path(ctx.graphics_file))
     else
       code = preamble .. full
     end
@@ -1066,7 +1072,7 @@ function M.prepare(lang, body, args, vars, ctx)
     local code = full
     if value then
       spec.result_file = vim.fn.tempname()
-      code = fmt(rp.pp and RUBY_PP_WRAPPER or RUBY_WRAPPER, full, spec.result_file)
+      code = fmt(rp.pp and RUBY_PP_WRAPPER or RUBY_WRAPPER, full, code_path(spec.result_file))
     end
     local cmd = vim.deepcopy(ctx.cmd)
     cmd[#cmd + 1] = script(code)
@@ -1092,7 +1098,7 @@ function M.prepare(lang, body, args, vars, ctx)
           table.concat(lines, "\n"),
           rp.pp and "true" or "false",
           lang_opt("lua", "multiple_values_separator", ", "),
-          spec.result_file
+          code_path(spec.result_file)
         )
     else
       code = preamble .. full

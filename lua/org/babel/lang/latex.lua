@@ -190,7 +190,7 @@ function M.compile_file(source, process, ext, err_msg, cwd, extra)
   })
   local log = {}
   for _, c in ipairs(process) do
-    local res = vim.system({ "sh", "-c", substitute(c, spec) }, { cwd = cwd, text = true }):wait()
+    local res = vim.system(ob.shell_argv(substitute(c, spec)), { cwd = cwd, text = true }):wait()
     log[#log + 1] = (res.stdout or "") .. (res.stderr or "")
   end
   if vim.fn.filereadable(output) == 0 or vim.fn.getftime(output) < before then
@@ -339,7 +339,7 @@ function M.make_file(body, args, out_file, bufnr, cwd)
     )
     os.remove(out_file)
     local dir = vim.fn.fnamemodify(tex_file, ":h")
-    vim.system({ "sh", "-c", (o.htlatex or "htlatex") .. " " .. tex_file }, { cwd = dir }):wait()
+    vim.system(ob.shell_argv((o.htlatex or "htlatex") .. " " .. tex_file), { cwd = dir }):wait()
     local base = tex_file:gsub("%.tex$", "")
     if vim.fn.filereadable(base .. "-1.svg") == 1 then
       if not out_file:match("%.svg$") then
@@ -369,7 +369,7 @@ function M.make_file(body, args, out_file, bufnr, cwd)
         .. (ob.unq(args.imoutoptions) or "")
         .. " "
         .. (ob.unq(args.file) or out_file)
-      vim.system({ "sh", "-c", cmd }, { cwd = cwd }):wait()
+      vim.system(ob.shell_argv(cmd), { cwd = cwd }):wait()
       os.remove(pdf)
     end
   else

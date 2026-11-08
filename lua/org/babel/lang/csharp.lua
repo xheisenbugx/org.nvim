@@ -29,7 +29,7 @@ end
 local function list_sdks()
   local o = ob.opts("csharp") or {}
   local ok, res = pcall(function()
-    return vim.system({ "sh", "-c", (o.compiler or "dotnet") .. " --list-sdks" }, { text = true }):wait()
+    return vim.system(ob.shell_argv((o.compiler or "dotnet") .. " --list-sdks"), { text = true }):wait()
   end)
   if not ok or not res.stdout then
     return {}
@@ -40,7 +40,7 @@ end
 --- The directory .NET is installed in, from the path of its SDKs.
 function M.dotnet_root()
   for _, l in ipairs(list_sdks()) do
-    local dir = l:match("%[(.*)/sdk%]%s*$")
+    local dir = l:match("%[(.*)[/\\]sdk%]%s*$")
     if dir then
       return dir
     end
@@ -204,7 +204,10 @@ end
 function M.prepare(body, args, vars, ctx)
   local o = ctx.opts
   local full = M.expand(body, args, vars)
-  local base = vim.fn.fnamemodify(vim.fn.tempname(), ":h") .. "/obcs" .. string.format("%d", vim.uv.hrtime()):sub(-8)
+  -- forward slashes, like Emacs's file names on Windows
+  local base = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.tempname(), ":h"))
+    .. "/obcs"
+    .. string.format("%d", vim.uv.hrtime()):sub(-8)
   local name = vim.fn.fnamemodify(base, ":t")
   local bin = base .. "/bin"
   local framework = ob.unq(args.framework) or M.default_framework()

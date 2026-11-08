@@ -375,7 +375,7 @@ local function run_steps(spec, cwd, sync, cb, job)
   end
   local function argv(step)
     if type(step.cmd) == "string" then
-      return { vim.o.shell ~= "" and vim.fn.exepath("sh") ~= "" and "sh" or vim.o.shell, "-c", step.cmd }
+      return require("org.babel.ob").shell_argv(step.cmd)
     end
     return step.cmd
   end
