@@ -11657,9 +11657,33 @@ when it is first synced.
 
 Servers ~
 Any server that speaks CalDAV (RFC 4791) and takes a password (basic or
-digest) or a bearer token. Google Calendar's CalDAV address takes OAuth
-tokens only, so it needs `token` set to a command that prints one; Google
-Tasks are not on CalDAV at all.
+digest) or a bearer token. Radicale and Google Calendar are the ones it
+was tried with.
+
+Google Calendar takes OAuth tokens only, so it needs `token` set to a
+command that prints one, such as Google's `oauth2l`:
+>lua
+    {
+      name = "Google",
+      url = "https://apidata.googleusercontent.com/caldav/v2/"
+        .. "you@gmail.com" .. "/events/",
+      token = {
+        "oauth2l", "fetch", "--type", "oauth", "--refresh",
+        "--credentials", vim.fn.expand("~/client_secret.json"),
+        "--scope", "https://www.googleapis.com/auth/calendar",
+      },
+      inbox = "~/org/google.org",
+    }
+<
+The address holds the calendar's ID: your address for the main calendar,
+else the "Calendar ID" under "Integrate calendar" in the calendar's
+settings. For the token, in the Google Cloud console: make a project,
+enable the "CalDAV API", make an OAuth client ID of type "Desktop app"
+(download it as `client_secret.json`) and add yourself under Audience >
+Test users, or the sign-in is refused with "access_denied". Run the
+`oauth2l` command once in a terminal to sign in; it keeps the token in
+`~/.oauth2l` and renews it. Google's CalDAV holds no tasks (leave `todos`
+off), and Google Tasks are not on CalDAV at all.
 
 Actions ~
   `caldav_sync`      sync every calendar now; `:Org caldav_sync NAME` syncs
