@@ -459,23 +459,6 @@ function M.remove_uninterpreted(data, info)
       end
     end
   end
-  -- merge adjacent plain text nodes (like buffer text)
-  element.map(data, "*", function(d)
-    for _, key in ipairs({ "contents", "title", "tag" }) do
-      local list = d[key]
-      if type(list) == "table" and d.type ~= "plain-text" then
-        local i = 1
-        while i < #list do
-          if list[i].type == "plain-text" and list[i + 1].type == "plain-text" then
-            list[i].value = list[i].value .. list[i + 1].value
-            table.remove(list, i + 1)
-          else
-            i = i + 1
-          end
-        end
-      end
-    end
-  end)
   return data
 end
 
