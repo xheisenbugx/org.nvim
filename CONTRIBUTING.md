@@ -30,7 +30,7 @@ make test                                 # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua # a single spec
 ORG_TEST_JOBS=1 make test                 # all specs in one Neovim, one after another
 ORG_TEST_PERF=0 make test                 # all specs but the timed ones (a quicker run)
-make lint                                 # stylua --check + source lint rules
+make lint                                 # stylua --check + source lint rules + README stats
 make format                               # format with stylua
 make typecheck                            # lua-language-server --check
 make coverage                             # specs with line coverage of lua/org
@@ -210,6 +210,16 @@ local jar = vim.fn.expand(o.jar_path)
 
 An allow comment without a reason, or one that no longer allows anything,
 is reported too.
+
+### README stats
+
+`README.md` says how many lines of Lua, tests and spec files there are.
+`make lint` also runs `scripts/readme_stats.lua`, which counts them (the
+`*.lua` lines under `lua/`, the `it(...)` lines and the files of
+`tests/spec/*_spec.lua`) and fails when a number in the README is more
+than the count or over 10% behind it. `make readme-stats` rewrites the
+numbers. A reworded sentence the script no longer finds fails too: change
+its patterns with the sentence (`tests/spec/readme_stats_spec.lua`).
 
 ### Type check
 
@@ -1231,8 +1241,8 @@ of this for its scenarios.
   `release branch` check fails any other pull request into `main`.
 - Pull requests into `dev` and `main` run `make test` on Ubuntu against
   Neovim v0.11.0, stable and nightly (nightly may fail without blocking),
-  and on macOS and Windows against stable, plus `make lint` (stylua and
-  the source lint rules), `make typecheck`
+  and on macOS and Windows against stable, plus `make lint` (stylua,
+  the source lint rules and the README stats), `make typecheck`
   and a helptags check, which fails on an `E154: Duplicate tag`; after
   editing `doc/org.txt`, run `nvim --headless -u NONE -c "helptags doc" -c q`
   and look for that error (it doesn't change the exit status there). A pull request that

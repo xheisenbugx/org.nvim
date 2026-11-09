@@ -53,10 +53,18 @@ fuzz:
 	ORG_FUZZ_SCALE=$$scale ORG_FUZZ_START=$$start ORG_TEST_TIMEOUT=$${ORG_TEST_TIMEOUT:-3600} \
 	$(MAKE) --no-print-directory test SPEC="$$(echo tests/spec/fuzz_*_spec.lua)"
 
-# stylua, then the source rules of scripts/lint_sources.lua
+# stylua, then the source rules of scripts/lint_sources.lua and the sizes
+# README.md quotes (scripts/readme_stats.lua)
 lint:
 	stylua --check lua plugin ftplugin syntax tests scripts/site scripts/playground scripts/verify .claude/hooks
 	nvim --headless --clean -l scripts/lint_sources.lua lua
+	nvim --headless --clean -l scripts/readme_stats.lua
+
+# Rewrite the sizes README.md quotes (lines of Lua, tests, spec files) from
+# the repository, when `make lint` says they are stale.
+.PHONY: readme-stats
+readme-stats:
+	@nvim --headless --clean -l scripts/readme_stats.lua --update
 
 # lua-language-server --check with .luarc.json: the diagnostics it gates on
 # (warnings and errors) must stay at zero, and in the files listed in
