@@ -1,0 +1,85 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { caldav = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Caldav
+---`false` keeps the extension off.
+---@field enabled? boolean
+---The calendars synced with org files (default: `{}`).
+---@field calendars? org.Config.Extensions.Caldav.Calendar[]
+---"twoway", "pull" (the calendar's changes only come to org) or "push"
+---(org's changes only go to the calendar) (default: `"twoway"`).
+---@field direction? "twoway"|"pull"|"push"
+---Who wins when the same field changed on both sides: "local" (org) or
+---"remote" (default: `"local"`).
+---@field conflict? "local"|"remote"
+---What happens to the entry of an event deleted in the calendar
+---(default: `"ask"`).
+---@field delete_local? "ask"|"always"|"never"
+---What happens to the event of an entry deleted in org (default: `"ask"`).
+---@field delete_remote? "ask"|"always"|"never"
+---Sync entries with a TODO keyword as tasks, VTODO (default: `false`).
+---@field todos? boolean
+---Events that ended more than this many days ago are not picked up;
+---`false`: everything (default: `30`).
+---@field past_days? integer|false
+---Days ahead the occurrences of a repeating event are listed for, when a
+---repeater can't say its rule (default: `90`).
+---@field recurrence_days? integer
+---Minutes between syncs in the background; `0`: only `caldav_sync`
+---(default: `0`).
+---@field interval? integer
+---Save the org files a sync changed (default: `true`).
+---@field save? boolean
+---IANA zone the timestamps are in (default: `nil`, the system's).
+---@field timezone? string
+---Extra TZID -> IANA names for zones a calendar doesn't define (default: `{}`).
+---@field tz_aliases? table<string, string>
+---Where the state of each calendar's last sync is kept
+---(default: `stdpath("data") .. "/org/caldav"`).
+---@field state_dir? string
+---The program requests are sent with, and extra arguments for it
+---(default: `{ "curl" }`).
+---@field curl? string[]
+---Seconds before a request is given up (default: `60`).
+---@field timeout? integer
+
+---@class org.Config.Extensions.Caldav.Calendar
+---Shown in messages and health (default: `calendar1`, ...).
+---@field name? string
+---The address of the calendar collection (`:Org caldav_discover` lists them).
+---@field url string
+---The account's user name.
+---@field user? string
+---The password: a string, a function returning one, or a command whose
+---first line of output is used (`{ "pass", "show", "dav" }`).
+---@field password? string|string[]|fun(calendar: table): string
+---A bearer token instead of user and password, in the same three forms.
+---@field token? string|string[]|fun(calendar: table): string
+---How the password is sent (default: `"basic"`).
+---@field auth? "basic"|"digest"|"any"
+---Extra request headers.
+---@field headers? table<string, string>
+---The org file new events are added to, or that file and the heading they
+---go under.
+---@field inbox? string|org.Config.Extensions.Caldav.Inbox
+---More org files whose entries are sent to the calendar.
+---@field files? string[]
+---Overrides the `direction` option for this calendar.
+---@field direction? "twoway"|"pull"|"push"
+---Overrides the `conflict` option for this calendar.
+---@field conflict? "local"|"remote"
+---Overrides the `delete_local` option for this calendar.
+---@field delete_local? "ask"|"always"|"never"
+---Overrides the `delete_remote` option for this calendar.
+---@field delete_remote? "ask"|"always"|"never"
+---Overrides the `todos` option for this calendar.
+---@field todos? boolean
+---Overrides the `past_days` option for this calendar.
+---@field past_days? integer|false
+
+---@class org.Config.Extensions.Caldav.Inbox
+---The org file.
+---@field file string
+---Title of the heading new events are added under (made when missing).
+---@field headline? string

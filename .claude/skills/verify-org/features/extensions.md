@@ -2,10 +2,10 @@
 area: extensions
 recipe: scripts/verify/recipes/extensions.lua
 keys: global.kanban_open, global.journal_new_entry, org.present_start
-modules: lua/org/extensions/init.lua, lua/org/extensions/kanban, lua/org/extensions/views_util.lua, lua/org/extensions/journal, lua/org/extensions/present
-specs: tests/spec/extensions_spec.lua, tests/spec/ext_kanban_spec.lua, tests/spec/ext_journal_spec.lua, tests/spec/ext_present_spec.lua, tests/spec/ext_present_edge_spec.lua
-doc: org-extensions, org-extensions-kanban, org-extensions-views, org-extensions-journal, org-extensions-present
-emacs: none (kanban), org-journal (journal), org-present (present)
+modules: lua/org/extensions/init.lua, lua/org/extensions/kanban, lua/org/extensions/views_util.lua, lua/org/extensions/journal, lua/org/extensions/present, lua/org/extensions/caldav
+specs: tests/spec/extensions_spec.lua, tests/spec/ext_kanban_spec.lua, tests/spec/ext_journal_spec.lua, tests/spec/ext_present_spec.lua, tests/spec/ext_present_edge_spec.lua, tests/spec/ext_caldav_spec.lua, tests/spec/ext_caldav_sync_spec.lua, tests/spec/ext_caldav_e2e_spec.lua
+doc: org-extensions, org-extensions-kanban, org-extensions-views, org-extensions-journal, org-extensions-present, org-extensions-caldav
+emacs: none (kanban), org-journal (journal), org-present (present), org-caldav (caldav)
 ---
 
 # Extensions
@@ -14,7 +14,8 @@ Optional features modelled on third-party Emacs packages, shipped in
 `lua/org/extensions/<name>` and loaded only when listed under
 `extensions` in `setup()`. The recipe maps three that a user drives with
 keys and that need no external program: the kanban board, the journal
-and presentations.
+and presentations; and the CalDAV sync, against a stand-in for the
+server that runs inside the child.
 
 ## How to get to it
 
@@ -58,6 +59,26 @@ Present (`extensions = { present = true }`):
 | `n` / `p` | next / previous slide: `2/3`, the headline without its stars, a rule under it, its body only |
 | `q` | the source buffer as it was, the cursor on the headline of the slide that was shown |
 
+CalDAV (`extensions = { caldav = { calendars = { { name = "Home", url =
+"http://dav.test/dav/calendars/me/home/", inbox = "{{dir}}/calendar.org" } },
+timezone = "UTC", state_dir = "{{dir}}/state" } }`), after a `lua` step
+that starts the stand-in and makes it the transport:
+
+```lua
+local srv = dofile(vim.api.nvim_get_runtime_file("tests/support/caldav_server.lua", false)[1]).new()
+srv:calendar("home")
+srv:put("home", "a.ics", ics_text)          -- an event "another client" stored
+require("org.extensions.caldav.http").transport = srv:transport()
+_G.__caldav = srv                           -- for later `expect = { lua = ... }`
+```
+
+| Step | Expected |
+| --- | --- |
+| `:Org caldav_sync` | `caldav: Home: 1 from the calendar, 1 to the calendar`; the event is a new heading at the end of the inbox with its timestamp line, ID and LOCATION in the (folded) drawer; the file's own dated entry got an ID and is on the server (`srv:files("home")`); the file is saved |
+| change the heading, `:Org caldav_sync` | `caldav: Home: 1 to the calendar`; on the server only SUMMARY changed (the ATTENDEE line is still there) |
+| delete the entry's lines, `:Org caldav_sync` | a question: `1 entry was deleted in the org files. Delete it from the calendar too?` with the title below and `(Y)es, [N]o:` |
+| `y` (a `type` step) | `caldav: Home: 1 deleted in the calendar`, no Press ENTER; the resource is gone from the server |
+
 ## Gotchas
 
 - The header's `keys` may name an extension's keys and actions
@@ -79,3 +100,13 @@ Present (`extensions = { present = true }`):
   command stays in the message area on the first slide.
 - The kanban float covers the buffer but the status line under it still
   names the org file.
+- CalDAV: the sync is asynchronous, so the `:Org caldav_sync` step
+  returns at once; put the `expect` on that step (it waits) rather than
+  reading the buffer right after. Property drawers are folded on screen:
+  check `:ID:` and `:LOCATION:` with `buffer`, not `screen`.
+- CalDAV: the delete question is `vim.fn.confirm()`. While it waits,
+  Neovim answers no request that runs Lua, so a `key` step (it resolves
+  placeholders in the child first) times out: answer with `type = "y"`.
+- CalDAV: the recipe's stand-in replaces the transport, so curl isn't
+  run; `tests/spec/ext_caldav_e2e_spec.lua` is what goes through real
+  curl. Neither talks to a real server.

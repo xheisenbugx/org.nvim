@@ -25,7 +25,7 @@ module, spec or help tag fails the suite instead of leaving the map wrong:
 | [columns](columns.md) | column view over the headlines, summaries, editing values |
 | [dates](dates.md) | the calendar, inserting timestamps and ranges, scheduling, shifting dates with `S-arrows` |
 | [export](export.md) | the dispatcher menu, plain text / HTML / Markdown files, subtree scope, `:Org export` |
-| [extensions](extensions.md) | enabling an extension in a scenario; the kanban board, the journal, presentations |
+| [extensions](extensions.md) | enabling an extension in a scenario; the kanban board, the journal, presentations, the CalDAV sync |
 | [folding](folding.md) | `Tab` / `S-Tab` cycling, startup visibility, folds after edits |
 | [links](links.md) | following heading and file links, storing and inserting links, creating a missing heading |
 | [lists](lists.md) | new items, checkboxes and `[n/m]` cookies, numbering and bullets |

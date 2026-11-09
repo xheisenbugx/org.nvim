@@ -22,6 +22,7 @@ body:
       description: Optional. The extension (`extensions` in `setup()`) the problem is in, if it is in one.
       options:
         - None (org.nvim itself)
+        - caldav
         - cli
         - code
         - diagrams
