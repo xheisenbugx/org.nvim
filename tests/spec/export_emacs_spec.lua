@@ -675,6 +675,31 @@ describe("export: Emacs parity (difftest #273)", function()
   end)
 end)
 
+describe("export: Emacs parity (difftest #333)", function()
+  local function latex(lines)
+    return export.to_string("latex", { lines = lines, body_only = true })
+  end
+
+  -- org-export--remove-uninterpreted-data splices the object back as
+  -- separate strings (its post-blank is one of them) and never joins them
+  -- with the text around it, so org-latex--plain-text-verse-block's
+  -- "^[ \t]+" sees the post-blank at the start of a string
+  it("the blank after an uninterpreted superscript in a verse is an \\hspace* (seed 2128151)", function()
+    local out = latex({ "#+OPTIONS: ^:{}", "#+begin_verse", "x^2 gamma plan", "#+end_verse" })
+    eq("\\begin{verse}\nx\\^{}2\\hspace*{1\\fontdimen2\\font}gamma plan\\\\\n\\end{verse}\n", out)
+  end)
+
+  it("but not the blank after uninterpreted emphasis, which shares a string with the marker", function()
+    local out = latex({ "#+OPTIONS: *:nil", "#+begin_verse", "a *b*  c", "#+end_verse" })
+    eq("\\begin{verse}\na *b*  c\\\\\n\\end{verse}\n", out)
+  end)
+
+  it("outside a verse the blank stays a blank", function()
+    local out = latex({ "#+OPTIONS: ^:{}", "x^2 gamma plan" })
+    eq("x\\^{}2 gamma plan\n", out)
+  end)
+end)
+
 describe("export: Emacs parity (difftest known differences)", function()
   local function latex(lines)
     return ox.export_as("latex", lines, { body_only = true })
