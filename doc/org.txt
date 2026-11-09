@@ -120,6 +120,7 @@ CONTENTS                                                        *org-contents*
         Structural git merges ................... |org-extensions-merge|
         Hugo export ............................. |org-extensions-hugo|
         iCalendar subscriptions ................. |org-extensions-ics|
+        CalDAV sync ............................. |org-extensions-caldav|
         Command line ............................ |org-extensions-cli|
         Diagrams ................................ |org-extensions-diagrams|
         Code and notes .......................... |org-extensions-code|
@@ -506,9 +507,11 @@ differs:
 - The `org` command line is `bin\org.cmd`, and `:Org cli_install` writes
   an `org.cmd` launcher into its directory (symlinks need administrator
   rights). The git merge driver is `bin\org-merge.cmd`.
-- The `ics` extension converts time zones with a bundled table of each
-  zone's current rule, as Windows has no zoneinfo files: times far in the
-  past may use today's rule of a zone that changed since.
+- The `ics` and `caldav` extensions convert time zones with a bundled
+  table of each zone's current rule, as Windows has no zoneinfo files:
+  times far in the past may use today's rule of a zone that changed since.
+  `caldav` can't tell the name of the system's zone here: set its
+  `timezone` option (|org-extensions-caldav|).
 - `TZ` with a zone name ("Europe/Berlin") has no effect: the Windows C
   library only takes the old "EST5EDT" form. org.nvim uses the system's
   time zone.
@@ -9817,7 +9820,8 @@ Each extension is marked as one of:
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`
 Experimental: `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
-              `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`
+              `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`,
+              `caldav`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -11479,6 +11483,230 @@ and `timestamp` (the org timestamp). The agenda's source is
 `:checkhealth org` shows each calendar's event count and fetch age, failed
 fetches, unknown zones, and whether `curl` is installed (needed only for
 `url` calendars).
+
+------------------------------------------------------------------------------
+CalDAV sync                                            *org-extensions-caldav*
+
+Stability: experimental (|org-extensions-stability|)
+
+`caldav` keeps a calendar of a CalDAV server and org files in step, both
+ways, like Emacs's org-caldav: the calendar's events become headings of an
+org file, entries with a date become events, and what changes on one side
+is carried to the other by `:Org caldav_sync`. With `todos`, entries with
+a TODO keyword sync as the calendar's tasks. (To only see a calendar in
+the agenda, |org-extensions-ics| is simpler: it needs no account.)
+>lua
+    require("org").setup({
+      agenda_files = { "~/org/calendar.org" },
+      extensions = {
+        caldav = {
+          calendars = {
+            {
+              name = "Personal",
+              url = "https://cloud.example.com/dav/calendars/me/personal/",
+              user = "me",
+              password = { "pass", "show", "cloud/caldav" },
+              inbox = "~/org/calendar.org",
+            },
+          },
+        },
+      },
+    })
+<
+Calendars ~
+Each calendar takes:
+  `name`      shown in messages and `:checkhealth org` (`calendar1`, ...
+              when left out)
+  `url`       the address of the calendar itself (a collection, ending in
+              `/`). `:Org caldav_discover` lists the calendars of an
+              account with their addresses: set `url` to the address your
+              provider gives for CalDAV, run it, and copy the one you want
+  `user`, `password`
+              the account. `password` is a string, a function returning
+              one, or a command (a list) whose first line of output is
+              used, such as `{ "pass", "show", "dav" }`, so the password
+              need not be in your config. Where the provider has app
+              passwords, use one
+  `token`     instead of user and password: a bearer token, in the same
+              three forms. A token function or command, and a password
+              command, are called again when the server refuses what they
+              gave
+  `auth`      "basic" (the default), "digest" or "any"
+  `headers`   extra request headers, `{ Name = "value" }`
+  `inbox`     the org file new events of the calendar are added to, at the
+              top level; or `{ file = ..., headline = "Calendar" }` to add
+              them under that heading (made when missing). Its entries are
+              sent too
+  `files`     more org files whose entries are sent to the calendar
+and may set `direction`, `conflict`, `delete_local`, `delete_remote`,
+`todos` and `past_days` for itself. A calendar needs an `inbox` or `files`;
+with `files` only, the calendar's new events are not added anywhere (the
+sync says how many). A file belongs to one calendar. List the files in
+`agenda_files` to see the events in the agenda.
+
+Entries and events ~
+An entry and an event belong together when the entry's ID property is the
+event's UID, as with org-caldav (files synced with it carry over). An
+event of the calendar is written as:
+>
+    * Design review
+    :PROPERTIES:
+    :ID:       6f1e9c0a-41d7-4a57-9d0e-2f6c1b7a9e11
+    :LOCATION: Room 4
+    :END:
+    <2026-11-12 Thu 15:00-16:00>
+    Bring the mockups
+<
+  title        the heading; its keyword, priority and tags are yours
+  time         the timestamp line below the drawers. In an entry you wrote,
+               also the first active timestamp of the heading or its text,
+               else SCHEDULED or DEADLINE (in an entry without a TODO
+               keyword only, as in |org-export-icalendar|). All-day events,
+               several days (`<a>--<b>`) and end times are kept. Of
+               several timestamp lines you wrote, the first is the event's
+  location     the LOCATION property
+  description  the text below the timestamp line: all of it is sent, so
+               keep private notes out of an entry of a shared calendar
+An entry of the calendar's files that has an active timestamp, and no ID
+the calendar knows, is sent as a new event and gets an ID. Entries without
+a date are never sent, nor are new COMMENT entries, inline tasks and
+entries in a subtree tagged ARCHIVE (one that is synced already stays
+synced when it gets the tag or the keyword). The keyword, the priority,
+the tags, the drawers and the subheadings stay in org; attendees, alarms
+and everything else an event holds stay in the calendar: a change is sent
+by replacing only the changed properties of the event the server has.
+
+Timestamps are in the system's zone, or in `timezone`. A changed time is
+sent in the zone the event has. A new event's time is sent in UTC; one
+that repeats is sent in your zone when its name is known (`timezone`,
+`$TZ` or what `/etc/localtime` links to), so that it keeps its hour across
+clock changes. On Windows the name is only known from `timezone`: set it
+there, or such an event drifts an hour at a clock change in other
+calendar programs (`:checkhealth org` says when the name isn't known).
+
+The sync ~
+`:Org caldav_sync` asks the server what changed since the last sync and
+compares each entry with its event, a field at a time:
+  - what changed in the calendar is written into the entry, what changed
+    in the entry is sent; changes of different fields are both kept;
+  - when the same field changed on both sides the org one is kept, as
+    org-caldav does (`conflict = "remote"`: the calendar's), and the
+    message says so;
+  - new events are added to the inbox, new entries are sent;
+  - for an event deleted in the calendar, `delete_local` says what happens
+    to its entry: "ask" (the default), "always" delete it, or "never". An
+    entry that is kept is asked about again at the next sync, and is sent
+    again as an event once you change it. An entry with subheadings is
+    never deleted;
+  - for an entry deleted in org (or archived to another file, or moved to
+    a file that is not the calendar's), `delete_remote` says what happens
+    to its event, in the same three ways;
+  - on either side, when everything a calendar had (two entries or more)
+    would be deleted at once, it asks even with "always": that looks like
+    a lost file or another calendar;
+  - an event deleted on one side and changed on the other comes back
+    (except an entry whose dates follow a rule of the calendar, below:
+    `delete_local` decides).
+Events that ended more than `past_days` days ago are not picked up, on
+either side; one that is synced stays synced as it grows older. With
+`todos`, open tasks are always picked up, and done ones unless they were
+closed that long ago. The org files a sync changed are saved (`save`).
+
+`direction = "pull"` only brings the calendar's changes to org: nothing is
+sent or deleted there, the calendar's value wins a conflict, and an entry
+you delete in org is added again by the next sync (`delete_remote` is not
+asked). `direction = "push"` only sends org's: the entries are not
+changed, new events are not added, org's value wins, and an event deleted
+in the calendar is sent again (`delete_local` is not asked).
+
+What was synced is kept in `state_dir`, one file per calendar. Without it
+(a new machine) entries and events are matched by ID again: nothing is
+duplicated; a field one side lacks is filled from the other, and where
+both have different values `conflict` decides. A change that could not be
+sent is sent at the next sync.
+
+With `interval`, a sync also runs every that many minutes. It asks no
+questions (deletions that need an answer wait for `:Org caldav_sync`) and
+reports only changes and failures.
+
+Repeating events ~
+A rule a repeater can say is written as one (`FREQ=WEEKLY` is `+1w`), and
+a repeater of yours is sent as a rule. An event every week on several days
+(its first day among them) is written as one timestamp a day, each with
+`+1w`. Any other rule (a count or an end date, exceptions, moved or
+cancelled instances, every other week on several days, "the second
+Tuesday", an event that runs past midnight) is written as the timestamps
+of its occurrences, from `past_days` ago (30 days with `past_days =
+false`) to `recurrence_days` ahead, brought up to date by each sync. The
+dates of those two kinds follow the calendar: change them there (a change
+in org is put back). Their title, location and description sync both ways
+as usual.
+
+Tasks ~
+With `todos = true`, entries with a TODO keyword sync as tasks (VTODO),
+with or without a date, instead of as events: SCHEDULED is the task's
+start and DEADLINE its due date, a done keyword completes it (CLOSED is
+when), a done keyword starting with CANCEL cancels it, and the priority
+cookie is its priority (1-4 the highest, 5-8 the default, 9 the lowest, as
+in org-caldav). A task completed in the calendar gets the file's first
+done keyword that doesn't start with CANCEL, a cancelled one the first
+that does (else the first done keyword), a reopened one the first TODO
+keyword. The calendar must be one that holds tasks; `:Org caldav_discover`
+shows what each holds. Whether an entry is an event or a task is settled
+when it is first synced.
+
+Servers ~
+Any server that speaks CalDAV (RFC 4791) and takes a password (basic or
+digest) or a bearer token. Google Calendar's CalDAV address takes OAuth
+tokens only, so it needs `token` set to a command that prints one; Google
+Tasks are not on CalDAV at all.
+
+Actions ~
+  `caldav_sync`      sync every calendar now; `:Org caldav_sync NAME` syncs
+                   one (names complete)
+  `caldav_discover`  list the calendars of the account of each configured
+                   calendar, with their addresses and what they hold, in a
+                   window (`q` closes it); `:Org caldav_discover NAME` for
+                   one, `:Org caldav_discover URL` for another address,
+                   asked with the credentials of the first calendar on
+                   that server
+
+Neither has a default key; map them in `mappings` or run them with `:Org`.
+
+Options ~
+  `calendars`        the calendars (above) ({})
+  `direction`        "twoway", "pull" or "push" ("twoway")
+  `conflict`         "local" (org wins) or "remote" ("local")
+  `delete_local`     "ask", "always" or "never" ("ask")
+  `delete_remote`    "ask", "always" or "never" ("ask")
+  `todos`            sync entries with a TODO keyword as tasks (false)
+  `past_days`        days back events are picked up; false: all (30)
+  `recurrence_days`  days ahead the occurrences of a rule are listed (90)
+  `interval`         minutes between syncs in the background; 0: none (0)
+  `save`             save the org files a sync changed (true)
+  `timezone`         IANA zone of the timestamps (nil: the system's)
+  `tz_aliases`       extra TZID -> IANA zone names ({})
+  `state_dir`        where the state of each calendar's last sync is kept
+                     (`stdpath("data") .. "/org/caldav"`)
+  `curl`             the program requests are sent with and extra
+                     arguments, e.g. `{ "curl", "--netrc" }` (`{ "curl" }`)
+  `timeout`          seconds before a request is given up (60)
+
+Requests are sent with `curl`, which gets the address, the headers and the
+credentials on its standard input, not as arguments, so they don't show in
+the process list. `:checkhealth org` checks that `curl` is installed and
+each calendar's settings and files, and shows the last sync.
+
+Differences from org-caldav ~
+  - A change is merged a field at a time and sent by editing the event the
+    server has. org-caldav replaces the event with the export of the entry
+    (dropping what org doesn't hold) and by default takes only the title
+    and the timestamp from the calendar.
+  - The description is the entry's text as written, not its ASCII export.
+  - A rule a repeater can't say is written as dates, not as a diary sexp.
+  - `past_days` defaults to 30 (org-caldav-days-in-past: everything).
+  - There is no datetree inbox, no select or exclude tags, no skip
+    conditions and no OAuth sign-in.
 
 ------------------------------------------------------------------------------
 Command line (org)                                       *org-extensions-cli*

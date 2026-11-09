@@ -113,6 +113,15 @@ dates are `{{-N HH:MM}}` offsets, so the history always ends today.
 (`{{now+N}}`); `demo/sidebar.lua` starts the demo's clock at 10:00 today,
 so `sidebar.tape` can be recorded at any time of day.
 
+`demo/caldav.lua` is `init.lua` with the `caldav` extension on, for
+`caldav.tape`. It serves the specs' stand-in CalDAV server
+(`tests/support/caldav_server.lua`) on 127.0.0.1 from the demo's own
+Neovim, with two events dated from today, and syncs it with
+`$ORG_DEMO_DIR/calendar.org` through curl; nothing leaves the machine. It
+defines `:CalServer {file}` (the event as the server stores it) and
+`:CalOther` (a change made by another calendar program), which the tape
+types hidden.
+
 To try the demo setup by hand:
 
 ```sh
