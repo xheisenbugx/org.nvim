@@ -5107,6 +5107,10 @@ Ports of Emacs ob-LANG.el, enabled by default; each `babel.languages`
 entry holds that file's options (named after the Emacs variables, see
 |org-config|). Programs that are missing give an error when a block
 runs. C-c C-v v shows the body as the Emacs expand function makes it.
+Command lines (a build, a compiled program) run with `sh -c` when `sh`
+is on $PATH, else with 'shell' and 'shellcmdflag' (cmd.exe, PowerShell
+on Windows); with PowerShell, a line that starts with a quoted program
+gets the call operator `&`.
   - plantuml: to the `:file` (`-tpng`, `-tsvg`, ... from its extension;
     `:results verbatim` gives the text), `:var` as `!define`, @startuml /
     @enduml added. `exec_mode` "jar" (java -jar `jar_path`, `:java` options)

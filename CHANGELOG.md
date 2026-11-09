@@ -8,6 +8,13 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.5] - 2026-11-09
+
+### Fixes
+
+- **export:** Keep spliced uninterpreted objects as separate strings ([#334](https://github.com/xheisenbugx/org.nvim/pull/334))
+- **babel:** Run a quoted program through PowerShell with the call operator ([#335](https://github.com/xheisenbugx/org.nvim/pull/335))
+
 ## [v3.2.4] - 2026-11-07
 
 ### Fixes
@@ -616,6 +623,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.4...v3.2.5
 [v3.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.3...v3.2.4
 [v3.2.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.2...v3.2.3
 [v3.2.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.1...v3.2.2

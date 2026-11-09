@@ -52,6 +52,47 @@ describe("babel without sh", function()
     eq({ "pwsh", "-NoLogo", "-Command", "x" }, ob.shell_argv("x"))
   end)
 
+  -- #332: PowerShell reads a line that starts with a quoted string as an
+  -- expression ("Unexpected token"), so the C# block's run step
+  -- `"C:/.../obcs1/bin/obcs1" ""` failed; the call operator `&` runs it
+  it("runs a quoted program with PowerShell's call operator", function()
+    no_sh()
+    vim.o.shellcmdflag = "-NoLogo -Command"
+    for _, shell in ipairs({ "pwsh", "powershell", "C:\\Program Files\\PowerShell\\7\\pwsh.exe", "powershell.exe" }) do
+      vim.o.shell = shell
+      eq(
+        { shell, "-NoLogo", "-Command", '& "C:/Temp/obcs1/bin/obcs1" ""' },
+        ob.shell_argv('"C:/Temp/obcs1/bin/obcs1" ""')
+      )
+      eq({ shell, "-NoLogo", "-Command", "& 'C:/Temp/a.exe' x" }, ob.shell_argv("'C:/Temp/a.exe' x"))
+      -- a bare program name already runs as a command
+      eq({ shell, "-NoLogo", "-Command", "dotnet --list-sdks" }, ob.shell_argv("dotnet --list-sdks"))
+    end
+    -- cmd.exe takes the quoted program as it is
+    vim.o.shell = "cmd.exe"
+    vim.o.shellcmdflag = "/s /c"
+    eq({ "cmd.exe", "/s", "/c", '"C:/a.exe" ""' }, ob.shell_argv('"C:/a.exe" ""'))
+  end)
+
+  it("runs the C# block's program through PowerShell", function()
+    no_sh()
+    vim.o.shell = "pwsh"
+    vim.o.shellcmdflag = "-NoLogo -Command"
+    local csharp = require("org.babel.lang.csharp")
+    local versions, root = csharp.dotnet_versions, csharp.dotnet_root
+    csharp.dotnet_versions = function()
+      return { 9 }
+    end
+    csharp.dotnet_root = function()
+      return "C:/dotnet"
+    end
+    local done, spec = pcall(csharp.prepare, 'Console.WriteLine("hola");', {}, {}, { opts = {}, cwd = vim.fn.getcwd() })
+    csharp.dotnet_versions, csharp.dotnet_root = versions, root
+    ok(done, spec)
+    local run = ob.shell_argv(spec.steps[3].cmd)
+    ok(run[#run]:match('^& "[^"]+/bin/obcs%d+" ""$'), run[#run])
+  end)
+
   it("lists the .NET SDKs through the shell and finds a Windows SDK root", function()
     no_sh()
     vim.o.shell = "cmd.exe"
