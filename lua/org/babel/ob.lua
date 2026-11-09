@@ -129,6 +129,13 @@ function M.shell_argv(cmd)
   end
   local argv = { vim.o.shell }
   vim.list_extend(argv, vim.split(vim.o.shellcmdflag, "%s+", { trimempty = true }))
+  -- PowerShell reads a line that starts with a quoted string as an
+  -- expression, not a command ("Unexpected token", #332): the call
+  -- operator `&` runs the quoted program
+  local tail = vim.o.shell:match("[^/\\]*$"):lower()
+  if (tail:match("^pwsh") or tail:match("^powershell")) and cmd:match("^%s*[\"']") then
+    cmd = "& " .. cmd
+  end
   argv[#argv + 1] = cmd
   return argv
 end
