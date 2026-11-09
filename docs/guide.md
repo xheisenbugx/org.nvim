@@ -1023,16 +1023,39 @@ each one stands.
 
   ![The week agenda with events from two subscribed calendars next to org tasks, then ics_import copying a meeting into inbox.org as a heading](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/ics.gif)
 
-- 🧪 **`caldav`**: two-way sync with the calendars of a CalDAV server
-  (the protocol of Nextcloud, Radicale, Fastmail, iCloud and others), like
-  Emacs's org-caldav. A calendar's events become headings of an org file, entries
-  with a date become events, and `:Org caldav_sync` carries the changes
-  both ways, a field at a time, so attendees and alarms in the calendar and
-  the keyword, priority and tags in org are left alone (the text under the
-  heading is the event's description, and is sent). Repeating events, tasks (VTODO)
-  as TODO entries, pull-only or push-only calendars, and
-  `:Org caldav_discover` to find the calendars of an account
-  (`:h org-extensions-caldav`).
+- 🧪 **`caldav`** ([org-caldav](https://github.com/dengste/org-caldav)):
+  two-way sync with the calendars of a CalDAV server (the protocol of
+  Google Calendar, Nextcloud, Radicale, Fastmail, iCloud and others). A
+  calendar's events become headings of an org file, entries with a date
+  become events, and `:Org caldav_sync` carries the changes both ways, a
+  field at a time, so attendees and alarms in the calendar and the
+  keyword, priority and tags in org are left alone (the text under the
+  heading is the event's description, and is sent). Deletions ask first.
+  Repeating events, tasks (VTODO) as TODO entries, pull-only or push-only
+  calendars, a sync every few minutes (`interval`), and
+  `:Org caldav_discover` to find the calendars of an account.
+
+  ```lua
+  extensions = {
+    caldav = {
+      calendars = {
+        {
+          name = "Personal",
+          url = "https://cloud.example.com/dav/calendars/me/personal/",
+          user = "me",
+          password = { "pass", "show", "cloud/caldav" }, -- or a string, or a function
+          inbox = "~/org/calendar.org",
+        },
+      },
+    },
+  }
+  ```
+
+  Tried with Radicale and with Google Calendar. Google only takes OAuth
+  tokens: `:h org-extensions-caldav-google` has the steps and the `token`
+  command. `:h org-extensions-caldav` starts with a getting-started list
+  and explains every message a sync can show
+  (`:h org-extensions-caldav-messages`).
 
   ![A sync adds the calendar's events to calendar.org as headings and sends the file's own entry; they show in the week agenda; a changed heading is sent and the event on the server keeps its attendee and alarm; an event moved in another calendar app moves the entry; deleting an entry asks before deleting the event](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/caldav.gif)
 

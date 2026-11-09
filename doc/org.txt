@@ -11513,6 +11513,25 @@ the agenda, |org-extensions-ics| is simpler: it needs no account.)
       },
     })
 <
+Getting started ~
+  1. Put the calendar in `calendars` as above, with the address your
+     provider gives for CalDAV as `url` and your `user` and `password`
+     (or a `token`; for Google see |org-extensions-caldav-google|).
+  2. `:checkhealth org` says what is missing or misspelt.
+  3. `:Org caldav_discover` lists the calendars of the account. Copy the
+     `url` of the one you want into the calendar.
+  4. For a first look, give it `direction = "pull"` and an `inbox` that is
+     a new file: nothing is sent to the calendar or deleted there.
+  5. `:Org caldav_sync`. Its message says what it did, such as
+     `caldav: Personal: 12 from the calendar`
+     (|org-extensions-caldav-messages|).
+  6. Take `direction` out to sync both ways, and list the file in
+     `agenda_files` to see the events in the agenda.
+To sync with a key, or every 15 minutes by itself:
+>lua
+    mappings = { global = { caldav_sync = "<leader>cs" } },
+    extensions = { caldav = { interval = 15, calendars = { ... } } },
+<
 Calendars ~
 Each calendar takes:
   `name`      shown in messages and `:checkhealth org` (`calendar1`, ...
@@ -11658,10 +11677,11 @@ when it is first synced.
 Servers ~
 Any server that speaks CalDAV (RFC 4791) and takes a password (basic or
 digest) or a bearer token. Radicale and Google Calendar are the ones it
-was tried with.
+was tried with; reports about others are welcome.
 
-Google Calendar takes OAuth tokens only, so it needs `token` set to a
-command that prints one, such as Google's `oauth2l`:
+Google Calendar ~                               *org-extensions-caldav-google*
+Google takes OAuth tokens only, so it needs `token` set to a command that
+prints one, such as Google's `oauth2l`:
 >lua
     {
       name = "Google",
@@ -11677,13 +11697,21 @@ command that prints one, such as Google's `oauth2l`:
 <
 The address holds the calendar's ID: your address for the main calendar,
 else the "Calendar ID" under "Integrate calendar" in the calendar's
-settings. For the token, in the Google Cloud console: make a project,
-enable the "CalDAV API", make an OAuth client ID of type "Desktop app"
-(download it as `client_secret.json`) and add yourself under Audience >
-Test users, or the sign-in is refused with "access_denied". Run the
-`oauth2l` command once in a terminal to sign in; it keeps the token in
-`~/.oauth2l` and renews it. Google's CalDAV holds no tasks (leave `todos`
-off), and Google Tasks are not on CalDAV at all.
+settings. `:Org caldav_discover` also works, from
+`https://apidata.googleusercontent.com/caldav/v2/CALENDAR_ID/user`.
+
+For the token, once, in the Google Cloud console:
+  1. make a project and enable the "CalDAV API" in it;
+  2. under Google Auth Platform, make an OAuth client ID of the type
+     "Desktop app" and download it as `client_secret.json`;
+  3. under Audience > Test users, add your own address. Without it the
+     sign-in stops at "Access blocked ... Error 403: access_denied";
+  4. run the `oauth2l` command of the example in a terminal (`brew install
+     oauth2l`, or its binaries): it opens the browser to sign in, then
+     prints the token. It keeps it in `~/.oauth2l` and renews it.
+Google's CalDAV holds no tasks (leave `todos` off), and Google Tasks are
+not on CalDAV at all. A new repeating entry is sent in your time zone, or
+in UTC when the zone has no clock changes.
 
 Actions ~
   `caldav_sync`      sync every calendar now; `:Org caldav_sync NAME` syncs
@@ -11696,6 +11724,48 @@ Actions ~
                    that server
 
 Neither has a default key; map them in `mappings` or run them with `:Org`.
+
+Messages ~                                    *org-extensions-caldav-messages*
+A sync ends with one line a calendar:
+  `caldav: NAME: up to date`       nothing changed on either side
+  `... N from the calendar`        entries added or changed in org
+  `... N to the calendar`          events added or changed in the calendar
+  `... N deleted here`, `N deleted in the calendar`
+When the sync could not run, the line says why instead:
+  `401: the server refused the user, password or token`
+      Wrong credentials. Run a password or token command in a terminal to
+      see what it prints; for Google see |org-extensions-caldav-google|.
+  `404: not found (check the calendar's url)`
+      `url` is not a calendar: `:Org caldav_discover` lists them.
+  `403: the server does not allow it`
+      Usually a calendar you may only read.
+  `it has no inbox ...`, `FILE not found`, `curl not found`
+      What the calendar's settings lack; `:checkhealth org` says the same.
+Lines below it name the entries that need a look:
+  `"Title": not sent: ...`
+      The server refused it, with its reason: `412: it changed on the
+      server` settles at the next sync; `403` can be a task sent to a
+      calendar that holds only events. The change stays in org and is sent
+      again by every sync until it is taken.
+  `"Title" has no timestamp: not sent`
+      An entry needs a date to be an event.
+  `"Title": summary changed here and in the calendar; kept the org one`
+      The same field changed on both sides; `conflict` decided.
+  `"Title": its dates follow a rule of the calendar; change them there`
+      A repeating event a repeater can't say: a date changed in org was
+      put back.
+  `"Title" is kept: it has subheadings`
+      Its event was deleted in the calendar; delete the entry yourself.
+  `N deletion(s) wait for :Org caldav_sync to ask about them`
+      A sync in the background asks no questions.
+  `N new in the calendar, not added: it has no inbox`
+  `two entries have the ID ...; only the first is synced`
+      A copied entry: take the ID out of the copy.
+A sync in the background shows only the first line, with the number of
+notes; `:Org caldav_sync` shows them all.
+
+To start over with a calendar, delete its file in `state_dir`. The next
+sync matches entries and events by ID again and duplicates nothing.
 
 Options ~
   `calendars`        the calendars (above) ({})
