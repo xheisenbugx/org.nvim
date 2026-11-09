@@ -8,6 +8,14 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.2.6] - 2026-11-09
+
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **chore:** Check the README's numbers, add a security policy and the Sponsor button ([#337](https://github.com/xheisenbugx/org.nvim/pull/337))
+
+</details>
+
 ## [v3.2.5] - 2026-11-09
 
 ### Fixes
@@ -623,6 +631,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.2.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.5...v3.2.6
 [v3.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.4...v3.2.5
 [v3.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.3...v3.2.4
 [v3.2.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.2...v3.2.3

@@ -42,7 +42,7 @@ isn't a syntax file with a few keymaps on top. It reimplements Org's
 behaviour: the agenda, capture templates, repeaters, clock tables, table
 formulas, Babel and export.
 
-- 🪶 **No dependencies.** It's about 170k lines of Lua and needs no
+- 🪶 **No dependencies.** It's about 260k lines of Lua and needs no
   tree-sitter parser, external binary or companion plugin.
 - 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
   so you can edit a file in Emacs today and in Neovim tomorrow.
@@ -57,7 +57,7 @@ formulas, Babel and export.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
   source, pickers for snacks.nvim, fzf-lua, Telescope and mini.pick, and a
   lualine clock, and it works with any other setup too.
-- ✅ **Tested.** The headless test suite runs 4,800+ tests from 240+ spec
+- ✅ **Tested.** The headless test suite runs 5,700+ tests from 360+ spec
   files.
 
 How does it compare with nvim-orgmode and Neorg? See [why another Org

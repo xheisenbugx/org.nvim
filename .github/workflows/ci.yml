@@ -98,6 +98,7 @@ jobs:
           ORG_TEST_SHARD=${{ matrix.shard }}/3 ORG_TEST_PERF=0 ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   # make lint: stylua, then the source lint rules (scripts/lint_sources.lua)
+  # and the sizes README.md quotes (scripts/readme_stats.lua)
   lint:
     name: lint (stylua, source rules)
     runs-on: ubuntu-latest
@@ -116,6 +117,9 @@ jobs:
           version: stable
       - name: Source lint rules
         run: nvim --headless --clean -l scripts/lint_sources.lua lua
+      # the sizes README.md quotes (lines of Lua, tests, spec files)
+      - name: README stats
+        run: nvim --headless --clean -l scripts/readme_stats.lua
 
   typecheck:
     name: typecheck (lua-language-server)
