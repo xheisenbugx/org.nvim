@@ -11,6 +11,7 @@ make test                                  # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua  # one spec (space-separate several)
 make snapshots                             # rewrite the screen snapshot golden files
 make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
+make readme-stats                          # rewrite the sizes README.md quotes when make lint says they are stale
 make format                                # stylua over the same paths
 make site                                  # docs website into site/ (scripts/site/build.lua)
 make playground                            # re-record the tutor lessons for the site's playground (docs/playground/); LESSON=name for one
@@ -44,6 +45,9 @@ make verify RECIPE=agenda                  # drive a feature in a child Neovim, 
   wrap it in `utils.gsub_escape`), and a `#+KEY:` value's column found again
   with `line:find(value)` (capture it with `()`). An audited safe use takes
   `-- lint: allow <rule>: <reason>` on its line or the line above.
+- `make lint` also runs `scripts/readme_stats.lua`: the sizes `README.md`
+  quotes (lines of Lua, tests, spec files) must be no more than the counts
+  and at most 10% behind them. `make readme-stats` rewrites them.
 - `make typecheck` runs lua-language-server (CI pins 3.19.1) over the
   repo with `.luarc.json`. Any warning or error fails it; the type-system
   checks the code isn't annotated well enough for yet (`need-check-nil`,
