@@ -11655,11 +11655,10 @@ a repeater of yours is sent as a rule. An event every week on several days
 `+1w`. Any other rule (a count or an end date, exceptions, moved or
 cancelled instances, every other week on several days, "the second
 Tuesday", an event that runs past midnight) is written as the timestamps
-of its occurrences, from `past_days` ago (30 days with `past_days =
-false`) to `recurrence_days` ahead, brought up to date by each sync. The
-dates of those two kinds follow the calendar: change them there (a change
-in org is put back). Their title, location and description sync both ways
-as usual.
+of its occurrences, from `past_days` ago (30 days when it is `false`) to
+`recurrence_days` ahead, brought up to date by each sync. The dates of
+those two kinds follow the calendar: change them there (a change in org is
+put back). Their title, location and description sync both ways as usual.
 
 Tasks ~
 With `todos = true`, entries with a TODO keyword sync as tasks (VTODO),
@@ -11706,9 +11705,10 @@ For the token, once, in the Google Cloud console:
      "Desktop app" and download it as `client_secret.json`;
   3. under Audience > Test users, add your own address. Without it the
      sign-in stops at "Access blocked ... Error 403: access_denied";
-  4. run the `oauth2l` command of the example in a terminal (`brew install
-     oauth2l`, or its binaries): it opens the browser to sign in, then
-     prints the token. It keeps it in `~/.oauth2l` and renews it.
+  4. run the `oauth2l` command of the example in a terminal (it comes
+     from `brew install oauth2l`, or its binaries): it opens the browser
+     to sign in, then prints the token. It keeps it in `~/.oauth2l` and
+     renews it.
 Google's CalDAV holds no tasks (leave `todos` off), and Google Tasks are
 not on CalDAV at all. A new repeating entry is sent in your time zone, or
 in UTC when the zone has no clock changes.
@@ -11743,10 +11743,10 @@ When the sync could not run, the line says why instead:
       What the calendar's settings lack; `:checkhealth org` says the same.
 Lines below it name the entries that need a look:
   `"Title": not sent: ...`
-      The server refused it, with its reason: `412: it changed on the
-      server` settles at the next sync; `403` can be a task sent to a
-      calendar that holds only events. The change stays in org and is sent
-      again by every sync until it is taken.
+      The server refused it, and this is its reason.
+      `412: it changed on the server` settles at the next sync; `403` can
+      be a task sent to a calendar that holds only events. The change
+      stays in org and is sent again by every sync until it is taken.
   `"Title" has no timestamp: not sent`
       An entry needs a date to be an event.
   `"Title": summary changed here and in the calendar; kept the org one`
