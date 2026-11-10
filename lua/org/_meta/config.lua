@@ -794,6 +794,8 @@
 ---@field merge? org.Config.Extensions.Merge|boolean
 ---iCalendar subscriptions shown in the agenda (`:h org-extensions-ics`).
 ---@field ics? org.Config.Extensions.Ics|boolean
+---Two-way sync with CalDAV calendars, like org-caldav (`:h org-extensions-caldav`).
+---@field caldav? org.Config.Extensions.Caldav|boolean
 ---The `org` command line, bin/org (`:h org-extensions-cli`).
 ---@field cli? org.Config.Extensions.Cli|boolean
 ---mermaid, dot and plantuml blocks rendered to images (`:h org-extensions-diagrams`).

@@ -91,4 +91,75 @@ return {
       { note = "the cursor is back on the slide it left", expect = { line = "^%* Soil$" } },
     },
   },
+  {
+    name = "caldav: a sync brings events in, sends changes back and asks before deleting",
+    files = { ["calendar.org"] = { "* Dentist", "<2026-10-14 Wed 09:00-09:30>" } },
+    open = "calendar.org",
+    setup = {
+      extensions = {
+        caldav = {
+          calendars = {
+            { name = "Home", url = "http://dav.test/dav/calendars/me/home/", inbox = "{{dir}}/calendar.org" },
+          },
+          timezone = "UTC",
+          state_dir = "{{dir}}/state",
+        },
+      },
+    },
+    steps = {
+      {
+        note = "a stand-in for the server answers inside the child: nothing goes on the network",
+        lua = [[
+          local file = vim.api.nvim_get_runtime_file("tests/support/caldav_server.lua", false)[1]
+          local srv = dofile(file).new()
+          srv:calendar("home")
+          srv:put("home", "a.ics", table.concat({
+            "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "UID:uid-a", "SUMMARY:Design review",
+            "DTSTART:20261015T150000Z", "DTEND:20261015T160000Z", "LOCATION:Room 4",
+            "ATTENDEE:mailto:ana@example.com", "END:VEVENT", "END:VCALENDAR",
+          }, "\r\n") .. "\r\n")
+          require("org.extensions.caldav.http").transport = srv:transport()
+          _G.__caldav = srv
+        ]],
+      },
+      {
+        cmd = "Org caldav_sync",
+        expect = {
+          screen = {
+            "caldav: Home: 1 from the calendar, 1 to the calendar",
+            "* Design review",
+            "<2026-10-15 Thu 15:00-16:00>",
+          },
+        },
+      },
+      { note = "its location is in the (folded) drawer", expect = { buffer = "^:LOCATION: Room 4$" } },
+      { note = "the entry of the file was sent, with an ID", expect = { buffer = "^:ID: " } },
+      { expect = { lua = "return #_G.__caldav:files('home') == 2" } },
+      { note = "the file is saved", expect = { file = { "calendar.org", "^%* Design review$" } } },
+      { at = "Design review" },
+      { key = "A (moved)<Esc>" },
+      { cmd = "Org caldav_sync", expect = { screen = "caldav: Home: 1 to the calendar" } },
+      {
+        note = "only the title changed in the event: the attendee is still there",
+        expect = {
+          lua = [[
+            local ics = _G.__caldav:get("home", "a.ics")
+            return ics:find("SUMMARY:Design review (moved)", 1, true) ~= nil
+              and ics:find("ATTENDEE:mailto:ana@example.com", 1, true) ~= nil
+          ]],
+        },
+      },
+      { cmd = "1,5delete", note = "the Dentist entry deleted in org: its heading, drawer and timestamp" },
+      {
+        cmd = "Org caldav_sync",
+        expect = { screen = { "1 entry was deleted in the org files. Delete it from the calendar too?", "Dentist" } },
+      },
+      {
+        note = "typed, not a key step: Neovim answers nothing else while confirm() waits",
+        type = "y",
+        expect = { screen = "caldav: Home: 1 deleted in the calendar" },
+      },
+      { expect = { lua = "return #_G.__caldav:files('home') == 1" } },
+    },
+  },
 }
