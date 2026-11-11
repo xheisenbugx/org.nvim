@@ -76,6 +76,24 @@ describe("fuzz regressions", function()
   describe("with inline tasks", function()
     with_config({ inlinetask_min_level = 15 })
 
+    it("reads no item in a block that runs over an inline task", function()
+      -- nightly fuzz seed 380867 (#343). Emacs Org 9.8.10: the export block
+      -- runs over the inline task line (org-element), so org-at-item-p,
+      -- which asks org-element, finds no item on line 3; the "2)" after
+      -- the block is one
+      local lists = require("org.lists")
+      local buf = org_buffer({
+        "#+begin_export html",
+        "*************** Ωμέγα ::",
+        "    + [ ] [1/2] beta",
+        "#+end_export",
+        "2) [x] task",
+      }, { 3, 0 })
+      eq(true, lists.in_forbidden_block(buf, 3))
+      eq(nil, lists.item_on(buf, 3))
+      eq("2)", lists.item_on(buf, 5).bullet)
+    end)
+
     it("counts the clocks after an inline task's END line for the entry", function()
       -- Emacs Org 9.8.10: org-element puts these lines in H's section and
       -- org-clock-sum counts the clock for H; the agenda doesn't list the
