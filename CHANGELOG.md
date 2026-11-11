@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.3.1] - 2026-11-11
+
+### Fixes
+
+- **lists:** Don't split sections at inline tasks in the item fuzz check ([#344](https://github.com/xheisenbugx/org.nvim/pull/344))
+
 ## [v3.3.0] - 2026-11-09
 
 ### Features
@@ -641,6 +647,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.3.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.0...v3.3.1
 [v3.3.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.6...v3.3.0
 [v3.2.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.5...v3.2.6
 [v3.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.4...v3.2.5

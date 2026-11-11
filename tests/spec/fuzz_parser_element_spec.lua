@@ -348,9 +348,16 @@ end
 
 --- Plain list items in document order, as org.lists reads each region
 --- between two headings and as org.export.element reads the document.
+--- An inline task line is no heading: a block, and a section, run over
+--- it (org-element, and org.lists through the parser's sections).
 local function items(lines, data)
   local lists = require("org.lists")
   local a, b = {}, {}
+  local min = parser.inlinetask_min_level()
+  local function heading(line)
+    local level = parser.headline_level(line)
+    return level ~= nil and (not min or level < min)
+  end
   -- org-list-forbidden-blocks leaves comment blocks out: org-list reads
   -- items there, org-element reads the block's text as raw
   local raw = {}
@@ -358,7 +365,7 @@ local function items(lines, data)
   while l <= #lines do
     if lines[l]:lower():match("^%s*#%+begin_comment%f[%s%z]") then
       for j = l + 1, #lines do
-        if parser.headline_level(lines[j]) then
+        if heading(lines[j]) then
           break
         elseif lines[j]:lower():match("^%s*#%+end_comment%s*$") then
           for k = l + 1, j - 1 do
@@ -373,7 +380,7 @@ local function items(lines, data)
   end
   local from = 1
   for i = 1, #lines + 1 do
-    if i > #lines or parser.headline_level(lines[i]) then
+    if i > #lines or heading(lines[i]) then
       local _, all = lists.parse_region(lines, from, i - 1)
       for _, it in ipairs(all) do
         local c = it.counter
