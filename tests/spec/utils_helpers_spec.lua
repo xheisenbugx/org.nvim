@@ -67,4 +67,35 @@ describe("utils.mkdir_p", function()
     require("org.utils").mkdir_p(dir)
     vim.fn.delete(vim.fs.dirname(vim.fs.dirname(dir)), "rf")
   end)
+
+  it("takes a directory another process made while it tried again", function()
+    -- CI on PR #345: six parallel `org capture` failed with E739 on the
+    -- state directory: the first mkdir() lost the race on a parent, the
+    -- second on the directory itself
+    local dir = vim.fn.tempname() .. "/a/b"
+    local real = vim.fn.mkdir
+    local calls = 0
+    vim.fn.mkdir = function(d, flags)
+      calls = calls + 1
+      if calls == 1 then
+        real(vim.fs.dirname(d), flags)
+        error("Vim:E739: Cannot create directory " .. vim.fs.dirname(d) .. ": file already exists")
+      end
+      real(d, flags)
+      error("Vim:E739: Cannot create directory " .. d .. ": file already exists")
+    end
+    local ok, err = pcall(require("org.utils").mkdir_p, dir)
+    vim.fn.mkdir = real
+    assert(ok, err)
+    eq(1, vim.fn.isdirectory(dir))
+    vim.fn.delete(vim.fs.dirname(vim.fs.dirname(dir)), "rf")
+  end)
+
+  it("still fails when the directory can't be made", function()
+    local file = vim.fn.tempname()
+    vim.fn.writefile({}, file)
+    local ok = pcall(require("org.utils").mkdir_p, file .. "/sub")
+    eq(false, ok)
+    vim.fn.delete(file)
+  end)
 end)

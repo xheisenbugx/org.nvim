@@ -769,13 +769,17 @@ end
 
 --- Make directory `dir` and its parents. Another process making the same
 --- directory at the same time (parallel `org` commands) makes mkdir() fail
---- with E739 although the directory is there: that isn't an error.
+--- with E739 although the directory is there: that isn't an error. Each
+--- level of `dir` can lose such a race, so it tries again a few times,
+--- and fails only when the directory still isn't there.
 ---@param dir string
 function M.mkdir_p(dir)
-  if vim.fn.isdirectory(dir) == 1 then
-    return
+  for _ = 1, 4 do
+    if vim.fn.isdirectory(dir) == 1 or pcall(vim.fn.mkdir, dir, "p") then
+      return
+    end
   end
-  if not pcall(vim.fn.mkdir, dir, "p") and vim.fn.isdirectory(dir) == 0 then
+  if vim.fn.isdirectory(dir) == 0 then
     vim.fn.mkdir(dir, "p")
   end
 end
