@@ -8,6 +8,16 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.3.0] - 2026-11-09
+
+### Features
+
+- **extensions:** Caldav, two-way sync with CalDAV calendars ([#340](https://github.com/xheisenbugx/org.nvim/pull/340))
+
+### Documentation
+
+- **caldav:** Getting started, Google Calendar setup and the messages of a sync ([#341](https://github.com/xheisenbugx/org.nvim/pull/341))
+
 ## [v3.2.6] - 2026-11-09
 
 <details><summary>Tests, CI and chores (1)</summary>
@@ -631,6 +641,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.3.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.6...v3.3.0
 [v3.2.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.5...v3.2.6
 [v3.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.4...v3.2.5
 [v3.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.3...v3.2.4
