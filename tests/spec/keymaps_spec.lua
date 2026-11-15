@@ -356,3 +356,64 @@ describe("default keymaps", function()
     eq({ "- [X] one", "- [ ] two", "- [ ] three" }, buf_lines(buf))
   end)
 end)
+
+describe("falling back to a global mapping", function()
+  local calls
+  before_each(function()
+    calls = 0
+    -- like vim-eunuch's <CR>: a <script> expr map whose keys contain <CR>;
+    -- it stops returning <CR> after a few calls so a regression can't hang
+    _G.org_test_cr = function()
+      calls = calls + 1
+      return calls > 5 and "" or "\r"
+    end
+    vim.cmd([[imap <script><expr> <CR> v:lua.org_test_cr()]])
+  end)
+  after_each(function()
+    pcall(vim.cmd, "iunmap <CR>")
+    _G.org_test_cr = nil
+  end)
+  it("does not remap the keys of a <script> map (no <CR> loop)", function()
+    local buf = org_buffer({ "* Heading" }, { 1, 0 })
+    keys("A text<CR>more<Esc>")
+    eq(1, calls)
+    eq({ "* Heading text", "more" }, buf_lines(buf))
+  end)
+end)
+
+describe("falling back to a remapping global mapping", function()
+  local calls
+  before_each(function()
+    calls = 0
+    -- like `imap <expr> <CR> pumvisible() ? "\<C-y>" : "\<CR>"`: a map that
+    -- remaps, whose keys start with its own lhs; Vim doesn't map that first
+    -- key again (:h recursive_mapping). Capped so a regression can't hang.
+    _G.org_test_cr = function()
+      calls = calls + 1
+      return calls > 5 and "" or "\r"
+    end
+    vim.cmd([[imap <expr> <CR> v:lua.org_test_cr()]])
+  end)
+  after_each(function()
+    pcall(vim.cmd, "iunmap <CR>")
+    _G.org_test_cr = nil
+  end)
+  it("does not map the keys' leading lhs again (no <CR> loop)", function()
+    local buf = org_buffer({ "* Heading" }, { 1, 0 })
+    keys("A text<CR>more<Esc>")
+    eq(1, calls)
+    eq({ "* Heading text", "more" }, buf_lines(buf))
+  end)
+  it("still remaps the keys after the leading lhs", function()
+    _G.org_test_cr = function()
+      calls = calls + 1
+      return calls > 5 and "" or "\r;;"
+    end
+    vim.cmd([[imap ;; DONE]])
+    local buf = org_buffer({ "* Heading" }, { 1, 0 })
+    keys("A text<CR><Esc>")
+    pcall(vim.cmd, "iunmap ;;")
+    eq(1, calls)
+    eq({ "* Heading text", "DONE" }, buf_lines(buf))
+  end)
+end)
