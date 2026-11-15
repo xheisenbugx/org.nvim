@@ -65,6 +65,47 @@ describe("babel :session", function()
     ok(vim.tbl_contains(buf_lines(buf), ": nil"), vim.inspect(buf_lines(buf)))
   end)
 
+  -- #348: a function defined in an earlier block printed into that block's
+  -- capture, so a later call's output was lost. Like a Python session, the
+  -- output belongs to the block that makes the call.
+  it("Lua: a function from an earlier block prints into the block that calls it", function()
+    local buf = run_all({
+      "#+PROPERTY: header-args:lua :session test",
+      "",
+      "#+begin_src lua",
+      "function say_hi()",
+      '  print("hi")',
+      "end",
+      "function say_there()",
+      '  io.write("there", "\\n")',
+      "end",
+      "#+end_src",
+      "",
+      "#+begin_src lua :results output",
+      "say_hi()",
+      "#+end_src",
+      "",
+      "#+begin_src lua :results output",
+      "say_there()",
+      "#+end_src",
+    })
+    local lines = buf_lines(buf)
+    local at = assert(vim.fn.index(lines, "say_hi()") + 1, vim.inspect(lines))
+    eq({ "#+end_src", "", "#+RESULTS:", ": hi", "" }, vim.list_slice(lines, at + 1, at + 5))
+    at = assert(vim.fn.index(lines, "say_there()") + 1, vim.inspect(lines))
+    eq({ "#+end_src", "", "#+RESULTS:", ": there" }, vim.list_slice(lines, at + 1, at + 4))
+    -- outside a babel run the function prints through Neovim's print again
+    local seen
+    local real = _G.print
+    rawset(_G, "print", function(...)
+      seen = { ... }
+    end)
+    local okc, err = pcall(session.find("lua", "test").env.say_hi)
+    rawset(_G, "print", real)
+    ok(okc, err)
+    eq({ "hi" }, seen)
+  end)
+
   it("python: state persists, value is the last expression, output mode prints", function()
     skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then

@@ -1537,35 +1537,58 @@ end
 --- `session_env` (a `:session`) keeps globals and variables between runs.
 --- Several returned values are joined with `multiple_values_separator`
 --- (", ") like ob-lua.
+--- The output capture of the Lua block being run, nil between runs.
+--- A block's `print` and `io.write` forward to it rather than to their
+--- own run's capture: a function defined in one `:session` block keeps
+--- that block's environment, and its output belongs to the block that
+--- calls it (as in any other session), or to Neovim outside a run.
+---@type { print: fun(...), write: fun(...) }?
+local lua_capture
+
+local function lua_print(...)
+  if lua_capture then
+    return lua_capture.print(...)
+  end
+  return _G.print(...)
+end
+
+local function lua_write(...)
+  if lua_capture then
+    return lua_capture.write(...)
+  end
+  return io.write(...)
+end
+
 function M.run_lua(body, args, vars, session_env)
   local printed = {}
-  local function cap(...)
-    local parts = {}
-    for i = 1, select("#", ...) do
-      parts[#parts + 1] = tostring((select(i, ...)))
-    end
-    printed[#printed + 1] = table.concat(parts, "\t")
-  end
+  local capture = {
+    print = function(...)
+      local parts = {}
+      for i = 1, select("#", ...) do
+        parts[#parts + 1] = tostring((select(i, ...)))
+      end
+      printed[#printed + 1] = table.concat(parts, "\t")
+    end,
+    write = function(...)
+      for i = 1, select("#", ...) do
+        local s = tostring((select(i, ...)))
+        if #printed == 0 then
+          printed[1] = s
+        else
+          printed[#printed] = printed[#printed] .. s
+        end
+        local parts = vim.split(printed[#printed], "\n", { plain = true })
+        printed[#printed] = parts[1]
+        for k = 2, #parts do
+          printed[#printed + 1] = parts[k]
+        end
+      end
+    end,
+  }
   local base = session_env or _G
   local env = setmetatable({
-    print = cap,
-    io = setmetatable({
-      write = function(...)
-        for i = 1, select("#", ...) do
-          local s = tostring((select(i, ...)))
-          if #printed == 0 then
-            printed[1] = s
-          else
-            printed[#printed] = printed[#printed] .. s
-          end
-          local parts = vim.split(printed[#printed], "\n", { plain = true })
-          printed[#printed] = parts[1]
-          for k = 2, #parts do
-            printed[#printed + 1] = parts[k]
-          end
-        end
-      end,
-    }, { __index = io }),
+    print = lua_print,
+    io = setmetatable({ write = lua_write }, { __index = io }),
   }, { __index = base, __newindex = session_env })
   for _, v in ipairs(vars) do
     if session_env then
@@ -1588,6 +1611,10 @@ function M.run_lua(body, args, vars, session_env)
       return { error = err, output = "" }
     end
   end
+  -- restored after the run, so a block that runs another block (through
+  -- org's API) gets its own output back
+  local outer = lua_capture
+  lua_capture = capture
   local packed = vim.F.pack_len(pcall(chunk))
   local ok = packed[1]
   local res, n = {}, packed.n - 1
@@ -1605,6 +1632,7 @@ function M.run_lua(body, args, vars, session_env)
       end
     end
   end
+  lua_capture = outer
   local output = table.concat(printed, "\n")
   if not ok then
     return { error = tostring(res[1]), output = output }
