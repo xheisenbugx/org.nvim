@@ -8,6 +8,35 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.3.3] - 2026-11-15
+
+### Fixes
+
+- **babel:** A Lua session function prints into the block that calls it ([#350](https://github.com/xheisenbugx/org.nvim/pull/350))
+- **caldav:** Say how many tasks a sync left out when todos is off ([#351](https://github.com/xheisenbugx/org.nvim/pull/351))
+
+## [v3.3.2] - 2026-11-11
+
+### Fixes
+
+- **cli:** Parallel commands don't fail when both mkdir tries lose the race ([#346](https://github.com/xheisenbugx/org.nvim/pull/346))
+
+## [v3.3.1] - 2026-11-11
+
+### Fixes
+
+- **lists:** Don't split sections at inline tasks in the item fuzz check ([#344](https://github.com/xheisenbugx/org.nvim/pull/344))
+
+## [v3.3.0] - 2026-11-09
+
+### Features
+
+- **extensions:** Caldav, two-way sync with CalDAV calendars ([#340](https://github.com/xheisenbugx/org.nvim/pull/340))
+
+### Documentation
+
+- **caldav:** Getting started, Google Calendar setup and the messages of a sync ([#341](https://github.com/xheisenbugx/org.nvim/pull/341))
+
 ## [v3.2.6] - 2026-11-09
 
 <details><summary>Tests, CI and chores (1)</summary>
@@ -631,6 +660,10 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.2...v3.3.3
+[v3.3.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.1...v3.3.2
+[v3.3.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.0...v3.3.1
+[v3.3.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.6...v3.3.0
 [v3.2.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.5...v3.2.6
 [v3.2.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.4...v3.2.5
 [v3.2.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.2.3...v3.2.4
