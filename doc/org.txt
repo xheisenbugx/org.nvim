@@ -195,7 +195,9 @@ Conventions used in this manual:
   <prefix>    The value of `mappings.prefix` (default `<leader>o`).
   (ctx)       A context-sensitive key. When it does not apply at the cursor,
               the key falls back to its normal Vim behaviour (for example
-              `>>` indents plain text and `<C-a>` increments numbers).
+              `>>` indents plain text and `<C-a>` increments numbers), or
+              to your global mapping of the key, run as Vim would: keys
+              from a `noremap` or `<script>` mapping are not remapped.
   target      Many Lua functions accept `{ bufnr = n, lnum = l }` to act on
               a headline other than the one at the cursor.
 

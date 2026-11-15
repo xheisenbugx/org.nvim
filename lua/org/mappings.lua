@@ -29,6 +29,31 @@ M.text_objects = {
   { "around_timestamp", "timestamp", false },
 }
 
+--- Feed `keys`, the keys global mapping `map` for `lhs` produced, the way
+--- Vim would run them. Only a map that remaps (`noremap` 0) has its keys
+--- remapped. A `<script>` map (`noremap` 2) remaps only its script's own
+--- mappings, which feedkeys can't express, so its keys go unremapped. And
+--- as in Vim, keys that start with `lhs` don't map that first `lhs` again
+--- (|recursive_mapping|). Remapped, that `lhs` would run this buffer's
+--- mapping, which falls back to the same global map, endlessly (#353).
+---@param map table
+---@param lhs string
+---@param keys string already through `vim.keycode`
+local function feed_map_keys(map, lhs, keys)
+  if (map.noremap or 0) ~= 0 then
+    vim.api.nvim_feedkeys(keys, "ni", false)
+    return
+  end
+  local first = vim.keycode(lhs)
+  if first ~= "" and keys:sub(1, #first) == first then
+    -- "i" inserts at the start of the typeahead: the rest goes in first
+    vim.api.nvim_feedkeys(keys:sub(#first + 1), "mi", false)
+    vim.api.nvim_feedkeys(first, "ni", false)
+    return
+  end
+  vim.api.nvim_feedkeys(keys, "mi", false)
+end
+
 --- Feed the key's default behaviour (or a global mapping for it) when an
 --- action returned `false`.
 local function fallback(lhs, mode)
@@ -38,7 +63,7 @@ local function fallback(lhs, mode)
       if map.callback then
         local ok, res = pcall(map.callback)
         if ok and map.expr == 1 and type(res) == "string" then
-          vim.api.nvim_feedkeys(vim.keycode(res), map.noremap == 1 and "ni" or "mi", false)
+          feed_map_keys(map, lhs, vim.keycode(res))
         end
         return
       elseif map.rhs and map.rhs ~= "" then
@@ -46,7 +71,7 @@ local function fallback(lhs, mode)
         if map.expr == 1 then
           rhs = vim.api.nvim_eval(rhs)
         end
-        vim.api.nvim_feedkeys(vim.keycode(rhs), map.noremap == 1 and "ni" or "mi", false)
+        feed_map_keys(map, lhs, vim.keycode(rhs))
         return
       end
     end
