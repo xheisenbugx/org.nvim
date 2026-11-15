@@ -4966,7 +4966,9 @@ variables, imports, functions and the working directory persist between
 blocks, like Emacs' comint sessions. Supported: shells (sh, bash, zsh,
 fish), python, js/node, ruby (irb), R, julia, ocaml, scheme, haskell
 (ghci), SQL (sqlite3, psql, mysql) and lua (lua sessions keep their
-globals inside Neovim). Other languages ignore `:session` with a warning.
+globals inside Neovim; what a function from an earlier block prints goes
+to the block that calls it). Other languages ignore `:session` with a
+warning.
   - The REPL runs in a terminal buffer named like Emacs: `*shell*`,
     `*Python*`, `*ruby*`, `*Javascript REPL*`, `*R*`, `*julia*`,
     `*OCaml*`, `*scheme*`, `*ob-haskell*`, `*SQL*` (`*lua*` for lua)
