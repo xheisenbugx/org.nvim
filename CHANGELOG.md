@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.3.4] - 2026-11-15
+
+### Fixes
+
+- **mappings:** Don't loop when a key falls back to a \<script> or self-starting global map ([#354](https://github.com/xheisenbugx/org.nvim/pull/354))
+
 ## [v3.3.3] - 2026-11-15
 
 ### Fixes
@@ -660,6 +666,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.3.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.3...v3.3.4
 [v3.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.2...v3.3.3
 [v3.3.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.1...v3.3.2
 [v3.3.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.0...v3.3.1
