@@ -4966,7 +4966,9 @@ variables, imports, functions and the working directory persist between
 blocks, like Emacs' comint sessions. Supported: shells (sh, bash, zsh,
 fish), python, js/node, ruby (irb), R, julia, ocaml, scheme, haskell
 (ghci), SQL (sqlite3, psql, mysql) and lua (lua sessions keep their
-globals inside Neovim). Other languages ignore `:session` with a warning.
+globals inside Neovim; what a function from an earlier block prints goes
+to the block that calls it). Other languages ignore `:session` with a
+warning.
   - The REPL runs in a terminal buffer named like Emacs: `*shell*`,
     `*Python*`, `*ruby*`, `*Javascript REPL*`, `*R*`, `*julia*`,
     `*OCaml*`, `*scheme*`, `*ob-haskell*`, `*SQL*` (`*lua*` for lua)
@@ -11671,7 +11673,9 @@ done keyword that doesn't start with CANCEL, a cancelled one the first
 that does (else the first done keyword), a reopened one the first TODO
 keyword. The calendar must be one that holds tasks; `:Org caldav_discover`
 shows what each holds. Whether an entry is an event or a task is settled
-when it is first synced.
+when it is first synced. `todos` is off by default, so a calendar that
+holds only tasks (a Radicale task list, say) needs `todos = true`; without
+it nothing syncs, and `:Org caldav_sync` says how many tasks it left out.
 
 Servers ~
 Any server that speaks CalDAV (RFC 4791) and takes a password (basic or

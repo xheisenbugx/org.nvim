@@ -675,6 +675,15 @@ function M.sync_calendar(c, run)
     for href, etag in pairs(tasks) do
       win[href] = etag
     end
+  elseif next(win) == nil then
+    -- no events: a calendar of tasks only, with todos off, would sync
+    -- nothing and say "up to date" (#349)
+    local tasks = http.query(c, "VTODO")
+    local n = tasks and vim.tbl_count(tasks) or 0
+    if n > 0 then
+      res.notes[#res.notes + 1] =
+        string.format("%d %s in the calendar left out: set todos = true to sync them", n, n == 1 and "task" or "tasks")
+    end
   end
   -- an event that is no longer in the days asked for may still exist
   local all = win
