@@ -802,7 +802,10 @@ end
 --- With `agenda.window = "split"` (reorganize-frame), fit the agenda
 --- window to its lines, between the fractions of the editor height of
 --- `agenda.window_frame_fractions` (org-agenda-fit-window-to-buffer);
---- { 1.0, 1.0 } makes it the only window.
+--- { 1.0, 1.0 } makes it the only window. Like org-fit-window-to-buffer,
+--- a window that is not full-width is left as it is: a side-by-side
+--- window can't change height without taking the rows from (or giving
+--- them to) the command line, and neither can the only window.
 function M.fit_window()
   local win = S.win
   if S.win_mode ~= "split" or not (win and vim.api.nvim_win_is_valid(win)) then
@@ -819,7 +822,18 @@ function M.fit_window()
     end)
     return
   end
-  if #vim.api.nvim_tabpage_list_wins(0) < 2 then
+  if vim.api.nvim_win_get_width(win) < vim.o.columns then
+    return
+  end
+  -- (floating windows don't count: they take no rows from the layout)
+  local others = false
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(vim.api.nvim_win_get_tabpage(win))) do
+    if w ~= win and vim.api.nvim_win_get_config(w).relative == "" then
+      others = true
+      break
+    end
+  end
+  if not others then
     return
   end
   local total = vim.o.lines - vim.o.cmdheight

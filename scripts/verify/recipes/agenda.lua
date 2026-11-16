@@ -61,4 +61,36 @@ return {
       { key = "{{agenda.earlier}}", expect = { screen = { "Week-agenda (W42):", "Monday     12 October 2026 W42" } } },
     },
   },
+  {
+    -- org-fit-window-to-buffer leaves a window that isn't full-width alone
+    name = "redoing an agenda beside its entry keeps the window height",
+    files = { ["todo.org"] = todo },
+    open = "todo.org",
+    setup = setup,
+    steps = {
+      { key = "{{global.agenda}}t", expect = { filetype = "orgagenda" } },
+      {
+        note = "the agenda the only window",
+        key = "<C-w>o",
+        expect = { lua = "return #vim.api.nvim_list_wins() == 1" },
+      },
+      { at = "Renew the passport" },
+      {
+        note = "the entry opens beside the agenda",
+        key = "{{agenda.goto}}",
+        expect = { filetype = "org", lua = "return vim.api.nvim_win_get_width(0) < vim.o.columns" },
+      },
+      { key = "<C-w>w", expect = { filetype = "orgagenda" } },
+      { lua = "_G.verify_fit = { vim.o.cmdheight, vim.api.nvim_win_get_height(0) }" },
+      { key = "{{agenda.redo}}" },
+      { key = "{{agenda.redo}}" },
+      {
+        note = "the command line and the agenda keep their heights",
+        key = "{{agenda.redo}}",
+        expect = {
+          lua = "return vim.o.cmdheight == _G.verify_fit[1] and vim.api.nvim_win_get_height(0) == _G.verify_fit[2]",
+        },
+      },
+    },
+  },
 }
