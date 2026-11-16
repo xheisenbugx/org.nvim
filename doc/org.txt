@@ -2441,7 +2441,10 @@ reorganize-frame: the current window and the agenda below it), "only"
 (only-window), "other" (other-window), "current", "vsplit", "tab"
 (other-tab), "float". The "split" window fits its lines, between
 `window_frame_fractions` ({ 0.5, 0.75 } of the editor height,
-org-agenda-window-frame-fractions; { 1.0, 1.0 } = the only window).
+org-agenda-window-frame-fractions; { 1.0, 1.0 } = the only window),
+when it is built and when it is redone. Like org-fit-window-to-buffer, it
+keeps its height when it is beside another window (not the full width of
+the editor) and when it is the only window (floating windows don't count).
 `restore_windows_after_quit` restores the previous
 window layout on q. With `agenda.sticky` (org-agenda-sticky, `*` in the
 dispatcher) every command has its own buffer (`org://agenda(KEY)`), shown
