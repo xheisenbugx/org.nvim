@@ -719,6 +719,45 @@ describe("window_frame_fractions", function()
     open(many, { agenda = { window = "split", window_frame_fractions = { 0.2, 0.6 } } }, { type = "todo" })
     eq(math.floor(total * 0.6), vim.api.nvim_win_get_height(view.state.win))
   end)
+
+  -- org-fit-window-to-buffer does nothing when the window is not
+  -- full-width ("Do nothing if another window would suffer"): resizing a
+  -- side-by-side window would take the rows from the command line.  Here
+  -- the agenda window is made the only one, an entry is opened beside it,
+  -- then `r` is pressed in the agenda.
+  it("leaves a side-by-side agenda window as it is", function()
+    open({ "* TODO A" }, { agenda = { window = "split" } }, { type = "todo" })
+    vim.api.nvim_set_current_win(view.state.win)
+    vim.cmd("silent! only")
+    vim.cmd("vsplit")
+    vim.api.nvim_set_current_win(view.state.win)
+    local ch, height = vim.o.cmdheight, vim.api.nvim_win_get_height(view.state.win)
+    for _ = 1, 3 do
+      press("r")
+    end
+    eq(ch, vim.o.cmdheight)
+    eq(height, vim.api.nvim_win_get_height(view.state.win))
+  end)
+
+  -- A floating window is no window to give rows to: the only window keeps
+  -- its height with a float open (a notification, say).
+  it("leaves the only window as it is with a floating window open", function()
+    open({ "* TODO A" }, { agenda = { window = "split" } }, { type = "todo" })
+    vim.api.nvim_set_current_win(view.state.win)
+    vim.cmd("silent! only")
+    local float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = 0,
+      col = 0,
+      width = 10,
+      height = 1,
+    })
+    local ch, height = vim.o.cmdheight, vim.api.nvim_win_get_height(view.state.win)
+    press("r")
+    vim.api.nvim_win_close(float, true)
+    eq(ch, vim.o.cmdheight)
+    eq(height, vim.api.nvim_win_get_height(view.state.win))
+  end)
 end)
 
 describe("agenda levels with #+STARTUP: odd", function()
