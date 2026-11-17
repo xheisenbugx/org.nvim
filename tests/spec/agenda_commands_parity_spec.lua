@@ -797,6 +797,66 @@ describe("agenda bulk refile", function()
   end)
 end)
 
+-- An agenda line keeps a marker on its entry (org-hd-marker), so a command
+-- acts on that entry whatever was inserted in its file since the agenda
+-- was built, even next to headlines with the same text (Emacs 9.8.10
+-- probe: org-agenda-todo after a third "* TODO Same" was added at the top
+-- marks the scheduled one DONE).
+describe("agenda commands find their entry after edits", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local lines = { "* TODO Same", "  SCHEDULED: " .. ts(0), "* TODO Same", "  DEADLINE: " .. ts(0) }
+
+  local function goto_type(kind)
+    for l, it in pairs(view.state.line_items) do
+      if it.type == kind then
+        vim.api.nvim_win_set_cursor(0, { l, 0 })
+        return l
+      end
+    end
+    error("no " .. kind .. " line")
+  end
+
+  local function change_first_same()
+    goto_type("scheduled")
+    vim.api.nvim_buf_set_lines(utils.find_buffer(path), 0, 0, false, { "* TODO Same", "  new one" })
+    with_stubs({
+      {
+        utils,
+        "input",
+        function()
+          return ""
+        end,
+      },
+    }, function()
+      view.actions.todo_next()
+    end)
+    local out = source_lines()
+    return { out[1], out[3], out[5] }
+  end
+
+  it("in a file loaded when the agenda was built", function()
+    utils.writefile(path, lines)
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    utils.load_buffer(path)
+    config.setup({ agenda_files = { path }, org_directory = dir })
+    agenda.open_agenda({ span = "day" })
+    eq({ "* TODO Same", "* DONE Same", "* TODO Same" }, change_first_same())
+  end)
+
+  it("in a file loaded after the agenda was built", function()
+    open(lines)
+    ok(not utils.find_buffer(path), "the agenda is built from the file on disk")
+    utils.load_buffer(path)
+    eq({ "* TODO Same", "* DONE Same", "* TODO Same" }, change_first_same())
+  end)
+end)
+
 -- org-agenda-kill deletes the entry's subtree, but only the line of a
 -- %%(sexp) entry ("sexp" type): one line, so no confirmation either
 -- (Emacs 9.8.10 probe: the other anniversary and the heading stay).

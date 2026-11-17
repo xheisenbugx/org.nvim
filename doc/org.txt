@@ -2417,6 +2417,13 @@ selection (org-agenda-loop-over-headlines-in-active-region:
 keys that are Visual motions (`t`, `$`, `e`, `a`) keep their Vim meaning
 there; use their <C-c> forms.
 
+A line acts on its entry wherever the entry moved since the agenda was
+built: like Emacs's markers, an extmark follows each entry in its buffer
+(set when the agenda is built, or when its file is loaded later and still
+holds the entry), so text added or removed around it, or another headline
+with the same text, don't send a command to the wrong entry. Without one
+(a file changed on disk), the entry is found again by its headline text.
+
 Like Emacs, edits made from the agenda leave the source buffers modified
 (`agenda.save_after_edit = false`); save them with <C-x><C-s> or :wall.
 Buffers are listed, so :qa asks before losing changes. Set

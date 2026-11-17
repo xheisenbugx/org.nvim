@@ -62,6 +62,44 @@ return {
     },
   },
   {
+    -- an agenda line keeps a marker on its entry (org-hd-marker): another
+    -- headline with the same text added above doesn't take its place
+    name = "a TODO marked done after its file changed is the line's own entry",
+    files = {
+      ["same.org"] = { "* TODO Same", "  SCHEDULED: <2026-10-12 Mon>", "* TODO Same", "  DEADLINE: <2026-10-12 Mon>" },
+    },
+    open = "same.org",
+    setup = { agenda_files = { "{{dir}}/same.org" } },
+    steps = {
+      { key = "{{global.agenda}}a", expect = { screen = { "Scheduled:  TODO Same", "Deadline:   TODO Same" } } },
+      { note = "back to the file", key = "<C-w>w", expect = { filetype = "org" } },
+      {
+        note = "a headline with the same text at the top",
+        key = "ggO* TODO Same<Esc>",
+        expect = { buffer = "^%* TODO Same$", lua = "return vim.api.nvim_buf_line_count(0) == 5" },
+      },
+      { key = "<C-w>w", expect = { filetype = "orgagenda" } },
+      { at = "Scheduled:" },
+      { key = "{{agenda.todo}}", expect = { screen = "Scheduled:  DONE Same" } },
+      { key = "{{agenda.save_all}}" },
+      {
+        note = "the scheduled entry is DONE, the new headline and the deadline untouched",
+        expect = {
+          file = {
+            "same.org",
+            lines = {
+              "* TODO Same",
+              "* DONE Same",
+              "  SCHEDULED: <2026-10-12 Mon>",
+              "* TODO Same",
+              "  DEADLINE: <2026-10-12 Mon>",
+            },
+          },
+        },
+      },
+    },
+  },
+  {
     -- org-fit-window-to-buffer leaves a window that isn't full-width alone
     name = "redoing an agenda beside its entry keeps the window height",
     files = { ["todo.org"] = todo },
