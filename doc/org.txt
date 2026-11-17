@@ -4959,6 +4959,10 @@ the other, in order. Meanwhile:
     a running block, it cancels the only running evaluation, or asks which
     one; with a count, all of them. Unloading (`:bwipeout`, `:bdelete`) a
     buffer cancels its evaluations; quitting Neovim cancels them all.
+  - A program still running after `babel.timeout` ms (Emacs has no
+    timeout) is killed the same way, with its child processes, in the
+    background or not: the output so far is the result, and the error
+    output says it timed out (exit code 124).
 What needs a value at once still waits for it, as in Emacs, with no
 spinner or placeholder: export, the blocks a `:var` reference, a noweb
 call or `:post` evaluates, and `org-sbe` in table formulas. Lua blocks run

@@ -211,7 +211,9 @@ function M.run_program(program, opts)
   local argv = vim.deepcopy(cmd)
   vim.list_extend(argv, { "-l", script })
   local ok, obj = pcall(function()
-    return vim.system(argv, { cwd = opts.cwd, text = true, timeout = require("org.config").opts.babel.timeout }):wait()
+    -- killed with what it started past babel.timeout (never nil, unlike :wait())
+    local timeout = require("org.config").opts.babel.timeout
+    return require("org.babel.jobs").system_wait(argv, { cwd = opts.cwd, text = true }, timeout)
   end)
   os.remove(script)
   local value
