@@ -250,7 +250,15 @@ local function relevel(lines, delta, todo_cfg)
       end
     end
   end
-  local function shift(l)
+  -- by `delta` characters, as the LOGBOOK drawer moves (insert /
+  -- delete-char); with `columns`, as body lines move (indent-line-to): a
+  -- tab counts 8, so a tab-indented line is rewritten with spaces
+  -- ('expandtab')
+  local function shift(l, columns)
+    local ws = l:match("^[ \t]*")
+    if columns and ws:find("\t", 1, true) then
+      return string.rep(" ", math.max(0, indent_col(l) + delta)) .. l:sub(#ws + 1)
+    end
     if delta > 0 then
       return string.rep(" ", delta) .. l
     end
@@ -332,7 +340,7 @@ local function relevel(lines, delta, todo_cfg)
     elseif kind == "log" then
       out[i] = is_blank(l) and l or shift(l)
     elseif shifted[i] then
-      out[i] = shift(l)
+      out[i] = shift(l, true)
     else
       out[i] = l
     end

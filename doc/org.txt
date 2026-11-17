@@ -9641,6 +9641,13 @@ Differences from Emacs:
     spaces ('expandtab'); Emacs uses tabs from column 8 on when
     `indent-tabs-mode` is on, its default. Lines it doesn't move keep
     their tabs.
+  - Promoting or demoting a heading with `adapt_indentation = true`
+    (also pasting, refiling and archiving a subtree at another level)
+    moves a tab-indented line of its text by columns, a tab counting 8,
+    and re-indents it with spaces ('expandtab'); Emacs's indent-line-to
+    writes tabs from column 8 on (`\t ` for column 9) when
+    `indent-tabs-mode` is on. The LOGBOOK drawer moves by characters, as
+    in Emacs.
   - Indenting or outdenting a list item moves the text it owns with it,
     text after its sub-list included. Emacs lines that text up with the
     sub-list's last item instead, which can hand it to another item or

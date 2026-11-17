@@ -768,4 +768,27 @@ describe("adapt_indentation = true (org-fixup-indentation)", function()
     config.opts.src_preserve_indentation = true
     eq({ "** A", " #+begin_src sh", "echo", " #+end_src" }, demote({ "* A", "#+begin_src sh", "echo", "#+end_src" }))
   end)
+
+  -- a tab is 8 columns: the line moves by one column, never by a whole tab
+  -- (Emacs's indent-line-to writes "\t " for column 9 with indent-tabs-mode;
+  -- org buffers set 'expandtab', so the new indentation is spaces)
+  it("shifts tab-indented lines by columns", function()
+    -- promoting by one tab would make "* x" a headline and "[fn:1]" a
+    -- footnote definition
+    eq({ "* A", "       * x", "       text", "       [fn:1] x" }, promote({ "** A", "\t* x", "\ttext", "\t[fn:1] x" }))
+    eq({ "* A", "       text" }, promote({ "** A", "  \ttext" }))
+    eq({ "** A", "         text", "           y" }, demote({ "* A", "\ttext", "\t  y" }))
+  end)
+
+  -- the LOGBOOK drawer moves by characters (insert / delete-char diff)
+  it("shifts a tab-indented LOGBOOK drawer by characters", function()
+    eq(
+      { "* A", ":LOGBOOK:", "- note", ":END:", "       text" },
+      promote({ "** A", "\t:LOGBOOK:", "\t- note", "\t:END:", "\ttext" })
+    )
+    eq(
+      { "** A", " :LOGBOOK:", " \t- note", " :END:", "         text" },
+      demote({ "* A", ":LOGBOOK:", "\t- note", ":END:", "\ttext" })
+    )
+  end)
 end)
