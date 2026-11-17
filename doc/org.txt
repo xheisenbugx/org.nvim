@@ -4579,13 +4579,16 @@ field text (`(3)`; ranges `[1,2,3]`, empty fields dropped) before the
 formula is evaluated, so:
 - Calc precedence: `/` binds looser than `*`, `a/b*c` is `a/(b*c)`; `^`
   binds tighter than unary minus (`-2^2` is -4); `2 3` and `2(3+1)`
-  multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
+  multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or, before
+  something that starts a factor (a sign too: `7 % -3` is -2), modulo.
 - Numbers: exact integers of any size (`2^100`), floats with 12 digits and
   Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`);
   `calc_default_modes` (org-calc-default-modes) changes the precision,
   the float display, the angle mode ("deg"/"rad") and fractions,
   fractions `3:4` (`F` flag), modulo forms `3 mod 7` (`(3 mod 7)^100` is
-  `4 mod 7`, `makemod(10, 7)`).
+  `4 mod 7`, `makemod(10, 7)`), numbers in a radix from 2 to 36 (`16#FF`,
+  `2#101`, `16^^FF`, `16#F.8`, `16#F:3`, `2#1.1e-1` with a radix up to
+  14, `2##11111111111111111111111111111111` in two's complement is -1).
 - Vectors and matrices: `[1, 2]` (`[1 2]` without commas), `[[1, 2], [3,
   4]]`. `+ -` work elementwise, a number scales, `*` is the matrix product
   (of two plain vectors the dot product), `^` a matrix power (`^-1` the
