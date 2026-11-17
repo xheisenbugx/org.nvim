@@ -705,13 +705,15 @@ function M.parse_blocks(lines)
         end
         k = k - 1
       end
-      -- results after the block
+      -- results after the block: a named block only has `#+RESULTS: name`
+      -- (org-babel-where-is-src-block-result), an unnamed one the
+      -- unnamed #+RESULTS: that follows it
       local r = j + 1
       while r <= n and lines[r]:match("^%s*$") do
         r = r + 1
       end
       local rname, rhash = match_results(lines[r])
-      if rname and (rname == "" or rname == block.name) then
+      if rname and ((rname == "" and not block.name) or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
         local x = named_results(block.name)
@@ -760,7 +762,7 @@ function M.parse_blocks(lines)
         r = r + 1
       end
       local rname, rhash = match_results(lines[r])
-      if rname and (rname == "" or rname == block.name) then
+      if rname and ((rname == "" and not block.name) or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
         local x = named_results(block.name)

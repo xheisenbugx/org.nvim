@@ -306,6 +306,48 @@ describe("babel parity: results", function()
     }, buf_lines(buf))
   end)
 
+  -- org-babel-where-is-src-block-result: a named block or #+CALL only takes
+  -- #+RESULTS: NAME (org-babel-find-named-result); an unnamed #+RESULTS:
+  -- below it is left alone and the named result inserted
+  it("gives a named block its own #+RESULTS: NAME, not an unnamed one", function()
+    local out = run({
+      "#+NAME: foo",
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": old",
+      "",
+      "#+NAME: bar",
+      "#+CALL: foo()",
+      "",
+      "#+RESULTS:",
+      ": old call",
+    })
+    eq({
+      "#+NAME: foo",
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS: foo",
+      ": new",
+      "",
+      "#+RESULTS:",
+      ": old",
+      "",
+      "#+NAME: bar",
+      "#+CALL: foo()",
+      "",
+      "#+RESULTS: bar",
+      ": new",
+      "",
+      "#+RESULTS:",
+      ": old call",
+    }, out)
+  end)
+
   it("replaces a result together with its affiliated keywords, dual ones included", function()
     local out = run({
       "#+begin_src sh :results output",
