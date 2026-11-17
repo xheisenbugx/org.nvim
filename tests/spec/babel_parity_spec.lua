@@ -348,6 +348,31 @@ describe("babel parity: results", function()
     }, out)
   end)
 
+  -- org-babel-insert-result: rows appended to a table result are not
+  -- indented, org-table-align realigns the whole table ("table-align
+  -- does the work for us"), at the indentation of its first row
+  it("realigns a table result that :results append adds rows to", function()
+    local out = run({
+      "- item",
+      "  #+begin_src sh :results table append",
+      '  echo "1 2"',
+      "  #+end_src",
+      "",
+      "  #+RESULTS:",
+      "  | 0 | 0 |",
+      "- next",
+      "",
+      "#+begin_src elisp :results append",
+      "'((10 2))",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "| 0 | 0 |",
+    })
+    eq({ "  |   0 | 0 |", "  | 1 2 |   |", "- next" }, vim.list_slice(out, 7, 9))
+    eq({ "|  0 | 0 |", "| 10 | 2 |" }, vim.list_slice(out, 16, 17))
+  end)
+
   it("replaces a result together with its affiliated keywords, dual ones included", function()
     local out = run({
       "#+begin_src sh :results output",
