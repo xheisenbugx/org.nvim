@@ -6480,6 +6480,14 @@ There are no default keys, as in Emacs; bind the actions in `mappings.org`.
 org-crypt does through `org-fold-reveal-start-hook`. `*_entries` skip
 archived and commented trees, like org-scan-tags.
 
+A capture whose target is an encrypted entry decrypts it, and encrypts it
+again, the captured text included, before the target is saved (Emacs
+org-capture does the same, :decrypted). When that encryption fails the
+target isn't saved and the text stays in the capture buffer (or, for
+`immediate_finish`, in the unsaved target buffer). An aborted capture, or a
+capture window closed without finishing, puts the PGP message back. Such a
+capture can't be refiled (<C-c><C-w>).
+
 Keys: `crypt.key = false` encrypts symmetrically, always (Emacs
 `org-crypt-key` nil). Otherwise the `CRYPTKEY` property (inherited only
 through `use_property_inheritance`; the value `nil` means no key), or else
@@ -9460,7 +9468,11 @@ Differences from Emacs:
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise. A template's `datetree = { reversed = true }`
   keeps date nodes newest first, which Emacs Org itself can't do (the
-  org-reverse-datetree package adds it). `%^{PROP}p` in an item, checkitem or
+  org-reverse-datetree package adds it). A capture into an encrypted entry
+  (|org-crypt|) can't be refiled with <C-c><C-w>: the entry is encrypted
+  again, captured text included, before the refile, and Emacs's
+  org-capture-refile then refiles at a position inside the PGP message
+  (the encrypted entry itself). `%^{PROP}p` in an item, checkitem or
   table-line template asks for the value but doesn't store it: Emacs puts
   the property drawer into the captured text, which makes the drawer the
   item's text (`- :PROPERTIES:`, the item below it) or breaks the table.

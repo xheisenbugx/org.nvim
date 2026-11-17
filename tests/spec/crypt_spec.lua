@@ -413,6 +413,131 @@ describe("crypt", function()
     end)
   end
 
+  -- org-capture-set-target-location decrypts an encrypted target entry
+  -- (:decrypted) and org-capture-finalize encrypts it again before saving
+  describe("capture into an encrypted entry", function()
+    local capture = require("org.capture")
+    local utils = require("org.utils")
+    local ENTRY = { "* Passwords :crypt:", "bank: 1234", "* Other" }
+
+    local function run(fn, ...)
+      local res
+      local args = { ... }
+      ok(utils.run(function()
+        res = { fn(unpack(args)) }
+      end))
+      return unpack(res or {})
+    end
+
+    --- A file holding ENTRY with its text encrypted, not loaded.
+    local function vault()
+      local path = vim.fn.tempname() .. ".org"
+      local buf = org_buffer(ENTRY, { 1, 0 })
+      crypt.encrypt_entry()
+      utils.writefile(path, buf_lines(buf))
+      vim.api.nvim_buf_delete(buf, { force = true })
+      prompts = {}
+      return path, utils.readfile(path)
+    end
+
+    local function disk(path)
+      return table.concat(utils.readfile(path), "\n")
+    end
+
+    before_each(function()
+      config.opts.crypt.disable_auto_save = false
+      config.opts.capture.in_place = false
+    end)
+
+    it("stores the text encrypted with its entry", function()
+      local path = vault()
+      run(
+        capture.capture,
+        { target = path, headline = "Passwords", template = "* mail: hunter2", immediate_finish = true }
+      )
+      ok(not disk(path):find("hunter2", 1, true), disk(path))
+      ok(not disk(path):find("1234", 1, true), disk(path))
+      local buf = utils.find_buffer(path)
+      vim.api.nvim_win_set_buf(0, buf)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      ok(crypt.decrypt_entry())
+      eq({ "* Passwords :crypt:", "bank: 1234", "** mail: hunter2", "* Other" }, buf_lines(buf))
+      vim.bo[buf].modified = false
+    end)
+
+    it("encrypts the entry again when the capture rewrote its headline (a statistics cookie)", function()
+      local path = vim.fn.tempname() .. ".org"
+      local buf = org_buffer({ "* Todo [0/1] :crypt:", "- [ ] call the bank" }, { 1, 0 })
+      crypt.encrypt_entry()
+      utils.writefile(path, buf_lines(buf))
+      vim.api.nvim_buf_delete(buf, { force = true })
+      run(capture.capture, {
+        target = path,
+        headline = "Todo",
+        type = "checkitem",
+        template = "- [ ] renew the card",
+        immediate_finish = true,
+      })
+      ok(utils.readfile(path)[1]:match("^%* Todo %[0/2%] +:crypt:$"), utils.readfile(path)[1])
+      ok(not disk(path):find("renew the card", 1, true), disk(path))
+      ok(not disk(path):find("call the bank", 1, true), disk(path))
+    end)
+
+    it("puts the same PGP message back on abort, and when the capture buffer is closed", function()
+      local path, encrypted = vault()
+      for _, finish in ipairs({ "kill", "close" }) do
+        local cbuf = run(capture.capture, { target = path, headline = "Passwords", template = "* note" })
+        local tb = utils.find_buffer(path)
+        eq("bank: 1234", buf_lines(tb)[2])
+        if finish == "kill" then
+          capture.kill(cbuf)
+        else
+          vim.cmd("bwipeout! " .. cbuf)
+        end
+        if vim.api.nvim_buf_is_valid(tb) then
+          eq(encrypted, buf_lines(tb))
+          eq(false, vim.bo[tb].modified)
+        end
+        eq(encrypted, utils.readfile(path))
+      end
+    end)
+
+    it("keeps the text in the capture buffer when it can't be encrypted again", function()
+      local path, encrypted = vault()
+      local cbuf = run(capture.capture, { target = path, headline = "Passwords", template = "* mail: hunter2" })
+      local tb = utils.find_buffer(path)
+      -- no passphrase for the new message
+      passphrase = nil
+      local warned = {}
+      local warn = utils.warn
+      utils.warn = function(m)
+        warned[#warned + 1] = m
+      end
+      eq(nil, run(capture.finalize, cbuf, { jump = false }))
+      utils.warn = warn
+      ok(warned[1]:match("^Capture could not be encrypted; the text is kept in the capture buffer"), warned[1])
+      eq({ "* mail: hunter2" }, buf_lines(cbuf))
+      eq(encrypted, utils.readfile(path))
+      eq({ "* Passwords :crypt:", "bank: 1234", "* Other" }, buf_lines(tb))
+      -- with a passphrase it goes in, encrypted
+      passphrase = "secret"
+      ok(run(capture.finalize, cbuf, { jump = false }))
+      ok(not disk(path):find("hunter2", 1, true), disk(path))
+      ok(disk(path):find("BEGIN PGP MESSAGE", 1, true))
+    end)
+
+    it("encrypts the text of an in-place capture", function()
+      config.opts.capture.in_place = true
+      local path = vault()
+      local tb = run(capture.capture, { target = path, headline = "Passwords", template = "* mail: %?" })
+      eq("** mail: ", buf_lines(tb)[3])
+      vim.api.nvim_buf_set_text(tb, 2, 9, 2, 9, { "hunter2" })
+      ok(run(capture.finalize, tb, { jump = false }))
+      ok(not disk(path):find("hunter2", 1, true), disk(path))
+      eq(1, #blocks(tb))
+    end)
+  end)
+
   it("restores the prompt function", function()
     crypt.read_passphrase = read_passphrase
     ok(type(crypt.read_passphrase) == "function")

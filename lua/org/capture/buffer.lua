@@ -17,6 +17,7 @@ local M = require("org.capture")
 
 local CURSOR = shared.CURSOR
 local cleanup_target = shared.cleanup_target
+local reencrypt = shared.reencrypt
 local discard_target = shared.discard_target
 local emit = shared.emit
 local end_unnarrowed = shared.end_unnarrowed
@@ -440,6 +441,11 @@ local function open_unnarrowed(tpl, text, ctx, in_place)
         M.sessions[bufnr] = nil
         s.win = nil
         end_unnarrowed(s)
+        -- an encrypted target entry is not left in clear text
+        local enc_ok, enc_err = reencrypt(loc)
+        if not enc_ok then
+          utils.warn("The capture target stays decrypted in its buffer (not saved): " .. tostring(enc_err))
+        end
         release(loc)
         utils.notify("Capture window closed: the text stays in the target buffer")
       end
@@ -540,7 +546,18 @@ local function open_buffer(tpl, text, ctx)
       local s = M.sessions[buf]
       M.sessions[buf] = nil
       if s then
-        release(s.ctx.loc)
+        -- (the capture buffer closed without finishing: an encrypted
+        -- target entry is not left in clear text)
+        local loc = s.ctx.loc
+        if loc and loc.decrypted then
+          local enc_ok, enc_err = reencrypt(loc)
+          if not enc_ok then
+            utils.warn("The capture target stays decrypted in its buffer (not saved): " .. tostring(enc_err))
+          elseif vim.api.nvim_buf_is_valid(loc.bufnr) then
+            shared.settle_modified(loc)
+          end
+        end
+        release(loc)
       end
     end,
   })
