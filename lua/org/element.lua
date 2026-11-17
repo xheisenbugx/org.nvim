@@ -371,12 +371,12 @@ function M.parse(lines, s, e)
   return parse(lines, s, e, nil)
 end
 
---- Parse the section containing `lnum` (the lines after its headline,
---- or the text before the first headline).
+--- Parse the section of `hl` (the lines after it up to its first child),
+--- or with no `hl` the text before the first headline.
+---@param file org.File
+---@param hl org.Headline|nil
 ---@return org.Element[] elements, integer from, integer to, org.Headline|nil hl, string[] lines
-function M.section(bufnr, lnum)
-  local file = files.get_buffer(bufnr)
-  local hl = file:headline_at(lnum)
+local function section_of(file, hl)
   local lines = file.lines
   local from, to
   if hl then
@@ -402,6 +402,14 @@ function M.section(bufnr, lnum)
   end
   vim.list_extend(els, rest)
   return els, from, to, hl, lines
+end
+
+--- Parse the section containing `lnum` (the lines after its headline,
+--- or the text before the first headline).
+---@return org.Element[] elements, integer from, integer to, org.Headline|nil hl, string[] lines
+function M.section(bufnr, lnum)
+  local file = files.get_buffer(bufnr)
+  return section_of(file, file:headline_at(lnum))
 end
 
 --- Deepest element containing `lnum`. On the first line of a greater
@@ -611,16 +619,19 @@ function M.down()
   local lnum = cursor()[1]
   local el
   if on_headline(lnum) then
-    local els = M.section(bufnr, lnum + 1)
+    -- its contents begin at the first element of its own section, else
+    -- at its first child; the lines below an entry without either are
+    -- the next headline's
     local file = files.get_buffer(bufnr)
     local hl = file:headline_on(lnum)
-    if hl and els[1] and els[1].first > lnum then
+    local els = hl and section_of(file, hl) or {}
+    if els[1] then
       return goto_line(els[1].first)
     end
     if hl and hl.children[1] then
       return goto_line(hl.children[1].line)
     end
-    utils.warn("No inner element")
+    utils.warn(hl and "No content for this element" or "No inner element")
     return
   end
   el = M.at(bufnr, lnum)

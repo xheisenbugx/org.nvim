@@ -384,11 +384,23 @@ describe("org-down-element", function()
     eq(2, lnum_after({ "* H", "** C" }, { 1, 0 }, E.down))
   end)
 
+  it("goes from a headline without text to its first child, not into the child's text", function()
+    eq(2, lnum_after({ "* H", "** C", "text" }, { 1, 0 }, E.down))
+  end)
+
   it("stays on an empty headline", function()
     -- Emacs: the same, saying "No content for this element"
     local cur, msgs = run({ "* H" }, { 1, 0 }, E.down)
     eq(1, cur[1])
-    eq(1, #msgs)
+    eq({ "No content for this element" }, msgs)
+  end)
+
+  it("stays on a headline without contents, never entering the next one", function()
+    -- (org-element-contents-begin is nil: the text below is the next
+    -- headline's)
+    local cur, msgs = run({ "* A", "* B", "text" }, { 1, 0 }, E.down)
+    eq(1, cur[1])
+    eq({ "No content for this element" }, msgs)
   end)
 
   it("stays on an empty greater element", function()
