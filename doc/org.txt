@@ -821,6 +821,9 @@ repeats an operator with its text object (`dic` then `j.`).
 Elements                                                    *org-elements*
 Paragraphs, lists and items, blocks, drawers, tables, fixed-width areas,
 keywords and comments are elements; blank lines after one belong to it.
+Each line of a property drawer is an element of its own (a node property:
+dragging one swaps it with its neighbour inside the drawer), and so is an
+inline task, from its heading to its END line (with `inlinetask_min_level`).
 Commands work on whole lines: on the first line of a list item they act on
 the item.
 <M-}> / <M-{>   Next / previous element at the same level

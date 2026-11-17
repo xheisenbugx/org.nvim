@@ -144,6 +144,27 @@ local function closed(lines, k, e, kind)
   return false
 end
 
+-- The fewest stars of an inline task while a section of a file is parsed
+-- (`section_of`), nil otherwise: M.parse, which indentation and filling
+-- use on any lines, sees inline tasks as text as before.
+---@type integer|nil
+local inline_min
+
+--- The END line of the inline task whose heading is `lines[i]`, or `i`
+--- when it has none before the next heading (org-inlinetask-goto-end).
+local function inlinetask_end(lines, i, e)
+  for k = i + 1, e do
+    local l = lines[k]
+    local lv = l:byte(1) == 42 and parser.headline_level(l)
+    if lv then
+      return (lv >= inline_min and l:match("^%*+%s+END%s*$")) and k or i
+    end
+  end
+  return i
+end
+
+local parse_contents
+
 --- Parse the lines [s, e] into a list of elements with `parent`.
 ---@param lines string[]
 ---@return org.Element[]
@@ -181,6 +202,9 @@ parse = function(lines, s, e, parent, first_is_item_text)
     local post = j
     line = lines[post]
     local kind = starts(line)
+    if inline_min and line:byte(1) == 42 and (parser.headline_level(line) or 0) >= inline_min then
+      kind = "inlinetask"
+    end
     local tableel = require("org.table.el").table_end(lines, post, e)
     if tableel then
       kind = "table.el"
@@ -188,7 +212,17 @@ parse = function(lines, s, e, parent, first_is_item_text)
     if first_is_item_text and post == s then
       kind = nil -- text on an item's first line
     end
-    if kind == "table.el" then
+    if kind == "inlinetask" then
+      -- an inline task is an element of its section (org-element-inlinetask-parser),
+      -- from its heading to its END line, its text inside
+      local stop = inlinetask_end(lines, post, e)
+      local el = { type = "inlinetask", first = first, post = post, clast = stop, greater = true }
+      if stop > post + 1 then
+        el.cfirst, el.cend = post + 1, stop - 1
+        el.children = parse_contents(lines, post + 1, stop - 1, el)
+      end
+      add(el)
+    elseif kind == "table.el" then
       add({ type = "table", first = first, post = post, clast = tableel })
     elseif kind == "table" then
       local k = post
@@ -385,6 +419,37 @@ function M.parse(lines, s, e)
   return parse(lines, s, e, nil)
 end
 
+--- Parse the contents [s, e] of a headline or inline task: a planning
+--- line first, then the elements.
+---@param lines string[]
+---@return org.Element[]
+parse_contents = function(lines, s, e, parent)
+  local els = {}
+  local i = s
+  if i <= e and parser.is_planning_line(lines[i]) then
+    local j = i + 1
+    while j <= e and is_blank(lines[j]) do
+      j = j + 1
+    end
+    els[1] = { type = "planning", first = i, post = i, clast = i, last = j - 1, parent = parent, children = {} }
+    i = j
+  end
+  return vim.list_extend(els, parse(lines, i, e, parent))
+end
+
+--- The outline headline whose section holds line `lnum`: an inline task
+--- is an element of that section, not a headline of its own.
+---@param file org.File
+---@param lnum integer
+---@return org.Headline|nil
+local function outline_headline(file, lnum)
+  local hl = file:headline_at(lnum)
+  while hl and hl.inlinetask do
+    hl = hl.parent
+  end
+  return hl
+end
+
 --- Parse the section of `hl` (the lines after it up to its first child),
 --- or with no `hl` the text before the first headline.
 ---@param file org.File
@@ -398,23 +463,12 @@ local function section_of(file, hl)
   else
     from, to = 1, file.preamble_end
   end
-  local els = {}
-  local i = from
-  local l = lines[i]
-  if hl and parser.is_planning_line(l) then
-    els[1] = { type = "planning", first = i, post = i, clast = i, children = {} }
-    i = i + 1
+  inline_min = rawget(file, "_min_inline")
+  local ok, els = pcall(hl and parse_contents or parse, lines, from, to, nil)
+  inline_min = nil
+  if not ok then
+    error(els, 0)
   end
-  local rest = parse(lines, i, to, nil)
-  -- fix trailing blanks of the planning line
-  if els[1] then
-    local j = els[1].clast + 1
-    while j <= to and is_blank(lines[j]) do
-      j = j + 1
-    end
-    els[1].last = j - 1
-  end
-  vim.list_extend(els, rest)
   return els, from, to, hl, lines
 end
 
@@ -423,7 +477,7 @@ end
 ---@return org.Element[] elements, integer from, integer to, org.Headline|nil hl, string[] lines
 function M.section(bufnr, lnum)
   local file = files.get_buffer(bufnr)
-  return section_of(file, file:headline_at(lnum))
+  return section_of(file, outline_headline(file, lnum))
 end
 
 --- Deepest element containing `lnum`. On the first line of a greater
@@ -461,22 +515,23 @@ local function goto_line(lnum)
   vim.api.nvim_win_set_cursor(0, { lnum, #(line:match("^%s*")) })
 end
 
-local function on_headline(lnum)
-  local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1]
-  return line and parser.headline_level(line) ~= nil
+--- Is `line` an outline headline? An inline task isn't: element commands
+--- see it as an element (org-with-limited-levels).
+local function is_outline(line)
+  return line ~= nil and line:byte(1) == 42 and parser.outline_level(line) ~= nil
 end
 
---- The headline on line `lnum` of a headline-like line, or the inline task
---- whose END line it is (the parse has no headline there).
+local function on_headline(lnum)
+  return is_outline(vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1])
+end
+
+--- The headline on line `lnum`, when it is an outline headline.
 ---@return org.Headline|nil
 local function entry_on(bufnr, lnum)
   if not on_headline(lnum) then
     return nil
   end
-  local hl = files.get_buffer(bufnr):headline_at(lnum)
-  if hl and (hl.line == lnum or (hl.inlinetask and hl.end_line == lnum)) then
-    return hl
-  end
+  return files.get_buffer(bufnr):headline_on(lnum)
 end
 
 --- Siblings of an element (the list it is part of).
@@ -538,10 +593,7 @@ function M.backward()
     return
   end
   local hl = entry_on(bufnr, lnum)
-  if hl and hl.line ~= lnum then
-    -- an inline task's END line: to the inline task
-    return goto_line(hl.line)
-  elseif hl then
+  if hl then
     local file = files.get_buffer(bufnr)
     local sibs = hl.parent and hl.parent.children or file.children
     for i, s in ipairs(sibs) do
@@ -568,7 +620,7 @@ function M.backward()
   if l < 1 then
     return goto_line(1)
   end
-  if parser.headline_level(lines[l]) then
+  if is_outline(lines[l]) then
     return goto_line(l)
   end
   local prev = M.at(bufnr, l)
@@ -619,7 +671,7 @@ function M.up()
   if p then
     return goto_line(p.first)
   end
-  local hl = file:headline_at(lnum)
+  local hl = outline_headline(file, lnum)
   if not hl then
     utils.warn("No surrounding element")
     return
@@ -732,7 +784,7 @@ local function previous_of(bufnr, el)
   while l >= 1 and is_blank(lines[l]) do
     l = l - 1
   end
-  if l < 1 or parser.headline_level(lines[l]) then
+  if l < 1 or is_outline(lines[l]) then
     return nil
   end
   local prev = M.at(bufnr, l)
@@ -791,7 +843,7 @@ function M.drag_forward()
   end
   local nxt_line = el.last + 1
   local line = vim.api.nvim_buf_get_lines(bufnr, nxt_line - 1, nxt_line, false)[1]
-  local nxt = not parser.headline_level(line) and M.at(bufnr, nxt_line) or nil
+  local nxt = not is_outline(line) and M.at(bufnr, nxt_line) or nil
   if not nxt or nested(el, nxt) or nxt.first ~= nxt_line then
     utils.warn("Cannot drag element forward")
     return
