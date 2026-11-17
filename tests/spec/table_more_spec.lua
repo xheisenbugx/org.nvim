@@ -307,3 +307,31 @@ describe("column names on the left side of formulas", function()
     eq("| # | 1 | 2  | 20 |", buf_lines(buf)[3])
   end)
 end)
+
+describe("CSV import of quoted fields (org-table-convert-region with C-u)", function()
+  -- Emacs 9.8.10: a quoted field may follow blanks, runs to the next
+  -- quote across lines (its newlines become spaces), `""` is a quote
+  it("drops the quotes of a field after a blank", function()
+    eq(
+      { "| a | b   | c |", "| 1 | x y | 3 |", "| 4 |     |   |" },
+      tbl.convert_lines({ "a,b,c", '1, "x y" ,3', "4,," })
+    )
+  end)
+
+  it("reads a quoted field spanning lines as one field", function()
+    eq(
+      { "| name     | note              |", "| Smith, J | line one line two |", "| Doe      | plain             |" },
+      tbl.convert_lines({ "name,note", '"Smith, J","line one', 'line two"', "Doe,plain" }, "csv")
+    )
+  end)
+
+  it("reads doubled quotes as quotes", function()
+    eq({ "| a            | b |", '| he said "hi" | x |' }, tbl.convert_lines({ "a,b", '"he said ""hi""",x' }, "csv"))
+    eq({ '| a" | b |' }, tbl.convert_lines({ '"a""",b' }, "csv"))
+  end)
+
+  it("keeps an unclosed quote; a comma ending the data adds no field", function()
+    eq({ '| "abc | d |' }, tbl.convert_lines({ '"abc,d,' }, "csv"))
+    eq({ "| a | b |   |", "| c | d |   |" }, tbl.convert_lines({ "a,b,", "c,d," }, "csv"))
+  end)
+end)

@@ -18,39 +18,55 @@ local pad_rows = shared.pad_rows
 -- Creation / conversion
 ---------------------------------------------------------------------------
 
-local function split_csv(line)
-  local out, i, n = {}, 1, #line
-  while i <= n + 1 do
-    local c = line:sub(i, i)
-    if c == '"' then
-      local buf = {}
-      i = i + 1
-      while i <= n do
-        local ch = line:sub(i, i)
-        if ch == '"' then
-          if line:sub(i + 1, i + 1) == '"' then
-            buf[#buf + 1] = '"'
-            i = i + 2
-          else
-            i = i + 1
-            break
-          end
-        else
-          buf[#buf + 1] = ch
-          i = i + 1
-        end
+--- The records of CSV `text` (lines joined with "\n"), each a list of
+--- fields, read like org-table-convert-region with a comma separator: a
+--- field may start with blanks and a quote, and runs to the next quote
+--- (newlines in it become spaces, so a quoted field can span lines); a
+--- doubled quote is a quote; anything else runs to the next comma.
+---@param text string
+---@return string[][]
+local function csv_records(text)
+  local records, fields, buf = {}, {}, {}
+  local i, n = 1, #text
+  local function end_field()
+    fields[#fields + 1] = table.concat(buf)
+    buf = {}
+  end
+  while true do
+    local q = text:match('^[ \t]*()"', i)
+    local close = q and text:find('"', q + 1, true)
+    if close then
+      buf[#buf + 1] = (text:sub(q + 1, close - 1):gsub("\n", " "))
+      i = close + 1
+      if text:sub(i, i) == '"' then
+        -- `""`: a quote, and the second one opens the rest of the field
+        buf[#buf + 1] = '"'
       end
-      out[#out + 1] = table.concat(buf)
-      -- skip to comma
-      local nxt = line:find(",", i, true)
-      i = (nxt or n + 1) + 1
+    elseif i > n or text:match("^[ \t]*\n", i) or text:match("^[ \t]*$", i) then
+      end_field()
+      records[#records + 1] = fields
+      fields = {}
+      local nl = text:find("\n", i, true)
+      if not nl then
+        break
+      end
+      i = nl + 1
+    elseif text:match("^[ \t]*,", i) then
+      end_field()
+      i = text:find(",", i, true) + 1
+      if i > n then
+        -- a comma ending the text ends the conversion: no empty field
+        -- after it (the region's end in org-table-convert-region)
+        records[#records + 1] = fields
+        break
+      end
     else
-      local nxt = line:find(",", i, true)
-      out[#out + 1] = vim.trim(line:sub(i, (nxt or n + 1) - 1))
-      i = (nxt or n + 1) + 1
+      local chunk = text:match("^[^,\n]+", i)
+      buf[#buf + 1] = chunk
+      i = i + #chunk
     end
   end
-  return out
+  return records
 end
 
 --- Convert lines of CSV/TSV/whitespace data into table lines, like
@@ -80,16 +96,22 @@ function M.convert_lines(lines, sep)
     sep = all_tab and "tab" or all_comma and "csv" or "space"
   end
   local t = { indent = "", rows = {}, ncols = 1 }
-  for idx = first, last do
+  -- CSV records (a quoted field may span lines), else one per line
+  local records = sep == "csv" and csv_records(table.concat(lines, "\n", first, last)) or nil
+  local from, to = first, last
+  if records then
+    from, to = 1, #records
+  end
+  for idx = from, to do
     local l = lines[idx]
-    if l:match("^%s*$") then
+    if not records and l:match("^%s*$") then
       t.rows[#t.rows + 1] = { cells = { "" } }
     else
       local cells
-      if sep == "tab" then
+      if records then
+        cells = records[idx]
+      elseif sep == "tab" then
         cells = vim.split(vim.trim(l), "\t", { plain = true })
-      elseif sep == "csv" then
-        cells = split_csv(vim.trim(l))
       elseif type(sep) == "number" then
         -- N or more spaces, or a tab (Emacs C-N C-c |)
         cells = vim.split((vim.trim(l):gsub(string.rep(" ", sep) .. "+", "\t")), "%s*\t%s*")
