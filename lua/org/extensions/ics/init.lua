@@ -660,9 +660,9 @@ function M.import_occurrence(occ)
         else
           local indent = lines[i]:match("^(%s*)")
           vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { indent .. stamp })
-          vim.api.nvim_buf_call(buf, function()
-            vim.cmd("silent write")
-          end)
+          if not u.save_buffer_or_warn(buf) then
+            return nil
+          end
           u.notify(string.format('ics: updated the time of "%s" (%s)', occ.event.summary, where))
         end
         return file
@@ -677,9 +677,9 @@ function M.import_occurrence(occ)
   else
     vim.api.nvim_buf_set_lines(buf, -1, -1, false, add)
   end
-  vim.api.nvim_buf_call(buf, function()
-    vim.cmd("silent write")
-  end)
+  if not u.save_buffer_or_warn(buf) then
+    return nil
+  end
   u.notify(string.format('ics: added "%s" to %s', occ.event.summary, require("org.utils").abbreviate(file)))
   return file
 end

@@ -424,6 +424,30 @@ describe("ics extension: agenda, cache, fetch, import", function()
     end
   end)
 
+  it("imports into a file whose directory doesn't exist yet, saved as org saves", function()
+    local file = dir .. "/new/in.org"
+    setup({ calendars = {}, auto_refresh = false, import_file = file })
+    local u = require("org.utils")
+    local real_confirm, asked = u.confirm, nil
+    u.confirm = function(q)
+      asked = q
+      return true
+    end
+    local ev = { uid = "u1", summary = "Dentist", rdates = {} }
+    local okc, err = pcall(
+      ics_mod.import_occurrence,
+      { event = ev, start = N(2026, 10, 9, 9), stop = N(2026, 10, 9, 10), all_day = false }
+    )
+    u.confirm = real_confirm
+    ok(okc, tostring(err))
+    ok(asked and asked:find("does not exist; create?", 1, true), tostring(asked))
+    eq("* Dentist", vim.fn.readfile(file)[1])
+    local b = vim.fn.bufnr(file)
+    if b > 0 then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+  end)
+
   it("updates a moved occurrence (RECURRENCE-ID) instead of importing it again", function()
     local file = dir .. "/in.org"
     local base = {
