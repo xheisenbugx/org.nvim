@@ -230,6 +230,18 @@ describe("export", function()
       eq("other.md", vim.fn.fnamemodify(out, ":t"))
       vim.bo[buf].modified = false
     end)
+    -- org-export-output-file-name drops the extension with
+    -- file-name-sans-extension, for which a leading dot is not one
+    it("keeps a leading dot of the file name", function()
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      for name, want in pairs({ [".notes"] = ".notes.md", [".notes.org"] = ".notes.md", ["a.b.org"] = "a.b.md" }) do
+        local buf = org_buffer({ "text" })
+        vim.api.nvim_buf_set_name(buf, dir .. "/" .. name)
+        eq(want, vim.fn.fnamemodify(export.export("gfm", { bufnr = buf }), ":t"))
+        vim.bo[buf].modified = false
+      end
+    end)
   end)
 
   describe("pandoc", function()
