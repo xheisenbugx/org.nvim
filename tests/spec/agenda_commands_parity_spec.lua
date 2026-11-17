@@ -613,6 +613,125 @@ describe("columns_add_appointments_to_effort_sum", function()
   end)
 end)
 
+--- Run `fn` with module fields replaced: `{ { module, field, value }, ... }`.
+local function with_stubs(stubs, fn)
+  local saved = {}
+  for _, s in ipairs(stubs) do
+    saved[#saved + 1] = { s[1], s[2], s[1][s[2]] }
+    s[1][s[2]] = s[3]
+  end
+  local ok_, err = pcall(fn)
+  for _, s in ipairs(saved) do
+    s[1][s[2]] = s[3]
+  end
+  if not ok_ then
+    error(err, 0)
+  end
+end
+
+--- Mark the lines of `titles` and run the bulk action `choice` with the
+--- answers in `stubs` (org-agenda-bulk-mark, org-agenda-bulk-action).
+local function bulk(titles, choice, stubs)
+  for _, t in ipairs(titles) do
+    goto_title(t)
+    view.actions.mark()
+  end
+  table.insert(stubs, {
+    require("org.ui"),
+    "menu",
+    function()
+      return choice
+    end,
+  })
+  with_stubs(stubs, function()
+    view.actions.bulk_action()
+  end)
+end
+
+-- org-agenda-bulk-action reschedules with org-agenda-schedule /
+-- org-agenda-deadline (org--deadline-or-schedule), which keeps the
+-- repeater of the old date; so does the scatter (?S) command.
+describe("agenda bulk (re)scheduling keeps repeaters", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  it("s with a date", function()
+    open({ "* TODO Rep", "  SCHEDULED: " .. ts(0, "+1w") })
+    bulk({ "Rep" }, "s", {
+      {
+        utils,
+        "input",
+        function()
+          return "+3d"
+        end,
+      },
+    })
+    eq("  SCHEDULED: " .. ts(3, "+1w"), source_lines()[2])
+  end)
+
+  it("d with a date", function()
+    open({ "* TODO Rep", "  DEADLINE: " .. ts(0, ".+2d") })
+    bulk({ "Rep" }, "d", {
+      {
+        utils,
+        "input",
+        function()
+          return "+3d"
+        end,
+      },
+    })
+    eq("  DEADLINE: " .. ts(3, ".+2d"), source_lines()[2])
+  end)
+
+  it("S scatters the entry, repeater kept", function()
+    open({ "* TODO Rep", "  SCHEDULED: " .. ts(0, "+1w") })
+    bulk({ "Rep" }, "S", {
+      {
+        utils,
+        "input",
+        function()
+          return "1"
+        end,
+      },
+    })
+    eq("  SCHEDULED: " .. ts(1, "+1w"), source_lines()[2])
+  end)
+
+  -- ?s and ?d bind org-log-reschedule / org-log-redeadline to 'time;
+  -- ?S calls org-agenda-schedule with it as set: a note per entry
+  it("s logs a time where a reschedule takes a note, S asks for the note", function()
+    local function run(choice, answer)
+      open({ "* TODO Rep", "  SCHEDULED: " .. ts(0) }, { log_reschedule = "note" })
+      local notes = 0
+      bulk({ "Rep" }, choice, {
+        {
+          utils,
+          "input",
+          function()
+            return answer
+          end,
+        },
+        {
+          utils,
+          "input_note",
+          function()
+            notes = notes + 1
+            return "moved"
+          end,
+        },
+      })
+      local logged
+      for _, l in ipairs(source_lines()) do
+        logged = logged or l:match("Rescheduled from")
+      end
+      return notes, logged ~= nil
+    end
+    eq({ 0, true }, { run("s", "+3d") })
+    eq({ 1, true }, { run("S", "1") })
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()

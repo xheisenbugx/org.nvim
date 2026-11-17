@@ -127,6 +127,9 @@ function M.bulk_action()
     if not ans then
       return
     end
+    -- org-agenda-schedule / org-agenda-deadline (org--deadline-or-schedule):
+    -- the old repeater and warning period stay, CLOSED goes, and a change
+    -- is logged with a time, never a note (org-log-reschedule 'time)
     bulk(function(target)
       if ans.shift then
         local _, _, hl = require("org.edit").resolve_headline(target)
@@ -134,10 +137,10 @@ function M.bulk_action()
           call("org.timestamps", "shift", target, kind, ans.shift, ans.unit)
         else
           local d = date.today():add(ans.shift, ans.unit):clone({ active = true })
-          call("org.timestamps", "set_date", target, kind, d)
+          call("org.timestamps", "plan_date", target, kind, d, { note = false })
         end
       else
-        call("org.timestamps", "set_date", target, kind, ans.date)
+        call("org.timestamps", "plan_date", target, kind, ans.date, { note = false })
       end
     end, persistent)
   elseif choice == "S" then
@@ -156,8 +159,10 @@ function M.bulk_action()
       if item.sexp then
         return
       end
+      -- org-agenda-schedule, as for `s`: the repeater stays; but
+      -- log_reschedule is as set (a note per entry with "note")
       local d = today:add(M.scatter_distance(days, count > 0), "d"):clone({ active = true })
-      call("org.timestamps", "set_date", target, "scheduled", d)
+      call("org.timestamps", "plan_date", target, "scheduled", d)
     end, persistent)
   elseif choice == "+" or choice == "-" then
     local tag = utils.input_complete(choice == "+" and "Tag to add: " or "Tag to remove: ", all_tags_in_view())

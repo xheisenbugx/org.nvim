@@ -2531,9 +2531,12 @@ B acts on the marked entries, or on the entry at point without marks
   + / -   add / remove a tag
   r       refile
   s / d   (re)schedule / set the deadline: a date, or `++2d` to shift each
-          entry's own date; an empty answer opens the calendar
+          entry's own date; an empty answer opens the calendar. Like C-c
+          C-s, a new date keeps the old repeater and warning period; a
+          change is logged with a time, never a note
   S       scatter: schedule each entry on a random day of the next N days
-          (with a count, weekend days are skipped)
+          (with a count, weekend days are skipped), keeping its repeater;
+          with `log_reschedule = "note"` each entry asks for its note
   f       apply a Lua function (`function(target, item) ... end`)
   p       toggle persistent marks (`agenda.persistent_marks`: keep the
           marks after the action), then choose the action
