@@ -154,7 +154,10 @@ function shared.sexp_entries(ctx, hl, done)
   -- sexp planning dates: SCHEDULED/DEADLINE: <%%(...)>
   for _, kind in ipairs({ "scheduled", "deadline" }) do
     local raw = hl.file.lines[hl.planning_line or (hl.line + 1)]
-    local sx = raw and raw:match("^%s*%u+:") and raw:match(kind:upper() .. ":%s*<%%%%(%b())")
+    local sx, after
+    if raw and raw:match("^%s*%u+:") then
+      sx, after = raw:match(kind:upper() .. ":%s*<%%%%(%b())([^>\n]*)>")
+    end
     if sx and types[kind] then
       for d = from, to do
         if
@@ -175,7 +178,8 @@ function shared.sexp_entries(ctx, hl, done)
             face = kind == "deadline" and "OrgAgendaDeadline" or "OrgAgendaScheduled",
           })
           item.urgency = kind == "scheduled" and (99 + item.prio) or item.prio
-          set_time(item, nil, acfg, false, sx)
+          -- the time after the sexp ("<%%(diary-float t 4 1) 10:00>")
+          set_time(item, nil, acfg, false, sx .. after)
           add(d, item)
         end
       end
