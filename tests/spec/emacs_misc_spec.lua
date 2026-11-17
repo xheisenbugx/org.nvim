@@ -309,6 +309,34 @@ describe("emacs: todo / notes / timer", function()
     ok(text:find("hello"), text)
   end)
 
+  it("a negative start offset counts up from below zero (org-timer-start)", function()
+    -- Emacs 9.8.10: org-timer-fix-incomplete keeps the sign before the
+    -- number ("-5:00" -> "-0:05:00") and org-timer-hms-to-secs reads it
+    -- (-300): the start message says "current value is -0:05:00", but
+    -- org-timer-value-string (insert, pause, mode line) shows the absolute
+    -- value, 0:05:00 down to 0:00:00, then up again
+    local buf = org_buffer({ "" }, { 1, 0 })
+    local msgs = {}
+    local okr, err = pcall(with_stub, vim, "notify", function(m)
+      msgs[#msgs + 1] = m
+    end, function()
+      timer.start("-5:00")
+      local v = timer.value()
+      ok(v == -300 or v == -299, v)
+      timer.start("-0:05:00")
+      ok(timer.value() <= -299, timer.value())
+      -- held at -300 s (paused) for the shown values
+      timer.state.paused_at = timer.state.start - 300
+      eq("⏲ 0:05:00 (paused)", timer.statusline())
+      timer.insert()
+    end)
+    timer.state = nil
+    assert(okr, err)
+    ok(msgs[1]:match("current value is %-0:05:00$"), msgs[1])
+    eq("0:05:00 ", buf_lines(buf)[1])
+    eq("-1:01:01", timer.format(-3661))
+  end)
+
   it("insert_item adds a timer list item (org-timer-item)", function()
     local buf = org_buffer({ "  - first", "" }, { 1, 0 })
     silence(function()

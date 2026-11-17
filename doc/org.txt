@@ -6330,8 +6330,12 @@ These need Emacs Lisp or Emacs itself:
 
 :Org timer_start        Start a relative timer. A count asks for an offset
                         `H:MM:SS` (default: the timer value on the line; a
-                        bare number is seconds, `M:SS` minutes); 16 shifts
-                        the timer values of the selection instead.
+                        bare number is seconds, `M:SS` minutes). A
+                        negative offset (`-0:05:00`) starts the timer that
+                        long before zero: like Emacs, its value is shown
+                        without the sign, counting down to 0:00:00 and then
+                        up. 16 shifts the timer values of the selection
+                        instead.
 :Org timer_insert       Insert the timer value after the cursor, written
                         with `timer.format` ("%s "). Starts the timer if
                         needed; a count restarts it; 16 shifts the timer
