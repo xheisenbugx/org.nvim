@@ -471,9 +471,9 @@ function M.cmd_set_title(words, flags)
   local title = one_line(table.concat(words, " ", 2), "title")
   local hl, bufnr, lnum = open(words, flags)
   local old = hl:plain_title()
-  vim.api.nvim_set_current_buf(bufnr)
-  vim.api.nvim_win_set_cursor(0, { lnum, 0 })
-  require("org.structure").edit_headline(title)
+  -- (in the buffer, not the current window: the session server's user
+  -- stays where they are)
+  require("org.structure").edit_headline(title, { bufnr = bufnr, lnum = lnum })
   local now = run.headline_at(bufnr, lnum)
   return changed(flags, bufnr, lnum, "title", old, now and now:plain_title() or nil)
 end

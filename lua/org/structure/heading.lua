@@ -526,10 +526,18 @@ end
 
 --- org-edit-headline: edit the title of the current headline (keeping its
 --- TODO keyword, priority and tags) in a prompt, or set it to `heading`.
+--- With `target`, the headline at that line of that buffer: the windows
+--- and their cursors stay as they are.
 ---@param heading? string
-function M.edit_headline(heading)
-  local bufnr = buf()
-  local hl, file = current_headline()
+---@param target? org.Target
+function M.edit_headline(heading, target)
+  local bufnr, hl, file
+  if target then
+    bufnr, file, hl = edit.resolve(target)
+  else
+    bufnr = buf()
+    hl, file = current_headline()
+  end
   if not hl then
     utils.warn("Before first headline")
     return
