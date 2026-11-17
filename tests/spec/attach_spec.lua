@@ -115,6 +115,59 @@ describe("org-attach", function()
     eq({ "a.txt", "b.txt" }, vim.fn.readdir(dest))
   end)
 
+  -- org-agenda-open-link and org-columns-open-link open a link at the
+  -- entry's position: org-attach-follow expands an attachment: link with
+  -- that entry's org-attach-dir
+  it("opens attachment: links from the agenda and the column view in their entry's directory", function()
+    local dir = tmpdir()
+    vim.fn.mkdir(dir .. "/data/ab/cdef", "p")
+    utils.writefile(dir .. "/data/ab/cdef/doc.txt", { "the attachment" })
+    local p = dir .. "/a.org"
+    utils.writefile(p, {
+      "#+COLUMNS: %ITEM %Doc",
+      "* First entry",
+      "* TODO Second :ATTACH:",
+      ":PROPERTIES:",
+      ":ID: abcdef",
+      ":Doc: [[attachment:doc.txt]]",
+      ":END:",
+    })
+    setup(dir, { agenda_files = { p }, links = { frame_setup = { file = "current" } } })
+    local warned = {}
+    local warn = utils.warn
+    utils.warn = function(m)
+      warned[#warned + 1] = m
+    end
+    local function goto_line_with(text)
+      for i, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+        if l:find(text, 1, true) then
+          vim.api.nvim_win_set_cursor(0, { i, #l - 1 })
+          return
+        end
+      end
+      error("no line with " .. text)
+    end
+    vim.cmd("silent! only!")
+    vim.cmd("edit! " .. p)
+    vim.cmd("enew")
+    require("org.agenda").open_todo()
+    goto_line_with("Second")
+    require("org.agenda.view").actions.open_link()
+    eq(dir .. "/data/ab/cdef/doc.txt", utils.realpath(vim.api.nvim_buf_get_name(0)))
+    -- the column view of the whole file (the source window's cursor
+    -- before the first entry)
+    vim.cmd("silent! only!")
+    vim.cmd("edit! " .. p)
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    require("org.columns").open({ view = "table" })
+    goto_line_with("Second")
+    vim.api.nvim_feedkeys(vim.keycode("<C-c><C-o>"), "xt", false)
+    utils.warn = warn
+    eq({}, warned)
+    eq(dir .. "/data/ab/cdef/doc.txt", utils.realpath(vim.api.nvim_buf_get_name(0)))
+    vim.cmd("silent! only!")
+  end)
+
   it("never runs backticks in a DIR property as a shell command", function()
     local dir = tmpdir()
     setup(dir)

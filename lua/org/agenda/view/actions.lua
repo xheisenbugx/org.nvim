@@ -752,7 +752,9 @@ M.actions = {
         return
       end
     end
-    require("org.links").open(link.target, { bufnr = target.bufnr })
+    -- from the entry's position, like org-agenda-open-link (an
+    -- attachment: link resolves in that entry's directory)
+    require("org.links").open(link.target, { bufnr = target.bufnr, lnum = link.lnum or target.lnum })
   end,
   set_property = on_item(function(target)
     call("org.properties", "set_property", target)

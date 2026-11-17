@@ -439,7 +439,10 @@ function M.entry_links(target)
   local links = require("org.links")
   local out = {}
   for i = hl.line, hl.body_end do
-    vim.list_extend(out, links.parse_links(file.lines[i] or ""))
+    for _, l in ipairs(links.parse_links(file.lines[i] or "")) do
+      l.lnum = i
+      out[#out + 1] = l
+    end
   end
   return out
 end
