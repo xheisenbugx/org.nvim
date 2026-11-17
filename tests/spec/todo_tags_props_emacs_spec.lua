@@ -552,6 +552,35 @@ describe("hour repeaters on a date without a time", function()
   end)
 end)
 
+describe(".+ hour repeaters on a time range", function()
+  -- Emacs 9.8.10 org-auto-repeat-maybe: a `.+Nh` timestamp is first moved
+  -- to now by minutes (org-timestamp-change ... 'minute), which moves the
+  -- end of an HH:MM-HH:MM range by as much (org-modify-ts-extra), then N
+  -- hours are added: <13:00-14:00 .+3h> done at 14:37 is <17:37-18:37>
+  with_config({ log_repeat = false, log_done = false, todo_keywords = { "TODO | DONE" } })
+  local real_now
+  before_each(function()
+    real_now = date.now
+    date.now = function()
+      return date.Date.new({ year = 2026, month = 11, day = 17, hour = 14, min = 37 })
+    end
+  end)
+  after_each(function()
+    date.now = real_now
+  end)
+
+  it("keeps the length of the range", function()
+    local buf = org_buffer({ "* TODO Stretch", "<2026-11-17 Tue 13:00-14:00 .+3h>" }, { 1, 0 })
+    todo.change_state(nil, "DONE")
+    eq("<2026-11-17 Tue 17:37-18:37 .+3h>", buf_lines(buf)[2])
+    -- further from now Emacs drops the end time (org-modify-ts-extra
+    -- carries one hour at most, :h org-differences); the length stays
+    buf = org_buffer({ "* TODO Stretch", "SCHEDULED: <2026-11-17 Tue 22:00-23:30 .+3h>" }, { 1, 0 })
+    todo.change_state(nil, "DONE")
+    eq("SCHEDULED: <2026-11-17 Tue 17:37-19:07 .+3h>", buf_lines(buf)[2])
+  end)
+end)
+
 describe("org-todo on an empty headline (make difftest, commands oracle)", function()
   it("keeps a space after the keyword, as Emacs inserts ' TODO '", function()
     local buf = org_buffer({ "* ", "* A" }, { 1, 0 })

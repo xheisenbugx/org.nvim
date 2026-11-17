@@ -937,7 +937,9 @@ function next_repeat(ts, now, today)
   elseif r.type == ".+" then
     local base
     if unit == "h" then
-      base = ts:clone({ year = now.year, month = now.month, day = now.day, hour = now.hour, min = now.min })
+      -- moved to now by minutes (org-timestamp-change ... 'minute): the
+      -- end of an HH:MM-HH:MM range moves with the start
+      base = ts:add(now:minutes() - ts:minutes(), "min")
     else
       base = ts:clone({ year = today.year, month = today.month, day = today.day })
     end

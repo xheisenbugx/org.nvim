@@ -9705,6 +9705,10 @@ Differences from Emacs:
   - A repeated C-c C-t on a `#+TYP_TODO:` keyword (which walks the types
     instead of jumping to DONE) is one with no edit and no cursor motion
     since the previous one, rather than Emacs' `last-command` test.
+  - A `.+Nh` repeater on a time range (`<... 13:00-14:00 .+3h>`) keeps
+    the length of the range when it moves to now. Emacs keeps it only
+    for a shift of about an hour or less; for a larger one its
+    org-modify-ts-extra can't carry the minutes and drops the end time.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
     `OrgTodoRepeat`, `OrgPropertyChanged`, `OrgNoteStored`,
     `OrgLogBufferSetup`) that cannot change the result;
