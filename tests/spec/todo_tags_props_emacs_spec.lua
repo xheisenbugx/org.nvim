@@ -434,6 +434,43 @@ describe("tag options", function()
     utils.input_complete = input_complete
   end)
 
+  it("splits typed tags at characters a tag can't hold", function()
+    -- org-set-tags-command turns every run of [^[:alnum:]_@#%] in what was
+    -- typed into a tag separator: "foo-bar" sets foo and bar
+    local input_complete = utils.input_complete
+    utils.input_complete = function()
+      return ":old:foo-bar: a.b"
+    end
+    config.opts.use_fast_tag_selection = false
+    local buf = org_buffer({ "* Task :old:" }, { 1, 0 })
+    local ok_run, err = pcall(tags.set_tags)
+    utils.input_complete = input_complete
+    ok(ok_run, err)
+    ok(buf_lines(buf)[1]:match("^%* Task%s+:old:foo:bar:a:b:$"), buf_lines(buf)[1])
+    local hl = require("org.files").get_buffer(buf).headlines[1]
+    eq({ "old", "foo", "bar", "a", "b" }, hl.tags)
+    eq("Task", hl.title)
+  end)
+
+  it("splits a tag typed after TAB in the fast selection", function()
+    -- org-fast-tag-selection keeps what TAB reads as one entry, and
+    -- org-set-tags-command splits it when it sets the tags: "next week"
+    -- sets next and week
+    local getchar, input_complete = utils.getchar, utils.input_complete
+    local keys = { "\t", "\r" }
+    utils.getchar = function()
+      return table.remove(keys, 1)
+    end
+    utils.input_complete = function()
+      return "next week"
+    end
+    local buf = org_buffer({ "#+TAGS: work(w)", "* Task" }, { 2, 0 })
+    local ok_run, err = pcall(tags.set_tags)
+    utils.getchar, utils.input_complete = getchar, input_complete
+    ok(ok_run, err)
+    eq({ "next", "week" }, require("org.files").get_buffer(buf).headlines[1].tags)
+  end)
+
   it("shows at most fast_tag_selection_maximum_tags tags", function()
     local defs = {
       { name = "a1" },

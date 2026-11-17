@@ -1383,7 +1383,8 @@ In the fast selection menu, like Emacs:
   a key         toggle that tag (tags without a key get one: their first
                 letter after a leading `@` when it is free, else the first
                 free character of a-z A-Z { | } ~)
-  <Tab>         add or remove one tag by completion
+  <Tab>         add or remove one tag by completion (text holding
+                several, like `next week`, adds each of them)
   <Space>       remove all tags
   <CR>          accept
   !             toggle the exclusivity of `{ }` groups
@@ -1401,6 +1402,12 @@ change the state right away.
 `false` (always type the tags). Tags with a key and tags in groups are
 always shown; the others get keys and are shown while fewer than
 `fast_tag_selection_maximum_tags` (56) tags are shown.
+
+In typed tags (by completion, after <Tab> in the menu, as new tags in
+`pick_set_tags`), every run of characters a tag can't hold separates two
+tags, like Emacs: `foo-bar` sets `foo` and `bar`, `next week` sets `next`
+and `week`. The Visual selection's prompt takes one tag: the first of
+what is typed.
 
 Completion offers the tags defined for the buffer (`#+TAGS` or the `tags`
 option), or the tags used in the buffer when none are defined;
