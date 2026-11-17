@@ -260,6 +260,20 @@ parse = function(lines, s, e, parent, first_is_item_text)
           el.cfirst, el.cend = post + 1, stop - 1
           if name ~= "PROPERTIES" then
             el.children = parse(lines, post + 1, stop - 1, el)
+          else
+            -- one node property per line (org-element-node-property-parser):
+            -- a property line is dragged, marked and left as itself, never
+            -- as the whole drawer
+            local props = {}
+            for k = post + 1, stop - 1 do
+              if not is_blank(lines[k]) then
+                props[#props + 1] =
+                  { type = "node-property", first = k, post = k, clast = k, last = k, parent = el, children = {} }
+              elseif props[#props] then
+                props[#props].last = k
+              end
+            end
+            el.children = props
           end
         end
         add(el)

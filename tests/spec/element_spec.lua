@@ -215,10 +215,9 @@ describe("element parser", function()
     })
     local els, from, to, hl = E.section(buf, 7)
     eq({ 2, 11, 1 }, { from, to, hl.line })
-    -- the property drawer's node properties are not elements here
     eq({
       { "planning", 2, 2, 3 },
-      { "property-drawer", 4, 4, 6 },
+      { "property-drawer", 4, 4, 6, { { "node-property", 5, 5, 5 } } },
       { "paragraph", 7, 7, 7 },
       { "drawer", 8, 8, 9 },
       { "footnote-definition", 10, 10, 10, { { "paragraph", 10, 10, 10 } } },
@@ -540,6 +539,66 @@ describe("org-drag-element / org-transpose-element", function()
     local _, msgs, out = run({ "* H", "p1", "", "p2" }, { 2, 1 }, E.transpose)
     eq({ "* H", "p1", "", "p2" }, out)
     eq({ "Cannot drag element backward" }, msgs)
+  end)
+
+  describe("on a node property", function()
+    -- a property line is a node-property element inside the drawer: the
+    -- drawer never moves away from the planning line or past the text
+    local DOC = { "* H", "SCHEDULED: <2024-01-01 Mon>", ":PROPERTIES:", ":A: 1", ":B: 2", ":END:", "text" }
+    local SWAPPED = { "* H", "SCHEDULED: <2024-01-01 Mon>", ":PROPERTIES:", ":B: 2", ":A: 1", ":END:", "text" }
+
+    it("drags a property past the next one, not past the drawer's end", function()
+      local cur, _, out = run(DOC, { 4, 0 }, E.drag_forward)
+      eq(SWAPPED, out)
+      eq(5, cur[1])
+      local msgs
+      _, msgs, out = run(DOC, { 5, 0 }, E.drag_forward)
+      eq(DOC, out)
+      eq({ "Cannot drag element forward" }, msgs)
+    end)
+
+    it("drags a property up past the previous one, not above the drawer", function()
+      local cur, _, out = run(DOC, { 5, 0 }, E.drag_backward)
+      eq(SWAPPED, out)
+      eq(4, cur[1])
+      local msgs
+      _, msgs, out = run(DOC, { 4, 0 }, E.drag_backward)
+      eq(DOC, out)
+      eq({ "Cannot drag element backward" }, msgs)
+    end)
+
+    it("transposes only properties", function()
+      local cur, _, out = run(DOC, { 5, 0 }, E.transpose)
+      eq(SWAPPED, out)
+      eq(6, cur[1])
+      local msgs
+      _, msgs, out = run(DOC, { 4, 0 }, E.transpose)
+      eq(DOC, out)
+      eq({ "Cannot drag element backward" }, msgs)
+    end)
+
+    it("M-up / M-down on a property keep the planning line and the properties", function()
+      local one = { "* H", "SCHEDULED: <2024-01-01 Mon>", ":PROPERTIES:", ":ID: 1", ":END:", "text" }
+      for _, key in ipairs({ "meta_down", "meta_up" }) do
+        local _, _, out = run(one, { 4, 0 }, require("org.context")[key])
+        eq(one, out, key)
+      end
+    end)
+
+    it("moves between properties and up to the drawer", function()
+      eq(5, lnum_after(DOC, { 4, 0 }, E.forward))
+      eq(7, lnum_after(DOC, { 5, 0 }, E.forward))
+      eq(4, lnum_after(DOC, { 5, 0 }, E.backward))
+      eq(3, lnum_after(DOC, { 4, 0 }, E.up))
+      eq(4, lnum_after(DOC, { 3, 0 }, E.down))
+    end)
+
+    it("marks the property line", function()
+      org_buffer(DOC, { 4, 0 })
+      E.mark()
+      eq({ "V", 4, 4 }, { vim.fn.mode(), vim.fn.line("v"), vim.fn.line(".") })
+      vim.cmd("normal! \27")
+    end)
   end)
 end)
 
