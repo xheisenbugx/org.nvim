@@ -3298,7 +3298,9 @@ Template fields:
                      the 2nd hline) or "I+1" (right after the 1st). A table
                      is created when there is none
   properties         table of properties added to the entry
-  immediate_finish   finish without opening the capture window
+  immediate_finish   finish without opening the capture window; when
+                     the target can't be saved, the text stays in its
+                     buffer, unsaved
   jump_to_captured   jump to the entry after finishing
   kill_buffer        unload the target file afterwards when the capture
                      loaded it

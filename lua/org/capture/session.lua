@@ -246,6 +246,22 @@ function M.store(tpl, lines, ctx)
   if not tpl.no_save then
     local saved, err = utils.save_buffer(bufnr)
     if not saved then
+      if ctx.immediate then
+        -- no capture buffer to keep the text in: like Emacs, whose failed
+        -- save-buffer leaves the inserted text, it stays in the target
+        -- buffer, unsaved (and listed, so that it can be found)
+        ctx.unsaved = true
+        release(loc)
+        vim.bo[bufnr].buflisted = true
+        utils.warn(
+          string.format(
+            "Capture could not be saved; the text stays in the unsaved buffer %s: %s",
+            utils.abbreviate(vim.api.nvim_buf_get_name(bufnr)),
+            tostring(err)
+          )
+        )
+        return nil
+      end
       utils.restore_buffer(bufnr, before, modified)
       marks.restore(snapshot)
       utils.warn("Capture could not be saved; the text is kept in the capture buffer: " .. tostring(err))

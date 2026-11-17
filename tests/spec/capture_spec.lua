@@ -892,15 +892,41 @@ describe("capture buffer (capture.in_place = false)", function()
     eq(false, utils.exists(missing))
   end)
 
-  it("an immediate capture that can't be saved leaves no headline behind", function()
+  -- org-capture-finalize inserts the text before save-buffer: a save
+  -- that fails leaves it, with the headline made for it, in the target
+  -- buffer (there is no capture buffer to keep it in)
+  it("an immediate capture that can't be saved keeps its text in the target buffer", function()
     buffer_setup()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
     local p = dir .. "/no/such/dir/t.org"
-    local dbuf = run(capture.capture, { template = "* X", target = p, headline = "New", immediate_finish = true })
+    local warned = {}
+    local warn = utils.warn
+    utils.warn = function(m)
+      warned[#warned + 1] = m
+    end
+    -- no to "Directory ... does not exist; create?"
+    local restore = answer({ false })
+    local dbuf = run(capture.capture, {
+      template = "* X %i",
+      target = p,
+      headline = "New",
+      immediate_finish = true,
+    }, { initial = "text found nowhere else" })
+    restore()
+    utils.warn = warn
     eq(nil, dbuf)
     local tb = utils.find_buffer(p)
-    eq(true, tb == nil or vim.deep_equal({ "" }, buf_lines(tb)))
+    ok(tb, "the target buffer is kept")
+    eq({ "* New", "** X text found nowhere else" }, buf_lines(tb))
+    eq(true, vim.bo[tb].modified)
+    eq(true, vim.bo[tb].buflisted)
+    ok(
+      warned[1]:match("^Capture could not be saved; the text stays in the unsaved buffer .*t%.org: Canceled$"),
+      warned[1]
+    )
+    eq(false, utils.exists(p))
+    vim.api.nvim_buf_delete(tb, { force = true })
   end)
 
   it("runs on_abort with the target buffer when the capture is killed", function()

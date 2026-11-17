@@ -622,6 +622,7 @@ function M.capture(tpl_or_key, opts)
     local lines = with_properties(vim.split((expanded:gsub(CURSOR, "")), "\n", { plain = true }), ctx.properties, ttype)
     -- Emacs finalizes immediate captures too: no capture buffer here
     emit("OrgCapturePrepareFinalize", { immediate = true })
+    ctx.immediate = true
     local dbuf, dline = M.store(tpl, lines, ctx)
     local dfile
     if dbuf then
@@ -635,8 +636,11 @@ function M.capture(tpl_or_key, opts)
       emit("OrgCaptureAfterFinalize", { bufnr = dbuf, line = dline })
     else
       -- nothing stored and no capture buffer to keep it: undo the target
-      -- headlines and restart an interrupted clock, like an abort
-      discard_target(ctx.loc)
+      -- headlines (unless the text stays there unsaved) and restart an
+      -- interrupted clock, like an abort
+      if not ctx.unsaved then
+        discard_target(ctx.loc)
+      end
       if ctx.clock_start then
         resume_interrupted(vim.tbl_extend("force", tpl, { clock_keep = false }), ctx)
       end

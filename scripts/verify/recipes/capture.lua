@@ -49,6 +49,40 @@ return {
     },
   },
   {
+    name = "an immediate capture whose target can't be saved keeps its text",
+    files = { ["locked.org"] = { "* Inbox" } },
+    -- (the warning names the file and the error: wide enough for it to
+    -- show without a hit-enter prompt)
+    width = 240,
+    setup = {
+      capture = {
+        templates = {
+          q = {
+            description = "Quick",
+            template = "* Call the bank",
+            target = "{{dir}}/locked.org",
+            headline = "Inbox",
+            immediate_finish = true,
+          },
+        },
+      },
+    },
+    steps = {
+      { lua = "vim.fn.setfperm((...) .. '/locked.org', 'r--r--r--')", note = "the target file is read-only" },
+      {
+        key = "{{global.capture}}q",
+        allow_error = true,
+        expect = { screen = "Capture could not be saved" },
+      },
+      {
+        cmd = "buffer locked.org",
+        expect = { buffer = "^%*%* Call the bank$", lua = "return vim.bo.modified" },
+        note = "the text is still in the target buffer, unsaved",
+      },
+      { expect = { file = { "locked.org", lines = { "* Inbox" } } } },
+    },
+  },
+  {
     name = "a killed capture leaves the target alone",
     files = { ["inbox.org"] = { "#+TITLE: Inbox" } },
     setup = setup,
