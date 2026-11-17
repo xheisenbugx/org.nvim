@@ -260,6 +260,67 @@ describe("babel parity: results", function()
     }, out)
   end)
 
+  -- org-babel-result-end: only affiliated keywords (org-element--affiliated-re)
+  -- belong to the element after #+RESULTS:; a #+CALL line or a dynamic block
+  -- is not a result and stays
+  it("keeps a #+CALL line or a dynamic block right after #+RESULTS:", function()
+    local buf = org_buffer({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "#+CALL: foo()",
+      "| a |",
+      "",
+      "#+begin_src sh :results output",
+      "echo two",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "#+BEGIN: clocktable :scope file",
+      "| Headline | Time |",
+      "#+END:",
+    }, { 1, 0 })
+    babel.execute({ bufnr = buf, lnum = 9, skip_confirm = true, sync = true })
+    babel.execute({ bufnr = buf, lnum = 1, skip_confirm = true, sync = true })
+    eq({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": new",
+      "#+CALL: foo()",
+      "| a |",
+      "",
+      "#+begin_src sh :results output",
+      "echo two",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": two",
+      "#+BEGIN: clocktable :scope file",
+      "| Headline | Time |",
+      "#+END:",
+    }, buf_lines(buf))
+  end)
+
+  it("replaces a result together with its affiliated keywords, dual ones included", function()
+    local out = run({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "#+ATTR_HTML: :width 10",
+      "#+CAPTION[short]: Long",
+      "| old |",
+      "After",
+    })
+    eq({ "#+begin_src sh :results output", "echo new", "#+end_src", "", "#+RESULTS:", ": new", "After" }, out)
+  end)
+
   it("converts Python values like ob-python", function()
     if not has("python3") then
       return
