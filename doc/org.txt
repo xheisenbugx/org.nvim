@@ -1246,7 +1246,9 @@ archiving to the sibling skips entries already archived.
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
 going back to a TODO state removes it. Like Emacs, CLOSED is only touched
 when some logging is set up (`log_done` or a keyword with `!`/`@`);
-`closed_keep_when_no_todo` keeps it when the keyword is removed. With
+`closed_keep_when_no_todo` keeps it when the keyword is removed. The time
+CLOSED, LAST_REPEAT and the notes record is rounded to the first value of
+`time_stamp_rounding_minutes` (org-current-time). With
 `use_effective_time`, times recorded before `extend_today_until` o'clock
 are 23:59 of the previous day; with
 `use_last_clock_out_time_as_effective_time`, CLOSED and the notes record the
@@ -7839,7 +7841,8 @@ Structure and visibility ~
                                       (at `textwidth`, 70 when 0)
   deadline_warning_days     14        0 or negative = also over -Nd cookies
   scheduled_delay_days      0         negative = also over -Nd cookies
-  time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
+  time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, CLOSED and
+                                      notes, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
   read_date_popup_calendar  true      false: a plain prompt |org-calendar|
   read_date_display_live    true      show the typed date's meaning

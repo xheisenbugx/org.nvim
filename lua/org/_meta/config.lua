@@ -632,7 +632,7 @@
 ---`-Nd` delay; negative: always (org-scheduled-delay-days). (default: `0`)
 ---@field scheduled_delay_days? integer
 ---`{ rounding, step }`: minutes the current time is rounded to in date
----prompts, and the minute step of <S-Up>/<S-Down> on timestamps (a count
+---prompts and in CLOSED, LAST_REPEAT and notes, and the minute step of <S-Up>/<S-Down> on timestamps (a count
 ---steps by exactly that many minutes).
 ---(Emacs `org-time-stamp-rounding-minutes`, default: `{ 0, 5 }`)
 ---@field time_stamp_rounding_minutes? integer[]

@@ -109,6 +109,39 @@ describe("logging options", function()
     }, buf_lines(buf))
   end)
 
+  it("rounds CLOSED, LAST_REPEAT and notes to time_stamp_rounding_minutes[1]", function()
+    -- org-current-effective-time starts from (org-current-time), rounded
+    -- to (car org-time-stamp-rounding-minutes): with 10, 10:23 is 10:20
+    config.opts.todo_keywords = { "TODO | DONE(!)" }
+    config.opts.log_done = "time"
+    local rounding = config.opts.time_stamp_rounding_minutes
+    config.opts.time_stamp_rounding_minutes = { 10, 5 }
+    local now = date.now
+    date.now = function()
+      return date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 23 })
+    end
+    local buf = org_buffer({ "* TODO A", "* TODO B", "SCHEDULED: <2026-11-02 Mon +1w>" }, { 1, 0 })
+    local ok_run, err = pcall(function()
+      todo.change_state(nil, "DONE")
+      todo.change_state({ bufnr = buf, lnum = 4 }, "DONE")
+    end)
+    date.now = now
+    config.opts.time_stamp_rounding_minutes = rounding
+    ok(ok_run, err)
+    local ts = "[2026-11-02 Mon 10:20]"
+    eq({
+      "* DONE A",
+      "CLOSED: " .. ts,
+      state_line("DONE", "TODO", ts),
+      "* TODO B",
+      "SCHEDULED: <2026-11-09 Mon +1w>",
+      ":PROPERTIES:",
+      ":LAST_REPEAT: " .. ts,
+      ":END:",
+      state_line("DONE", "TODO", ts),
+    }, buf_lines(buf))
+  end)
+
   local entry = {
     "* TODO A",
     "SCHEDULED: <2026-01-01 Thu>",

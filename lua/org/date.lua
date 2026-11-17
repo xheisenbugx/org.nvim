@@ -213,14 +213,16 @@ function M.round_minutes(d, r)
   return d:add(r * f - d.min, "min")
 end
 
---- The time recorded by CLOSED and log notes (org-current-effective-time):
---- with `use_last_clock_out_time_as_effective_time` and a headline, the
---- last clock-out time of its subtree; with `use_effective_time`, before
+--- The time recorded by CLOSED, LAST_REPEAT and log notes
+--- (org-current-effective-time): now, rounded to
+--- `time_stamp_rounding_minutes[1]` like org-current-time; with
+--- `use_last_clock_out_time_as_effective_time` and a headline, the last
+--- clock-out time of its subtree; with `use_effective_time`, before
 --- `extend_today_until` o'clock it is 23:59 of the previous day.
 ---@param hl? org.Headline
 function M.effective_now(hl)
-  local now = M.now()
   local ok, config = pcall(require, "org.config")
+  local now = M.round_minutes(M.now(), ok and (config.opts.time_stamp_rounding_minutes or {})[1] or 0)
   if ok and config.opts.use_last_clock_out_time_as_effective_time then
     local out = M.last_clock_out(hl)
     if out then
