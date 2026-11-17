@@ -27,8 +27,9 @@ M.defaults = {
   auto_refresh = true,
   --- Where fetched calendars are kept.
   cache_dir = vim.fn.stdpath("cache") .. "/org/ics",
-  --- The fetch program and its arguments; `-o FILE --config -` is appended,
-  --- and the URL goes to it on stdin (not in the process list).
+  --- The fetch program and its arguments. For curl, `-o FILE --config -` is
+  --- appended and the URL goes to it on stdin (not in the process list);
+  --- any other program gets `-o FILE URL`.
   curl = { "curl", "-fsSL", "--max-time", "30" },
   --- Zone the agenda shows times in (an IANA name); nil = the system's.
   timezone = nil,
@@ -158,9 +159,20 @@ local function quote(s)
   return '"' .. s:gsub('[\\"]', "\\%0"):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t") .. '"'
 end
 
+--- Whether the fetch program `exe` is curl itself (`curl`, `/usr/bin/curl`,
+--- `curl.exe`), which reads `--config -`; a wrapper script or another
+--- downloader gets the arguments it always got.
+---@param exe string
+---@return boolean
+function M.is_curl(exe)
+  local name = (exe:match("([^/\\]+)$") or exe):lower()
+  return name == "curl" or name == "curl.exe" or name == "curl.cmd" or name == "curl.bat"
+end
+
 --- Fetch `url` into `dest`; calls `cb(err)` (nil on success) on the main
---- loop. Replaceable (tests stub it). The URL goes to curl in a config on
---- stdin, so a secret address never shows in the process list.
+--- loop. Replaceable (tests stub it). curl gets the URL in a config on
+--- stdin, so a secret address never shows in the process list; any other
+--- fetch program gets `-o FILE URL`.
 ---@param url string
 ---@param dest string
 ---@param cb fun(err: string|nil)
@@ -172,13 +184,18 @@ function M.fetcher(url, dest, cb)
     end)
     return
   end
-  -- The output file stays an argument: a curl without Unicode support
-  -- (an older Windows' own) reads its config in the ANSI code page, so a
-  -- path under C:\Users\José\ would not open. (globoff: `[` and `{` in an
-  -- address are not curl's patterns.)
-  vim.list_extend(cmd, { "-o", dest, "--config", "-" })
-  local config = "url = " .. quote(url) .. "\ngloboff\n"
-  vim.system(cmd, { text = true, stdin = config }, function(res)
+  local stdin
+  if M.is_curl(cmd[1]) then
+    -- The output file stays an argument: a curl without Unicode support
+    -- (an older Windows' own) reads its config in the ANSI code page, so a
+    -- path under C:\Users\José\ would not open. (globoff: `[` and `{` in
+    -- an address are not curl's patterns.)
+    vim.list_extend(cmd, { "-o", dest, "--config", "-" })
+    stdin = "url = " .. quote(url) .. "\ngloboff\n"
+  else
+    vim.list_extend(cmd, { "-o", dest, url })
+  end
+  vim.system(cmd, { text = true, stdin = stdin }, function(res)
     vim.schedule(function()
       if res.code == 0 then
         cb(nil)

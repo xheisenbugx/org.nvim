@@ -504,6 +504,35 @@ describe("ics extension", function()
     eq({ 'url = "' .. url .. '"', "globoff" }, vim.fn.readfile(bin .. "/config"))
   end)
 
+  it("tells curl itself from other fetch programs", function()
+    for _, exe in ipairs({ "curl", "/usr/bin/curl", [[C:\Windows\System32\curl.exe]], "C:/bin/CURL.EXE", "curl.cmd" }) do
+      eq(true, ics_mod.is_curl(exe), exe)
+    end
+    for _, exe in ipairs({ "wget", "/usr/local/bin/fetch-ics", "curlie", [[C:\curl\bin\my-fetch.cmd]] }) do
+      eq(false, ics_mod.is_curl(exe), exe)
+    end
+  end)
+
+  it("gives a fetch command that isn't curl `-o FILE URL`, as it always has", function()
+    -- a wrapper script or another downloader doesn't read curl's --config
+    local bin = vim.fs.normalize(dir .. "/bin2")
+    local exe =
+      fake_exe(bin, "my-fetch", 'd=$(dirname "$0")\nfor a in "$@"; do echo "$a"; done > "$d/args"\ncat > "$d/stdin"\n')
+    setup({ calendars = {}, auto_refresh = false, curl = { exe, "--quiet" } })
+    local url = "https://example.com/cal/basic.ics"
+    local dest = vim.fs.normalize(dir) .. "/y.part"
+    local err
+    ics_mod.fetcher(url, dest, function(e)
+      err = e or false
+    end)
+    vim.wait(10000, function()
+      return err ~= nil
+    end, 5)
+    eq(false, err)
+    eq({ "--quiet", "-o", dest, url }, vim.fn.readfile(bin .. "/args"))
+    eq({}, vim.fn.readfile(bin .. "/stdin"))
+  end)
+
   it("builds org headings and timestamps for imported events", function()
     local cal = parser.parse(read(fixture))
     local occ = parser.occurrences(cal, day("2026-10-06 Tue"), day("2026-10-06 Tue"), {
