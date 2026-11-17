@@ -214,6 +214,11 @@ function M.table_cell_alignment(cell, info)
 end
 
 function M.table_cell_borders(cell, info)
+  if not cell then
+    -- the first cell of a row without cells (a lone "|"): Emacs finds no
+    -- row or table around nil, so it is at the top and bottom of its table
+    return { top = true, bottom = true }
+  end
   local row = cell.parent
   local tbl = element.lineage(cell, "table")
   local borders = {}
