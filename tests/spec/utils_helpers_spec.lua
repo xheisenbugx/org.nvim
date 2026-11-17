@@ -99,3 +99,75 @@ describe("utils.mkdir_p", function()
     vim.fn.delete(file)
   end)
 end)
+
+describe("utils.glob_org_files: names with wildcard characters and commas", function()
+  local dir
+  before_each(function()
+    dir = vim.fs.normalize(vim.fn.tempname())
+    for _, f in ipairs({ "plan[1].org", "plan1.org", "[work] notes/a.org", "Notes, 2024/b.org" }) do
+      utils.writefile(dir .. "/" .. f, { "* T" })
+    end
+  end)
+
+  it("finds a file whose name holds [ ]", function()
+    eq({ dir .. "/plan[1].org" }, utils.glob_org_files({ dir .. "/plan[1].org" }))
+  end)
+
+  it("finds the files of a directory whose name holds [ ] or a comma", function()
+    eq({ dir .. "/[work] notes/a.org" }, utils.glob_org_files({ dir .. "/[work] notes" }))
+    eq({ dir .. "/Notes, 2024/b.org" }, utils.glob_org_files({ dir .. "/Notes, 2024" }))
+  end)
+
+  it("globs below such a directory", function()
+    eq({ dir .. "/[work] notes/a.org" }, utils.glob_org_files({ dir .. "/[work] notes/*.org" }))
+    eq({ dir .. "/Notes, 2024/b.org" }, utils.glob_org_files({ dir .. "/Notes, 2024/*.org" }))
+  end)
+
+  it("still globs: * ? [..] {a,b} and **", function()
+    eq({ dir .. "/plan1.org", dir .. "/plan[1].org" }, utils.glob_org_files({ dir .. "/plan*.org" }))
+    eq({ dir .. "/plan1.org" }, utils.glob_org_files({ dir .. "/plan[0-9].org" }))
+    eq({ dir .. "/plan1.org" }, utils.glob_org_files({ dir .. "/plan?.org" }))
+    eq({ dir .. "/plan1.org" }, utils.glob_org_files({ dir .. "/{plan1,none}.org" }))
+    eq(
+      { dir .. "/Notes, 2024/b.org", dir .. "/[work] notes/a.org", dir .. "/plan1.org", dir .. "/plan[1].org" },
+      utils.glob_org_files({ dir .. "/**/*.org" })
+    )
+  end)
+end)
+
+describe("utils.glob", function()
+  local dir
+  before_each(function()
+    dir = vim.fs.normalize(vim.fn.tempname())
+    for _, f in ipairs({ "a.org", ".hidden.org", "sub/b.org", "sub/deep/c.org", ".git/d.org" }) do
+      utils.writefile(dir .. "/" .. f, { "x" })
+    end
+  end)
+
+  it("matches like Vim's glob(): dotfiles only for a dot pattern, ** skips hidden directories", function()
+    eq({ dir .. "/a.org" }, utils.glob(dir .. "/*.org"))
+    eq({ dir .. "/.hidden.org" }, utils.glob(dir .. "/.*.org"))
+    eq({ dir .. "/a.org", dir .. "/sub/b.org", dir .. "/sub/deep/c.org" }, utils.glob(dir .. "/**/*.org"))
+    eq({ dir .. "/sub" }, utils.glob(dir .. "/s*"))
+    eq({}, utils.glob(dir .. "/nothing*"))
+    eq({}, utils.glob(dir .. "/missing/*.org"))
+  end)
+
+  it("starts at a drive's root for C:/*.org, not at drive C's current directory", function()
+    local parts, k, base = utils._glob_split("C:/*.org")
+    eq({ { "C:", "*.org" }, 2, "C:/" }, { parts, k, base })
+    eq("C:/x", select(3, utils._glob_split("C:/x/*.org")))
+    eq("/", select(3, utils._glob_split("/*.org")))
+    eq("//server/share", select(3, utils._glob_split("//server/share/*.org")))
+    eq(nil, select(3, utils._glob_split("*.org")))
+    eq({ "/", "C:/", "D:/x" }, { utils.dir_path(""), utils.dir_path("C:"), utils.dir_path("D:/x") })
+  end)
+
+  it("gives relative paths for a relative pattern", function()
+    local cwd = vim.fn.getcwd()
+    vim.cmd("cd " .. vim.fn.fnameescape(dir))
+    local got = utils.glob("sub/*.org")
+    vim.cmd("cd " .. vim.fn.fnameescape(cwd))
+    eq({ "sub/b.org" }, got)
+  end)
+end)

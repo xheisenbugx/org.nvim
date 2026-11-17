@@ -13,7 +13,8 @@ local defaults = {
   --- A directory adds its `*.org` files (not recursively, names not starting
   --- with a dot, like org-agenda-file-regexp); a string naming a non-org
   --- file reads the list from that file, one per line. Glob patterns such
-  --- as `~/org/**/*.org` are an extension.
+  --- as `~/org/**/*.org` are an extension: `*`, `?`, `[..]`, `{a,b}` and
+  --- `**`; a path that exists (`plan[1].org`) is used as written.
   agenda_files = {},
   --- Default target for capture templates without a `target`
   --- (org-default-notes-file).

@@ -11,8 +11,10 @@
 ---@field org_directory? string
 ---Files, directories and globs scanned by the agenda, refile and id lookups.
 ---A directory adds its `*.org` files (not recursively, like Emacs); use a
----glob such as `~/org/**/*.org` to recurse. A single string naming a non-org
----file reads the list from that file, one per line.
+---glob such as `~/org/**/*.org` to recurse. Globs take `*`, `?`, `[..]`,
+---`{a,b}` and `**`; a path that exists (`plan[1].org`) is used as written.
+---A single string naming a non-org file reads the list from that file, one
+---per line.
 ---(Emacs `org-agenda-files`, default: `{}`)
 ---@field agenda_files? string|string[]
 ---Default target for capture templates without a `target`.

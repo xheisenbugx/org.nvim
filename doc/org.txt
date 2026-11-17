@@ -7632,7 +7632,10 @@ default template. Summary:
 General ~
   org_directory             "~/org"   base for relative paths
   agenda_files              {}        files, dirs (not recursive), globs,
-                                      or a file listing them
+                                      or a file listing them; globs take
+                                      * ? [..] {a,b} and **, and a path
+                                      that exists (`plan[1].org`) is
+                                      used as written
   default_notes_file        "~/.notes"  capture target without `target`
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current

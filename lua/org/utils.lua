@@ -853,6 +853,182 @@ function M.string_lessp(a, b, ignore_case)
   return r[1] == a and r[2] == b
 end
 
+-- The characters that make a path component a wildcard for `glob`.
+local GLOB_CHARS = "[%*%?%[{]"
+local is_win = vim.fn.has("win32") == 1
+
+-- component -> its compiled regex (false: none), per 'fileignorecase'
+local glob_regexes = { [true] = {}, [false] = {} }
+
+--- The regex matching the names `part` (a path component with wildcards)
+--- stands for, as Vim's glob matches them: case ignored with
+--- 'fileignorecase'. nil for a pattern Vim can't read.
+---@param part string
+---@return vim.regex|nil
+local function glob_regex(part)
+  local fic = vim.o.fileignorecase
+  local re = glob_regexes[fic][part]
+  if re == nil then
+    local ok, r = pcall(function()
+      return vim.regex((fic and "\\c" or "\\C") .. vim.fn.glob2regpat(part))
+    end)
+    re = ok and r or false
+    glob_regexes[fic][part] = re
+  end
+  return re or nil
+end
+
+--- The entries of directory `dir` as (name, type) pairs, nothing when it
+--- can't be read. Unlike vim.fs.dir, `dir` is used as it is (not
+--- normalized: no $VAR in it is expanded).
+---@param dir string
+---@return fun(): string?, string?
+function M.scandir(dir)
+  local fs = vim.uv.fs_scandir(dir)
+  return function()
+    if fs then
+      return vim.uv.fs_scandir_next(fs)
+    end
+  end
+end
+
+--- The directory a path's leading part names, as a directory to list: ""
+--- (what precedes `/x`) is the root, and a drive alone (`C:`, of `C:/x`)
+--- its root `C:/`: fs_stat and fs_scandir read `C:` as the current
+--- directory of drive C.
+---@param dir string
+---@return string
+function M.dir_path(dir)
+  if dir == "" then
+    return "/"
+  elseif dir:match("^%a:$") then
+    return dir .. "/"
+  end
+  return dir
+end
+
+--- `pattern` (with `/` separators) split for `glob`: its components, the
+--- index of the first with a wildcard (past the end when none has one)
+--- and the directory the components before it name (nil: the current one).
+---@param pattern string
+---@return string[] parts, integer k, string|nil base
+function M._glob_split(pattern)
+  local parts = vim.split(pattern, "/", { plain = true })
+  local k = 1
+  while k <= #parts and not parts[k]:find(GLOB_CHARS) do
+    k = k + 1
+  end
+  local base = k > 1 and M.dir_path(table.concat(parts, "/", 1, k - 1)) or nil
+  return parts, k, base
+end
+
+--- The paths matching the wildcard `pattern` (`*`, `?`, `[abc]`, `{a,b}`
+--- within a path component, `**` for any number of directories), sorted,
+--- like Vim's glob() but without its expansion: glob() runs `backticks`
+--- as shell commands and expands $VARS, and `globpath()` splits its
+--- directory at commas, so neither may see a path that comes from a
+--- document, a link or a file name. A path, or a path component, that
+--- exists as written is the only match (a file named `plan[1].org`, a
+--- directory `[work] notes`). As in Vim, a wildcard
+--- matches a name starting with `.` only when it starts with `.` itself,
+--- and `**` doesn't enter hidden directories. Relative patterns are
+--- relative to the current directory, and so are the paths returned;
+--- the matches start with `pattern`'s directory as written.
+---@param pattern string
+---@return string[]
+function M.glob(pattern)
+  if pattern == "" then
+    return {}
+  end
+  -- as written (no `..` resolved: callers cut their base off the matches),
+  -- with a leading ~ for the home directory like glob()
+  if pattern == "~" or pattern:match("^~[/\\]") then
+    pattern = M.home() .. pattern:sub(2)
+  end
+  if is_win then
+    pattern = pattern:gsub("\\", "/")
+  end
+  if vim.uv.fs_stat(pattern) then
+    return { pattern }
+  end
+  -- the leading components without wildcards name the directory to start in
+  local parts, k, base = M._glob_split(pattern)
+  if k > #parts then
+    return {}
+  end
+  local out = {}
+  local function join(dir, name)
+    if not dir then
+      return name
+    end
+    return (dir:sub(-1) == "/" and dir or dir .. "/") .. name
+  end
+  local function is_dir(path, kind)
+    if kind == "directory" or kind == "file" then
+      return kind == "directory"
+    end
+    -- a link, or a file system that doesn't tell
+    local st = vim.uv.fs_stat(path)
+    return st ~= nil and st.type == "directory"
+  end
+  -- the directories `**` entered, against symlink loops
+  local entered = {}
+  local function walk(dir, i)
+    local part = parts[i]
+    if part == nil then
+      out[#out + 1] = dir
+      return
+    end
+    if part == "**" then
+      -- zero directories, then each directory below (not hidden ones)
+      walk(dir, i + 1)
+      local real = vim.uv.fs_realpath(dir or ".") or dir or "."
+      if entered[real] then
+        return
+      end
+      entered[real] = true
+      for name, kind in M.scandir(dir or ".") do
+        local path = join(dir, name)
+        if name:byte(1) ~= 46 and is_dir(path, kind) then
+          walk(path, i)
+        end
+      end
+      return
+    end
+    -- a component that names an entry as written is that entry (a
+    -- directory called `[work] notes`)
+    local literal = join(dir, part)
+    local exists = vim.uv.fs_stat(literal) ~= nil
+    if exists or not part:find(GLOB_CHARS) then
+      if exists then
+        walk(literal, i + 1)
+      end
+      return
+    end
+    local re = glob_regex(part)
+    if not re then
+      return
+    end
+    local dot = part:byte(1) == 46
+    for name, kind in M.scandir(dir or ".") do
+      if (dot or name:byte(1) ~= 46) and re:match_str(name) then
+        local path = join(dir, name)
+        if i == #parts then
+          out[#out + 1] = path
+        elseif is_dir(path, kind) then
+          walk(path, i + 1)
+        end
+      end
+    end
+  end
+  if base and not M.is_dir(base) then
+    return {}
+  end
+  walk(base, k)
+  table.sort(out)
+  return out
+end
+
 --- Expand a list of files/dirs/globs into unique absolute `.org` paths.
 ---@param patterns string|string[]
 ---@return string[]
@@ -869,20 +1045,26 @@ function M.glob_org_files(patterns)
     end
   end
   --- Files of a directory like Emacs org-agenda-files: not recursive,
-  --- names matching org-agenda-file-regexp ("^[^.].*\\.org$").
+  --- names matching org-agenda-file-regexp ("^[^.].*\\.org$"). (Listed,
+  --- not globbed: a directory's name may hold `[` or `,`.)
   local function add_dir(dir)
-    for _, f in ipairs(vim.fn.globpath(dir, "*.org", false, true)) do
-      if not vim.fs.basename(f):match("^%.") then
-        add(f)
+    local names = {}
+    for name in M.scandir(dir) do
+      if name:byte(1) ~= 46 and name:match("%.org$") then
+        names[#names + 1] = name
       end
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+      add(dir .. "/" .. name)
     end
   end
   for _, pattern in ipairs(patterns or {}) do
     local expanded = M.expand(pattern)
     if M.is_dir(expanded) then
       add_dir(expanded)
-    elseif expanded:find("[%*%?%[]") then
-      for _, f in ipairs(vim.fn.glob(expanded, false, true)) do
+    elseif expanded:find(GLOB_CHARS) then
+      for _, f in ipairs(M.glob(expanded)) do
         if M.is_dir(f) then
           add_dir(f)
         else
