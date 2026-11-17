@@ -125,6 +125,8 @@ describe("attach_from_file_manager (org-attach-dired-to-subtree)", function()
     end
     local done = attach.attach_from_file_manager()
     eq({ dir .. "/data/ab/cdef/two.txt" }, done)
+    -- (attaching two.txt again would be refused: file-already-exists)
+    vim.fn.delete(dir .. "/data", "rf")
     vim.fn["netrw#Expose"] = function()
       return { dir .. "/one.txt", dir .. "/two.txt" }
     end

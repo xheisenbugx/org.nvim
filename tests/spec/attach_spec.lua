@@ -57,6 +57,64 @@ describe("org-attach", function()
     eq({ "c.txt", "l.txt", "m.txt", "s.txt" }, attach.list(t))
   end)
 
+  -- org-attach-attach: copy-file, rename-file and add-name-to-file signal
+  -- file-already-exists, make-symbolic-link (OK-IF-ALREADY-EXISTS 1) asks
+  -- and url-copy-file refuses too
+  it("never replaces an attachment of the same name", function()
+    local dir = tmpdir()
+    setup(dir)
+    local buf = file_buffer(dir, { "* Task", ":PROPERTIES:", ":ID: abcdef", ":END:" })
+    local t = { bufnr = buf, lnum = 1 }
+    vim.fn.mkdir(dir .. "/inbox", "p")
+    vim.fn.mkdir(dir .. "/other", "p")
+    utils.writefile(dir .. "/inbox/report.txt", { "the only copy" })
+    utils.writefile(dir .. "/other/report.txt", { "another file" })
+    local dest = attach.attach_file(dir .. "/inbox/report.txt", "mv", t)
+    eq({ "the only copy" }, utils.readfile(dest))
+    local errors, asked = {}, {}
+    local err, confirm = utils.error, utils.confirm
+    utils.error = function(m)
+      errors[#errors + 1] = m
+    end
+    utils.confirm = function(m)
+      asked[#asked + 1] = m
+      return false
+    end
+    for _, method in ipairs({ "cp", "mv", "ln", "lns" }) do
+      eq(nil, attach.attach_file(dir .. "/other/report.txt", method, t))
+      eq({ "the only copy" }, utils.readfile(dest))
+    end
+    eq({ "another file" }, utils.readfile(dir .. "/other/report.txt"))
+    eq(3, #errors)
+    eq("File already exists: " .. dest, errors[1])
+    eq({ "File " .. dest .. " already exists; make it a link anyway?" }, asked)
+    if vim.fn.executable("curl") == 1 then
+      eq(nil, attach.attach_url("file://" .. dir .. "/other/report.txt", t))
+      eq({ "the only copy" }, utils.readfile(dest))
+      eq(4, #errors)
+    end
+    -- a yes makes the symbolic link
+    utils.confirm = function()
+      return true
+    end
+    eq(dest, attach.attach_file(dir .. "/other/report.txt", "lns", t))
+    eq("link", vim.uv.fs_lstat(dest).type)
+    utils.error, utils.confirm = err, confirm
+  end)
+
+  it("copies a directory into an attached directory of the same name", function()
+    local dir = tmpdir()
+    setup(dir)
+    local buf = file_buffer(dir, { "* Task", ":PROPERTIES:", ":ID: abcdef", ":END:" })
+    local t = { bufnr = buf, lnum = 1 }
+    vim.fn.mkdir(dir .. "/folder", "p")
+    utils.writefile(dir .. "/folder/a.txt", { "a" })
+    local dest = attach.attach_file(dir .. "/folder", "cp", t)
+    utils.writefile(dir .. "/folder/b.txt", { "b" })
+    eq(dest, attach.attach_file(dir .. "/folder", "cp", t))
+    eq({ "a.txt", "b.txt" }, vim.fn.readdir(dest))
+  end)
+
   it("never runs backticks in a DIR property as a shell command", function()
     local dir = tmpdir()
     setup(dir)

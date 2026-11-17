@@ -4125,7 +4125,11 @@ its ancestor's ID (`id:ID::*Child`).
   D         delete all
   s         set the DIR property
   S         remove the DIR property
-Directories can be attached too (copied recursively with "cp").
+Directories can be attached too (copied recursively with "cp"; into an
+attached directory of the same name, its files are copied into it). An
+attachment of the same name is never replaced: copying, moving, linking
+and downloading stop with "File already exists" (Emacs's file-already-exists),
+and a symbolic link asks first.
 `attach.commands` adds commands to the dispatcher or replaces them
 (org-attach-commands): `{ x = { fn = function(target) ... end, desc =
 "..." } }`, where `target` is `{ bufnr, lnum }` of the entry; `false`
