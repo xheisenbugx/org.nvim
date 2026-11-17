@@ -253,20 +253,46 @@ F.exp10 = function(args)
   end
   return pow(float(10), x)
 end
+--- An integer-valued double as a Calc integer.
+local function exact_int(r)
+  if math.abs(r) >= MAX_EXACT then
+    return big_norm(big_from_string(string.format("%.0f", r)))
+  end
+  return r
+end
+
+--- Round `x` with `f` (a function of a double giving an integer value) at
+--- `n` decimal digits, like Calc's rounding functions with a precision
+--- (math-round): calcFunc-scf moves the decimal point exactly, so x * 10^n
+--- is taken to 15 digits to drop its binary error (0.29 * 100 is 29, not
+--- 28.999999999999996), and the result is divided back exactly (an
+--- integer when it divides, `round(9.995, 2)` is 10). With `n` <= 0 an
+--- integer stays as it is. Nil when `n` is not an integer.
+local function round_digits(x, n, f)
+  n = tofloat(n)
+  if n ~= math.floor(n) then
+    return nil
+  end
+  if n <= 0 and is_int(x) then
+    return x
+  end
+  local scaled = tonumber(string.format("%.14e", tofloat(x) * 10 ^ n))
+  local r = exact_int(f(scaled))
+  if n <= 0 then
+    return mul(r, exact_int(10 ^ -n))
+  end
+  return div(r, exact_int(10 ^ n))
+end
+
 local function rounding(name, f)
   F[name] = numeric(name, function(x, n)
     if n ~= nil then
-      local m = 10 ^ tofloat(n)
-      return float(f(tofloat(x) * m) / m)
+      return round_digits(x, n, f)
     end
     if is_int(x) then
       return x
     end
-    local r = f(tofloat(x))
-    if math.abs(r) >= MAX_EXACT then
-      return big_norm(big_from_string(string.format("%.0f", r)))
-    end
-    return r
+    return exact_int(f(tofloat(x)))
   end)
 end
 rounding("floor", math.floor)
@@ -688,6 +714,7 @@ F.now = function()
 end
 
 return {
+  round_digits = round_digits,
   flatten = flatten,
   flatten_many = flatten_many,
   EXT_FN = EXT_FN,

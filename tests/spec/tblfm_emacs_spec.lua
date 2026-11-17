@@ -454,6 +454,38 @@ describe("tblfm emacs compat", function()
       end)
     end
 
+    -- math-round / math-ceiling / math-floor / math-trunc with a precision:
+    -- calcFunc-scf shifts the decimal point exactly (Calc floats are
+    -- decimal), then divides back (an integer when it divides); with a
+    -- precision <= 0 an integer stays as it is (Emacs 31.1 Calc)
+    local digits = {
+      { "floor(0.29, 2)", "0.29" },
+      { "floor(-0.29, 2)", "-0.29" },
+      { "ceil(1.1, 2)", "1.1" },
+      { "ceil(-1.1, 2)", "-1.1" },
+      { "trunc(0.57, 2)", "0.57" },
+      { "trunc(-0.57, 2)", "-0.57" },
+      { "round(1.005, 2)", "1.01" },
+      { "round(-1.005, 2)", "-1.01" },
+      { "round(2.675, 2)", "2.68" },
+      { "round(0.285, 2)", "0.29" },
+      { "round(9.995, 2)", "10" },
+      { "round(5, 2)", "5" },
+      { "round(12345, -2)", "12345" },
+      { "round(12345.6789, -2)", "12300" },
+      { "floor(-12.5, -1)", "-20" },
+      { "round(1.005, 2.0)", "1.01" },
+      { "round(2:3, 2)", "0.67" },
+      { "rounde(0.125, 2)", "0.12" },
+      { "rounde(2.675, 2)", "2.68" },
+      { "roundu(-0.125, 2)", "-0.12" },
+    }
+    for _, c in ipairs(digits) do
+      it(c[1] .. " = " .. c[2], function()
+        eq(c[2], eval1(c[1]))
+      end)
+    end
+
     it("vector functions over a column range", function()
       local fns = { "vsum", "vmean", "vmax", "vmin", "vcount", "vprod", "vmedian", "vsdev", "vvar" }
       local lines = {}
