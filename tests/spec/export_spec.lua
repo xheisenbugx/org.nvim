@@ -245,6 +245,37 @@ describe("export", function()
   end)
 
   describe("pandoc", function()
+    -- org-export-output-file-name: #+EXPORT_FILE_NAME, or the
+    -- EXPORT_FILE_NAME property of an exported subtree, names the output
+    it("names the output file after EXPORT_FILE_NAME", function()
+      local dir = vim.fn.tempname()
+      local pandoc = fake_exe(
+        dir .. "/bin",
+        "pandoc",
+        'while [ $# -gt 0 ]; do if [ "$1" = -o ]; then echo out > "$2"; fi; shift; done'
+      )
+      local saved = config.opts.export.pandoc
+      config.opts.export.pandoc = { cmd = { pandoc } }
+      local buf = org_buffer({
+        "#+EXPORT_FILE_NAME: report",
+        "",
+        "text",
+        "* H",
+        ":PROPERTIES:",
+        ":EXPORT_FILE_NAME: sub",
+        ":END:",
+        "body",
+      })
+      vim.api.nvim_buf_set_name(buf, dir .. "/notes.org")
+      local whole = export.export("docx", { bufnr = buf })
+      local subtree = export.export("docx", { bufnr = buf, subtree_line = 4 })
+      config.opts.export.pandoc = saved
+      vim.bo[buf].modified = false
+      eq("report.docx", vim.fn.fnamemodify(whole, ":t"))
+      eq("sub.docx", vim.fn.fnamemodify(subtree, ":t"))
+      eq(1, vim.fn.filereadable(subtree))
+    end)
+
     it("exports docx and rst via pandoc when available", function()
       if vim.fn.executable("pandoc") == 0 then
         return
