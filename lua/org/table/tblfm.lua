@@ -138,12 +138,13 @@ end
 --- that buffer line (Emacs C-c * without prefix; field formulas always
 --- run), `tblfm_line` uses the formulas of that #+TBLFM line instead
 --- (org-table-calc-current-TBLFM).
----@param opts? { line?: integer, tblfm_line?: integer }
+--- `literal` is the buffer's `literal_lines` when the caller has them.
+---@param opts? { line?: integer, tblfm_line?: integer, literal?: table<integer, true> }
 function M.recalc(bufnr, lnum, opts)
   bufnr = (type(bufnr) == "number" and bufnr) or 0
   opts = type(opts) == "table" and opts or {}
   lnum = lnum or vim.api.nvim_win_get_cursor(0)[1]
-  local info = M.find(bufnr, lnum)
+  local info = M.find(bufnr, lnum, opts.literal)
   if not info then
     return false
   end
@@ -919,14 +920,16 @@ function M.recalc_buffer(bufnr)
   bufnr = (type(bufnr) == "number" and bufnr) or 0
   for _ = 1, 10 do
     local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    -- recalculating keeps the line count: the block lines stay where they are
+    local literal = M.literal_lines(bufnr)
     local l = 1
     while l <= vim.api.nvim_buf_line_count(bufnr) do
       local line = vim.api.nvim_buf_get_lines(bufnr, l - 1, l, false)[1]
-      local info = is_table_line(line) and M.find(bufnr, l)
+      local info = is_table_line(line) and M.find(bufnr, l, literal)
       if info then
         if #info.tblfm > 0 then
-          M.recalc(bufnr, l)
-          info = M.find(bufnr, l) or info
+          M.recalc(bufnr, l, { literal = literal })
+          info = M.find(bufnr, l, literal) or info
         end
         l = (info.tblfm[#info.tblfm] or info.finish) + 1
       else

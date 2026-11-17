@@ -4383,7 +4383,9 @@ Other processors can be registered with
 18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
 
 Start a row with `|`. `|-` becomes a separator line (hline) when the table is
-aligned.
+aligned. A `|` line inside a src, example, export, comment or verse block is
+text, not a table: the table keys and aligning leave it alone there
+(org-at-table-p).
 
 In Insert mode:
   <Tab>/<S-Tab>  next / previous field (realigns; creates rows)

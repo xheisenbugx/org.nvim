@@ -96,9 +96,232 @@ function M.parse(lines)
   return t
 end
 
+-- Blocks whose contents are text, not elements: a `|` line there is no
+-- table (org-element parses no table inside them).
+local LITERAL_BLOCKS = { src = true, example = true, export = true, comment = true, verse = true }
+
+local function is_headline(line)
+  return line:byte(1) == 42 and line:find("^%*+ ") ~= nil
+end
+
+--- The block kind a `#+begin_KIND` (`true`) or `#+end_KIND` (`false`) line
+--- of a src, example, export, comment or verse block names, or nil.
+---@return string|nil kind, boolean|nil begin
+local function delimiter(line)
+  if not line:find("^%s*#%+") then
+    return nil
+  end
+  local kind = line:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+  local begin = kind ~= nil
+  kind = kind or line:match("^%s*#%+[Ee][Nn][Dd]_(%S+)%s*$")
+  kind = kind and kind:lower()
+  if kind and LITERAL_BLOCKS[kind] then
+    return kind, begin
+  end
+end
+
+--- For each `#+begin_` delimiter of `d` (a list of { kind, begin } and
+--- headline entries, in buffer order), the index of the first `#+end_` of
+--- its kind after it in its section: the line that closes the block.
+local function closing_ends(d)
+  local nxt, nearest = {}, {}
+  for i = #d, 1, -1 do
+    local e = d[i]
+    if e.headline then
+      nearest = {}
+    elseif e.begin then
+      nxt[i] = nearest[e.kind]
+    else
+      nearest[e.kind] = i
+    end
+  end
+  return nxt
+end
+
+-- in_literal_block's answers, per buffer: { tick, lines, session, starts =
+-- { [first line of a run of `|` lines] = boolean } }. Valid at the
+-- changedtick they were found at, across the table commands' own rewrites
+-- of their rows (`keep_literal_answer`), and through one Insert-mode
+-- session while the line count stays: typing into a table opens or closes
+-- no block, and the answer is not read again for every key.
+local literal_cache = {}
+local insert_session, in_insert = 0, false
+
+local function literal_answers(bufnr)
+  if insert_session == 0 then
+    insert_session = 1
+    vim.api.nvim_create_autocmd({ "InsertEnter", "InsertLeave" }, {
+      group = vim.api.nvim_create_augroup("org.table.literal", { clear = true }),
+      callback = function(ev)
+        insert_session = insert_session + 1
+        in_insert = ev.event == "InsertEnter"
+      end,
+    })
+  end
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local lines = vim.api.nvim_buf_line_count(bufnr)
+  local c = literal_cache[bufnr]
+  if c and (c.tick == tick or (in_insert and c.session == insert_session and c.lines == lines)) then
+    return c
+  end
+  c = { tick = tick, lines = lines, session = insert_session, starts = {} }
+  literal_cache[bufnr] = c
+  return c
+end
+
+--- After a table command rewrote the rows of the table starting at
+--- `start` (and only them) at changedtick `tick`: its answer still holds.
+---@param bufnr integer
+---@param start integer
+---@param tick integer the changedtick before the rewrite
+function M.keep_literal_answer(bufnr, start, tick)
+  bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  local c = literal_cache[bufnr]
+  if not c or c.tick ~= tick or c.starts[start] == nil then
+    return
+  end
+  local lines = vim.api.nvim_buf_line_count(bufnr)
+  if lines ~= c.lines then
+    -- the tables below moved
+    c.starts = { [start] = c.starts[start] }
+  end
+  c.tick, c.lines = vim.api.nvim_buf_get_changedtick(bufnr), lines
+end
+
+--- Whether line `lnum` of `bufnr` is inside a src, example, export,
+--- comment or verse block, where `|` lines are text (org-at-table-p asks
+--- org-element). A run of `|` lines opens or closes no block, so the
+--- answer is the run's: found once (see `literal_answers`), from the
+--- block delimiters of the section above it (blocks end at a headline),
+--- read once, and when a block opens above and is not closed there, from
+--- the lines below up to its end.
+---@param bufnr integer
+---@param lnum integer
+---@return boolean
+function M.in_literal_block(bufnr, lnum)
+  bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  local c = literal_answers(bufnr)
+  if c.starts[lnum] ~= nil then
+    return c.starts[lnum]
+  end
+  -- up from `lnum`: the start of its run, then the delimiters up to the
+  -- headline of the section
+  local run_start, in_run = lnum, true
+  local d, hi = {}, lnum - 1
+  while hi >= 1 do
+    local lo = math.max(1, hi - 511)
+    local chunk = vim.api.nvim_buf_get_lines(bufnr, lo - 1, hi, false)
+    local stop = false
+    for k = #chunk, 1, -1 do
+      local line = chunk[k]
+      if in_run and line:find("^%s*|") then
+        run_start = lo + k - 1
+      else
+        if in_run then
+          in_run = false
+          if c.starts[run_start] ~= nil then
+            c.starts[lnum] = c.starts[run_start]
+            return c.starts[run_start]
+          end
+        end
+        if is_headline(line) then
+          stop = true
+          break
+        end
+        local kind, begin = delimiter(line)
+        if kind then
+          d[#d + 1] = { kind = kind, begin = begin }
+        end
+      end
+    end
+    if stop then
+      break
+    end
+    hi = lo - 1
+  end
+  if in_run and c.starts[run_start] ~= nil then
+    return c.starts[run_start]
+  end
+  -- top to bottom
+  for i = 1, math.floor(#d / 2) do
+    d[i], d[#d - i + 1] = d[#d - i + 1], d[i]
+  end
+  -- the `#+end_` kinds below `lnum` in its section, read as far as needed
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  local ends, below, done = {}, lnum + 1, false
+  local function closes_below(kind)
+    while not ends[kind] and not done and below <= n do
+      local chunk = vim.api.nvim_buf_get_lines(bufnr, below - 1, math.min(n, below + 511), false)
+      for _, line in ipairs(chunk) do
+        if is_headline(line) then
+          done = true
+          break
+        end
+        local k, begin = delimiter(line)
+        if k and not begin then
+          ends[k] = true
+        end
+      end
+      below = below + #chunk
+    end
+    return ends[kind] == true
+  end
+  local nxt = closing_ends(d)
+  local inside, i = false, 1
+  while i <= #d do
+    if d[i].begin then
+      if nxt[i] then
+        i = nxt[i] -- the block ends above `lnum`
+      elseif closes_below(d[i].kind) then
+        inside = true
+        break
+      end
+      -- else not closed in its section: no block
+    end
+    i = i + 1
+  end
+  c.starts[run_start] = inside
+  c.starts[lnum] = inside
+  return inside
+end
+
+--- The lines of `bufnr` inside src, example, export, comment and verse
+--- blocks (a set), for walking every table of a buffer in one pass.
+---@param bufnr integer
+---@return table<integer, true>
+function M.literal_lines(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local d = {}
+  for l, line in ipairs(lines) do
+    if is_headline(line) then
+      d[#d + 1] = { headline = true }
+    else
+      local kind, begin = delimiter(line)
+      if kind then
+        d[#d + 1] = { kind = kind, begin = begin, lnum = l }
+      end
+    end
+  end
+  local nxt = closing_ends(d)
+  local out, i = {}, 1
+  while i <= #d do
+    local close = nxt[i]
+    if close then
+      for l = d[i].lnum + 1, d[close].lnum - 1 do
+        out[l] = true
+      end
+      i = close
+    end
+    i = i + 1
+  end
+  return out
+end
+
 --- Locate the table containing `lnum` (or whose #+TBLFM line is `lnum`).
+--- `literal` is the buffer's `literal_lines` when the caller has them.
+---@param literal? table<integer, true>
 ---@return table|nil { start, finish, tblfm = {lnums}, lines }
-function M.find(bufnr, lnum)
+function M.find(bufnr, lnum, literal)
   bufnr = bufnr or 0
   local n = vim.api.nvim_buf_line_count(bufnr)
   local function get(l)
@@ -114,6 +337,13 @@ function M.find(bufnr, lnum)
     line = get(lnum)
   end
   if lnum < 1 or not is_table_line(line) or require("org.table.el").at(bufnr, lnum) then
+    return nil
+  end
+  if literal then
+    if literal[lnum] then
+      return nil
+    end
+  elseif M.in_literal_block(bufnr, lnum) then
     return nil
   end
   local s, e = lnum, lnum
@@ -325,7 +555,10 @@ local function write_table(info, t)
   local lines = M.render(t)
   local cur = vim.api.nvim_buf_get_lines(0, info.start - 1, info.finish, false)
   if not vim.deep_equal(cur, lines) then
+    local tick = vim.api.nvim_buf_get_changedtick(0)
     vim.api.nvim_buf_set_lines(0, info.start - 1, info.finish, false, lines)
+    -- only `|` rows changed: whether the table is in a block did not
+    M.keep_literal_answer(0, info.start, tick)
   end
   info.finish = info.start + #lines - 1
   require("org.table.shrink").refresh(0, info.start)
@@ -482,8 +715,9 @@ function M.align()
 end
 
 --- Realign the table containing `lnum` in `bufnr` without moving the cursor.
-function M.align_at(bufnr, lnum)
-  local info = M.find(bufnr, lnum)
+---@param literal? table<integer, true> the buffer's `literal_lines`
+function M.align_at(bufnr, lnum, literal)
+  local info = M.find(bufnr, lnum, literal)
   if not info then
     return
   end
@@ -603,14 +837,16 @@ end
 --- org-table-align).
 function M.align_all(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  -- aligning keeps the line count: the block lines stay where they are
+  local literal = M.literal_lines(bufnr)
   local l = 1
   while l <= vim.api.nvim_buf_line_count(bufnr) do
     local line = vim.api.nvim_buf_get_lines(bufnr, l - 1, l, false)[1]
     if is_table_line(line) then
-      local info = M.find(bufnr, l)
+      local info = M.find(bufnr, l, literal)
       if info then
-        M.align_at(bufnr, l)
-        l = M.find(bufnr, l).finish
+        M.align_at(bufnr, l, literal)
+        l = info.finish
       else
         while is_table_line(vim.api.nvim_buf_get_lines(bufnr, l, l + 1, false)[1]) do
           l = l + 1
