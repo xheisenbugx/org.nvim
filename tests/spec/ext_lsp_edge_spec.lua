@@ -195,3 +195,30 @@ describe("lsp edge cases", function()
     ok(got)
   end)
 end)
+
+describe("lsp workspace files", function()
+  after_each(function()
+    require("org").setup({
+      org_directory = vim.fn.getcwd() .. "/tests/fixtures",
+      agenda_files = { vim.fn.getcwd() .. "/tests/fixtures/*.org" },
+    })
+    require("org.extensions.lsp.util").invalidate()
+  end)
+
+  it("takes the files of an org_directory inside a hidden directory, not its hidden ones", function()
+    local root = vim.fs.normalize(vim.fn.tempname())
+    vim.fn.mkdir(root, "p")
+    local notes = vim.fs.normalize(utils.realpath(root)) .. "/.notes"
+    for _, f in ipairs({ "a.org", "sub/b.org", ".git/c.org", ".hidden.org" }) do
+      utils.writefile(notes .. "/" .. f, { "* T" })
+    end
+    require("org").setup({ org_directory = notes, agenda_files = {}, extensions = { lsp = {} } })
+    local lsp_util = require("org.extensions.lsp.util")
+    lsp_util.invalidate()
+    local got = vim.tbl_filter(function(p)
+      return p:sub(1, #notes + 1) == notes .. "/"
+    end, lsp_util.workspace_files())
+    table.sort(got)
+    eq({ notes .. "/a.org", notes .. "/sub/b.org" }, got)
+  end)
+end)

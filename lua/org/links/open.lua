@@ -231,7 +231,9 @@ end
 local function open_wildcard(pattern, how)
   local dir, glob = pattern:match("^(.*)/([^/]*)$")
   dir = dir ~= "" and dir or "/"
-  local matches = vim.fn.glob(pattern, false, true)
+  -- utils.glob, never vim.fn.glob(): the pattern is document text, and
+  -- Vim's glob runs `backticks` in it as shell commands
+  local matches = utils.glob(pattern)
   if #matches == 0 then
     utils.warn("No files match " .. pattern)
     return false

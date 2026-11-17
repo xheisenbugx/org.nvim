@@ -884,6 +884,23 @@ describe("links parity", function()
       eq(p, vim.api.nvim_buf_get_name(0))
     end)
 
+    -- Emacs lists the matches with dired, which quotes everything but the
+    -- wildcards for the shell (shell-quote-wildcard-pattern): a link's
+    -- backticks are never run. Vim's glob() would run them.
+    it("never runs the backticks of a wildcard file link", function()
+      local dir = tmpdir()
+      write(dir, "a.org", { "* A" })
+      local p = write(dir, "w.org", { "[[file:`touch PWNED`*.org]]" })
+      local cwd = vim.fn.getcwd()
+      vim.cmd("cd " .. vim.fn.fnameescape(dir))
+      stub(utils, "warn", function() end)
+      edit(p, { 1, 3 })
+      links.open_at_point(0)
+      vim.cmd("cd " .. vim.fn.fnameescape(cwd))
+      eq(0, vim.fn.filereadable(dir .. "/PWNED"))
+      eq(p, vim.api.nvim_buf_get_name(0))
+    end)
+
     it("uses the DOI server, translation function, file apps and counts", function()
       local opened = {}
       stub(vim.ui, "open", function(u)

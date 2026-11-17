@@ -116,9 +116,18 @@ function M.compile(texfile, on_done)
       return nil, err, nil, text
     end
     if remove_logfiles then
+      -- the files of `dir` named `base.*ext` (listed, not globbed:
+      -- vim.fn.glob() would run `backticks` of #+EXPORT_FILE_NAME)
+      local names = {}
+      for name in require("org.utils").scandir(dir) do
+        if name:sub(1, #base + 1) == base .. "." then
+          names[#names + 1] = name
+        end
+      end
       for _, ext in ipairs(logfiles_extensions) do
-        for _, f in ipairs(vim.fn.glob(dir .. "/" .. base .. ".*" .. ext, false, true)) do
-          if f:match(vim.pesc(base) .. "%.?%d*%." .. vim.pesc(ext) .. "$") then
+        for _, name in ipairs(names) do
+          local f = dir .. "/" .. name
+          if name:sub(-#ext) == ext and f:match(vim.pesc(base) .. "%.?%d*%." .. vim.pesc(ext) .. "$") then
             os.remove(f)
           end
         end

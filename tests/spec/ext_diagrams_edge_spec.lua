@@ -167,6 +167,22 @@ describe("diagrams: cleaning", function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
+  it("reads a file loaded in a buffer from the buffer, not from the disk", function()
+    -- (the buffer's name and the directory's listing must name the file
+    -- alike: backslashes against slashes on Windows)
+    local dir = tmpdir()
+    setup({}, dir)
+    vim.fn.mkdir(dir .. "/diagrams", "p")
+    vim.fn.writefile({ "x" }, dir .. "/diagrams/mermaid-89abcdef.svg")
+    vim.fn.writefile({ "[[file:diagrams/mermaid-89abcdef.svg]]" }, dir .. "/notes.org")
+    vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/notes.org"))
+    local buf = vim.api.nvim_get_current_buf()
+    -- the link is deleted, not saved yet
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "no link" })
+    eq({ dir .. "/diagrams/mermaid-89abcdef.svg" }, require("org.extensions.diagrams").unreferenced(buf))
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
   it("prunes the cache by age, then by size", function()
     local dir = tmpdir()
     setup({}, dir)
