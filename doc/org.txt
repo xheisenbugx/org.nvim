@@ -1880,7 +1880,9 @@ Clock lines go into the LOGBOOK drawer: >org
 As in Emacs, a clock line has nothing after its duration (`CLOCK:` in
 any case); a line with text after it is a paragraph and its time is not
 counted. A naked `CLOCK: => 2:00` adds two hours to the entry's clock
-sums, whatever their time range.
+sums, whatever their time range. A clock whose start has no time
+(`[2026-09-23 Wed]--...`) counts for nothing, and an end without a time
+takes the start's (org-clock-sum).
 
 The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
 for none, a number N for "once there are N clock lines"), then

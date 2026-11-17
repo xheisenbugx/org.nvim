@@ -1101,3 +1101,31 @@ describe("clocked minutes from the timestamps (Emacs)", function()
     eq(43, task:clocked_minutes(nil, nil, true))
   end)
 end)
+
+describe("clocks without a time (Emacs)", function()
+  -- org-clock-sum skips a clock whose start has no time ("Ignoring invalid
+  -- CLOCK"); an end without a time takes the start's (org-element's
+  -- timestamp parser fills :hour-end and :minute-end from the start)
+  local lines = {
+    "* Task",
+    "CLOCK: [2026-11-02 Mon]--[2026-11-03 Tue] => 24:00",
+    "CLOCK: [2026-11-02 Mon]--[2026-11-03 Tue 10:00] => 34:00",
+    "CLOCK: [2026-11-02 Mon 10:00]--[2026-11-03 Tue] => 14:00",
+    "CLOCK: [2026-11-02 Mon 10:00]--[2026-11-02 Mon 10:30] =>  0:30",
+  }
+
+  it("counts them like org-clock-sum", function()
+    local buf = org_buffer(lines, { 1, 0 })
+    local hl = files.get_buffer(buf).headlines[1]
+    -- Emacs: 1440 (Mon 10:00 to Tue 10:00) + 30
+    eq(1470, clock.sum_minutes(hl))
+    eq(1470, clock.sum_minutes(hl, nil, nil, true))
+    eq(1470, hl:clocked_minutes(nil, nil, true))
+  end)
+
+  it("counts them like org-clock-sum in a clock table", function()
+    local buf = org_buffer(vim.list_extend({ "#+BEGIN: clocktable :maxlevel 2", "#+END:" }, lines), { 1, 0 })
+    require("org.dblock").update_at_cursor()
+    eq("| *Total time* | *1d 0:30* |", buf_lines(buf)[5])
+  end)
+end)
