@@ -2315,7 +2315,8 @@ All configurable under `mappings.agenda`:
   <C-c><C-x>a     toggle the ARCHIVE tag
   <C-c><C-a>      attach (org-attach on the entry)
   <C-k>           delete the entry in its file (asks when it is longer
-                  than `agenda.confirm_kill` lines)
+                  than `agenda.confirm_kill` lines); on a %%(sexp) diary
+                  line, only that line
   <C-c><C-o>      open a link of the entry (choose when there are several)
   z               add a note
   K               capture, with the date at point as default date

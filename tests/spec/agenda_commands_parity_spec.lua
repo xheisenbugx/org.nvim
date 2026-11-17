@@ -797,6 +797,57 @@ describe("agenda bulk refile", function()
   end)
 end)
 
+-- org-agenda-kill deletes the entry's subtree, but only the line of a
+-- %%(sexp) entry ("sexp" type): one line, so no confirmation either
+-- (Emacs 9.8.10 probe: the other anniversary and the heading stay).
+describe("agenda kill on a diary sexp line", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local function anniversary(year, who)
+    return string.format("%%%%(diary-anniversary %d %d %d) %s", today.month, today.day, year, who)
+  end
+
+  it("deletes only that line", function()
+    open({ "* Birthdays", anniversary(2000, "Alice"), anniversary(1990, "Bob"), "* Other" })
+    local asked = 0
+    with_stubs({
+      {
+        utils,
+        "confirm",
+        function()
+          asked = asked + 1
+          return true
+        end,
+      },
+    }, function()
+      goto_title("Alice")
+      view.actions.kill()
+    end)
+    eq(0, asked)
+    eq({ "* Birthdays", anniversary(1990, "Bob"), "* Other" }, source_lines())
+  end)
+
+  it("finds the line after the file changed", function()
+    open({ "* Birthdays", anniversary(2000, "Alice"), anniversary(1990, "Bob"), "* Other" })
+    vim.api.nvim_buf_set_lines(utils.load_buffer(path), 0, 0, false, { "* New", "text" })
+    with_stubs({
+      {
+        utils,
+        "confirm",
+        function()
+          return true
+        end,
+      },
+    }, function()
+      goto_title("Bob")
+      view.actions.kill()
+    end)
+    eq({ "* New", "text", "* Birthdays", anniversary(2000, "Alice"), "* Other" }, source_lines())
+  end)
+end)
+
 -- org-agenda-bulk-action ?t binds org-inhibit-blocking to t and
 -- org-inhibit-logging to 'note: no entry is refused for its children, and
 -- a state that takes a note records its time instead (Emacs 9.8.10 probe:
