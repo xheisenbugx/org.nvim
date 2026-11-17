@@ -138,6 +138,34 @@ describe("capture.expand (org-capture-fill-template)", function()
     }, file_lines(p))
   end)
 
+  -- org-capture-fill-template: org-set-property puts the answer of a
+  -- plain template without a headline in a property drawer above its text
+  -- (the drawer org-insert-property-drawer makes before the first headline)
+  it("keeps the %^{PROP}p answer of a plain template", function()
+    local p = tmpfile({ "* A" })
+    local restore = answer({ "Bob" })
+    run(capture.capture, {
+      target = p,
+      headline = "A",
+      type = "plain",
+      template = "text %^{Owner}p",
+      immediate_finish = true,
+    })
+    restore()
+    eq({ "* A", ":PROPERTIES:", ":Owner:    Bob", ":END:", "text " }, file_lines(p))
+    -- a plain template starting with a headline: on that headline; in a
+    -- capture buffer too
+    buffer_setup()
+    local p2 = tmpfile({ "* A" })
+    restore = answer({ "Ann" })
+    local buf = run(capture.capture, { target = p2, type = "plain", template = "* H %^{Owner}p\n%?" })
+    restore()
+    eq({ "* H ", ":PROPERTIES:", ":Owner:    Ann", ":END:", "" }, buf_lines(buf))
+    eq({ 5, 0 }, vim.api.nvim_win_get_cursor(0))
+    run(capture.finalize, buf, { jump = false })
+    eq({ "* A", "* H ", ":PROPERTIES:", ":Owner:    Ann", ":END:" }, file_lines(p2))
+  end)
+
   it("repeats the text before %i on every line of the initial content", function()
     eq("- one\n- two", run(capture.expand, "- %i", { initial = "one\ntwo" }))
     eq("  > one\n  > two", run(capture.expand, "  > %i", { initial = "one\ntwo" }))

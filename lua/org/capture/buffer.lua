@@ -9,7 +9,6 @@ local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
 local marks = require("org.marks")
-local parser = require("org.parser")
 local ui = require("org.ui")
 local utils = require("org.utils")
 local shared = require("org.capture.shared")
@@ -69,9 +68,17 @@ local function split_cursor(text)
   return lines, cursor
 end
 
---- Add the %^{PROP}p answers and the template's properties to an entry.
-local function with_properties(lines, props)
-  if #props == 0 or not parser.headline_level(lines[1] or "") then
+--- Add the %^{PROP}p answers and the template's properties of a
+--- template of type `ttype`: to the headline of an entry (or of plain text
+--- starting with one), else as a property drawer above plain text, as
+--- org-set-property puts it before the first headline of Emacs's capture
+--- buffer. Items and table lines take none.
+---@param lines string[]
+---@param props { [1]: string, [2]: string }[]
+---@param ttype string
+---@return string[]
+local function with_properties(lines, props, ttype)
+  if #props == 0 or not (ttype == "entry" or ttype == "plain") then
     return lines
   end
   local b = vim.api.nvim_create_buf(false, true)
@@ -370,10 +377,7 @@ local function open_unnarrowed(tpl, text, ctx, in_place)
   if M.sessions[bufnr] then
     return fail("Another capture is editing this buffer; finish it first")
   end
-  local lines = vim.split(text, "\n", { plain = true })
-  if (tpl.type or "entry") == "entry" then
-    lines = with_properties(lines, ctx.properties)
-  end
+  local lines = with_properties(vim.split(text, "\n", { plain = true }), ctx.properties, tpl.type or "entry")
   local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local modified = vim.bo[bufnr].modified
   local ok, first = pcall(M.place, loc, tpl, lines)
@@ -474,13 +478,9 @@ local function open_buffer(tpl, text, ctx)
   vim.bo[buf].buftype = "acwrite"
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
-  local lines, cursor = split_cursor(text)
+  local with_props = with_properties(vim.split(text, "\n", { plain = true }), ctx.properties or {}, tpl.type or "entry")
+  local lines, cursor = split_cursor(table.concat(with_props, "\n"))
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  for _, p in ipairs(ctx.properties or {}) do
-    if parser.headline_level(lines[1] or "") then
-      edit.set_property(buf, 1, p[1], p[2])
-    end
-  end
   vim.bo[buf].modified = false
 
   local session = {
@@ -619,10 +619,7 @@ function M.capture(tpl_or_key, opts)
   end
   start_clock(tpl, ctx)
   if tpl.immediate_finish then
-    local lines = vim.split((expanded:gsub(CURSOR, "")), "\n", { plain = true })
-    if ttype == "entry" then
-      lines = with_properties(lines, ctx.properties)
-    end
+    local lines = with_properties(vim.split((expanded:gsub(CURSOR, "")), "\n", { plain = true }), ctx.properties, ttype)
     -- Emacs finalizes immediate captures too: no capture buffer here
     emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)

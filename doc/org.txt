@@ -3370,7 +3370,11 @@ Template expansions:                               *org-capture-expansions*
   %\*1 ...     the answer to the Nth prompt of any kind (%^t, %^g, ...)
   %^g %^G      tags prompt, completing the target file's / all agenda
                files' tags; tags on a headline are aligned
-  %^{PROP}p    property prompt (offers the PROP_ALL values of the target)
+  %^{PROP}p    property prompt (offers the PROP_ALL values of the target);
+               the property goes on the entry, or above the text of a
+               "plain" template without a headline (a property drawer).
+               Item, checkitem and table-line templates ask for it but
+               don't store it (|org-differences|)
   %:keyword    link information: %:link, %:description, %:annotation,
                %:initial, %:type
   %[file]      the contents of a file
@@ -9454,7 +9458,10 @@ Differences from Emacs:
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise. A template's `datetree = { reversed = true }`
   keeps date nodes newest first, which Emacs Org itself can't do (the
-  org-reverse-datetree package adds it).
+  org-reverse-datetree package adds it). `%^{PROP}p` in an item, checkitem or
+  table-line template asks for the value but doesn't store it: Emacs puts
+  the property drawer into the captured text, which makes the drawer the
+  item's text (`- :PROPERTIES:`, the item below it) or breaks the table.
 - The ID database can be Emacs's `org-id-locations-file` (|org-links|),
   but Emacs keeps it in memory and writes it on exit, so the last editor
   to save wins; files are sorted by name where Emacs keeps its hash order.
