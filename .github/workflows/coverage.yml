@@ -6,7 +6,8 @@ name: Coverage
 # The report (every module, lowest coverage first, and the lines no spec
 # runs) is uploaded as the "coverage" artifact; the totals and the 20
 # lowest modules go to the run's summary, followed by the extension
-# promotion report (make extensions-report).
+# promotion report (make extensions-report). A failure of a run that tests
+# dev opens an issue labelled "coverage" (or comments on the open one).
 on:
   schedule:
     - cron: "0 5 * * 1"
@@ -14,7 +15,7 @@ on:
 
 permissions:
   contents: read
-  issues: read
+  issues: write
 
 jobs:
   coverage:
@@ -39,7 +40,8 @@ jobs:
       # a failing spec still leaves a report; the step fails after it
       - name: Run the specs with coverage
         id: run
-        run: make coverage
+        shell: bash
+        run: make coverage 2>&1 | tee coverage.log
         continue-on-error: true
       # every path of scripts/coverage_floor.txt at or above its floor
       - name: Coverage floors
@@ -86,6 +88,59 @@ jobs:
             coverage/coverage.json
             coverage/floors.txt
           if-no-files-found: warn
+      # A failed run on dev (the scheduled one, or one started on dev)
+      # says so in an issue: nobody watches a weekly run, and it was red
+      # for four weeks (2026-10-26 to 2026-11-16) before anyone noticed.
+      # A run started on another branch only fails.
+      - name: Report the failure in an issue
+        if: >-
+          always()
+          && (steps.run.outcome == 'failure' || steps.floors.outcome == 'failure')
+          && (github.event_name == 'schedule' || github.ref == 'refs/heads/dev')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SPECS: ${{ steps.run.outcome }}
+          FLOORS: ${{ steps.floors.outcome }}
+        run: |
+          sha=$(git rev-parse --short=12 HEAD)
+          {
+            echo "The [weekly coverage run]($RUN_URL) on \`dev\` at \`$sha\` failed."
+            if [ "$SPECS" = failure ]; then
+              echo
+              echo "Specs failed under \`make coverage\`, which turns the JIT off and counts"
+              echo "every line: a time limit that doesn't skip under \`under_coverage()\`"
+              echo "fails here before anywhere else."
+              echo
+              echo '```'
+              # the failures, from the first FAIL to the totals (head may
+              # cut sed off: with pipefail, that is a failure to ignore)
+              sed -n '/^FAIL: /,/^[0-9]* passed, [0-9]* failed/p' coverage.log | head -c 30000 || true
+              echo '```'
+            fi
+            if [ "$FLOORS" = failure ]; then
+              echo
+              echo "A path of \`scripts/coverage_floor.txt\` is below its floor, or the floors"
+              echo "couldn't be checked (CONTRIBUTING.md, \"Coverage floors\"):"
+              echo
+              echo '```'
+              if [ -f coverage/floors.txt ]; then
+                head -c 20000 coverage/floors.txt
+              else
+                echo "No coverage/coverage.json to check the floors against."
+              fi
+              echo '```'
+            fi
+          } > issue.md
+          gh label create coverage --color FBCA04 --description "Found by the weekly Coverage run" 2>/dev/null || true
+          num=$(gh issue list --label coverage --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body-file issue.md
+          else
+            gh issue create --title "Coverage: weekly run failed" --label coverage --body-file issue.md
+          fi
       - name: Fail when a spec failed
         if: steps.run.outcome == 'failure'
         run: |
