@@ -15,9 +15,21 @@ end
 describe("clock", function()
   -- written for this setup rather than the Emacs defaults
   with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
+  -- date.now() is the minute the test started: a minute turning over
+  -- between clocking in "10 minutes ago" and clocking out would make the
+  -- 0:10 expected 0:11
+  local real_now
   before_each(function()
     config.opts.clock.persist = false
     clock.state = nil
+    real_now = date.now
+    local frozen = real_now()
+    date.now = function()
+      return frozen:clone()
+    end
+  end)
+  after_each(function()
+    date.now = real_now
   end)
 
   it("clocks in and out", function()

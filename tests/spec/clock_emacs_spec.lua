@@ -47,6 +47,24 @@ local function ts(d)
   return d:clone({ active = false }):to_string()
 end
 
+--- In each test of the enclosing describe, `date.now()` is the minute the
+--- test started: a minute turning over between the clock reading the time
+--- and an expectation reading it again (`ago(7)` twice) would put them a
+--- minute apart.
+local function freeze_now()
+  local real_now
+  before_each(function()
+    real_now = date.now
+    local frozen = real_now()
+    date.now = function()
+      return frozen:clone()
+    end
+  end)
+  after_each(function()
+    date.now = real_now
+  end)
+end
+
 local function line_of(buf, pat)
   for i, l in ipairs(buf_lines(buf)) do
     if l:match(pat) then
@@ -76,6 +94,7 @@ local function test(name, fn)
 end
 
 describe("clock in (Emacs)", function()
+  freeze_now()
   test("a numeric into_drawer collects the CLOCK lines once reached", function()
     config.opts.clock.into_drawer = 3
     local old = "CLOCK: [2026-09-20 Sun 10:00]--[2026-09-20 Sun 11:00] =>  1:00"
@@ -232,6 +251,7 @@ describe("clock in (Emacs)", function()
 end)
 
 describe("clock defaults (Emacs)", function()
+  freeze_now()
   test("keeps 0:00 clock lines unless out_remove_zero_time", function()
     local buf = file_buffer({ "* A" })
     clock.clock_in()
@@ -288,6 +308,7 @@ describe("clock defaults (Emacs)", function()
 end)
 
 describe("clock statusline and effort (Emacs)", function()
+  freeze_now()
   local lines = {
     "* TODO Task",
     ":PROPERTIES:",
@@ -357,6 +378,7 @@ describe("clock statusline and effort (Emacs)", function()
 end)
 
 describe("resolving clocks (Emacs)", function()
+  freeze_now()
   --- A running clock started 60 minutes ago, idle for the last 20.
   local function running()
     local buf = file_buffer({ "* A" })
@@ -728,6 +750,7 @@ describe("S-M-arrows on clock lines (Emacs)", function()
 end)
 
 describe("capture clocking (Emacs)", function()
+  freeze_now()
   local capture = require("org.capture")
   local function run(fn, ...)
     local res
