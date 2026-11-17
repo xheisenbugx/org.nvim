@@ -11990,7 +11990,8 @@ Writing (each saves the files it changed):
     scheduled`), the properties and the body (split at newlines, indented
     per `adapt_indentation`) are written as org.nvim writes them. A body
     line starting with `*` at column 0 gets one space before it, so it
-    stays text (a list item) and doesn't start a heading.
+    stays text (a list item) and doesn't start a heading. A property
+    VALUE is one line: one with a newline fails with `bad_value`.
 `org append TARGET TEXT`
     Append TEXT to the body of the heading, after its planning, drawers
     and text and before its first child heading; TEXT `-` reads stdin.
@@ -12013,6 +12014,8 @@ Writing (each saves the files it changed):
 `org set priority TARGET PRIORITY`
     `A`, `B`, ... (a number with numeric `#+PRIORITIES`); `none` removes.
 `org set property TARGET NAME VALUE`, `org set property TARGET NAME --delete`
+    VALUE is one line (as for `add --property`): one with a newline fails
+    with `bad_value`.
 `org set scheduled TARGET DATE [--note TEXT]`
 `org set deadline TARGET DATE [--note TEXT]`
     DATE as the date prompt reads it (`2026-10-05 14:00`, `+2d`, `fri`) or
