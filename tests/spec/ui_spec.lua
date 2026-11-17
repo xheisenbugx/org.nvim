@@ -413,7 +413,7 @@ describe("decorations: protected ranges", function()
     deco._protected_ranges(line)
     local ms = (vim.uv.hrtime() - t) / 1e6
     -- (8 s before, a few ms after on a laptop)
-    ok(ms < 1000 * (tonumber(vim.env.ORG_PERF_SCALE or "") or 1), ms .. " ms")
+    ok(ms < 1000 * (tonumber(vim.env.ORG_PERF_SCALE or "") or 1) or under_coverage(), ms .. " ms")
     eq(sorted(reference(line:sub(1, 3000))), sorted(deco._protected_ranges(line:sub(1, 3000))))
   end)
 end)

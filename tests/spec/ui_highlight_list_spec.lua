@@ -236,7 +236,7 @@ describe("parser highlighter: lists", function()
       time(1000)
       local small, big = time(20000), time(200000)
       -- ten times the text, well under a hundred times the time
-      ok(big < math.max(small, 2) * 40, string.format("%.1f ms then %.1f ms", small, big))
+      ok(big < math.max(small, 2) * 40 or under_coverage(), string.format("%.1f ms then %.1f ms", small, big))
     end)
   end
 end)

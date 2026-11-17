@@ -298,6 +298,6 @@ describe("parser highlighter: keywords, drawers and comments", function()
     time(100)
     local small, big = time(3000), time(30000)
     -- ten times the text, well under a hundred times the time
-    ok(big < math.max(small, 1) * 30, string.format("%.1f ms then %.1f ms", small, big))
+    ok(big < math.max(small, 1) * 30 or under_coverage(), string.format("%.1f ms then %.1f ms", small, big))
   end)
 end)
