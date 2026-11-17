@@ -94,6 +94,25 @@ local function put(picked, existing, range)
   return picked
 end
 
+--- The timestamp of the range `item` the 1-based column `col` is on (the
+--- first one up to the dash after it, like toggle_type), as an item of its
+--- own; `item` itself when it is not a `<a>--<b>` range.
+local function range_part(item, col)
+  local d = item.date
+  local dash = d.range_end and item.raw:find("[%]>]%-%-[<%[]")
+  if not dash then
+    return item
+  end
+  local s, e, part
+  if col > item.start_col + dash then
+    s, e, part = item.start_col + dash + 2, item.end_col, d.range_end
+  else
+    s, e, part = item.start_col, item.start_col + dash - 1, d:clone({ range_end = vim.NIL })
+  end
+  local line = vim.api.nvim_get_current_line()
+  return { date = part, start_col = s, end_col = e, lnum = item.lnum, raw = line:sub(s, e) }
+end
+
 ---@param active boolean
 ---@param opts? { edit?: boolean } edit: only edit the timestamp at the cursor (never a range)
 local function insert(active, opts)
@@ -102,6 +121,12 @@ local function insert(active, opts)
   local existing = M.at_cursor()
   -- like Emacs: the command repeated right after a timestamp makes a range
   local range = existing ~= nil and not opts.edit and is_repeat()
+  if existing and not range then
+    -- on a date range only the timestamp at the cursor is changed, and the
+    -- prompt starts from it (org-timestamp)
+    local _, col = utils.cursor()
+    existing = range_part(existing, col)
+  end
   last_insert = nil
   local function done(picked)
     local result = put(picked, existing, range)
