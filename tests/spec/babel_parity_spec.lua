@@ -633,6 +633,26 @@ describe("babel parity: evaluation", function()
     config.opts.babel.no_eval_on_ctrl_c_ctrl_c = false
   end)
 
+  -- org-babel-sh-evaluate: a script with :cmdline runs as
+  -- `shell -c "SCRIPT CMDLINE"`, so the shell splits and expands CMDLINE
+  it("passes :cmdline through the shell, quotes and variables included", function()
+    local plain = "#+begin_src sh :cmdline \"one 'two three' $ORG_CMDLINE_X\" :results output"
+    local shebang = '#+begin_src sh :shebang "#!/bin/sh" :cmdline "a \'b c\'" :results output'
+    vim.env.ORG_CMDLINE_X = "x"
+    local out = run({
+      plain,
+      'echo "n=$# 1=$1 2=$2 3=$3"',
+      "#+end_src",
+      "",
+      shebang,
+      'echo "n=$# 2=$2"',
+      "#+end_src",
+    })
+    vim.env.ORG_CMDLINE_X = nil
+    eq({ ": n=3 1=one 2=two three 3=x" }, result_of(out, plain))
+    eq({ ": n=2 2=b c" }, result_of(out, shebang))
+  end)
+
   it("executes inline elements with the buffer and asks for :eval query", function()
     local asked = 0
     local confirm = require("org.utils").confirm

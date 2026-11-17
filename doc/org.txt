@@ -5302,7 +5302,9 @@ can't be evaluated is kept as text; a `:var` form is an error.
              #+NAME), :file-mode `(identity #o755)`, :sep (for tables),
              :file-desc (no value = the file name, `[]` = none)
   :dir :cmdline :prologue :epilogue :noweb-ref
-             supported, with :mkdirp yes (for :dir)
+             supported, with :mkdirp yes (for :dir); the shell of a shell
+             block reads its :cmdline (`:cmdline "a 'b c' $HOME"` gives
+             three arguments)
   :noweb     yes|no|tangle|eval|no-export|strip-export|strip-tangle|
              tangle-eval. Every <<ref>> of a line is expanded (references
              may contain spaces: `<<add(a=3, b=4)>>`); blocks sharing a
