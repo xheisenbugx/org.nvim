@@ -77,7 +77,9 @@ ranges no spec runs, a list of what to test next. Nothing extra to
 install, and nothing of it reaches plugin users. The Coverage workflow
 runs it weekly (and from the Actions tab), uploads `coverage/` as an
 artifact and puts the summary on the run's page; it never runs on pull
-requests.
+requests. When a run on `dev` fails (a spec, or a floor below), it opens
+an issue labelled `coverage` with the failures, or comments on the open
+one. A spec's time limit fails there first: give it `or under_coverage()`.
 
 #### Coverage floors
 
@@ -1294,8 +1296,9 @@ too, resolving any conflict (usually `CHANGELOG.md`, take the release's)
 on the `merge-back` branch; pull requests opened by the workflow don't
 start CI. Opening it needs "Allow GitHub Actions to create and approve
 pull requests" (Settings > Actions > General); without it, or if the step
-fails, the release is still out and the step's warning links to open the
-same pull request by hand. Pick the version with
+fails, the release is still out, and the step opens an issue labelled
+`merge-back` (or comments on the open one) with the error and a link to
+open the same pull request by hand. Pick the version with
 [semver](https://semver.org): a breaking change (`feat!:` or a
 `BREAKING CHANGE:` footer, listed first in the changelog) bumps the major
 version, a `feat` the minor version, and fixes the patch.

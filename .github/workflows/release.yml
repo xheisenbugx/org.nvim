@@ -100,6 +100,7 @@ jobs:
       contents: write # the tag, the release and the merge-back branch
       actions: write # to start pages.yml
       pull-requests: write # the merge-back pull request into dev
+      issues: write # the issue when that pull request can't be opened
     steps:
       - uses: actions/checkout@v4
         with:
@@ -153,7 +154,8 @@ jobs:
       # now). Its `release:` title keeps it out of CHANGELOG.md. Nothing to
       # do when dev already has that commit. Last, and allowed to fail: the
       # release is out either way, and the pull request can be opened by
-      # hand (CONTRIBUTING.md, "Branches, CI and releases").
+      # hand, which an issue labelled "merge-back" then asks for
+      # (CONTRIBUTING.md, "Branches, CI and releases").
       - name: Open the merge-back pull request into dev
         continue-on-error: true
         env:
@@ -161,6 +163,7 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
           NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           tag="${HEAD_REF#release/}"
           branch="merge-back/$tag"
@@ -193,8 +196,33 @@ jobs:
           # GITHUB_TOKEN may only open pull requests when the repository
           # allows it (Settings > Actions > General > "Allow GitHub Actions
           # to create and approve pull requests")
-          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base dev --head "$branch" \
-            --title "release: merge $tag into dev" --body-file merge-back.md; then
-            echo "::warning::Could not open the merge-back pull request; open it by hand: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/dev...$branch?expand=1 titled 'release: merge $tag into dev'"
-            exit 1
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/dev...$branch?expand=1"
+          if out=$(gh pr create --repo "$GITHUB_REPOSITORY" --base dev --head "$branch" \
+            --title "release: merge $tag into dev" --body-file merge-back.md 2>&1); then
+            echo "$out"
+            exit 0
           fi
+          echo "$out"
+          echo "::warning::Could not open the merge-back pull request; open it by hand: $compare titled 'release: merge $tag into dev'"
+          # Say so in an issue, which GITHUB_TOKEN may open either way: the
+          # warning alone, in a run that stays green, went unseen from
+          # v3.3.0 to v3.3.5. One open issue; a later release comments on it.
+          # shellcheck disable=SC2016 # the backticks are Markdown
+          {
+            printf 'The Release workflow ([run](%s)) could not open the pull request that brings `%s` back into `dev`:\n\n' "$RUN_URL" "$tag"
+            printf '```\n%s\n```\n\n' "$out"
+            printf 'Open it by hand from [`%s`](%s), titled `release: merge %s into dev`, and merge it with a merge commit, not a squash. ' "$branch" "$compare" "$tag"
+            printf 'For the workflow to open it next time, turn on "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General). Close this issue once `dev` has the release.\n'
+          } > merge-back-issue.md
+          gh label create merge-back --repo "$GITHUB_REPOSITORY" --color 0E8A16 \
+            --description "A release that isn't merged back into dev" 2>/dev/null || true
+          num=$(gh issue list --repo "$GITHUB_REPOSITORY" --label merge-back --state open --limit 1 \
+            --json number --jq '.[0].number // empty')
+          if [[ -n "$num" ]]; then
+            gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --title "Release: merge $tag into dev by hand"
+            gh issue comment "$num" --repo "$GITHUB_REPOSITORY" --body-file merge-back-issue.md
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "Release: merge $tag into dev by hand" \
+              --label merge-back --body-file merge-back-issue.md
+          fi
+          exit 1
