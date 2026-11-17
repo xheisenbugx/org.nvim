@@ -733,7 +733,12 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 text of each entry moves into its item), text → item. With
                 a count, the selection becomes one item.
 <C-c><C-*>      Turn the list at the cursor into a subtree
-                (org-list-make-subtree).
+                (org-list-make-subtree). The text of each item goes
+                under its headline without the item's indentation;
+                blank lines and the code of blocks are kept, src and
+                example blocks get `edit_src_content_indentation` and
+                their code is escaped (`,*`), as when converting a
+                list with <C-c>* in Visual mode.
 <prefix>hC      Toggle the COMMENT keyword.
 <prefix>E       Emphasize (org-emphasize): wrap the Visual selection in a
 <C-c><C-x><C-f> marker, replacing one already there (a space removes it);
