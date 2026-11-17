@@ -181,17 +181,30 @@ function M.bulk_action()
     if ok and not dest then
       return
     end
+    -- the location is a marker in Emacs: it follows the headline while
+    -- the entries before it move away
+    local dmark = dest
+      and dest.lnum
+      and require("org.marks").set(dest.bufnr or utils.load_buffer(dest.filename), dest.lnum)
     bulk(function(target)
-      call("org.refile", "refile", target, { dest = dest })
-    end, persistent)
+      local d = dest
+      local l = dmark and dmark:lnum()
+      if d and l then
+        d = vim.tbl_extend("force", d, { lnum = l })
+      end
+      call("org.refile", "refile", target, { dest = d })
+    end, persistent, { subtree = true })
+    if dmark then
+      dmark:del()
+    end
   elseif choice == "$" then
     bulk(function(target)
       call("org.archive", "archive_subtree", target, { from_agenda = true })
-    end, persistent)
+    end, persistent, { subtree = true })
   elseif choice == "A" then
     bulk(function(target)
       call("org.archive", "archive_to_sibling", target)
-    end, persistent)
+    end, persistent, { subtree = true })
   elseif choice == "f" then
     local expr = utils.input({ prompt = "Function (Lua, receives target { bufnr, lnum } and the item): " })
     if not expr or vim.trim(expr) == "" then

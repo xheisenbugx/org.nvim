@@ -732,6 +732,71 @@ describe("agenda bulk (re)scheduling keeps repeaters", function()
   end)
 end)
 
+-- org-agenda-bulk-action refiles the marked entries in buffer order
+-- (parents before children) to a location that is a marker, so it follows
+-- the edits of the earlier refiles; an entry moved with its parent's
+-- subtree is gone from the agenda (org-remove-subtree-entries-from-agenda)
+-- and skipped. Expected texts from Emacs 9.8.10 probes.
+describe("agenda bulk refile", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local function refile_to(title)
+    local refile = require("org.refile")
+    return {
+      refile,
+      "pick_target",
+      function()
+        for _, t in ipairs(refile.targets({})) do
+          if t.label == title then
+            return t
+          end
+        end
+      end,
+    }
+  end
+
+  it("moves entries above the target under it, in order", function()
+    open({ "* TODO A", "  SCHEDULED: " .. ts(0), "* TODO B", "  SCHEDULED: " .. ts(0), "* Other", "* Last" })
+    bulk({ "A", "B" }, "r", { refile_to("Other") })
+    eq({
+      "* Other",
+      "** TODO A",
+      "  SCHEDULED: " .. ts(0),
+      "** TODO B",
+      "  SCHEDULED: " .. ts(0),
+      "* Last",
+    }, source_lines())
+  end)
+
+  it("moves a marked child with its marked parent", function()
+    open({ "* TODO Parent", "  SCHEDULED: " .. ts(0), "** TODO Child", "   SCHEDULED: " .. ts(0), "* Other", "* Last" })
+    bulk({ "Parent", "Child" }, "r", { refile_to("Other") })
+    eq({
+      "* Other",
+      "** TODO Parent",
+      "  SCHEDULED: " .. ts(0),
+      "*** TODO Child",
+      "   SCHEDULED: " .. ts(0),
+      "* Last",
+    }, source_lines())
+  end)
+
+  it("archives a marked child with its marked parent", function()
+    open({ "* TODO Parent", "  SCHEDULED: " .. ts(0), "** TODO Child", "   SCHEDULED: " .. ts(0), "* Other" })
+    bulk({ "Parent", "Child" }, "$", {})
+    eq({ "* Other" }, source_lines())
+    local ab = utils.find_buffer(path .. "_archive")
+    local archived = ab and vim.api.nvim_buf_get_lines(ab, 0, -1, false) or vim.fn.readfile(path .. "_archive")
+    local heads = {}
+    for _, l in ipairs(archived) do
+      heads[#heads + 1] = l:match("^%*+ TODO %a+")
+    end
+    eq({ "* TODO Parent", "** TODO Child" }, heads)
+  end)
+end)
+
 -- org-agenda-bulk-action ?t binds org-inhibit-blocking to t and
 -- org-inhibit-logging to 'note: no entry is refused for its children, and
 -- a state that takes a note records its time instead (Emacs 9.8.10 probe:

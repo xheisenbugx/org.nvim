@@ -2545,6 +2545,9 @@ B acts on the marked entries, or on the entry at point without marks
           { x = { fn = function(target, item, ...) end, desc = "...",
           args = function() return { ... } end } }
 Marked lines show `agenda.bulk_mark_char` (">", org-agenda-bulk-mark-char).
+The entries are acted on in buffer order, parents before children, each
+found where the earlier ones left it (the refile target too). A marked
+entry refiled or archived with its parent's subtree is skipped.
 
 Column view                                               *org-agenda-columns*
 
