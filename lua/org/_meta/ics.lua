@@ -14,7 +14,7 @@
 ---@field auto_refresh? boolean
 ---Where fetched calendars are kept (default: `stdpath("cache") .. "/org/ics"`).
 ---@field cache_dir? string
----Fetch command; `-o FILE URL` is appended
+---Fetch command; `-o FILE --config -` is appended (the URL goes on stdin)
 ---(default: `{ "curl", "-fsSL", "--max-time", "30" }`).
 ---@field curl? string[]
 ---IANA zone the agenda shows times in (default: `nil`, the system's).

@@ -27,7 +27,8 @@ M.defaults = {
   auto_refresh = true,
   --- Where fetched calendars are kept.
   cache_dir = vim.fn.stdpath("cache") .. "/org/ics",
-  --- The fetch program and its arguments; the URL is appended after `-o FILE`.
+  --- The fetch program and its arguments; `-o FILE --config -` is appended,
+  --- and the URL goes to it on stdin (not in the process list).
   curl = { "curl", "-fsSL", "--max-time", "30" },
   --- Zone the agenda shows times in (an IANA name); nil = the system's.
   timezone = nil,
@@ -150,8 +151,16 @@ function M.load(c)
   return cal
 end
 
+--- A value of a curl config file.
+---@param s string
+---@return string
+local function quote(s)
+  return '"' .. s:gsub('[\\"]', "\\%0"):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t") .. '"'
+end
+
 --- Fetch `url` into `dest`; calls `cb(err)` (nil on success) on the main
---- loop. Replaceable (tests stub it).
+--- loop. Replaceable (tests stub it). The URL goes to curl in a config on
+--- stdin, so a secret address never shows in the process list.
 ---@param url string
 ---@param dest string
 ---@param cb fun(err: string|nil)
@@ -163,8 +172,13 @@ function M.fetcher(url, dest, cb)
     end)
     return
   end
-  vim.list_extend(cmd, { "-o", dest, url })
-  vim.system(cmd, { text = true }, function(res)
+  -- The output file stays an argument: a curl without Unicode support
+  -- (an older Windows' own) reads its config in the ANSI code page, so a
+  -- path under C:\Users\José\ would not open. (globoff: `[` and `{` in an
+  -- address are not curl's patterns.)
+  vim.list_extend(cmd, { "-o", dest, "--config", "-" })
+  local config = "url = " .. quote(url) .. "\ngloboff\n"
+  vim.system(cmd, { text = true, stdin = config }, function(res)
     vim.schedule(function()
       if res.code == 0 then
         cb(nil)

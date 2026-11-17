@@ -11465,7 +11465,9 @@ Options ~
                     (true)
   `cache_dir`       where fetched calendars are kept
                     (`stdpath("cache") .. "/org/ics"`)
-  `curl`            fetch command, `-o FILE URL` is appended
+  `curl`            fetch command; `-o FILE --config -` is appended, and
+                    the URL goes to curl on stdin, so a secret address
+                    doesn't show in the process list
                     (`{ "curl", "-fsSL", "--max-time", "30" }`)
   `timezone`        IANA zone to show times in (nil: the system's)
   `tz_aliases`      extra TZID -> IANA zone names ({})
