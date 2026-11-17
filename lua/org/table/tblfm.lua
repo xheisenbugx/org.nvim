@@ -892,9 +892,10 @@ function M.toggle_coordinate_overlays()
       })
     end
   end
-  -- column labels above the first row, each over its field
+  -- column labels above the first row, each over its field (on an
+  -- hline, over its `+` too)
   local line = info.lines[1]
-  local pipes = pipe_positions(line)
+  local pipes = shared.separator_positions(line)
   local label = ""
   -- (measured on the displayed row: a concealed link is narrower)
   local o = require("org.ui").conceal_opts(bufnr)

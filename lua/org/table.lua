@@ -74,6 +74,19 @@ local function pipe_positions(line)
   return out
 end
 
+--- Byte positions (1-based) of the field separators of a line: its `|`,
+--- and on an hline its `+` too (org-table-current-column).
+local function separator_positions(line)
+  if not is_hline(line) then
+    return pipe_positions(line)
+  end
+  local out = {}
+  for p in line:gmatch("()[|+]") do
+    out[#out + 1] = p
+  end
+  return out
+end
+
 --- Parse lines into a table structure.
 ---@param lines string[]
 ---@return table { indent, rows = { {hline=true} | {cells={...}} }, ncols }
@@ -508,7 +521,7 @@ end
 
 --- Field index (1-based) and offset within the trimmed cell at byte col.
 local function field_at(line, col)
-  local pipes = pipe_positions(line)
+  local pipes = separator_positions(line)
   local field = 0
   for _, p in ipairs(pipes) do
     if p < col then
@@ -739,6 +752,7 @@ shared.is_tblfm = is_tblfm
 shared.new_row_at = new_row_at
 shared.pad_rows = pad_rows
 shared.pipe_positions = pipe_positions
+shared.separator_positions = separator_positions
 shared.reload = reload
 shared.restore_cursor = restore_cursor
 shared.selected_rect = selected_rect

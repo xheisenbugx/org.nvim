@@ -438,3 +438,55 @@ describe("`|` lines inside blocks are not tables (org-at-table-p)", function()
     eq({ lines[1], lines[2], lines[3], lines[4], "| 3 | 6 |", lines[6] }, buf_lines(buf))
   end)
 end)
+
+describe("column commands with the cursor on an hline", function()
+  -- org-table-current-column counts `+` as well as `|` on an hline, so
+  -- the column under the cursor is the one acted on (Emacs Org 9.8.10)
+  with_config({ table_fix_formulas_confirm = false })
+
+  it("delete_column deletes that column and fixes its formulas", function()
+    local buf = org_buffer({
+      "| a | b | c |",
+      "|---+---+---|",
+      "| 1 | 2 | 3 |",
+      "#+TBLFM: $3=$2*2::$1=7",
+    }, { 2, 6 })
+    tbl.delete_column()
+    eq({ "| a | c |", "|---+---|", "| 1 | 3 |", "#+TBLFM: $2=$INVALID*2::$1=7" }, buf_lines(buf))
+  end)
+
+  it("insert_column inserts left of it", function()
+    local buf = org_buffer({ "| a | b |", "|---+---|", "| 1 | 2 |" }, { 2, 6 })
+    tbl.insert_column()
+    eq({ "| a |   | b |", "|---+---+---|", "| 1 |   | 2 |" }, buf_lines(buf))
+  end)
+
+  it("move_column moves it", function()
+    local buf = org_buffer({ "| a | b | c |", "|---+---+---|", "| 1 | 2 | 3 |", "#+TBLFM: $3=$2" }, { 2, 6 })
+    tbl.move_column(1)
+    eq({ "| a | c | b |", "|---+---+---|", "| 1 | 3 | 2 |", "#+TBLFM: $2=$3" }, buf_lines(buf))
+  end)
+
+  it("on the first column's dashes it is column 1", function()
+    local buf = org_buffer({ "| a | b |", "|---+---|", "| 1 | 2 |" }, { 2, 2 })
+    tbl.delete_column()
+    eq({ "| b |", "|---|", "| 2 |" }, buf_lines(buf))
+  end)
+end)
+
+describe("coordinate overlays of a table starting with an hline", function()
+  -- the column labels sit over the first line's separators, `+` included
+  it("labels every column", function()
+    local buf = org_buffer({ "|---+----|", "| a | bb |", "| c | d  |" }, { 2, 2 })
+    local ns = vim.api.nvim_create_namespace("org.table.coordinates")
+    tbl.toggle_coordinate_overlays()
+    local label
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      if m[4].virt_lines then
+        label = m[4].virt_lines[1][1][1]
+      end
+    end
+    eq("  $1  $2", label)
+    tbl.toggle_coordinate_overlays()
+  end)
+end)
