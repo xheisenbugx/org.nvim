@@ -682,7 +682,8 @@ local function verse_block_end(lines, i, to)
 end
 
 --- Whether `line` is a comment, a fixed-width line or a keyword (other
---- than CAPTION): Emacs finds no timestamp objects there.
+--- than CAPTION): Emacs finds no objects (timestamps, footnote
+--- references) there.
 local function no_objects(line)
   if line:match("^%s*[#:]%s") or line:match("^%s*[#:]$") then
     return true
@@ -690,6 +691,7 @@ local function no_objects(line)
   local key = line:match("^%s*#%+(%S-):")
   return key ~= nil and not key:upper():match("^CAPTION")
 end
+M.no_objects = no_objects
 
 --- Spans of inline code and verbatim (`~...~`, `=...=`) in `line`.
 ---@param line string
@@ -732,9 +734,10 @@ function M.verbatim_spans(line)
   return spans
 end
 
---- Spans of `line` whose text holds no timestamp objects: verbatim and
---- code, inline source blocks (`src_lang[...]{...}`) and bracket links
---- (path and description). nil when the line has none of them.
+--- Spans of `line` whose text holds no timestamp objects (nor footnote
+--- references): verbatim and code, inline source blocks
+--- (`src_lang[...]{...}`) and bracket links (path and description). nil
+--- when the line has none of them.
 ---@param line string
 ---@return integer[][]|nil
 local function objectless_spans(line)
@@ -779,6 +782,7 @@ local function objectless_spans(line)
   end
   return spans
 end
+M.objectless_spans = objectless_spans
 
 --- The timestamps of `line` that are timestamp objects (date.parse_all,
 --- without those inside verbatim, inline source blocks and links).

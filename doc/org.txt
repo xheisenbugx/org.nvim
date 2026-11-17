@@ -4269,7 +4269,10 @@ autocmds `OrgMobilePrePush`, `OrgMobilePostPush`, `OrgMobilePrePull`,
 17. FOOTNOTES                                                  *org-footnotes*
 
 References: `[fn:1]`, `[fn:name]`, inline `[fn::text]` and `[fn:name:text]`.
-Definitions start a line with `[fn:name]`.
+Definitions start a line with `[fn:name]`. Footnote-like text in a comment, a
+fixed-width line, a keyword (`#+CAPTION:` too), a property drawer, code,
+verbatim, an inline src block or a link is not a reference: sorting,
+renumbering, normalizing and deleting leave it alone.
 
 <prefix>if, <C-c><C-x>f
                 On a footnote: jump between reference and definition.
