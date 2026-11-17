@@ -359,6 +359,26 @@ describe("remote: forwarding to a running Neovim", function()
     eq({ "* Inbox", "** TODO Buy milk" }, read(dir .. "/inbox.org"))
   end)
 
+  -- the command line still has its text: a capture it can't save is
+  -- taken out again (a retry must not store it twice), unlike a capture
+  -- made in that Neovim, which keeps its text in the unsaved buffer
+  it("takes a command-line capture it can't save out of the Neovim's buffer", function()
+    skip_on_windows("a read-only file is still writable for the owner on Windows")
+    local dir = workspace()
+    local a = scratch_address()
+    vim.fn.setfperm(dir .. "/inbox.org", "r--r--r--")
+    local _, chan = server(dir, a, "vim.cmd.edit(" .. vim.inspect(dir .. "/inbox.org") .. ")")
+    for _ = 1, 2 do
+      local code, _, errs = org(dir, a, { "capture", "-t", "t", "Call", "Bob" })
+      ok(code ~= 0, errs)
+      ok(errs:find("Capture could not be saved", 1, true), errs)
+      eq({ "* Inbox" }, eval(chan, "return vim.api.nvim_buf_get_lines(0, 0, -1, false)"))
+      eq(false, eval(chan, "return vim.bo.modified"))
+    end
+    eq({ "* Inbox" }, read(dir .. "/inbox.org"))
+    vim.fn.setfperm(dir .. "/inbox.org", "rw-r--r--")
+  end)
+
   it("keeps the Neovim's unsaved changes unsaved", function()
     local dir = workspace()
     local a = scratch_address()

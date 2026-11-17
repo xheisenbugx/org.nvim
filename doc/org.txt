@@ -3300,7 +3300,8 @@ Template fields:
   properties         table of properties added to the entry
   immediate_finish   finish without opening the capture window; when
                      the target can't be saved, the text stays in its
-                     buffer, unsaved
+                     buffer, unsaved (not for `org capture`, which
+                     fails and leaves the target as it was)
   jump_to_captured   jump to the entry after finishing
   kill_buffer        unload the target file afterwards when the capture
                      loaded it
@@ -12068,7 +12069,10 @@ Writing (each saves the files it changed):
     `%^{Size [cm]|10}` by `Size [cm]`, `%^g` by `Tags`, a date prompt by
     its name or `Date` (names ignore case). `--input FILE`
     (`-` for stdin) reads a JSON object `{ "template", "text", "fields" }`
-    instead. `--id` gives the new entry an ID.
+    instead. `--id` gives the new entry an ID. When the target can't be
+    saved (a read-only file, say) the capture fails and the target, also
+    a running Neovim's buffer of it, is left as it was: running the
+    command again doesn't store the text twice.
 `org clock in [--pick N] TARGET`, `org clock out`, `org clock cancel`
     Clock in a heading, clock out of the running clock, or cancel it.
 `org add PARENT TITLE [--todo KW] [--priority P] [--tag TAG]...`

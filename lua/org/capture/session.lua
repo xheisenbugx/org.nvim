@@ -259,7 +259,7 @@ function M.store(tpl, lines, ctx)
     what = "saved"
   end
   if not done then
-    if ctx.immediate then
+    if ctx.immediate and not ctx.rollback then
       -- no capture buffer to keep the text in: like Emacs, whose failed
       -- save-buffer leaves the inserted text, it stays in the target
       -- buffer, unsaved (and listed, so that it can be found)
@@ -282,7 +282,12 @@ function M.store(tpl, lines, ctx)
       -- back to the decrypted entry: an abort encrypts it again
       loc.decrypted = marks.set(bufnr, decrypted)
     end
-    utils.warn("Capture could not be " .. what .. "; the text is kept in the capture buffer: " .. tostring(err))
+    if ctx.immediate then
+      -- (the caller still has the text)
+      utils.warn("Capture could not be " .. what .. ": " .. tostring(err))
+    else
+      utils.warn("Capture could not be " .. what .. "; the text is kept in the capture buffer: " .. tostring(err))
+    end
     return nil
   end
   return stored(tpl, ctx, bufnr, line)

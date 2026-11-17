@@ -573,8 +573,11 @@ end
 ---@param tpl_or_key string|table template key or template table
 --- `opts.answers` answers the template's `%^` prompts, by label or by
 --- position; with `opts.noninteractive` the other prompts take their
---- default and a `time_prompt` date is now.
----@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean }
+--- default and a `time_prompt` date is now. An `immediate_finish` capture
+--- whose target can't be saved keeps its text in the target buffer,
+--- unsaved; with `opts.rollback` (for a caller that still has the text,
+--- such as the `org` command line) it takes it out again instead.
+---@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean, rollback?: boolean }
 ---@return integer|nil buf the capture buffer: the target buffer in place, unnarrowed or with immediate_finish
 ---@return integer|nil # the capture window, or the line of the stored entry
 ---@return string|nil # with immediate_finish, the file of the stored entry (its buffer may be gone: kill_buffer)
@@ -596,6 +599,7 @@ function M.capture(tpl_or_key, opts)
   ctx.here = opts.here
   ctx.answers = opts.answers
   ctx.noninteractive = opts.noninteractive
+  ctx.rollback = opts.rollback
   if opts.noninteractive and tpl.time_prompt and not ctx.date then
     -- nobody to ask: the capture date is now
     ctx.date = date.now()

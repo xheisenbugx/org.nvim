@@ -927,6 +927,16 @@ describe("capture buffer (capture.in_place = false)", function()
     )
     eq(false, utils.exists(p))
     vim.api.nvim_buf_delete(tb, { force = true })
+    -- with `rollback` (the `org` command line, which still has the text)
+    -- the text is taken out again
+    restore = answer({ false })
+    dbuf = run(capture.capture, { template = "* Y", target = p, headline = "New", immediate_finish = true }, {
+      rollback = true,
+    })
+    restore()
+    eq(nil, dbuf)
+    tb = utils.find_buffer(p)
+    eq(true, tb == nil or vim.deep_equal({ "" }, buf_lines(tb)))
   end)
 
   it("runs on_abort with the target buffer when the capture is killed", function()
