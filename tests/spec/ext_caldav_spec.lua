@@ -566,6 +566,42 @@ describe("caldav entry", function()
     eq({ "* Standup", ":PROPERTIES:", ":ID: a", ":END:", "<2026-11-15 Sun 10:00>" }, buf_lines(buf))
   end)
 
+  it("keeps the time of an entry whose timestamp is in its text when the description changes", function()
+    local function time_and_text(buf)
+      local file = require("org.files").get_buffer(buf)
+      local fields = entry.read(file, file.headlines[1], "VEVENT")
+      return { fields.time, fields.description }
+    end
+    local buf = org_buffer({
+      "* Meeting",
+      ":PROPERTIES:",
+      ":ID:       a",
+      ":END:",
+      "Talk about plans on <2026-11-12 Thu 10:00 +1w> with Bob",
+      "* Next",
+    })
+    entry.apply(buf, "a", "VEVENT", { description = "Agenda: budget" }, { description = true })
+    eq({
+      "* Meeting",
+      ":PROPERTIES:",
+      ":ID:       a",
+      ":END:",
+      "<2026-11-12 Thu 10:00 +1w>",
+      "Agenda: budget",
+      "* Next",
+    }, buf_lines(buf))
+    eq({ "2026-11-12 10:00 +1w", "Agenda: budget" }, time_and_text(buf))
+    -- a new text that holds the timestamp keeps it where it is
+    buf = org_buffer({ "* Trip", ":PROPERTIES:", ":ID: b", ":END:", "We leave on <2026-11-20 Fri> early." })
+    entry.apply(buf, "b", "VEVENT", { description = "We leave on <2026-11-20 Fri> at six." }, { description = true })
+    eq("We leave on <2026-11-20 Fri> at six.", buf_lines(buf)[5])
+    eq(5, #buf_lines(buf))
+    -- one without it, or none at all, leaves the timestamp on its own line
+    entry.apply(buf, "b", "VEVENT", { description = "" }, { description = true })
+    eq({ "* Trip", ":PROPERTIES:", ":ID: b", ":END:", "<2026-11-20 Fri>" }, buf_lines(buf))
+    eq({ "2026-11-20", "" }, time_and_text(buf))
+  end)
+
   it("writes a task's state, priority and dates", function()
     local buf = org_buffer({ "* TODO Pay rent", "DEADLINE: <2026-11-05 Thu -2d>", ":PROPERTIES:", ":ID: t", ":END:" })
     entry.apply(buf, "t", "VTODO", {

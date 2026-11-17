@@ -11592,7 +11592,10 @@ event of the calendar is written as:
                several timestamp lines you wrote, the first is the event's
   location     the LOCATION property
   description  the text below the timestamp line: all of it is sent, so
-               keep private notes out of an entry of a shared calendar
+               keep private notes out of an entry of a shared calendar.
+               When the calendar changes the text of an entry whose time
+               is a timestamp in that text, and the new text doesn't
+               hold it, the timestamp moves to a line of its own above it
 An entry of the calendar's files that has an active timestamp, and no ID
 the calendar knows, is sent as a new event and gets an ID. Entries without
 a date are never sent, nor are new COMMENT entries, inline tasks and
