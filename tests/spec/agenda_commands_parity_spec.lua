@@ -732,6 +732,57 @@ describe("agenda bulk (re)scheduling keeps repeaters", function()
   end)
 end)
 
+-- org-agenda-bulk-action ?t binds org-inhibit-blocking to t and
+-- org-inhibit-logging to 'note: no entry is refused for its children, and
+-- a state that takes a note records its time instead (Emacs 9.8.10 probe:
+-- both entries DONE, `- State "DONE" from "TODO" [time]` under each).
+describe("agenda bulk TODO state", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  it("records times instead of notes and ignores blocking", function()
+    open({
+      "#+TODO: TODO | DONE(d@)",
+      "* TODO A",
+      "  SCHEDULED: " .. ts(0),
+      "* TODO B",
+      "  SCHEDULED: " .. ts(0),
+      "** TODO Kid",
+    }, { enforce_todo_dependencies = true })
+    local asked = 0
+    local function ask()
+      asked = asked + 1
+      return "a note"
+    end
+    bulk({ "A", "B" }, "t", {
+      {
+        utils,
+        "select",
+        function()
+          return "DONE"
+        end,
+      },
+      { utils, "input_note", ask },
+      { utils, "input", ask },
+    })
+    eq(0, asked)
+    local lines = source_lines()
+    local done, notes = {}, 0
+    for _, l in ipairs(lines) do
+      done[#done + 1] = l:match("^%* DONE (%a+)")
+      if l:find("a note", 1, true) then
+        notes = notes + 1
+      end
+      if l:match('State "DONE"') then
+        ok(l:match('State "DONE"%s+from "TODO"%s+%[[^%]]+%]$'), l)
+      end
+    end
+    eq({ "A", "B" }, done)
+    eq(0, notes)
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()

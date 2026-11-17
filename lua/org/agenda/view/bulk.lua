@@ -118,8 +118,10 @@ function M.bulk_action()
     if not kw then
       return
     end
+    -- org-inhibit-blocking t, org-inhibit-logging 'note: no entry is
+    -- refused for its children, and a note becomes a time
     bulk(function(target)
-      call("org.todo", "change_state", target, kw ~= "(none)" and kw or nil)
+      call("org.todo", "change_state", target, kw ~= "(none)" and kw or nil, { force = true, inhibit_note = true })
     end, persistent)
   elseif choice == "s" or choice == "d" then
     local kind = choice == "s" and "scheduled" or "deadline"

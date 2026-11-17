@@ -2527,7 +2527,8 @@ B acts on the marked entries, or on the entry at point without marks
 (org-agenda-bulk-action):
   $       archive
   A       archive to the Archive sibling
-  t       TODO state
+  t       TODO state: no entry is blocked (|org-todo-dependencies|), and
+          a state that takes a note records its time instead
   + / -   add / remove a tag
   r       refile
   s / d   (re)schedule / set the deadline: a date, or `++2d` to shift each
