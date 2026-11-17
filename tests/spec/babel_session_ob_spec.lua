@@ -59,6 +59,15 @@ local function term_text(sess)
   return table.concat(vim.api.nvim_buf_get_lines(sess.buf, 0, -1, false), "\n")
 end
 
+--- Whether the terminal of `sess` shows `text`, waiting for it: Neovim
+--- copies a terminal's output into its buffer on a deferred refresh, so a
+--- read right after the last block can find only the rows of its screen.
+local function term_shows(sess, text)
+  return vim.wait(5000, function()
+    return term_text(sess):find(text, 1, true) ~= nil
+  end, 20)
+end
+
 -- A julia REPL: `-L setup.jl` defines __org_babel_run, which the fake
 -- stands for: it shows the code (`.echo`), runs `.src` (Julia's syntax of
 -- these blocks is Python's) and writes a value block's CSV file.
@@ -248,7 +257,7 @@ describe("babel :session for julia, ocaml and scheme", function()
     local sess = session.find("julia", "default")
     eq("*julia*", vim.fn.fnamemodify(vim.api.nvim_buf_get_name(sess.buf), ":t"))
     -- the REPL shows the code of each block
-    ok(term_text(sess):find('println("hello ", x)', 1, true), term_text(sess))
+    ok(term_shows(sess, 'println("hello ", x)'), term_text(sess))
   end)
 
   it("julia: session_cmd is the REPL command; named sessions are separate", function()
@@ -324,7 +333,7 @@ describe("babel :session for julia, ocaml and scheme", function()
     ok(log[1]:match("^%-init %S+init%.ml$"), log[1])
     local sess = session.find("ocaml", "default")
     eq("*OCaml*", vim.fn.fnamemodify(vim.api.nvim_buf_get_name(sess.buf), ":t"))
-    ok(term_text(sess):find("let y = x + 22", 1, true), term_text(sess))
+    ok(term_shows(sess, "let y = x + 22"), term_text(sess))
   end)
 
   it("kills a session at the block; the next block starts a new one", function()
@@ -385,7 +394,7 @@ describe("babel :session for julia, ocaml and scheme", function()
     ok(eb > 0 and table.concat(vim.api.nvim_buf_get_lines(eb, 0, -1, false), "\n"):find("car"))
     local sess = session.find("scheme", "default")
     eq("*scheme*", vim.fn.fnamemodify(vim.api.nvim_buf_get_name(sess.buf), ":t"))
-    ok(term_text(sess):find("(display (twice x))", 1, true), term_text(sess))
+    ok(term_shows(sess, "(display (twice x))"), term_text(sess))
   end)
 
   it("scheme: a session program evaluates each form and writes the value", function()
