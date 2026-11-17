@@ -11684,6 +11684,7 @@ shows what each holds. Whether an entry is an event or a task is settled
 when it is first synced. `todos` is off by default, so a calendar that
 holds only tasks (a Radicale task list, say) needs `todos = true`; without
 it nothing syncs, and `:Org caldav_sync` says how many tasks it left out.
+Tasks synced while `todos` was on keep syncing after it is turned off.
 
 Servers ~
 Any server that speaks CalDAV (RFC 4791) and takes a password (basic or
