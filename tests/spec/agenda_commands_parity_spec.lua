@@ -613,6 +613,352 @@ describe("columns_add_appointments_to_effort_sum", function()
   end)
 end)
 
+--- Run `fn` with module fields replaced: `{ { module, field, value }, ... }`.
+local function with_stubs(stubs, fn)
+  local saved = {}
+  for _, s in ipairs(stubs) do
+    saved[#saved + 1] = { s[1], s[2], s[1][s[2]] }
+    s[1][s[2]] = s[3]
+  end
+  local ok_, err = pcall(fn)
+  for _, s in ipairs(saved) do
+    s[1][s[2]] = s[3]
+  end
+  if not ok_ then
+    error(err, 0)
+  end
+end
+
+--- Mark the lines of `titles` and run the bulk action `choice` with the
+--- answers in `stubs` (org-agenda-bulk-mark, org-agenda-bulk-action).
+local function bulk(titles, choice, stubs)
+  for _, t in ipairs(titles) do
+    goto_title(t)
+    view.actions.mark()
+  end
+  table.insert(stubs, {
+    require("org.ui"),
+    "menu",
+    function()
+      return choice
+    end,
+  })
+  with_stubs(stubs, function()
+    view.actions.bulk_action()
+  end)
+end
+
+-- org-agenda-bulk-action reschedules with org-agenda-schedule /
+-- org-agenda-deadline (org--deadline-or-schedule), which keeps the
+-- repeater of the old date; so does the scatter (?S) command.
+describe("agenda bulk (re)scheduling keeps repeaters", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  it("s with a date", function()
+    open({ "* TODO Rep", "  SCHEDULED: " .. ts(0, "+1w") })
+    bulk({ "Rep" }, "s", {
+      {
+        utils,
+        "input",
+        function()
+          return "+3d"
+        end,
+      },
+    })
+    eq("  SCHEDULED: " .. ts(3, "+1w"), source_lines()[2])
+  end)
+
+  it("d with a date", function()
+    open({ "* TODO Rep", "  DEADLINE: " .. ts(0, ".+2d") })
+    bulk({ "Rep" }, "d", {
+      {
+        utils,
+        "input",
+        function()
+          return "+3d"
+        end,
+      },
+    })
+    eq("  DEADLINE: " .. ts(3, ".+2d"), source_lines()[2])
+  end)
+
+  it("S scatters the entry, repeater kept", function()
+    open({ "* TODO Rep", "  SCHEDULED: " .. ts(0, "+1w") })
+    bulk({ "Rep" }, "S", {
+      {
+        utils,
+        "input",
+        function()
+          return "1"
+        end,
+      },
+    })
+    eq("  SCHEDULED: " .. ts(1, "+1w"), source_lines()[2])
+  end)
+
+  -- ?s and ?d bind org-log-reschedule / org-log-redeadline to 'time;
+  -- ?S calls org-agenda-schedule with it as set: a note per entry
+  it("s logs a time where a reschedule takes a note, S asks for the note", function()
+    local function run(choice, answer)
+      open({ "* TODO Rep", "  SCHEDULED: " .. ts(0) }, { log_reschedule = "note" })
+      local notes = 0
+      bulk({ "Rep" }, choice, {
+        {
+          utils,
+          "input",
+          function()
+            return answer
+          end,
+        },
+        {
+          utils,
+          "input_note",
+          function()
+            notes = notes + 1
+            return "moved"
+          end,
+        },
+      })
+      local logged
+      for _, l in ipairs(source_lines()) do
+        logged = logged or l:match("Rescheduled from")
+      end
+      return notes, logged ~= nil
+    end
+    eq({ 0, true }, { run("s", "+3d") })
+    eq({ 1, true }, { run("S", "1") })
+  end)
+end)
+
+-- org-agenda-bulk-action refiles the marked entries in buffer order
+-- (parents before children) to a location that is a marker, so it follows
+-- the edits of the earlier refiles; an entry moved with its parent's
+-- subtree is gone from the agenda (org-remove-subtree-entries-from-agenda)
+-- and skipped. Expected texts from Emacs 9.8.10 probes.
+describe("agenda bulk refile", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local function refile_to(title)
+    local refile = require("org.refile")
+    return {
+      refile,
+      "pick_target",
+      function()
+        for _, t in ipairs(refile.targets({})) do
+          if t.label == title then
+            return t
+          end
+        end
+      end,
+    }
+  end
+
+  it("moves entries above the target under it, in order", function()
+    open({ "* TODO A", "  SCHEDULED: " .. ts(0), "* TODO B", "  SCHEDULED: " .. ts(0), "* Other", "* Last" })
+    bulk({ "A", "B" }, "r", { refile_to("Other") })
+    eq({
+      "* Other",
+      "** TODO A",
+      "  SCHEDULED: " .. ts(0),
+      "** TODO B",
+      "  SCHEDULED: " .. ts(0),
+      "* Last",
+    }, source_lines())
+  end)
+
+  it("moves a marked child with its marked parent", function()
+    open({ "* TODO Parent", "  SCHEDULED: " .. ts(0), "** TODO Child", "   SCHEDULED: " .. ts(0), "* Other", "* Last" })
+    bulk({ "Parent", "Child" }, "r", { refile_to("Other") })
+    eq({
+      "* Other",
+      "** TODO Parent",
+      "  SCHEDULED: " .. ts(0),
+      "*** TODO Child",
+      "   SCHEDULED: " .. ts(0),
+      "* Last",
+    }, source_lines())
+  end)
+
+  it("archives a marked child with its marked parent", function()
+    open({ "* TODO Parent", "  SCHEDULED: " .. ts(0), "** TODO Child", "   SCHEDULED: " .. ts(0), "* Other" })
+    bulk({ "Parent", "Child" }, "$", {})
+    eq({ "* Other" }, source_lines())
+    local ab = utils.find_buffer(path .. "_archive")
+    local archived = ab and vim.api.nvim_buf_get_lines(ab, 0, -1, false) or vim.fn.readfile(path .. "_archive")
+    local heads = {}
+    for _, l in ipairs(archived) do
+      heads[#heads + 1] = l:match("^%*+ TODO %a+")
+    end
+    eq({ "* TODO Parent", "** TODO Child" }, heads)
+  end)
+end)
+
+-- An agenda line keeps a marker on its entry (org-hd-marker), so a command
+-- acts on that entry whatever was inserted in its file since the agenda
+-- was built, even next to headlines with the same text (Emacs 9.8.10
+-- probe: org-agenda-todo after a third "* TODO Same" was added at the top
+-- marks the scheduled one DONE).
+describe("agenda commands find their entry after edits", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local lines = { "* TODO Same", "  SCHEDULED: " .. ts(0), "* TODO Same", "  DEADLINE: " .. ts(0) }
+
+  local function goto_type(kind)
+    for l, it in pairs(view.state.line_items) do
+      if it.type == kind then
+        vim.api.nvim_win_set_cursor(0, { l, 0 })
+        return l
+      end
+    end
+    error("no " .. kind .. " line")
+  end
+
+  local function change_first_same()
+    goto_type("scheduled")
+    vim.api.nvim_buf_set_lines(utils.find_buffer(path), 0, 0, false, { "* TODO Same", "  new one" })
+    with_stubs({
+      {
+        utils,
+        "input",
+        function()
+          return ""
+        end,
+      },
+    }, function()
+      view.actions.todo_next()
+    end)
+    local out = source_lines()
+    return { out[1], out[3], out[5] }
+  end
+
+  it("in a file loaded when the agenda was built", function()
+    utils.writefile(path, lines)
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    utils.load_buffer(path)
+    config.setup({ agenda_files = { path }, org_directory = dir })
+    agenda.open_agenda({ span = "day" })
+    eq({ "* TODO Same", "* DONE Same", "* TODO Same" }, change_first_same())
+  end)
+
+  it("in a file loaded after the agenda was built", function()
+    open(lines)
+    ok(not utils.find_buffer(path), "the agenda is built from the file on disk")
+    utils.load_buffer(path)
+    eq({ "* TODO Same", "* DONE Same", "* TODO Same" }, change_first_same())
+  end)
+end)
+
+-- org-agenda-kill deletes the entry's subtree, but only the line of a
+-- %%(sexp) entry ("sexp" type): one line, so no confirmation either
+-- (Emacs 9.8.10 probe: the other anniversary and the heading stay).
+describe("agenda kill on a diary sexp line", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local function anniversary(year, who)
+    return string.format("%%%%(diary-anniversary %d %d %d) %s", today.month, today.day, year, who)
+  end
+
+  it("deletes only that line", function()
+    open({ "* Birthdays", anniversary(2000, "Alice"), anniversary(1990, "Bob"), "* Other" })
+    local asked = 0
+    with_stubs({
+      {
+        utils,
+        "confirm",
+        function()
+          asked = asked + 1
+          return true
+        end,
+      },
+    }, function()
+      goto_title("Alice")
+      view.actions.kill()
+    end)
+    eq(0, asked)
+    eq({ "* Birthdays", anniversary(1990, "Bob"), "* Other" }, source_lines())
+  end)
+
+  it("finds the line after the file changed", function()
+    open({ "* Birthdays", anniversary(2000, "Alice"), anniversary(1990, "Bob"), "* Other" })
+    vim.api.nvim_buf_set_lines(utils.load_buffer(path), 0, 0, false, { "* New", "text" })
+    with_stubs({
+      {
+        utils,
+        "confirm",
+        function()
+          return true
+        end,
+      },
+    }, function()
+      goto_title("Bob")
+      view.actions.kill()
+    end)
+    eq({ "* New", "text", "* Birthdays", anniversary(2000, "Alice"), "* Other" }, source_lines())
+  end)
+end)
+
+-- org-agenda-bulk-action ?t binds org-inhibit-blocking to t and
+-- org-inhibit-logging to 'note: no entry is refused for its children, and
+-- a state that takes a note records its time instead (Emacs 9.8.10 probe:
+-- both entries DONE, `- State "DONE" from "TODO" [time]` under each).
+describe("agenda bulk TODO state", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  it("records times instead of notes and ignores blocking", function()
+    open({
+      "#+TODO: TODO | DONE(d@)",
+      "* TODO A",
+      "  SCHEDULED: " .. ts(0),
+      "* TODO B",
+      "  SCHEDULED: " .. ts(0),
+      "** TODO Kid",
+    }, { enforce_todo_dependencies = true })
+    local asked = 0
+    local function ask()
+      asked = asked + 1
+      return "a note"
+    end
+    bulk({ "A", "B" }, "t", {
+      {
+        utils,
+        "select",
+        function()
+          return "DONE"
+        end,
+      },
+      { utils, "input_note", ask },
+      { utils, "input", ask },
+    })
+    eq(0, asked)
+    local lines = source_lines()
+    local done, notes = {}, 0
+    for _, l in ipairs(lines) do
+      done[#done + 1] = l:match("^%* DONE (%a+)")
+      if l:find("a note", 1, true) then
+        notes = notes + 1
+      end
+      if l:match('State "DONE"') then
+        ok(l:match('State "DONE"%s+from "TODO"%s+%[[^%]]+%]$'), l)
+      end
+    end
+    eq({ "A", "B" }, done)
+    eq(0, notes)
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()

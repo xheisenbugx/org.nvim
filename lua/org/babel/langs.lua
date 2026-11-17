@@ -1110,19 +1110,30 @@ function M.prepare(lang, body, args, vars, ctx)
       full = full .. (fam == "fish" and "\necho $status" or "\necho $?")
     end
     local shebang = args.shebang and unq(args.shebang)
+    local cmd
     if shebang and shebang ~= "" then
       local padline = args.padline ~= "no"
       local file = script(shebang .. "\n" .. (padline and "\n" or "") .. full)
       vim.uv.fs_chmod(file, tonumber("755", 8))
-      local cmd = { file }
-      vim.list_extend(cmd, cmdline)
-      spec.steps[1] = { cmd = cmd }
+      cmd = { file }
     else
-      local cmd = vim.deepcopy(ctx.cmd)
+      cmd = vim.deepcopy(ctx.cmd)
       cmd[#cmd + 1] = script(vim.trim(full))
-      vim.list_extend(cmd, cmdline)
-      spec.steps[1] = { cmd = cmd }
     end
+    local line = args.cmdline and vim.trim(unq(args.cmdline) or "") or ""
+    if line ~= "" then
+      -- org-babel-sh-evaluate runs `SHELL -c "SCRIPT CMDLINE"`: the shell
+      -- of the block splits and expands :cmdline (quotes, $VARS)
+      local quote = fam == "fish" and fish_quote or sh_quote
+      local words = {}
+      for k, w in ipairs(cmd) do
+        words[k] = quote(w)
+      end
+      local outer = vim.deepcopy(ctx.cmd)
+      vim.list_extend(outer, { "-c", table.concat(words, " ") .. " " .. line })
+      cmd = outer
+    end
+    spec.steps[1] = { cmd = cmd }
     spec.exit_status = M.shell_exit_status(lang, args)
   elseif fam == "sqlite" then
     local flags = {}

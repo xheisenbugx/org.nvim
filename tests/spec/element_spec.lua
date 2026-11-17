@@ -215,10 +215,9 @@ describe("element parser", function()
     })
     local els, from, to, hl = E.section(buf, 7)
     eq({ 2, 11, 1 }, { from, to, hl.line })
-    -- the property drawer's node properties are not elements here
     eq({
       { "planning", 2, 2, 3 },
-      { "property-drawer", 4, 4, 6 },
+      { "property-drawer", 4, 4, 6, { { "node-property", 5, 5, 5 } } },
       { "paragraph", 7, 7, 7 },
       { "drawer", 8, 8, 9 },
       { "footnote-definition", 10, 10, 10, { { "paragraph", 10, 10, 10 } } },
@@ -384,11 +383,23 @@ describe("org-down-element", function()
     eq(2, lnum_after({ "* H", "** C" }, { 1, 0 }, E.down))
   end)
 
+  it("goes from a headline without text to its first child, not into the child's text", function()
+    eq(2, lnum_after({ "* H", "** C", "text" }, { 1, 0 }, E.down))
+  end)
+
   it("stays on an empty headline", function()
     -- Emacs: the same, saying "No content for this element"
     local cur, msgs = run({ "* H" }, { 1, 0 }, E.down)
     eq(1, cur[1])
-    eq(1, #msgs)
+    eq({ "No content for this element" }, msgs)
+  end)
+
+  it("stays on a headline without contents, never entering the next one", function()
+    -- (org-element-contents-begin is nil: the text below is the next
+    -- headline's)
+    local cur, msgs = run({ "* A", "* B", "text" }, { 1, 0 }, E.down)
+    eq(1, cur[1])
+    eq({ "No content for this element" }, msgs)
   end)
 
   it("stays on an empty greater element", function()
@@ -528,6 +539,66 @@ describe("org-drag-element / org-transpose-element", function()
     local _, msgs, out = run({ "* H", "p1", "", "p2" }, { 2, 1 }, E.transpose)
     eq({ "* H", "p1", "", "p2" }, out)
     eq({ "Cannot drag element backward" }, msgs)
+  end)
+
+  describe("on a node property", function()
+    -- a property line is a node-property element inside the drawer: the
+    -- drawer never moves away from the planning line or past the text
+    local DOC = { "* H", "SCHEDULED: <2024-01-01 Mon>", ":PROPERTIES:", ":A: 1", ":B: 2", ":END:", "text" }
+    local SWAPPED = { "* H", "SCHEDULED: <2024-01-01 Mon>", ":PROPERTIES:", ":B: 2", ":A: 1", ":END:", "text" }
+
+    it("drags a property past the next one, not past the drawer's end", function()
+      local cur, _, out = run(DOC, { 4, 0 }, E.drag_forward)
+      eq(SWAPPED, out)
+      eq(5, cur[1])
+      local msgs
+      _, msgs, out = run(DOC, { 5, 0 }, E.drag_forward)
+      eq(DOC, out)
+      eq({ "Cannot drag element forward" }, msgs)
+    end)
+
+    it("drags a property up past the previous one, not above the drawer", function()
+      local cur, _, out = run(DOC, { 5, 0 }, E.drag_backward)
+      eq(SWAPPED, out)
+      eq(4, cur[1])
+      local msgs
+      _, msgs, out = run(DOC, { 4, 0 }, E.drag_backward)
+      eq(DOC, out)
+      eq({ "Cannot drag element backward" }, msgs)
+    end)
+
+    it("transposes only properties", function()
+      local cur, _, out = run(DOC, { 5, 0 }, E.transpose)
+      eq(SWAPPED, out)
+      eq(6, cur[1])
+      local msgs
+      _, msgs, out = run(DOC, { 4, 0 }, E.transpose)
+      eq(DOC, out)
+      eq({ "Cannot drag element backward" }, msgs)
+    end)
+
+    it("M-up / M-down on a property keep the planning line and the properties", function()
+      local one = { "* H", "SCHEDULED: <2024-01-01 Mon>", ":PROPERTIES:", ":ID: 1", ":END:", "text" }
+      for _, key in ipairs({ "meta_down", "meta_up" }) do
+        local _, _, out = run(one, { 4, 0 }, require("org.context")[key])
+        eq(one, out, key)
+      end
+    end)
+
+    it("moves between properties and up to the drawer", function()
+      eq(5, lnum_after(DOC, { 4, 0 }, E.forward))
+      eq(7, lnum_after(DOC, { 5, 0 }, E.forward))
+      eq(4, lnum_after(DOC, { 5, 0 }, E.backward))
+      eq(3, lnum_after(DOC, { 4, 0 }, E.up))
+      eq(4, lnum_after(DOC, { 3, 0 }, E.down))
+    end)
+
+    it("marks the property line", function()
+      org_buffer(DOC, { 4, 0 })
+      E.mark()
+      eq({ "V", 4, 4 }, { vim.fn.mode(), vim.fn.line("v"), vim.fn.line(".") })
+      vim.cmd("normal! \27")
+    end)
   end)
 end)
 
@@ -683,5 +754,84 @@ describe("org-toggle-fixed-width", function()
   it("pads a short blank line to the common indentation, keeps a long one's spaces", function()
     local _, _, out = run({ "* H", "  a", " ", "      ", "    b" }, { 2, 0 }, visual(E.toggle_fixed_width))
     eq({ "* H", "  : a", "  : ", "  :     ", "  :   b" }, out)
+  end)
+end)
+
+describe("element commands and inline tasks", function()
+  -- With org-inlinetask loaded, an inline task is an element of its
+  -- section, from its heading to its END line (org-element-inlinetask-parser),
+  -- and no headline for the element commands (org-with-limited-levels).
+  with_config({ startup_folded = "showeverything", inlinetask_min_level = 15 })
+
+  local DOC = {
+    "* H",
+    "para",
+    "",
+    "*************** Inline",
+    "SCHEDULED: <2024-01-01 Mon>",
+    "body",
+    "*************** END",
+    "after",
+  }
+
+  it("parses the inline task as an element holding its text", function()
+    local buf = org_buffer(DOC)
+    eq({
+      { "paragraph", 2, 2, 3 },
+      { "inlinetask", 4, 4, 7, { { "planning", 5, 5, 5 }, { "paragraph", 6, 6, 6 } } },
+      { "paragraph", 8, 8, 8 },
+    }, shape((E.section(buf, 8))))
+  end)
+
+  it("moves over it and into it", function()
+    eq(4, lnum_after(DOC, { 2, 0 }, E.forward))
+    eq(8, lnum_after(DOC, { 4, 0 }, E.forward))
+    eq(6, lnum_after(DOC, { 5, 0 }, E.forward))
+    eq(8, lnum_after(DOC, { 6, 0 }, E.forward))
+    eq(2, lnum_after(DOC, { 4, 0 }, E.backward))
+    eq(4, lnum_after(DOC, { 8, 0 }, E.backward))
+    eq(1, lnum_after(DOC, { 4, 0 }, E.up))
+    eq(4, lnum_after(DOC, { 6, 0 }, E.up))
+    eq(5, lnum_after(DOC, { 4, 0 }, E.down))
+    eq(5, lnum_after(DOC, { 7, 0 }, E.down))
+  end)
+
+  it("marks the whole inline task, or only the text after it", function()
+    org_buffer(DOC, { 4, 0 })
+    E.mark()
+    eq({ "V", 4, 7 }, { vim.fn.mode(), vim.fn.line("v"), vim.fn.line(".") })
+    vim.cmd("normal! \27")
+    org_buffer(DOC, { 8, 0 })
+    E.mark()
+    eq({ "V", 8, 8 }, { vim.fn.mode(), vim.fn.line("v"), vim.fn.line(".") })
+    vim.cmd("normal! \27")
+  end)
+
+  it("drags the inline task whole, never splitting it", function()
+    local moved = {
+      "* H",
+      "*************** Inline",
+      "SCHEDULED: <2024-01-01 Mon>",
+      "body",
+      "*************** END",
+      "",
+      "para",
+      "after",
+    }
+    local _, _, out = run(DOC, { 2, 0 }, E.drag_forward)
+    eq(moved, out)
+    _, _, out = run(DOC, { 4, 0 }, E.drag_backward)
+    eq(moved, out)
+    _, _, out = run(DOC, { 8, 0 }, E.drag_backward)
+    eq({
+      "* H",
+      "para",
+      "",
+      "after",
+      "*************** Inline",
+      "SCHEDULED: <2024-01-01 Mon>",
+      "body",
+      "*************** END",
+    }, out)
   end)
 end)

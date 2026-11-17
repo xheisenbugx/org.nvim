@@ -215,6 +215,39 @@ describe("ui buffer setup", function()
     vim.cmd("set ft=org")
     eq("v:lua.require'org.fold'.foldexpr(v:lnum)", vim.wo.foldexpr)
   end)
+
+  describe("once the filetype is no longer org", function()
+    with_config({ use_speed_commands = true, display_custom_times = true })
+
+    it("drops the buffer's org autocommands", function()
+      local buf = org_buffer({ "* item <2024-01-01 Mon>", "| a |" }, { 1, 0 })
+      local function groups()
+        local out = {}
+        for _, ac in ipairs(vim.api.nvim_get_autocmds({ buffer = buf })) do
+          -- (org.syntax.N belongs to the syntax script, which checks
+          -- b:current_syntax itself)
+          if ac.group_name and ac.group_name:match("^org") and not ac.group_name:match("^org%.syntax%.") then
+            out[ac.group_name] = true
+          end
+        end
+        return vim.tbl_keys(out)
+      end
+      ok(#groups() > 0)
+      vim.bo[buf].filetype = "markdown"
+      eq({}, groups())
+      eq({}, vim.api.nvim_buf_get_extmarks(buf, vim.api.nvim_create_namespace("org.timestamps.custom"), 0, -1, {}))
+    end)
+
+    it("runs no speed command and doesn't realign a table as Org's", function()
+      local buf = org_buffer({ "* item", "| a | bb |", "|---|---|", "| ccc | d |" }, { 1, 0 })
+      vim.bo[buf].filetype = "markdown"
+      -- `t` at the start of a heading is org's TODO speed command
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("it<Esc>", true, false, true), "xt", false)
+      vim.api.nvim_win_set_cursor(0, { 4, 0 })
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("A <Esc>", true, false, true), "xt", false)
+      eq({ "t* item", "| a | bb |", "|---|---|", "| ccc | d | " }, buf_lines(buf))
+    end)
+  end)
 end)
 
 describe("ui: src block languages", function()

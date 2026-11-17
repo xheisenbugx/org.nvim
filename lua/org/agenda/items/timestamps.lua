@@ -183,7 +183,9 @@ function shared.timestamps(ctx, hl, done, sexps, dl_shown, before_first)
                   undone_face = "OrgAgendaTimestamp",
                   fixface = true,
                 })
-                set_time(item, nil, acfg, true, m.sexp)
+                -- the whole stamp is DOTIME: a time after the sexp
+                -- ("<%%(diary-float t 4 2) 22:00-23:00>") is the entry's
+                set_time(item, nil, acfg, true, m.sexp .. m.text_after)
                 add(d, item)
               end
             end

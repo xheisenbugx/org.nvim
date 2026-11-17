@@ -33,7 +33,10 @@ depends on one.
 - `utils.home()`: libuv's home is `%USERPROFILE%` and `$HOME` may be
   unset; never read `vim.env.HOME` alone.
 - `utils.expand` / `utils.expand_vars`, never `vim.fn.expand()` on
-  document text (also a lint rule).
+  document text, and `utils.glob`, never `vim.fn.glob()` / `globpath()`
+  on a path that isn't a literal (both lint rules). `utils.glob` gives
+  `/` separators; `utils.dir_path` turns a bare drive `C:` (drive C's
+  current directory) into its root `C:/`.
 - Comparing paths: Windows file systems fold case (`utils.abbreviate`
   and `lua/org/reload.lua` lower-case on win32). Splitting `$PATH` uses
   `;` there (`lua/org/extensions/cli/init.lua`).

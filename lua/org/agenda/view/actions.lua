@@ -135,6 +135,30 @@ function M.redo_all()
   use(cur)
 end
 
+--- The current line of the %%(sexp) line an agenda item of type "sexp"
+--- comes from, in the entry `hl` (its headline found again): the line at
+--- the same offset from the headline when its text is unchanged, else the
+--- line with that text nearest to it. Nil when it is gone.
+---@param file org.File
+---@param hl org.Headline
+---@param item table
+---@return integer|nil
+local function sexp_line(file, hl, item)
+  local old = item.headline
+  local text = old and old.file.lines[item.lnum_sexp]
+  if not text then
+    return nil
+  end
+  local want = hl.line + item.lnum_sexp - old.line
+  local best
+  for l = hl.line + 1, hl.body_end do
+    if file.lines[l] == text and (not best or math.abs(l - want) < math.abs(best - want)) then
+      best = l
+    end
+  end
+  return best
+end
+
 M.actions = {
   quit = function()
     M.quit(false)
@@ -670,13 +694,24 @@ M.actions = {
     end
     M.mark_regexp(input)
   end,
-  kill = on_item(function(target)
+  kill = on_item(function(target, item)
     local file = files.get_buffer(target.bufnr)
     local hl = file:headline_at(target.lnum)
     if not hl then
       return
     end
-    local n = hl.end_line - hl.line + 1
+    -- org-agenda-kill: the entry's subtree, but only the line of a
+    -- %%(sexp) entry
+    local s, e = hl.line, hl.end_line
+    if item.type == "sexp" and item.lnum_sexp then
+      local l = sexp_line(file, hl, item)
+      if not l then
+        utils.warn("Entry has changed or moved; press r to refresh the agenda")
+        return
+      end
+      s, e = l, l
+    end
+    local n = e - s + 1
     local limit = config.opts.agenda.confirm_kill
     if limit == nil then
       limit = 1
@@ -687,7 +722,7 @@ M.actions = {
         return
       end
     end
-    vim.api.nvim_buf_set_lines(target.bufnr, hl.line - 1, hl.end_line, false, {})
+    vim.api.nvim_buf_set_lines(target.bufnr, s - 1, e, false, {})
     utils.notify("Agenda item and source killed")
   end),
   open_link = function()
@@ -717,7 +752,9 @@ M.actions = {
         return
       end
     end
-    require("org.links").open(link.target, { bufnr = target.bufnr })
+    -- from the entry's position, like org-agenda-open-link (an
+    -- attachment: link resolves in that entry's directory)
+    require("org.links").open(link.target, { bufnr = target.bufnr, lnum = link.lnum or target.lnum })
   end,
   set_property = on_item(function(target)
     call("org.properties", "set_property", target)

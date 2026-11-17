@@ -185,7 +185,8 @@ local function quote_field(s, timefmt)
   end
   local item = require("org.date").parse_all(s)[1]
   if item then
-    return os.date(timefmt or "%Y-%m-%d-%H:%M:%S", item.date:to_time())
+    -- format-time-string (also for a date os.date can't decode)
+    return item.date:strftime(timefmt or "%Y-%m-%d-%H:%M:%S")
   end
   return '"' .. s:gsub('"', '""') .. '"'
 end

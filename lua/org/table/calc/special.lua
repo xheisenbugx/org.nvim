@@ -31,6 +31,7 @@ local F = arith.F
 local real_mul = arith.real_mul
 local flatten_many = functions.flatten_many
 local numeric = functions.numeric
+local round_digits = functions.round_digits
 local float_fn = functions.float_fn
 local to_float = forms.to_float
 
@@ -90,24 +91,36 @@ F.vhmean = function(args)
   return div(#vals, s)
 end
 
--- rounding: rounde (half to even), roundu (half up)
-F.rounde = numeric("rounde", function(x)
-  if is_int(x) then
-    return x
-  end
-  local v = tofloat(x)
+-- rounding: rounde (half to even), roundu (half up), with an optional
+-- number of digits like round (calcFunc-rounde, calcFunc-roundu)
+local function half_even(v)
   local f = math.floor(v)
   local d = v - f
   if d > 0.5 or (d == 0.5 and f % 2 == 1) then
     f = f + 1
   end
   return f
-end)
-F.roundu = numeric("roundu", function(x)
+end
+local function half_up(v)
+  return math.floor(v + 0.5)
+end
+F.rounde = numeric("rounde", function(x, n)
+  if n ~= nil then
+    return round_digits(x, n, half_even)
+  end
   if is_int(x) then
     return x
   end
-  return math.floor(tofloat(x) + 0.5)
+  return half_even(tofloat(x))
+end)
+F.roundu = numeric("roundu", function(x, n)
+  if n ~= nil then
+    return round_digits(x, n, half_up)
+  end
+  if is_int(x) then
+    return x
+  end
+  return half_up(tofloat(x))
 end)
 F.fdiv = numeric("fdiv", function(a, b)
   if is_zero(b) then

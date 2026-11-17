@@ -464,6 +464,20 @@ describe("export (Emacs features)", function()
     has(h, '<td class="org-right">left</td>\n<td class="org-left">1</td>')
   end)
 
+  -- a row without cells (a lone "|", as while typing a table): in Emacs,
+  -- org-export-table-cell-borders of its missing first cell is (top bottom),
+  -- so the row is a row group of its own (org-export-table-row-starts-rowgroup-p)
+  it("exports a table row without cells", function()
+    local lines = { "| a |", "|", "", "| b |", "|---|", "|", "| c |" }
+    local h = html(lines)
+    has(h, '<td class="org-left">a</td>\n</tr>\n<tbody>\n<tr>\n</tr>\n</tbody>\n</table>')
+    has(h, '</thead>\n<tbody>\n<tr>\n</tr>\n</tbody>\n\n<tr>\n<td class="org-left">c</td>')
+    for _, f in ipairs({ "md", "odt", "latex", "ascii", "texinfo", "man" }) do
+      local okv, err = pcall(export.to_string, f, { lines = lines, filename = "/tmp/rows.org" })
+      ok(okv, f .. ": " .. tostring(err))
+    end
+  end)
+
   it("removes only isolated timestamps with <:nil", function()
     local h = html({ "#+OPTIONS: <:nil", "date <2026-09-23 Wed>, ok", "", "<2026-09-24 Thu>" })
     has(h, "2026-09-23")

@@ -9,7 +9,6 @@ local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
 local marks = require("org.marks")
-local parser = require("org.parser")
 local ui = require("org.ui")
 local utils = require("org.utils")
 local shared = require("org.capture.shared")
@@ -18,6 +17,7 @@ local M = require("org.capture")
 
 local CURSOR = shared.CURSOR
 local cleanup_target = shared.cleanup_target
+local reencrypt = shared.reencrypt
 local discard_target = shared.discard_target
 local emit = shared.emit
 local end_unnarrowed = shared.end_unnarrowed
@@ -69,9 +69,17 @@ local function split_cursor(text)
   return lines, cursor
 end
 
---- Add the %^{PROP}p answers and the template's properties to an entry.
-local function with_properties(lines, props)
-  if #props == 0 or not parser.headline_level(lines[1] or "") then
+--- Add the %^{PROP}p answers and the template's properties of a
+--- template of type `ttype`: to the headline of an entry (or of plain text
+--- starting with one), else as a property drawer above plain text, as
+--- org-set-property puts it before the first headline of Emacs's capture
+--- buffer. Items and table lines take none.
+---@param lines string[]
+---@param props { [1]: string, [2]: string }[]
+---@param ttype string
+---@return string[]
+local function with_properties(lines, props, ttype)
+  if #props == 0 or not (ttype == "entry" or ttype == "plain") then
     return lines
   end
   local b = vim.api.nvim_create_buf(false, true)
@@ -370,10 +378,7 @@ local function open_unnarrowed(tpl, text, ctx, in_place)
   if M.sessions[bufnr] then
     return fail("Another capture is editing this buffer; finish it first")
   end
-  local lines = vim.split(text, "\n", { plain = true })
-  if (tpl.type or "entry") == "entry" then
-    lines = with_properties(lines, ctx.properties)
-  end
+  local lines = with_properties(vim.split(text, "\n", { plain = true }), ctx.properties, tpl.type or "entry")
   local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local modified = vim.bo[bufnr].modified
   local ok, first = pcall(M.place, loc, tpl, lines)
@@ -436,6 +441,11 @@ local function open_unnarrowed(tpl, text, ctx, in_place)
         M.sessions[bufnr] = nil
         s.win = nil
         end_unnarrowed(s)
+        -- an encrypted target entry is not left in clear text
+        local enc_ok, enc_err = reencrypt(loc)
+        if not enc_ok then
+          utils.warn("The capture target stays decrypted in its buffer (not saved): " .. tostring(enc_err))
+        end
         release(loc)
         utils.notify("Capture window closed: the text stays in the target buffer")
       end
@@ -474,13 +484,9 @@ local function open_buffer(tpl, text, ctx)
   vim.bo[buf].buftype = "acwrite"
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
-  local lines, cursor = split_cursor(text)
+  local with_props = with_properties(vim.split(text, "\n", { plain = true }), ctx.properties or {}, tpl.type or "entry")
+  local lines, cursor = split_cursor(table.concat(with_props, "\n"))
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  for _, p in ipairs(ctx.properties or {}) do
-    if parser.headline_level(lines[1] or "") then
-      edit.set_property(buf, 1, p[1], p[2])
-    end
-  end
   vim.bo[buf].modified = false
 
   local session = {
@@ -540,7 +546,18 @@ local function open_buffer(tpl, text, ctx)
       local s = M.sessions[buf]
       M.sessions[buf] = nil
       if s then
-        release(s.ctx.loc)
+        -- (the capture buffer closed without finishing: an encrypted
+        -- target entry is not left in clear text)
+        local loc = s.ctx.loc
+        if loc and loc.decrypted then
+          local enc_ok, enc_err = reencrypt(loc)
+          if not enc_ok then
+            utils.warn("The capture target stays decrypted in its buffer (not saved): " .. tostring(enc_err))
+          elseif vim.api.nvim_buf_is_valid(loc.bufnr) then
+            shared.settle_modified(loc)
+          end
+        end
+        release(loc)
       end
     end,
   })
@@ -556,8 +573,11 @@ end
 ---@param tpl_or_key string|table template key or template table
 --- `opts.answers` answers the template's `%^` prompts, by label or by
 --- position; with `opts.noninteractive` the other prompts take their
---- default and a `time_prompt` date is now.
----@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean }
+--- default and a `time_prompt` date is now. An `immediate_finish` capture
+--- whose target can't be saved keeps its text in the target buffer,
+--- unsaved; with `opts.rollback` (for a caller that still has the text,
+--- such as the `org` command line) it takes it out again instead.
+---@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean, rollback?: boolean }
 ---@return integer|nil buf the capture buffer: the target buffer in place, unnarrowed or with immediate_finish
 ---@return integer|nil # the capture window, or the line of the stored entry
 ---@return string|nil # with immediate_finish, the file of the stored entry (its buffer may be gone: kill_buffer)
@@ -579,6 +599,7 @@ function M.capture(tpl_or_key, opts)
   ctx.here = opts.here
   ctx.answers = opts.answers
   ctx.noninteractive = opts.noninteractive
+  ctx.rollback = opts.rollback
   if opts.noninteractive and tpl.time_prompt and not ctx.date then
     -- nobody to ask: the capture date is now
     ctx.date = date.now()
@@ -619,12 +640,10 @@ function M.capture(tpl_or_key, opts)
   end
   start_clock(tpl, ctx)
   if tpl.immediate_finish then
-    local lines = vim.split((expanded:gsub(CURSOR, "")), "\n", { plain = true })
-    if ttype == "entry" then
-      lines = with_properties(lines, ctx.properties)
-    end
+    local lines = with_properties(vim.split((expanded:gsub(CURSOR, "")), "\n", { plain = true }), ctx.properties, ttype)
     -- Emacs finalizes immediate captures too: no capture buffer here
     emit("OrgCapturePrepareFinalize", { immediate = true })
+    ctx.immediate = true
     local dbuf, dline = M.store(tpl, lines, ctx)
     local dfile
     if dbuf then
@@ -638,8 +657,11 @@ function M.capture(tpl_or_key, opts)
       emit("OrgCaptureAfterFinalize", { bufnr = dbuf, line = dline })
     else
       -- nothing stored and no capture buffer to keep it: undo the target
-      -- headlines and restart an interrupted clock, like an abort
-      discard_target(ctx.loc)
+      -- headlines (unless the text stays there unsaved) and restart an
+      -- interrupted clock, like an abort
+      if not ctx.unsaved then
+        discard_target(ctx.loc)
+      end
       if ctx.clock_start then
         resume_interrupted(vim.tbl_extend("force", tpl, { clock_keep = false }), ctx)
       end

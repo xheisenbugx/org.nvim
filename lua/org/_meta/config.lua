@@ -11,8 +11,10 @@
 ---@field org_directory? string
 ---Files, directories and globs scanned by the agenda, refile and id lookups.
 ---A directory adds its `*.org` files (not recursively, like Emacs); use a
----glob such as `~/org/**/*.org` to recurse. A single string naming a non-org
----file reads the list from that file, one per line.
+---glob such as `~/org/**/*.org` to recurse. Globs take `*`, `?`, `[..]`,
+---`{a,b}` and `**`; a path that exists (`plan[1].org`) is used as written.
+---A single string naming a non-org file reads the list from that file, one
+---per line.
 ---(Emacs `org-agenda-files`, default: `{}`)
 ---@field agenda_files? string|string[]
 ---Default target for capture templates without a `target`.
@@ -632,7 +634,7 @@
 ---`-Nd` delay; negative: always (org-scheduled-delay-days). (default: `0`)
 ---@field scheduled_delay_days? integer
 ---`{ rounding, step }`: minutes the current time is rounded to in date
----prompts, and the minute step of <S-Up>/<S-Down> on timestamps (a count
+---prompts and in CLOSED, LAST_REPEAT and notes, and the minute step of <S-Up>/<S-Down> on timestamps (a count
 ---steps by exactly that many minutes).
 ---(Emacs `org-time-stamp-rounding-minutes`, default: `{ 0, 5 }`)
 ---@field time_stamp_rounding_minutes? integer[]

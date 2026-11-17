@@ -216,7 +216,8 @@ local function all_categories_in_view()
   return out
 end
 
---- Marked entries, parents before children (org-agenda-bulk-action).
+--- Marked entries in buffer order, parents before children
+--- (org-agenda-bulk-action sorts its markers).
 local function marked_items()
   local list = vim.tbl_values(M.state.marks)
   table.sort(list, function(a, b)
@@ -224,31 +225,81 @@ local function marked_items()
     if fa ~= fb then
       return fa < fb
     end
-    return a.lnum > b.lnum
+    return a.lnum < b.lnum
   end)
   return list
 end
 
-local function bulk(fn, persistent)
-  local list = marked_items()
-  local bufs = {}
-  local n = 0
-  for _, item in ipairs(list) do
+--- Run `fn(target, item)` on every marked entry (org-agenda-bulk-action).
+--- The entries are found first and followed by marks (Emacs's markers),
+--- so the edits of an earlier entry don't send a later one to the wrong
+--- line. With `opts.subtree` (refile, archive: the action takes the
+--- entry's subtree away), an entry inside the subtree of an earlier one
+--- went with it and is skipped, as Emacs skips an entry
+--- org-remove-subtree-entries-from-agenda took off the agenda.
+---@param opts? { subtree?: boolean }
+local function bulk(fn, persistent, opts)
+  local marks = require("org.marks")
+  local entries = {}
+  for _, item in ipairs(marked_items()) do
     -- a %%(sexp) line before the first heading has no entry to act on
     local target = item.headline and M.resolve_target(item)
-    if target then
-      with_remote_undo(target.bufnr, function()
-        fn(target, item)
-      end)
-      bufs[target.bufnr] = true
-      n = n + 1
+    local mark = target and marks.set(target.bufnr, target.lnum)
+    if mark then
+      local file = item.filename or tostring(target.bufnr)
+      entries[#entries + 1] = { item = item, bufnr = target.bufnr, mark = mark, lnum = target.lnum, file = file }
     end
+  end
+  -- file by file, in buffer order by the entries' current lines
+  table.sort(entries, function(a, b)
+    if a.file ~= b.file then
+      return a.file < b.file
+    end
+    return a.lnum < b.lnum
+  end)
+  local bufs = {}
+  local n, skipped = 0, 0
+  for i, e in ipairs(entries) do
+    local lnum = not e.gone and e.mark:lnum()
+    if lnum then
+      local hl = opts and opts.subtree and files.get_buffer(e.bufnr):headline_at(lnum)
+      if hl then
+        -- the entries of its subtree are the next ones of its buffer
+        for j = i + 1, #entries do
+          local o = entries[j]
+          if o.bufnr ~= e.bufnr then
+            break
+          end
+          if not o.gone then
+            local l = o.mark:lnum()
+            if l and l > hl.end_line then
+              break
+            elseif l and l > hl.line then
+              o.gone = true
+            end
+          end
+        end
+      end
+      with_remote_undo(e.bufnr, function()
+        fn({ bufnr = e.bufnr, lnum = lnum }, e.item)
+      end)
+      bufs[e.bufnr] = true
+      n = n + 1
+    else
+      skipped = skipped + 1
+    end
+  end
+  for _, e in ipairs(entries) do
+    e.mark:del()
   end
   if not persistent then
     M.state.marks = {}
   end
   finish(vim.tbl_keys(bufs))
-  utils.notify(string.format("%d entries processed", n))
+  utils.notify(
+    string.format("%d entries processed", n)
+      .. (skipped > 0 and string.format(", skipped %d (gone before their turn)", skipped) or "")
+  )
 end
 
 local function add_remove_tag(target, tag, add)
@@ -388,7 +439,10 @@ function M.entry_links(target)
   local links = require("org.links")
   local out = {}
   for i = hl.line, hl.body_end do
-    vim.list_extend(out, links.parse_links(file.lines[i] or ""))
+    for _, l in ipairs(links.parse_links(file.lines[i] or "")) do
+      l.lnum = i
+      out[#out + 1] = l
+    end
   end
   return out
 end

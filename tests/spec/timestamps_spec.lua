@@ -473,3 +473,63 @@ describe("timestamps: scheduling like Emacs", function()
     eq({}, vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}))
   end)
 end)
+
+describe("timestamps the C library can't represent (Windows: before 1970)", function()
+  -- The Windows C runtime's mktime() fails before 1970-01-01, so os.time()
+  -- returns nil there, and its localtime() can't decode a negative time,
+  -- so os.date() returns nil for one; these stubs do the same on every
+  -- platform (set with rawset, so the type checker keeps the signatures).
+  local real_time, real_date
+  before_each(function()
+    real_time, real_date = os.time, os.date
+    rawset(os, "time", function(t)
+      if t and t.year < 1970 then
+        return nil
+      end
+      return real_time(t)
+    end)
+    rawset(os, "date", function(fmt, t)
+      if t and t < 0 then
+        return nil
+      end
+      return real_date(fmt, t)
+    end)
+  end)
+  after_each(function()
+    rawset(os, "time", real_time)
+    rawset(os, "date", real_date)
+  end)
+
+  it("shifts them by the part under the cursor", function()
+    local buf = org_buffer({ "x <1965-05-01 Sat 10:00> y" }, { 1, 12 })
+    ts.increment(1)
+    eq("x <1965-05-02 Sun 10:00> y", buf_lines(buf)[1])
+    vim.api.nvim_win_set_cursor(0, { 1, 19 })
+    ts.increment(1)
+    eq("x <1965-05-02 Sun 11:00> y", buf_lines(buf)[1])
+  end)
+
+  it("formats them and measures between them", function()
+    local d = date.parse("<1965-05-01 Sat 10:00>")
+    eq(d, d:normalize())
+    eq("05/01/65 Sat 10:00 121", d:strftime("%m/%d/%y %a %H:%M %j"))
+    eq(90, date.elapsed_minutes(d, date.parse("<1965-05-01 Sat 11:30>")))
+  end)
+
+  it("writes them to table plot and gnuplot data files", function()
+    -- org-plot-quote-tsv-field and org-babel-gnuplot-quote-timestamp-field:
+    -- format-time-string of the timestamp
+    eq("1965-05-01-10:00:00\t3", require("org.table.plot").data({ { "<1965-05-01 Sat 10:00>", "3" } }, {}))
+    local vars = { { name = "d", value = { { "<1965-05-01 Sat>", "3" } } } }
+    local text = require("org.babel.lang.gnuplot").expand("plot $d", {}, vars, { dir = vim.fn.getcwd() })
+    local file = text:match('d = "([^"]+)"')
+    eq({ "1965-05-01-00:00:00\t3" }, vim.fn.readfile(file))
+    os.remove(file)
+  end)
+
+  it("expands %<...> of a capture on such a date", function()
+    -- org-capture-fill-template: format-time-string of the capture time
+    local text = require("org.capture").expand("%<%Y-%m-%d %a>", { date = date.parse("<1965-05-01 Sat>") })
+    eq("1965-05-01 Sat", text)
+  end)
+end)

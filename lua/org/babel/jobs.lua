@@ -436,26 +436,124 @@ end
 
 --- Kill the process `obj` (from `vim.system`) with everything it started
 --- (a shell running the script, waiting for `sleep`), else a child keeps
---- the output pipe open or finishes the script. Asynchronous runs start
---- `detach`ed, as their own process group: the whole group is killed, so
---- a grandchild forked while cancelling can't escape. Windows kills the
---- process tree.
-function M.kill_process(obj)
+--- the output pipe open or finishes the script. Runs start `detach`ed
+--- (`M.system_opts`), as their own process group: the whole group is
+--- killed, so a grandchild forked while cancelling can't escape. Windows
+--- kills the process tree. `force`: SIGKILL instead of SIGTERM.
+---@param obj vim.SystemObj
+---@param force? boolean
+function M.kill_process(obj, force)
   local pid = obj.pid
   if pid and vim.fn.has("win32") == 1 then
     pcall(function()
       vim.system({ "taskkill", "/T", "/F", "/PID", tostring(pid) }):wait(1000)
     end)
   elseif pid then
-    local ok, res = pcall(vim.uv.kill, -pid, "sigterm")
+    local ok, res = pcall(vim.uv.kill, -pid, force and "sigkill" or "sigterm")
     if (not ok or res ~= 0) and vim.fn.executable("pkill") == 1 then
       -- not a group leader: its direct children at least
       pcall(function()
-        vim.system({ "pkill", "-TERM", "-P", tostring(pid) }):wait(1000)
+        vim.system({ "pkill", force and "-KILL" or "-TERM", "-P", tostring(pid) }):wait(1000)
       end)
     end
   end
-  pcall(obj.kill, obj, 15)
+  pcall(obj.kill, obj, force and 9 or 15)
+end
+
+--- `opts` for `vim.system` with the process in its own process group
+--- (not on Windows, which kills the process tree), so `kill_process`
+--- reaches everything it starts. Without vim.system's `timeout`: that one
+--- kills the program alone, and a child still holding its output open
+--- keeps the run going (`:wait()` then returns nil).
+---@param opts vim.SystemOpts
+---@return vim.SystemOpts
+function M.system_opts(opts)
+  opts.timeout = nil
+  opts.detach = vim.fn.has("win32") == 0
+  return opts
+end
+
+--- What a run stopped by `babel.timeout` gives: exit code 124 (as
+--- vim.system's own timeout), the output so far and a line saying why.
+---@param obj? vim.SystemCompleted
+---@param timeout integer
+---@return vim.SystemCompleted
+function M.timed_out(obj, timeout)
+  obj = obj or { code = 124, signal = 0 }
+  local err = obj.stderr or ""
+  if err ~= "" and err:sub(-1) ~= "\n" then
+    err = err .. "\n"
+  end
+  return {
+    code = 124,
+    signal = (obj.signal and obj.signal ~= 0) and obj.signal or 15,
+    stdout = obj.stdout or "",
+    stderr = err .. string.format("Babel evaluation timed out after %d ms (babel.timeout)", timeout),
+  }
+end
+
+--- Whether `timeout` (ms) limits a run: a positive number.
+local function limits(timeout)
+  return type(timeout) == "number" and timeout > 0
+end
+
+--- Kill `proc` (`kill_process`) when it still runs `timeout` ms from now,
+--- and again with SIGKILL when it still runs 2 s later. `exited()` tells
+--- whether it is done. Returns a function telling whether it was killed so.
+---@param proc vim.SystemObj
+---@param timeout? integer
+---@param exited fun(): boolean
+---@return fun(): boolean
+function M.kill_after(proc, timeout, exited)
+  local fired = false
+  if limits(timeout) then
+    vim.defer_fn(function()
+      if exited() then
+        return
+      end
+      fired = true
+      M.kill_process(proc)
+      vim.defer_fn(function()
+        if not exited() then
+          M.kill_process(proc, true)
+        end
+      end, 2000)
+    end, timeout --[[@as integer]])
+  end
+  return function()
+    return fired
+  end
+end
+
+--- Run `cmd` like `vim.system(cmd, opts):wait()`, but past `timeout` ms
+--- (none unless positive) kill it with the processes it started and give
+--- `M.timed_out`: never nil, unlike `:wait()` with vim.system's timeout.
+---@param cmd string[]
+---@param opts vim.SystemOpts
+---@param timeout? integer
+---@return vim.SystemCompleted
+function M.system_wait(cmd, opts, timeout)
+  local res
+  local proc = vim.system(cmd, M.system_opts(opts), function(obj)
+    res = obj
+  end)
+  local function done()
+    return res ~= nil
+  end
+  -- fast_only, like SystemObj:wait(): no other code runs meanwhile
+  if vim.wait(limits(timeout) and timeout or 2147483647, done, 10, true) then
+    return res
+  end
+  -- past the timeout, or interrupted
+  M.kill_process(proc)
+  if not vim.wait(2000, done, 10, true) then
+    M.kill_process(proc, true)
+    vim.wait(2000, done, 10, true)
+  end
+  if limits(timeout) then
+    return M.timed_out(res, timeout --[[@as integer]])
+  end
+  return res or { code = 130, signal = 2, stdout = "", stderr = "Babel evaluation interrupted" }
 end
 
 --- Cancel `job`: stop its process (or interrupt its session request) and

@@ -74,6 +74,9 @@ end
 ---@field line_parts table<integer, table[]> line -> { start_col, end_col, group, priority? }
 ---@field line_hl_groups table<integer, string>
 ---@field line_ctx? table line -> render context of its item (for change_all_lines)
+---@field item_ns? integer namespace of the extmarks on the entries of the lines
+---@field mark_bufs table<integer, boolean> buffers with such extmarks
+---@field unmarked table<string, table[]> filename -> items read from disk, marked once it is loaded
 ---@field day_lines table<integer, integer> line -> day
 ---@field info table
 ---@field restrict? table
@@ -118,6 +121,9 @@ local function new_state()
     line_parts = {},
     line_hl_groups = {},
     line_ctx = nil, -- line -> render context of its item (for change_all_lines)
+    item_ns = nil, -- namespace of the extmarks on the entries of the lines
+    mark_bufs = {}, -- buffers with such extmarks
+    unmarked = {}, -- filename -> items read from disk, marked once it is loaded
     day_lines = {},
     info = {},
     restrict = nil,
@@ -742,6 +748,124 @@ end
 ---@type table<string, fun(buf: integer, b: table, state: table)>
 M.refresh_hooks = {}
 
+---------------------------------------------------------------------------
+-- Following the entries of the lines (Emacs's org-hd-marker)
+---------------------------------------------------------------------------
+
+--- The namespace of the extmarks following the entries of `state`'s lines.
+local function item_ns(state)
+  if not state.item_ns then
+    state.item_ns = vim.api.nvim_create_namespace("org.agenda.items." .. tostring(state.buf))
+  end
+  return state.item_ns
+end
+
+--- Put an extmark on the headline of each of `items` in buffer `bufnr`
+--- (`item.mark`), which `locate_line` follows through edits of the
+--- buffer. Unless `trusted` (the items were built from the buffer's
+--- current text), only on a headline whose line still holds the entry.
+---@param state org.agenda.State
+---@param bufnr integer
+---@param items table[]
+---@param trusted? boolean
+local function mark_items(state, bufnr, items, trusted)
+  local ns = item_ns(state)
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  local at = {}
+  for _, it in ipairs(items) do
+    local l = it.headline.line
+    local id = at[l]
+    if id == nil then
+      id = false
+      if trusted or (l <= n and vim.api.nvim_buf_get_lines(bufnr, l - 1, l, false)[1] == it.raw) then
+        -- after the first star, left gravity: the mark stays on the line
+        -- when org rewrites it (a TODO keyword, tags)
+        id = vim.api.nvim_buf_set_extmark(bufnr, ns, l - 1, 1, { right_gravity = false })
+      end
+      at[l] = id
+    end
+    if id then
+      it.mark = { bufnr = bufnr, ns = ns, id = id }
+    end
+  end
+  state.mark_bufs[bufnr] = true
+end
+
+--- Drop the extmarks of `state`'s lines.
+---@param state org.agenda.State
+function M.untrack_items(state)
+  if state.item_ns then
+    for b in pairs(state.mark_bufs or {}) do
+      if vim.api.nvim_buf_is_valid(b) then
+        vim.api.nvim_buf_clear_namespace(b, state.item_ns, 0, -1)
+      end
+    end
+  end
+  state.mark_bufs = {}
+  state.unmarked = {}
+end
+
+local track_group
+
+--- Follow the entries of `state`'s lines with extmarks: now in the
+--- buffers they were built from, and for a file read from disk once it is
+--- loaded in a buffer (BufReadPost), while its lines still hold them.
+---@param state org.agenda.State
+local function track_items(state)
+  M.untrack_items(state)
+  local by_buf, disk = {}, {}
+  local current = {}
+  for _, it in pairs(state.line_items) do
+    local hl = it.headline
+    if hl then
+      local b = hl.file.bufnr
+      local cur = b and current[b]
+      if b and cur == nil then
+        cur = vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_is_loaded(b) and files.cached_buffer(b) or false
+        current[b] = cur
+      end
+      if b and cur == hl.file then
+        local list = by_buf[b] or {}
+        by_buf[b] = list
+        list[#list + 1] = it
+      elseif not b and it.filename then
+        local list = disk[it.filename] or {}
+        disk[it.filename] = list
+        list[#list + 1] = it
+      end
+    end
+  end
+  for b, list in pairs(by_buf) do
+    mark_items(state, b, list, true)
+  end
+  state.unmarked = disk
+  if next(disk) and not track_group then
+    track_group = vim.api.nvim_create_augroup("org.agenda.items", { clear = true })
+    vim.api.nvim_create_autocmd("BufReadPost", {
+      group = track_group,
+      callback = function(ev)
+        local name = vim.api.nvim_buf_get_name(ev.buf)
+        if name == "" then
+          return
+        end
+        name = vim.fs.normalize(name)
+        local seen = {}
+        for _, st in pairs(states) do
+          seen[st] = true
+        end
+        seen[S] = true
+        for st in pairs(seen) do
+          local list = st.unmarked and st.unmarked[name]
+          if list and st.buf and vim.api.nvim_buf_is_valid(st.buf) then
+            st.unmarked[name] = nil
+            mark_items(st, ev.buf, list)
+          end
+        end
+      end,
+    })
+  end
+end
+
 --- Re-render into the agenda buffer.
 function M.refresh()
   local buf = S.buf
@@ -750,6 +874,7 @@ function M.refresh()
   end
   local b = M.build(win_width())
   S.line_items = b.items
+  track_items(S)
   S.day_lines = b.day_lines or {}
   S.info = b.info or {}
   S.block_starts = b.block_starts or { 1 }

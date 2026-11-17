@@ -374,10 +374,11 @@ end
 function M.shrink_all(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local literal = tbl().literal_lines(bufnr)
   local l = 1
   while l <= #lines do
     if tbl().is_table_line(lines[l]) then
-      local info = tbl().find(bufnr, l)
+      local info = tbl().find(bufnr, l, literal)
       if info and next(M.cookie_widths(tbl().parse(info.lines))) then
         M.shrink(bufnr, l)
       end

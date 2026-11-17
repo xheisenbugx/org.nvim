@@ -412,10 +412,45 @@ local RESULT_KINDS = {
   latex = true,
 }
 
+--- Affiliated keywords (org-element-affiliated-keywords); `#+ATTR_x:` are
+--- too, and the dual ones take a `[secondary value]` (org-element--affiliated-re).
+local AFFILIATED = {
+  caption = true,
+  data = true,
+  header = true,
+  headers = true,
+  label = true,
+  name = true,
+  plot = true,
+  resname = true,
+  result = true,
+  results = true,
+  source = true,
+  srcname = true,
+  tblname = true,
+}
+local DUAL = { caption = true, results = true }
+
+local function affiliated(line)
+  local key, second = line:match("^%s*#%+([%w_%-]+)(%b[]):")
+  if not key then
+    key = line:match("^%s*#%+([%w_%-]+):")
+  end
+  if not key then
+    return false
+  end
+  key = key:lower()
+  if second then
+    return DUAL[key] == true
+  end
+  return AFFILIATED[key] or key:match("^attr_") ~= nil
+end
+
 --- Last line of the result below the `#+RESULTS` line `s`, like
 --- org-babel-result-end: a lone link, a drawer, block, fixed-width area,
 --- list, table or LaTeX environment. Anything else (a paragraph, a blank
---- line) is not part of the result: `s` is returned.
+--- line, a keyword such as #+CALL or #+BEGIN: of a dynamic block) is not
+--- part of the result: `s` is returned.
 local function results_end(lines, s)
   local k = s + 1
   local line = lines[k]
@@ -427,7 +462,7 @@ local function results_end(lines, s)
   end
   -- affiliated keywords belong to the element that follows them
   local e = k
-  while lines[e] and lines[e]:match("^%s*#%+[%w_]+:") and not lines[e]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_") do
+  while lines[e] and affiliated(lines[e]) do
     e = e + 1
   end
   local last, kind = M.element_end(lines, e)
@@ -670,13 +705,15 @@ function M.parse_blocks(lines)
         end
         k = k - 1
       end
-      -- results after the block
+      -- results after the block: a named block only has `#+RESULTS: name`
+      -- (org-babel-where-is-src-block-result), an unnamed one the
+      -- unnamed #+RESULTS: that follows it
       local r = j + 1
       while r <= n and lines[r]:match("^%s*$") do
         r = r + 1
       end
       local rname, rhash = match_results(lines[r])
-      if rname and (rname == "" or rname == block.name) then
+      if rname and ((rname == "" and not block.name) or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
         local x = named_results(block.name)
@@ -725,7 +762,7 @@ function M.parse_blocks(lines)
         r = r + 1
       end
       local rname, rhash = match_results(lines[r])
-      if rname and (rname == "" or rname == block.name) then
+      if rname and ((rname == "" and not block.name) or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
         local x = named_results(block.name)

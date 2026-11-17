@@ -733,7 +733,12 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 text of each entry moves into its item), text → item. With
                 a count, the selection becomes one item.
 <C-c><C-*>      Turn the list at the cursor into a subtree
-                (org-list-make-subtree).
+                (org-list-make-subtree). The text of each item goes
+                under its headline without the item's indentation;
+                blank lines and the code of blocks are kept, src and
+                example blocks get `edit_src_content_indentation` and
+                their code is escaped (`,*`), as when converting a
+                list with <C-c>* in Visual mode.
 <prefix>hC      Toggle the COMMENT keyword.
 <prefix>E       Emphasize (org-emphasize): wrap the Visual selection in a
 <C-c><C-x><C-f> marker, replacing one already there (a space removes it);
@@ -816,6 +821,9 @@ repeats an operator with its text object (`dic` then `j.`).
 Elements                                                    *org-elements*
 Paragraphs, lists and items, blocks, drawers, tables, fixed-width areas,
 keywords and comments are elements; blank lines after one belong to it.
+Each line of a property drawer is an element of its own (a node property:
+dragging one swaps it with its neighbour inside the drawer), and so is an
+inline task, from its heading to its END line (with `inlinetask_min_level`).
 Commands work on whole lines: on the first line of a list item they act on
 the item.
 <M-}> / <M-{>   Next / previous element at the same level
@@ -1241,7 +1249,9 @@ archiving to the sibling skips entries already archived.
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
 going back to a TODO state removes it. Like Emacs, CLOSED is only touched
 when some logging is set up (`log_done` or a keyword with `!`/`@`);
-`closed_keep_when_no_todo` keeps it when the keyword is removed. With
+`closed_keep_when_no_todo` keeps it when the keyword is removed. The time
+CLOSED, LAST_REPEAT and the notes record is rounded to the first value of
+`time_stamp_rounding_minutes` (org-current-time). With
 `use_effective_time`, times recorded before `extend_today_until` o'clock
 are 23:59 of the previous day; with
 `use_last_clock_out_time_as_effective_time`, CLOSED and the notes record the
@@ -1378,7 +1388,8 @@ In the fast selection menu, like Emacs:
   a key         toggle that tag (tags without a key get one: their first
                 letter after a leading `@` when it is free, else the first
                 free character of a-z A-Z { | } ~)
-  <Tab>         add or remove one tag by completion
+  <Tab>         add or remove one tag by completion (text holding
+                several, like `next week`, adds each of them)
   <Space>       remove all tags
   <CR>          accept
   !             toggle the exclusivity of `{ }` groups
@@ -1396,6 +1407,12 @@ change the state right away.
 `false` (always type the tags). Tags with a key and tags in groups are
 always shown; the others get keys and are shown while fewer than
 `fast_tag_selection_maximum_tags` (56) tags are shown.
+
+In typed tags (by completion, after <Tab> in the menu, as new tags in
+`pick_set_tags`), every run of characters a tag can't hold separates two
+tags, like Emacs: `foo-bar` sets `foo` and `bar`, `next week` sets `next`
+and `week`. The Visual selection's prompt takes one tag: the first of
+what is typed.
 
 Completion offers the tags defined for the buffer (`#+TAGS` or the `tags`
 option), or the tags used in the buffer when none are defined;
@@ -1631,12 +1648,13 @@ Timestamps:
 <prefix>d       Deadline (DEADLINE:).
 <prefix>i.      Insert an active timestamp (count: include time; count
                 16: the current time without a prompt). On a timestamp,
-                it changes that timestamp. Repeated right away (no
-                cursor move or edit in between, like Emacs' repeated
-                org-timestamp), it adds `--` and a second timestamp: a
-                range. <prefix>i! repeated after <prefix>i. (or the
-                other way round) does the same, the second timestamp
-                taking its own type.
+                it changes that timestamp; on a date range, only the
+                end the cursor is on (the prompt starts from it).
+                Repeated right away (no cursor move or edit in between,
+                like Emacs' repeated org-timestamp), it adds `--` and a
+                second timestamp: a range. <prefix>i! repeated after
+                <prefix>i. (or the other way round) does the same, the
+                second timestamp taking its own type.
 <prefix>i!      Insert an inactive timestamp.
 <C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor, like
                 Emacs org-timestamp-change: year, month, day, hour, minute,
@@ -1865,15 +1883,20 @@ Clock lines go into the LOGBOOK drawer: >org
 As in Emacs, a clock line has nothing after its duration (`CLOCK:` in
 any case); a line with text after it is a paragraph and its time is not
 counted. A naked `CLOCK: => 2:00` adds two hours to the entry's clock
-sums, whatever their time range.
+sums, whatever their time range. A clock whose start has no time
+(`[2026-09-23 Wed]--...`) counts for nothing, and an end without a time
+takes the start's (org-clock-sum).
 
 The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
 for none, a number N for "once there are N clock lines"), then
 `clock.into_drawer`, then the log drawer. With `log_note_clock_out` (or
 `#+STARTUP: lognoteclock-out`), clocking out asks for a note that goes
 below the CLOCK line. `clock.continuously` starts a new clock where the
-last one stopped, `clock.rounding_minutes` rounds clock times and
-`clock.in_resume` continues an entry's open CLOCK line.
+last one stopped, `clock.rounding_minutes` rounds clock times like Emacs
+(org-current-time): clocking out takes the nearest multiple, a tie going
+to the even one (with 10, 10:25 is 10:20); clocking in never starts in
+the future (with 10, 10:27 is 10:20). `clock.in_resume` continues an
+entry's open CLOCK line.
 
 Marking a clocked task done clocks it out (`clock.out_when_done`: true or a
 list of states). A running clock is restored after restarting Neovim
@@ -2295,7 +2318,8 @@ All configurable under `mappings.agenda`:
   <C-c><C-x>a     toggle the ARCHIVE tag
   <C-c><C-a>      attach (org-attach on the entry)
   <C-k>           delete the entry in its file (asks when it is longer
-                  than `agenda.confirm_kill` lines)
+                  than `agenda.confirm_kill` lines); on a %%(sexp) diary
+                  line, only that line
   <C-c><C-o>      open a link of the entry (choose when there are several)
   z               add a note
   K               capture, with the date at point as default date
@@ -2395,6 +2419,13 @@ selection (org-agenda-loop-over-headlines-in-active-region:
 "start-level" or an Emacs regexp the lines must match). The one-letter
 keys that are Visual motions (`t`, `$`, `e`, `a`) keep their Vim meaning
 there; use their <C-c> forms.
+
+A line acts on its entry wherever the entry moved since the agenda was
+built: like Emacs's markers, an extmark follows each entry in its buffer
+(set when the agenda is built, or when its file is loaded later and still
+holds the entry), so text added or removed around it, or another headline
+with the same text, don't send a command to the wrong entry. Without one
+(a file changed on disk), the entry is found again by its headline text.
 
 Like Emacs, edits made from the agenda leave the source buffers modified
 (`agenda.save_after_edit = false`); save them with <C-x><C-s> or :wall.
@@ -2507,13 +2538,17 @@ B acts on the marked entries, or on the entry at point without marks
 (org-agenda-bulk-action):
   $       archive
   A       archive to the Archive sibling
-  t       TODO state
+  t       TODO state: no entry is blocked (|org-todo-dependencies|), and
+          a state that takes a note records its time instead
   + / -   add / remove a tag
   r       refile
   s / d   (re)schedule / set the deadline: a date, or `++2d` to shift each
-          entry's own date; an empty answer opens the calendar
+          entry's own date; an empty answer opens the calendar. Like C-c
+          C-s, a new date keeps the old repeater and warning period; a
+          change is logged with a time, never a note
   S       scatter: schedule each entry on a random day of the next N days
-          (with a count, weekend days are skipped)
+          (with a count, weekend days are skipped), keeping its repeater;
+          with `log_reschedule = "note"` each entry asks for its note
   f       apply a Lua function (`function(target, item) ... end`)
   p       toggle persistent marks (`agenda.persistent_marks`: keep the
           marks after the action), then choose the action
@@ -2521,6 +2556,9 @@ B acts on the marked entries, or on the entry at point without marks
           { x = { fn = function(target, item, ...) end, desc = "...",
           args = function() return { ... } end } }
 Marked lines show `agenda.bulk_mark_char` (">", org-agenda-bulk-mark-char).
+The entries are acted on in buffer order, parents before children, each
+found where the earlier ones left it (the refile target too). A marked
+entry refiled or archived with its parent's subtree is skipped.
 
 Column view                                               *org-agenda-columns*
 
@@ -2780,13 +2818,14 @@ Matching ignores case.
 Diary sexp entries                                  *org-agenda-diary-sexp*
 
 Emacs lets you put diary s-expressions in timestamps, `<%%(diary-float t 4
-2)>`, and on lines of their own at the start of a line, `%%(org-anniversary
-1990 5 17) Birthday of Joe (%d)`. `agenda.diary_sexp_prefix` (an Emacs
-regexp, org-agenda-diary-sexp-prefix) moves its match in the text of a
-`%%(...)` line to the leader (`%s`). Emacs evaluates them as Emacs Lisp.
-Neovim has no Lisp interpreter, so they are read with a small, safe
-s-expression reader and the common calendar functions are emulated,
-with the same results as Emacs:
+2)>` (with a time after the sexp, `<%%(diary-float t 4 2) 22:00-23:00>`, in
+SCHEDULED and DEADLINE too), and on lines of their own at the start of a line,
+`%%(org-anniversary 1990 5 17) Birthday of Joe (%d)`.
+`agenda.diary_sexp_prefix` (an Emacs regexp, org-agenda-diary-sexp-prefix)
+moves its match in the text of a `%%(...)` line to the leader (`%s`). Emacs
+evaluates them as Emacs Lisp. Neovim has no Lisp interpreter, so they are read
+with a small, safe s-expression reader and the common calendar functions are
+emulated, with the same results as Emacs:
 
   - `org-anniversary Y M D`, `diary-anniversary M D [Y]`
   - `org-cyclic N Y M D`, `diary-cyclic N M D Y`
@@ -3259,7 +3298,10 @@ Template fields:
                      the 2nd hline) or "I+1" (right after the 1st). A table
                      is created when there is none
   properties         table of properties added to the entry
-  immediate_finish   finish without opening the capture window
+  immediate_finish   finish without opening the capture window; when
+                     the target can't be saved, the text stays in its
+                     buffer, unsaved (not for `org capture`, which
+                     fails and leaves the target as it was)
   jump_to_captured   jump to the entry after finishing
   kill_buffer        unload the target file afterwards when the capture
                      loaded it
@@ -3331,7 +3373,11 @@ Template expansions:                               *org-capture-expansions*
   %\*1 ...     the answer to the Nth prompt of any kind (%^t, %^g, ...)
   %^g %^G      tags prompt, completing the target file's / all agenda
                files' tags; tags on a headline are aligned
-  %^{PROP}p    property prompt (offers the PROP_ALL values of the target)
+  %^{PROP}p    property prompt (offers the PROP_ALL values of the target);
+               the property goes on the entry, or above the text of a
+               "plain" template without a headline (a property drawer).
+               Item, checkitem and table-line templates ask for it but
+               don't store it (|org-differences|)
   %:keyword    link information: %:link, %:description, %:annotation,
                %:initial, %:type
   %[file]      the contents of a file
@@ -4086,7 +4132,11 @@ its ancestor's ID (`id:ID::*Child`).
   D         delete all
   s         set the DIR property
   S         remove the DIR property
-Directories can be attached too (copied recursively with "cp").
+Directories can be attached too (copied recursively with "cp"; into an
+attached directory of the same name, its files are copied into it). An
+attachment of the same name is never replaced: copying, moving, linking
+and downloading stop with "File already exists" (Emacs's file-already-exists),
+and a symbolic link asks first.
 `attach.commands` adds commands to the dispatcher or replaces them
 (org-attach-commands): `{ x = { fn = function(target) ... end, desc =
 "..." } }`, where `target` is `{ bufnr, lnum }` of the entry; `false`
@@ -4268,7 +4318,10 @@ autocmds `OrgMobilePrePush`, `OrgMobilePostPush`, `OrgMobilePrePull`,
 17. FOOTNOTES                                                  *org-footnotes*
 
 References: `[fn:1]`, `[fn:name]`, inline `[fn::text]` and `[fn:name:text]`.
-Definitions start a line with `[fn:name]`.
+Definitions start a line with `[fn:name]`. Footnote-like text in a comment, a
+fixed-width line, a keyword (`#+CAPTION:` too), a property drawer, code,
+verbatim, an inline src block or a link is not a reference: sorting,
+renumbering, normalizing and deleting leave it alone.
 
 <prefix>if, <C-c><C-x>f
                 On a footnote: jump between reference and definition.
@@ -4344,7 +4397,9 @@ Other processors can be registered with
 18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
 
 Start a row with `|`. `|-` becomes a separator line (hline) when the table is
-aligned.
+aligned. A `|` line inside a src, example, export, comment or verse block is
+text, not a table: the table keys and aligning leave it alone there
+(org-at-table-p).
 
 In Insert mode:
   <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
@@ -4538,13 +4593,16 @@ field text (`(3)`; ranges `[1,2,3]`, empty fields dropped) before the
 formula is evaluated, so:
 - Calc precedence: `/` binds looser than `*`, `a/b*c` is `a/(b*c)`; `^`
   binds tighter than unary minus (`-2^2` is -4); `2 3` and `2(3+1)`
-  multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
+  multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or, before
+  something that starts a factor (a sign too: `7 % -3` is -2), modulo.
 - Numbers: exact integers of any size (`2^100`), floats with 12 digits and
   Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`);
   `calc_default_modes` (org-calc-default-modes) changes the precision,
   the float display, the angle mode ("deg"/"rad") and fractions,
   fractions `3:4` (`F` flag), modulo forms `3 mod 7` (`(3 mod 7)^100` is
-  `4 mod 7`, `makemod(10, 7)`).
+  `4 mod 7`, `makemod(10, 7)`), numbers in a radix from 2 to 36 (`16#FF`,
+  `2#101`, `16^^FF`, `16#F.8`, `16#F:3`, `2#1.1e-1` with a radix up to
+  14, `2##11111111111111111111111111111111` in two's complement is -1).
 - Vectors and matrices: `[1, 2]` (`[1 2]` without commas), `[[1, 2], [3,
   4]]`. `+ -` work elementwise, a number scales, `*` is the matrix product
   (of two plain vectors the dot product), `^` a matrix power (`^-1` the
@@ -4920,6 +4978,10 @@ the other, in order. Meanwhile:
     a running block, it cancels the only running evaluation, or asks which
     one; with a count, all of them. Unloading (`:bwipeout`, `:bdelete`) a
     buffer cancels its evaluations; quitting Neovim cancels them all.
+  - A program still running after `babel.timeout` ms (Emacs has no
+    timeout) is killed the same way, with its child processes, in the
+    background or not: the output so far is the result, and the error
+    output says it timed out (exit code 124).
 What needs a value at once still waits for it, as in Emacs, with no
 spinner or placeholder: export, the blocks a `:var` reference, a noweb
 call or `:post` evaluates, and `org-sbe` in table formulas. Lua blocks run
@@ -5259,7 +5321,9 @@ can't be evaluated is kept as text; a `:var` form is an error.
              #+NAME), :file-mode `(identity #o755)`, :sep (for tables),
              :file-desc (no value = the file name, `[]` = none)
   :dir :cmdline :prologue :epilogue :noweb-ref
-             supported, with :mkdirp yes (for :dir)
+             supported, with :mkdirp yes (for :dir); the shell of a shell
+             block reads its :cmdline (`:cmdline "a 'b c' $HOME"` gives
+             three arguments)
   :noweb     yes|no|tangle|eval|no-export|strip-export|strip-tangle|
              tangle-eval. Every <<ref>> of a line is expanded (references
              may contain spaces: `<<add(a=3, b=4)>>`); blocks sharing a
@@ -6329,8 +6393,12 @@ These need Emacs Lisp or Emacs itself:
 
 :Org timer_start        Start a relative timer. A count asks for an offset
                         `H:MM:SS` (default: the timer value on the line; a
-                        bare number is seconds, `M:SS` minutes); 16 shifts
-                        the timer values of the selection instead.
+                        bare number is seconds, `M:SS` minutes). A
+                        negative offset (`-0:05:00`) starts the timer that
+                        long before zero: like Emacs, its value is shown
+                        without the sign, counting down to 0:00:00 and then
+                        up. 16 shifts the timer values of the selection
+                        instead.
 :Org timer_insert       Insert the timer value after the cursor, written
                         with `timer.format` ("%s "). Starts the timer if
                         needed; a count restarts it; 16 shifts the timer
@@ -6412,6 +6480,14 @@ There are no default keys, as in Emacs; bind the actions in `mappings.org`.
 `:Org reveal` (<C-c><C-r>) decrypts the entry at the cursor first, as
 org-crypt does through `org-fold-reveal-start-hook`. `*_entries` skip
 archived and commented trees, like org-scan-tags.
+
+A capture whose target is an encrypted entry decrypts it, and encrypts it
+again, the captured text included, before the target is saved (Emacs
+org-capture does the same, :decrypted). When that encryption fails the
+target isn't saved and the text stays in the capture buffer (or, for
+`immediate_finish`, in the unsaved target buffer). An aborted capture, or a
+capture window closed without finishing, puts the PGP message back. Such a
+capture can't be refiled (<C-c><C-w>).
 
 Keys: `crypt.key = false` encrypts symmetrically, always (Emacs
 `org-crypt-key` nil). Otherwise the `CRYPTKEY` property (inherited only
@@ -7578,7 +7654,10 @@ default template. Summary:
 General ~
   org_directory             "~/org"   base for relative paths
   agenda_files              {}        files, dirs (not recursive), globs,
-                                      or a file listing them
+                                      or a file listing them; globs take
+                                      * ? [..] {a,b} and **, and a path
+                                      that exists (`plan[1].org`) is
+                                      used as written
   default_notes_file        "~/.notes"  capture target without `target`
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current
@@ -7816,7 +7895,8 @@ Structure and visibility ~
                                       (at `textwidth`, 70 when 0)
   deadline_warning_days     14        0 or negative = also over -Nd cookies
   scheduled_delay_days      0         negative = also over -Nd cookies
-  time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
+  time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, CLOSED and
+                                      notes, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
   read_date_popup_calendar  true      false: a plain prompt |org-calendar|
   read_date_display_live    true      show the typed date's meaning
@@ -9389,7 +9469,14 @@ Differences from Emacs:
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise. A template's `datetree = { reversed = true }`
   keeps date nodes newest first, which Emacs Org itself can't do (the
-  org-reverse-datetree package adds it).
+  org-reverse-datetree package adds it). A capture into an encrypted entry
+  (|org-crypt|) can't be refiled with <C-c><C-w>: the entry is encrypted
+  again, captured text included, before the refile, and Emacs's
+  org-capture-refile then refiles at a position inside the PGP message
+  (the encrypted entry itself). `%^{PROP}p` in an item, checkitem or
+  table-line template asks for the value but doesn't store it: Emacs puts
+  the property drawer into the captured text, which makes the drawer the
+  item's text (`- :PROPERTIES:`, the item below it) or breaks the table.
 - The ID database can be Emacs's `org-id-locations-file` (|org-links|),
   but Emacs keeps it in memory and writes it on exit, so the last editor
   to save wins; files are sorted by name where Emacs keeps its hash order.
@@ -9636,6 +9723,13 @@ Differences from Emacs:
     spaces ('expandtab'); Emacs uses tabs from column 8 on when
     `indent-tabs-mode` is on, its default. Lines it doesn't move keep
     their tabs.
+  - Promoting or demoting a heading with `adapt_indentation = true`
+    (also pasting, refiling and archiving a subtree at another level)
+    moves a tab-indented line of its text by columns, a tab counting 8,
+    and re-indents it with spaces ('expandtab'); Emacs's indent-line-to
+    writes tabs from column 8 on (`\t ` for column 9) when
+    `indent-tabs-mode` is on. The LOGBOOK drawer moves by characters, as
+    in Emacs.
   - Indenting or outdenting a list item moves the text it owns with it,
     text after its sub-list included. Emacs lines that text up with the
     sub-list's last item instead, which can hand it to another item or
@@ -9704,6 +9798,10 @@ Differences from Emacs:
   - A repeated C-c C-t on a `#+TYP_TODO:` keyword (which walks the types
     instead of jumping to DONE) is one with no edit and no cursor motion
     since the previous one, rather than Emacs' `last-command` test.
+  - A `.+Nh` repeater on a time range (`<... 13:00-14:00 .+3h>`) keeps
+    the length of the range when it moves to now. Emacs keeps it only
+    for a shift of about an hour or less; for a larger one its
+    org-modify-ts-extra can't carry the minutes and drops the end time.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
     `OrgTodoRepeat`, `OrgPropertyChanged`, `OrgNoteStored`,
     `OrgLogBufferSetup`) that cannot change the result;
@@ -11465,7 +11563,9 @@ Options ~
                     (true)
   `cache_dir`       where fetched calendars are kept
                     (`stdpath("cache") .. "/org/ics"`)
-  `curl`            fetch command, `-o FILE URL` is appended
+  `curl`            fetch command; `-o FILE --config -` is appended, and
+                    the URL goes to curl on stdin, so a secret address
+                    doesn't show in the process list
                     (`{ "curl", "-fsSL", "--max-time", "30" }`)
   `timezone`        IANA zone to show times in (nil: the system's)
   `tz_aliases`      extra TZID -> IANA zone names ({})
@@ -11592,7 +11692,10 @@ event of the calendar is written as:
                several timestamp lines you wrote, the first is the event's
   location     the LOCATION property
   description  the text below the timestamp line: all of it is sent, so
-               keep private notes out of an entry of a shared calendar
+               keep private notes out of an entry of a shared calendar.
+               When the calendar changes the text of an entry whose time
+               is a timestamp in that text, and the new text doesn't
+               hold it, the timestamp moves to a line of its own above it
 An entry of the calendar's files that has an active timestamp, and no ID
 the calendar knows, is sent as a new event and gets an ID. Entries without
 a date are never sent, nor are new COMMENT entries, inline tasks and
@@ -11681,6 +11784,7 @@ shows what each holds. Whether an entry is an event or a task is settled
 when it is first synced. `todos` is off by default, so a calendar that
 holds only tasks (a Radicale task list, say) needs `todos = true`; without
 it nothing syncs, and `:Org caldav_sync` says how many tasks it left out.
+Tasks synced while `todos` was on keep syncing after it is turned off.
 
 Servers ~
 Any server that speaks CalDAV (RFC 4791) and takes a password (basic or
@@ -11965,7 +12069,10 @@ Writing (each saves the files it changed):
     `%^{Size [cm]|10}` by `Size [cm]`, `%^g` by `Tags`, a date prompt by
     its name or `Date` (names ignore case). `--input FILE`
     (`-` for stdin) reads a JSON object `{ "template", "text", "fields" }`
-    instead. `--id` gives the new entry an ID.
+    instead. `--id` gives the new entry an ID. When the target can't be
+    saved (a read-only file, say) the capture fails and the target, also
+    a running Neovim's buffer of it, is left as it was: running the
+    command again doesn't store the text twice.
 `org clock in [--pick N] TARGET`, `org clock out`, `org clock cancel`
     Clock in a heading, clock out of the running clock, or cancel it.
 `org add PARENT TITLE [--todo KW] [--priority P] [--tag TAG]...`
@@ -11984,7 +12091,8 @@ Writing (each saves the files it changed):
     scheduled`), the properties and the body (split at newlines, indented
     per `adapt_indentation`) are written as org.nvim writes them. A body
     line starting with `*` at column 0 gets one space before it, so it
-    stays text (a list item) and doesn't start a heading.
+    stays text (a list item) and doesn't start a heading. A property
+    VALUE is one line: one with a newline fails with `bad_value`.
 `org append TARGET TEXT`
     Append TEXT to the body of the heading, after its planning, drawers
     and text and before its first child heading; TEXT `-` reads stdin.
@@ -12007,6 +12115,8 @@ Writing (each saves the files it changed):
 `org set priority TARGET PRIORITY`
     `A`, `B`, ... (a number with numeric `#+PRIORITIES`); `none` removes.
 `org set property TARGET NAME VALUE`, `org set property TARGET NAME --delete`
+    VALUE is one line (as for `add --property`): one with a newline fails
+    with `bad_value`.
 `org set scheduled TARGET DATE [--note TEXT]`
 `org set deadline TARGET DATE [--note TEXT]`
     DATE as the date prompt reads it (`2026-10-05 14:00`, `+2d`, `fri`) or

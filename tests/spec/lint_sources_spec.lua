@@ -39,6 +39,32 @@ describe("source lint", function()
     end)
   end)
 
+  describe("glob", function()
+    it("flags vim.fn.glob / globpath on anything but string literals", function()
+      eq(
+        { "1:glob", "2:glob", "3:glob", "4:glob" },
+        hits({
+          "local a = vim.fn.glob(pattern, false, true)",
+          'local b = vim.fn.glob(dir .. "/*.org")',
+          'local c = fn.globpath(dir, "*.org", false, true)',
+          'local d = vim.fn.globpath("~/org", pat)',
+        })
+      )
+    end)
+
+    it("accepts literals and utils.glob", function()
+      eq(
+        {},
+        hits({
+          'local a = vim.fn.glob("~/org/*.org", false, true)',
+          'local b = vim.fn.globpath("~/org", "*.org")',
+          'local c = utils.glob(dir .. "/*.org")',
+          "local d = vim.fn.glob2regpat(part)",
+        })
+      )
+    end)
+  end)
+
   describe("gsub", function()
     it("flags a variable or concatenated replacement", function()
       eq(

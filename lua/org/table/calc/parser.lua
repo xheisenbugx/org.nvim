@@ -58,6 +58,98 @@ local function read_string(s, i)
   end
 end
 
+--- The value of `digits` in base `radix` as a big integer, or nil when a
+--- digit is not one of the base (math-read-radix).
+local function radix_int(digits, radix)
+  local res, base = big.big_from_int(0), big.big_from_int(radix)
+  for c in digits:upper():gmatch(".") do
+    local d = tonumber(c, 36)
+    if not d or d >= radix then
+      return nil
+    end
+    res = big.big_add(big.big_mul(res, base), big.big_from_int(d))
+  end
+  return res
+end
+
+--- A number with an explicit radix at `s[i]` (math-read-token,
+--- math-read-number-fancy): `16#FF`, `2#101.1`, `2#1.1e1` (a radix up to
+--- 14 and an exponent: times the radix to that power), `16#F:3` (a
+--- fraction), `16^^FF`, and `2##101` (two's complement in 32-bit words).
+--- Returns the text it takes and the token (kind and value), or nil.
+local function read_radix(s, i)
+  local text, r, mark, digits = s:match("^(0*(%d%d?)(##?)([%w%.:]+))", i)
+  if not text then
+    text, r, digits = s:match("^(0*(%d%d?)%^%^([%w%.:]+))", i)
+    mark = "#"
+  end
+  -- a signed exponent (`2#1.1e-1`), which the digits stop before: only
+  -- with a radix up to 14, where `e` is no digit
+  local etext, er, emant, eexp = s:match("^(0*(%d%d?)##?([%da-dA-D%.]+)[eE]([-+]%d+))", i)
+  if not etext then
+    etext, er, emant, eexp = s:match("^(0*(%d%d?)%^%^([%da-dA-D%.]+)[eE]([-+]%d+))", i)
+  end
+  if etext and tonumber(er) >= 2 and tonumber(er) <= 14 then
+    text, r, digits = etext, er, emant .. "e" .. eexp
+  end
+  local radix = tonumber(r)
+  if not text or radix < 2 or radix > 36 then
+    return nil
+  end
+  local mant, exp = digits:match("^([%w%.]-)[eE]([-+]?%d+)$")
+  if mant and radix <= 14 and mant ~= "" then
+    local a, b = mant:match("^(%w*)%.?(%w*)$")
+    local int, frac = a and radix_int(a, radix), b and radix_int(b, radix)
+    if not (int and frac) then
+      return nil
+    end
+    local v = big.big_tofloat(int) + big.big_tofloat(frac) / radix ^ #b
+    return text, "float", string.format("%.17g", v * radix ^ tonumber(exp))
+  end
+  local parts = vim.split(digits, ":", { plain = true })
+  if #parts > 1 then
+    if #parts > 3 then
+      return nil
+    end
+    local nums = {}
+    for k, part in ipairs(parts) do
+      local v = part ~= "" and radix_int(part, radix) or big.big_from_int(k == 1 and #parts == 3 and 0 or 1)
+      if not v then
+        return nil
+      end
+      nums[k] = big.big_tofloat(v)
+    end
+    if #parts == 2 then
+      table.insert(nums, 1, 0)
+    end
+    if nums[3] == 0 then
+      return nil
+    end
+    return text, "frac", nums
+  end
+  local a, b = digits:match("^(%w*)%.(%w*)$")
+  if a then
+    local int, frac = radix_int(a, radix), radix_int(b, radix)
+    if not (int and frac) or (a == "" and b == "") then
+      return nil
+    end
+    local v = big.big_tofloat(int) + big.big_tofloat(frac) / radix ^ #b
+    return text, "float", string.format("%.17g", v)
+  end
+  local v = radix_int(digits, radix)
+  if not v then
+    return nil
+  end
+  if mark == "##" then
+    -- two's complement: a word with its top bit set is negative
+    local f = big.big_tofloat(v)
+    if f >= 2 ^ 31 and f < 2 ^ 32 then
+      v = big.big_from_int(f - 2 ^ 32)
+    end
+  end
+  return text, "int", big.big_tostring(v)
+end
+
 local function tokenize(s)
   local toks, i, n = {}, 1, #s
   local function push(kind, value, space)
@@ -74,8 +166,9 @@ local function tokenize(s)
       end
     end
     local ch = s:sub(i, i)
-    local num = s:match("^%d*%.?%d+[eE][-+]?%d+", i) or s:match("^%d+%.?%d*[eE][-+]?%d+", i)
-    if not num then
+    local rtext, rkind, rvalue = read_radix(s, i)
+    local num = not rtext and (s:match("^%d*%.?%d+[eE][-+]?%d+", i) or s:match("^%d+%.?%d*[eE][-+]?%d+", i))
+    if not num and not rtext then
       num = s:match("^%d+%.%d*", i) or s:match("^%.%d+", i) or s:match("^%d+", i)
       if num and num:sub(-1) == "." and s:sub(i + #num, i + #num) == "." then
         num = num:sub(1, -2) -- `1..3`: an interval, not the float `1.`
@@ -83,7 +176,10 @@ local function tokenize(s)
     end
     -- HMS forms: 2@ 30' 15.5", also 30' 15" and 15"
     local mark = num and s:match("^%s*([@'\"])", i + #num)
-    if mark then
+    if rtext then
+      i = i + #rtext
+      push(rkind, rvalue, space)
+    elseif mark then
       local parts = { "0", "0", "0" }
       local first = mark == "@" and 1 or (mark == "'" and 2 or 3)
       for k = first, 3 do
@@ -217,6 +313,13 @@ local function starts_factor(t)
     or t.kind == "date"
     or t.kind == "hms"
     or (t.kind == "op" and (t.value == "(" or t.value == "[" or t.value == "{" or t.value == "_neg"))
+end
+
+--- Whether a factor may start at token `t`, a prefix operator included
+--- (`-`, `+`, `!`): after `%` it makes `%` the modulo, else it is
+--- the postfix percent (math-factor-after: `7 % -3` is -2).
+local function factor_after(t)
+  return starts_factor(t) or (t.kind == "op" and (t.value == "-" or t.value == "+" or t.value == "!"))
 end
 
 --- Run `f` inside parentheses (`vector` false) or brackets (true): in the
@@ -420,7 +523,7 @@ function Parser:level(prec)
       if op == "!" then
         -- postfix factorial
         lp = 210
-      elseif op == "%" and not starts_factor(self.toks[self.i + 1]) then
+      elseif op == "%" and not factor_after(self.toks[self.i + 1]) then
         -- postfix percent
         lp = 1100
         op = "pct"

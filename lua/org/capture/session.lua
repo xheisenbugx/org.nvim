@@ -15,6 +15,7 @@ local shared = require("org.capture.shared")
 local M = require("org.capture")
 
 local cleanup_target = shared.cleanup_target
+local reencrypt = shared.reencrypt
 local get_line = shared.get_line
 local is_blank = shared.is_blank
 local mark_pos = shared.mark_pos
@@ -194,6 +195,11 @@ function M.store(tpl, lines, ctx)
     if tpl.allow_empty and ctx.loc then
       -- nothing to insert, but the target (a new file's head) is kept
       local bufnr = ctx.loc.bufnr
+      local enc_ok, enc_err = reencrypt(ctx.loc)
+      if not enc_ok then
+        utils.warn("Capture could not be encrypted: " .. tostring(enc_err))
+        return nil
+      end
       if not tpl.no_save then
         local saved, err = utils.save_buffer(bufnr)
         if not saved then
@@ -243,14 +249,46 @@ function M.store(tpl, lines, ctx)
   emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })
   line = entry and entry:lnum() or line
   marks.del(entry)
-  if not tpl.no_save then
-    local saved, err = utils.save_buffer(bufnr)
-    if not saved then
-      utils.restore_buffer(bufnr, before, modified)
-      marks.restore(snapshot)
-      utils.warn("Capture could not be saved; the text is kept in the capture buffer: " .. tostring(err))
+  -- an entry decrypted for the capture is encrypted again, text and all,
+  -- before anything is saved (org-capture-finalize: org-encrypt-entry)
+  local decrypted = loc.decrypted and loc.decrypted:lnum()
+  local done, err = reencrypt(loc)
+  local what = "encrypted"
+  if done and not tpl.no_save then
+    done, err = utils.save_buffer(bufnr)
+    what = "saved"
+  end
+  if not done then
+    if ctx.immediate and not ctx.rollback then
+      -- no capture buffer to keep the text in: like Emacs, whose failed
+      -- save-buffer leaves the inserted text, it stays in the target
+      -- buffer, unsaved (and listed, so that it can be found)
+      ctx.unsaved = true
+      release(loc)
+      vim.bo[bufnr].buflisted = true
+      utils.warn(
+        string.format(
+          "Capture could not be %s; the text stays in the unsaved buffer %s: %s",
+          what,
+          utils.abbreviate(vim.api.nvim_buf_get_name(bufnr)),
+          tostring(err)
+        )
+      )
       return nil
     end
+    utils.restore_buffer(bufnr, before, modified)
+    marks.restore(snapshot)
+    if decrypted and not loc.decrypted then
+      -- back to the decrypted entry: an abort encrypts it again
+      loc.decrypted = marks.set(bufnr, decrypted)
+    end
+    if ctx.immediate then
+      -- (the caller still has the text)
+      utils.warn("Capture could not be " .. what .. ": " .. tostring(err))
+    else
+      utils.warn("Capture could not be " .. what .. "; the text is kept in the capture buffer: " .. tostring(err))
+    end
+    return nil
   end
   return stored(tpl, ctx, bufnr, line)
 end
@@ -458,6 +496,12 @@ local function store_unnarrowed(s)
   emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })
   line = entry and entry:lnum() or line
   marks.del(entry)
+  -- an entry decrypted for the capture is encrypted again first
+  local enc_ok, enc_err = reencrypt(ctx.loc)
+  if not enc_ok then
+    utils.warn("Capture could not be encrypted; the capture stays open: " .. tostring(enc_err))
+    return nil
+  end
   if not tpl.no_save then
     local saved, err = utils.save_buffer(bufnr)
     if not saved then
@@ -502,6 +546,11 @@ function M.finalize(buf, opts)
   local tpl = s.template
   if opts.refile and (tpl.type or "entry") ~= "entry" then
     utils.warn("Refiling from a capture buffer makes only sense for `entry'-type templates")
+    return
+  end
+  if opts.refile and s.ctx.loc and s.ctx.loc.decrypted then
+    -- the entry ends up in the PGP message of its target
+    utils.warn("A capture into an encrypted entry can't be refiled")
     return
   end
   vim.cmd("stopinsert")

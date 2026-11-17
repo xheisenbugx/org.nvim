@@ -2319,6 +2319,57 @@ describe("emacs parity: E1", function()
     "** a",
     "** b",
   })
+  -- org-list-to-subtree interprets the item contents: the item's
+  -- indentation goes, blank lines inside stay, src blocks get the content
+  -- indentation and are escaped (no code line becomes a headline)
+  local code_item = "* H\n- a|\n  #+begin_src python\n  def f():\n      return 1\n\n  x = 2\n  #+end_src\n- b"
+  local code_tree = {
+    "* H",
+    "** a",
+    "#+begin_src python",
+    "  def f():",
+    "      return 1",
+    "",
+    "  x = 2",
+    "#+end_src",
+    "** b",
+  }
+  case("make-subtree-code", code_item, function()
+    require("org.lists").make_subtree()
+  end, code_tree)
+  case("toggle-heading-region-code", code_item, function()
+    vim.cmd("normal! V7j")
+    require("org.structure").toggle_heading()
+  end, code_tree)
+  case("make-subtree-star-in-src", "* H\n- a|\n  #+begin_src sh\n  * x\n  #+end_src", function()
+    require("org.lists").make_subtree()
+  end, {
+    "* H",
+    "** a",
+    "#+begin_src sh",
+    "  ,* x",
+    "#+end_src",
+  })
+  case("make-subtree-paragraphs", "* H\n- a|\n  para one\n\n  para two\n- b", function()
+    require("org.lists").make_subtree()
+  end, {
+    "* H",
+    "** a",
+    "para one",
+    "",
+    "para two",
+    "** b",
+  })
+  case("make-subtree-verse", "* H\n- a|\n  #+begin_verse\n  line one\n     indented\n  #+end_verse", function()
+    require("org.lists").make_subtree()
+  end, {
+    "* H",
+    "** a",
+    "#+begin_verse",
+    "line one",
+    "   indented",
+    "#+end_verse",
+  })
   case("toggle-heading-list", "* H\n- [ ] a|\n  - b\n- [X] c", function()
     h.keys("<C-c>*")
   end, {

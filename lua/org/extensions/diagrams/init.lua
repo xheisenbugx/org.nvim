@@ -267,7 +267,7 @@ end
 function M.clear_cache()
   local dir = require("org.utils").expand(opts().cache_dir)
   local n = 0
-  for _, f in ipairs(vim.fn.glob(dir .. "/*", true, true)) do
+  for _, f in ipairs(require("org.utils").glob(dir .. "/*")) do
     if cache_entry(vim.fn.fnamemodify(f, ":t")) and vim.fn.delete(f) == 0 then
       n = n + 1
     end
@@ -360,13 +360,14 @@ function M.unreferenced(bufnr)
     local name = vim.api.nvim_buf_get_name(b)
     if vim.api.nvim_buf_is_loaded(b) and (b == bufnr or vim.fn.fnamemodify(name, ":p:h") == base) then
       if b == bufnr or name:match("%.org$") or name:match("%.org_archive$") then
-        seen[vim.fn.fnamemodify(name, ":p")] = true
+        seen[vim.fs.normalize(vim.fn.fnamemodify(name, ":p"))] = true
         text[#text + 1] = table.concat(vim.api.nvim_buf_get_lines(b, 0, -1, false), "\n")
       end
     end
   end
-  for _, f in ipairs(vim.fn.glob(base .. "/*.org", true, true)) do
-    if not seen[vim.fn.fnamemodify(f, ":p")] then
+  for _, f in ipairs(require("org.utils").glob(base .. "/*.org")) do
+    -- (both sides normalized: a buffer name has backslashes on Windows)
+    if not seen[vim.fs.normalize(vim.fn.fnamemodify(f, ":p"))] then
       local fh = io.open(f, "rb")
       if fh then
         text[#text + 1] = fh:read("*a")

@@ -410,4 +410,83 @@ describe("babel async", function()
       session.kill_all()
     end)
   end)
+
+  -- babel.timeout (no Emacs counterpart): the step is killed with the
+  -- processes it started, synchronous or not
+  describe("babel.timeout", function()
+    -- On Windows a cold start of Git's sh (and the virus scan of the
+    -- script) can take more than a second, and taskkill /T may miss the
+    -- MSYS `sleep` that keeps the output open: a longer timeout and sleep,
+    -- and no bound on how long the kill takes, only that it happens.
+    local is_win = vim.fn.has("win32") == 1
+    local TIMEOUT = is_win and 4000 or 300
+    local SLEEP = is_win and 8 or 1.5
+    local LIMIT = not is_win and 1200 or nil
+    local dir, saved
+    before_each(function()
+      dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      saved = config.opts.babel.timeout
+      config.opts.babel.timeout = TIMEOUT
+    end)
+    after_each(function()
+      config.opts.babel.timeout = saved
+      vim.fn.delete(dir, "rf")
+    end)
+
+    --- A script whose child (`sleep`) outlives the timeout and holds its
+    --- output open, then writes `marker` unless it is killed.
+    local function slow_block(marker)
+      return {
+        "#+begin_src sh :results output",
+        "echo early; sleep " .. SLEEP .. "; touch '" .. dir .. "/" .. marker .. "'",
+        "#+end_src",
+      }
+    end
+
+    local function error_output()
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_get_name(b):match("Org%-Babel Error Output") then
+          return table.concat(vim.api.nvim_buf_get_lines(b, 0, -1, false), "\n")
+        end
+      end
+    end
+
+    --- After the run that started at `start`: it ended in time (not on
+    --- Windows), and the script never got past its `sleep`.
+    local function check_killed(start, marker)
+      local took = (vim.uv.hrtime() - start) / 1e6
+      if LIMIT then
+        ok(took < LIMIT, "waited for the child: " .. took .. " ms")
+      end
+      vim.wait(math.max(0, SLEEP * 1000 + 500 - (vim.uv.hrtime() - start) / 1e6))
+      ok(vim.fn.filereadable(dir .. "/" .. marker) == 0, "the script was not killed")
+    end
+
+    it("stops a synchronous run at the timeout and says so", function()
+      local buf = org_buffer(slow_block("sync"))
+      local start = vim.uv.hrtime()
+      quietly(function()
+        babel.wipe_error_buffer()
+        babel.execute({ bufnr = buf, lnum = 1, sync = true })
+      end)
+      eq({ "", "#+RESULTS:", ": early" }, vim.list_slice(buf_lines(buf), 4))
+      local err = error_output()
+      ok(err and err:find("timed out after " .. TIMEOUT .. " ms", 1, true) and err:find("code 124", 1, true), err)
+      check_killed(start, "sync")
+    end)
+
+    it("stops a background run at the timeout with the processes it started", function()
+      local buf = org_buffer(slow_block("async"))
+      local start = vim.uv.hrtime()
+      quietly(function()
+        babel.wipe_error_buffer()
+        local wait = run(buf, 1)
+        eq(false, (wait(SLEEP * 1000 + 10000)))
+      end)
+      eq({ "", "#+RESULTS:", ": early" }, vim.list_slice(buf_lines(buf), 4))
+      ok((error_output() or ""):find("timed out after " .. TIMEOUT .. " ms", 1, true), error_output())
+      check_killed(start, "async")
+    end)
+  end)
 end)

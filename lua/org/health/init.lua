@@ -5,6 +5,7 @@ local M = {}
 --- class -> { fields = { name -> type }, parent?, open? (any key) }.
 local function meta_classes()
   local classes = {}
+  -- lint: allow glob: the plugin's own lua/ directory, never document text
   for _, f in ipairs(vim.fn.glob(require("org.version").lua_dir() .. "/org/_meta/*.lua", false, true)) do
     local cur
     for _, line in ipairs(vim.fn.readfile(f)) do

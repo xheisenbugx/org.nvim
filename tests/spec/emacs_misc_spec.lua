@@ -150,6 +150,25 @@ describe("emacs: dates", function()
     eq("Due " .. date.today():to_string(), buf_lines(buf)[1])
   end)
 
+  it("C-c . / C-c ! on a date range change only the part at the cursor", function()
+    -- Emacs 9.8.10 org-timestamp: on a range the prompt starts from the
+    -- timestamp at point (match 1 or 2 of org-tr-regexp) and replace-match
+    -- replaces only that timestamp, so the other end stays
+    local defaults = {}
+    with_stub(require("org.calendar"), "pick", function(o)
+      defaults[#defaults + 1] = o.default:to_string()
+      return date.parse("<2026-01-02 Fri>")
+    end, function()
+      local buf = org_buffer({ "Meet <2026-01-01 Thu 10:00>--<2026-01-05 Mon 12:00>" }, { 1, 9 })
+      timestamps.insert_active()
+      eq("Meet <2026-01-02 Fri>--<2026-01-05 Mon 12:00>", buf_lines(buf)[1])
+      buf = org_buffer({ "Meet [2026-01-01 Thu]--[2026-01-05 Mon] x" }, { 1, 27 })
+      timestamps.insert_inactive()
+      eq("Meet [2026-01-01 Thu]--[2026-01-02 Fri] x", buf_lines(buf)[1])
+    end)
+    eq({ "<2026-01-01 Thu 10:00>", "[2026-01-05 Mon]" }, defaults)
+  end)
+
   it("evaluates a date range", function()
     local msg
     local buf = org_buffer({ "<2026-01-01 Thu 10:00>--<2026-01-03 Sat 13:15> => old" }, { 1, 0 })
@@ -288,6 +307,34 @@ describe("emacs: todo / notes / timer", function()
     local text = table.concat(buf_lines(buf), "\n")
     ok(text:find("Note taken on"), text)
     ok(text:find("hello"), text)
+  end)
+
+  it("a negative start offset counts up from below zero (org-timer-start)", function()
+    -- Emacs 9.8.10: org-timer-fix-incomplete keeps the sign before the
+    -- number ("-5:00" -> "-0:05:00") and org-timer-hms-to-secs reads it
+    -- (-300): the start message says "current value is -0:05:00", but
+    -- org-timer-value-string (insert, pause, mode line) shows the absolute
+    -- value, 0:05:00 down to 0:00:00, then up again
+    local buf = org_buffer({ "" }, { 1, 0 })
+    local msgs = {}
+    local okr, err = pcall(with_stub, vim, "notify", function(m)
+      msgs[#msgs + 1] = m
+    end, function()
+      timer.start("-5:00")
+      local v = timer.value()
+      ok(v == -300 or v == -299, v)
+      timer.start("-0:05:00")
+      ok(timer.value() <= -299, timer.value())
+      -- held at -300 s (paused) for the shown values
+      timer.state.paused_at = timer.state.start - 300
+      eq("⏲ 0:05:00 (paused)", timer.statusline())
+      timer.insert()
+    end)
+    timer.state = nil
+    assert(okr, err)
+    ok(msgs[1]:match("current value is %-0:05:00$"), msgs[1])
+    eq("0:05:00 ", buf_lines(buf)[1])
+    eq("-1:01:01", timer.format(-3661))
   end)
 
   it("insert_item adds a timer list item (org-timer-item)", function()

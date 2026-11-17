@@ -682,7 +682,8 @@ local function verse_block_end(lines, i, to)
 end
 
 --- Whether `line` is a comment, a fixed-width line or a keyword (other
---- than CAPTION): Emacs finds no timestamp objects there.
+--- than CAPTION): Emacs finds no objects (timestamps, footnote
+--- references) there.
 local function no_objects(line)
   if line:match("^%s*[#:]%s") or line:match("^%s*[#:]$") then
     return true
@@ -690,6 +691,7 @@ local function no_objects(line)
   local key = line:match("^%s*#%+(%S-):")
   return key ~= nil and not key:upper():match("^CAPTION")
 end
+M.no_objects = no_objects
 
 --- Spans of inline code and verbatim (`~...~`, `=...=`) in `line`.
 ---@param line string
@@ -732,9 +734,10 @@ function M.verbatim_spans(line)
   return spans
 end
 
---- Spans of `line` whose text holds no timestamp objects: verbatim and
---- code, inline source blocks (`src_lang[...]{...}`) and bracket links
---- (path and description). nil when the line has none of them.
+--- Spans of `line` whose text holds no timestamp objects (nor footnote
+--- references): verbatim and code, inline source blocks
+--- (`src_lang[...]{...}`) and bracket links (path and description). nil
+--- when the line has none of them.
 ---@param line string
 ---@return integer[][]|nil
 local function objectless_spans(line)
@@ -779,6 +782,7 @@ local function objectless_spans(line)
   end
   return spans
 end
+M.objectless_spans = objectless_spans
 
 --- The timestamps of `line` that are timestamp objects (date.parse_all,
 --- without those inside verbatim, inline source blocks and links).
@@ -1905,6 +1909,23 @@ function Headline:body_lines()
   return vim.list_slice(self.file.lines, start, self.body_end), start
 end
 
+--- The end of a closed clock as org-clock-sum counts it, or nil when the
+--- clock doesn't count: one whose start has no time is skipped ("Ignoring
+--- invalid CLOCK"), and an end without a time takes the start's
+--- (org-element fills :hour-end and :minute-end from the start).
+---@param c table a clock of `Headline.clocks` ({ start, end? })
+---@return org.Date|nil
+function M.clock_end(c)
+  local s, e = c.start, c["end"]
+  if not e or not s:has_time() then
+    return nil
+  end
+  if not e:has_time() then
+    return e:clone({ hour = s.hour, min = s.min })
+  end
+  return e
+end
+
 --- Total clocked minutes in this headline's own section (closed clocks),
 --- optionally restricted to clocks starting within [from_min, to_min).
 --- With `include_children`, the clocks of every headline in the subtree
@@ -1920,11 +1941,12 @@ function Headline:clocked_minutes(from_min, to_min, include_children)
     -- a naked `CLOCK: => H:MM` counts whatever the range (org-clock-sum)
     total = total + (h.naked_clock_minutes or 0)
     for _, c in ipairs(h.clocks) do
-      if c["end"] then
+      local stop = M.clock_end(c)
+      if stop then
         local s = c.start:minutes()
         if (not from_min or s >= from_min) and (not to_min or s < to_min) then
           -- from the timestamps, not the `=> H:MM` text, like org-clock-sum
-          total = total + date.elapsed_minutes(c.start, c["end"])
+          total = total + date.elapsed_minutes(c.start, stop)
         end
       end
     end

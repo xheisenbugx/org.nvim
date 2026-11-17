@@ -78,6 +78,33 @@ describe("agenda sexps", function()
     eq({ "Stamp <%%(diary-date 10 1 2026)>", "Diary line" }, titles(by[day("2026-10-01")]))
     eq({ "Before heading" }, titles(by[day("2026-10-02")]))
   end)
+
+  -- org-agenda-get-timestamps passes the whole <%%(sexp) time> stamp to
+  -- org-agenda-format-item as DOTIME (the manual's example:
+  -- "<%%(diary-float t 4 2) 22:00-23:00>"); Emacs 9.8.10 shows it at
+  -- 22:00-23:00
+  it("takes the time written after the sexp of a <%%(sexp) time> stamp", function()
+    local by =
+      agenda({ "* Nerd meeting", "  <%%(diary-float t 4 1) 22:00-23:00>" }, "2026-10-01", "2026-10-01", "2026-10-01")
+    local it = by[day("2026-10-01")][1]
+    eq({ 1320, 1380 }, { it.time, it.end_time })
+  end)
+
+  -- org-agenda-get-scheduled / -deadlines take the time from the stamp's
+  -- text (" \\([012]?[0-9]:[0-9][0-9]\\)"), a sexp stamp's too
+  it("takes the time after the sexp of a SCHEDULED or DEADLINE sexp", function()
+    local by = agenda({
+      "* TODO Sched",
+      "  SCHEDULED: <%%(diary-float t 4 1) 10:00>",
+      "* TODO Due",
+      "  DEADLINE: <%%(diary-float t 4 1) 15:30-16:00>",
+    }, "2026-10-01", "2026-10-01", "2026-10-01")
+    local times = {}
+    for _, it in ipairs(by[day("2026-10-01")]) do
+      times[it.title] = { it.time, it.end_time }
+    end
+    eq({ Sched = { 600 }, Due = { 930, 960 } }, times)
+  end)
 end)
 
 describe("global TODO list (org-agenda-get-todos)", function()
@@ -93,5 +120,27 @@ describe("global TODO list (org-agenda-get-todos)", function()
     eq({ "Other" }, titles(items.todo({ file }, nil, { block = block })))
     block.todo_list_sublevels = true
     eq({ "Child", "Other", "Other child" }, titles(items.todo({ file }, nil, { block = block })))
+  end)
+end)
+
+-- org-agenda-format-item removes the timestamp that gives the time, with
+-- the spaces after it (`(regexp-quote time-string) " *"`), before
+-- org-agenda-get-timestamps's REMOVE-RE (org-ts-regexp) takes the other
+-- stamps out without their spaces. Emacs 9.8.10 shows "Meeting with Bob",
+-- "TODO Lunch at cafe" and "Call  with Ann".
+describe("timestamps in an agenda title", function()
+  it("are removed with the spaces after the timed one", function()
+    local by = agenda({
+      "* Meeting <2026-10-01 Thu 10:00> with Bob",
+      "* Call <2026-10-01 Thu> with Ann",
+      "* TODO Lunch <2026-10-01 Thu 12:00-13:00> at cafe",
+      "* Weekly <2026-09-24 Thu 09:00 +1w> sync",
+    }, "2026-10-01", "2026-10-01", "2026-10-01")
+    local shown = {}
+    for _, it in ipairs(by[day("2026-10-01")]) do
+      shown[#shown + 1] = it.display_title or it.title
+    end
+    table.sort(shown)
+    eq({ "Call  with Ann", "Lunch at cafe", "Meeting with Bob", "Weekly sync" }, shown)
   end)
 end)

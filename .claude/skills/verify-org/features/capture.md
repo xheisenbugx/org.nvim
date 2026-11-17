@@ -49,3 +49,8 @@ opens in a capture window, in Insert mode where `%?` is.
   reads the disk, not the buffer.
 - Templates that prompt (`%^{Prompt}`, `%^g`) open an input line; type the
   answer and `<CR>` as separate steps.
+- An `immediate_finish` capture whose target can't be saved (a read-only
+  file: `setfperm` it in a `lua` step) leaves its text in the unsaved
+  target buffer and warns with the file name and the error: give the
+  scenario a wide screen (`width = 240`), or the long warning waits at a
+  hit-enter prompt and the step times out.

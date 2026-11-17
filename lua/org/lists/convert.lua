@@ -305,6 +305,87 @@ function M.subtree_start_level(bufnr, lnum)
   return (odd and math.floor((hl.level + 1) / 2) or hl.level) + 1
 end
 
+--- Width of the leading whitespace of `l`, a tab reaching the next
+--- multiple of 8.
+local function indent_width(l)
+  local col = 0
+  for c in l:match("^[ \t]*"):gmatch(".") do
+    col = c == "\t" and (math.floor(col / 8) + 1) * 8 or col + 1
+  end
+  return col
+end
+
+--- `l` with `n` columns less indentation (at most all of it).
+local function dedent_line(l, n)
+  local ws = l:match("^[ \t]*")
+  if not ws:find("\t", 1, true) then
+    return l:sub(math.min(n, #ws) + 1)
+  end
+  return string.rep(" ", math.max(0, indent_width(l) - n)) .. l:sub(#ws + 1)
+end
+
+--- The lines of an item after its bullet line (`body`, blank lines
+--- included) as the text of the headline the item becomes
+--- (org-list-to-subtree, which interprets the item's contents): without
+--- the item's indentation (`body_col`), keeping relative indentation and
+--- the blank lines but the trailing ones. Like org-element, src and
+--- example blocks get the `edit_src_content_indentation` (unless they
+--- preserve their indentation) and the code in them, as in export and
+--- comment blocks, is escaped: no line of a block becomes a headline.
+---@param body string[]
+---@param body_col integer
+---@return string[]
+function M.subtree_body(body, body_col)
+  local last = #body
+  while last >= 1 and is_blank(body[last]) do
+    last = last - 1
+  end
+  local blocks = require("org.babel.blocks")
+  local out = {}
+  local i = 1
+  while i <= last do
+    local l = body[i]
+    local kind, rest = l:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)(.*)$")
+    kind = kind and kind:lower()
+    local stop
+    if kind == "src" or kind == "example" or kind == "export" or kind == "comment" then
+      for j = i + 1, last do
+        if body[j]:lower():match("^[ \t]*#%+end_" .. vim.pesc(kind) .. "[ \t]*$") then
+          stop = j
+          break
+        end
+      end
+    end
+    if stop then
+      local content = vim.list_slice(body, i + 1, stop - 1)
+      local switches = kind == "src" and (rest:match("^[ \t]+%S+(.*)$") or "") or rest
+      if (kind == "src" or kind == "example") and blocks.preserve_indentation(switches) then
+        -- kept as it is (org-src-preserve-indentation-p)
+      elseif kind == "src" or kind == "example" then
+        local ind = string.rep(" ", require("org.config").opts.edit_src_content_indentation or 0)
+        content = blocks.dedent(blocks.unescape(content))
+        for k, c in ipairs(content) do
+          content[k] = c == "" and "" or ind .. c
+        end
+        content = blocks.escape(content)
+      else
+        for k, c in ipairs(content) do
+          content[k] = is_blank(c) and "" or dedent_line(c, body_col)
+        end
+        content = blocks.escape(blocks.unescape(content))
+      end
+      out[#out + 1] = dedent_line(l, body_col)
+      vim.list_extend(out, content)
+      out[#out + 1] = dedent_line(body[stop], body_col)
+      i = stop + 1
+    else
+      out[#out + 1] = is_blank(l) and "" or dedent_line(l, body_col)
+      i = i + 1
+    end
+  end
+  return out
+end
+
 --- Headline lines for the items of `struct` (org-list-to-subtree): a top
 --- item at `level` (counted without odd levels, see `subtree_start_level`)
 --- and each sub-list one level deeper; with odd levels only, level n has
@@ -335,11 +416,13 @@ function M.list_to_subtree(bufnr, struct, level, items)
       kw = todo_kw .. " "
     end
     out[#out + 1] = (stars(level + depth - 1) .. " " .. kw .. text):gsub("%s+$", "")
+    local body = {}
     for l = it.lnum + 1, it.end_lnum do
-      if owners[l] == it and not is_blank(lines[l - struct.first + 1]) then
-        out[#out + 1] = vim.trim(lines[l - struct.first + 1])
+      if owners[l] == it then
+        body[#body + 1] = lines[l - struct.first + 1]
       end
     end
+    vim.list_extend(out, M.subtree_body(body, M.body_column(it)))
     for _, c in ipairs(it.children) do
       emit(c, depth + 1)
     end

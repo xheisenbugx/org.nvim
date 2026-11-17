@@ -423,6 +423,10 @@ function M.insert(bufnr, tpl, lines, ctx)
     error("capture target is not in buffer " .. bufnr, 0)
   end
   local l = M.place(loc, tpl, lines)
+  local ok, err = shared.reencrypt(loc)
   release(loc)
+  if not ok then
+    error("capture target could not be encrypted: " .. tostring(err), 0)
+  end
   return l
 end

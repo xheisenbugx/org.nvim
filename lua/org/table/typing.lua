@@ -97,6 +97,10 @@ local function after_delete(bufnr)
   if c[1] ~= st.lnum or c[2] ~= st.col or vim.api.nvim_get_current_line() ~= st.line then
     return
   end
+  if require("org.table").in_literal_block(bufnr, c[1]) then
+    -- a `|` line of a src, example, ... block is text (org-at-table-p)
+    return
+  end
   local pipe = st.line:find("|", st.col + 1, true)
   vim.api.nvim_buf_set_text(bufnr, c[1] - 1, pipe - 1, c[1] - 1, pipe - 1, { " " })
   vim.api.nvim_win_set_cursor(0, c)
@@ -157,7 +161,8 @@ local function on_changed(bufnr)
     -- room for the character: drop a space before the separator
     new = new:sub(1, -2)
   end
-  if new ~= seg then
+  -- (a `|` line of a src, example, ... block is text: org-at-table-p)
+  if new ~= seg and not require("org.table").in_literal_block(bufnr, c[1]) then
     vim.api.nvim_buf_set_text(bufnr, c[1] - 1, c[2], c[1] - 1, pipe - 1, { new })
     vim.api.nvim_win_set_cursor(0, c)
   end

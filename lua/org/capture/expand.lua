@@ -428,7 +428,8 @@ function M.expand(text, ctx)
     end, function(d, str, p, e)
       local k, val = d[1], nil
       if k == "<" then
-        val = os.date(d[2], time)
+        -- a time os.date can't decode (Windows before 1970): format-time-string
+        val = os.date(d[2], time) or now:strftime(d[2])
       elseif k == ":" then
         val = keywords[d[2]] or ""
       elseif k == "i" then

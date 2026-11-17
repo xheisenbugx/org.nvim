@@ -93,9 +93,17 @@ local function stamp_file(dir)
   return data .. "/org/cli-clock.stamp"
 end
 
---- Run bin/org; returns exit code, stdout, stderr.
+local MAIN = vim.api.nvim_get_runtime_file("lua/org/extensions/cli/main.lua", false)[1]
+
+--- Run bin/org; returns exit code, stdout, stderr. An argument of several
+--- lines runs main.lua directly, as `org mcp` does: cmd.exe (bin/org.cmd
+--- on Windows) cuts an argument at a newline.
 local function run(dir, args, stdin)
-  local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua" }
+  local multiline = vim.iter(args):any(function(a)
+    return a:find("\n", 1, true) ~= nil
+  end)
+  local cmd = multiline and { vim.v.progpath, "--headless", "-l", MAIN } or { require("org.extensions.cli").bin() }
+  vim.list_extend(cmd, { "--config", dir .. "/cfg.lua" })
   vim.list_extend(cmd, args)
   local res = vim.system(cmd, { text = true, stdin = stdin or false, env = env(dir), cwd = dir }):wait(20000)
   return res.code, res.stdout or "", res.stderr or ""
@@ -694,6 +702,12 @@ describe("cli json: writing", function()
     _, e = json(dir, { "set", "property", "notes-id", "OWNER", "--delete" })
     eq(vim.NIL, e.data.new)
     ok(not table.concat(work(), "\n"):find("OWNER", 1, true))
+    -- a value is one line: one with a newline is refused, not an internal error
+    local before = read(dir .. "/home.org")
+    local code, err = json(dir, { "set", "property", "Buy milk", "NOTE", "first\nsecond" })
+    eq(2, code)
+    eq("bad_value", err.errors[1].code)
+    eq(before, read(dir .. "/home.org"))
   end)
 
   it("schedules and sets deadlines, with ISO dates back", function()

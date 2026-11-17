@@ -199,6 +199,7 @@ Besides stylua, `make lint` runs `scripts/lint_sources.lua` over `lua/`
 | Rule | Flags | Do instead |
 | --- | --- | --- |
 | `expand` | `vim.fn.expand(x)` where `x` isn't a string literal. Vim expansion runs `` `backticks` `` as shell commands and globs, and paths often come from the document. | `utils.expand_vars(x)` (only `~` and `$VAR`) or `utils.expand(x, base)` |
+| `glob` | `vim.fn.glob(x)` / `vim.fn.globpath(d, x)` where an argument isn't a string literal. `glob()` runs `` `backticks` `` as shell commands, `globpath()` splits its directories at commas, and paths often come from the document or a link. | `utils.glob(pattern)` (no shell; `*`, `?`, `[..]`, `{a,b}`, `**`) |
 | `gsub` | `s:gsub(pat, repl)` / `string.gsub` where `repl` is a variable or a concatenation: a `%` in a path, label or user text is read as a capture. | a literal, a function, a table, or `utils.gsub_escape(value)` |
 | `keyword-span` | a value captured from a `#+KEY: value` line located again with `line:find(value)` from the start of the line, which finds `#+name: name` inside the keyword. | capture the column in the same match: `line:match("^#%+name:%s*()(.-)$")` |
 

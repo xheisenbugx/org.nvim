@@ -482,6 +482,28 @@ describe("ics extension", function()
     eq("org-nvim-no-such-curl not found", err)
   end)
 
+  it("gives curl the address in its config on stdin: a secret address is not among its arguments", function()
+    local bin = vim.fs.normalize(dir .. "/bin")
+    local exe =
+      fake_exe(bin, "curl", 'd=$(dirname "$0")\nfor a in "$@"; do echo "$a"; done > "$d/args"\ncat > "$d/config"\n')
+    setup({ calendars = {}, auto_refresh = false, curl = { exe, "-fsSL", "--max-time", "30" } })
+    -- a Google "secret address", with brackets curl would read as a pattern
+    local url = "https://calendar.google.com/calendar/ical/me%40gmail.com/private-0123abcd/basic.ics?x=[1]"
+    local dest = vim.fs.normalize(dir) .. "/x.part"
+    local err
+    ics_mod.fetcher(url, dest, function(e)
+      err = e or false
+    end)
+    vim.wait(10000, function()
+      return err ~= nil
+    end, 5)
+    eq(false, err)
+    -- the output file stays an argument: a curl without Unicode support
+    -- reads its config in the ANSI code page (C:\Users\José\...)
+    eq({ "-fsSL", "--max-time", "30", "-o", dest, "--config", "-" }, vim.fn.readfile(bin .. "/args"))
+    eq({ 'url = "' .. url .. '"', "globoff" }, vim.fn.readfile(bin .. "/config"))
+  end)
+
   it("builds org headings and timestamps for imported events", function()
     local cal = parser.parse(read(fixture))
     local occ = parser.occurrences(cal, day("2026-10-06 Tue"), day("2026-10-06 Tue"), {

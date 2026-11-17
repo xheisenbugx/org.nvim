@@ -6,6 +6,7 @@
 --- Part of org.clock, which loads it.
 
 local date = require("org.date")
+local parser = require("org.parser")
 local shared = require("org.clock.shared")
 
 local M = require("org.clock")
@@ -80,8 +81,10 @@ local function clock_sum(roots, ts, te, pred)
     -- org-clock-sum adds a naked `CLOCK: => H:MM` whatever the range
     local t = hl.naked_clock_minutes or 0
     for _, c in ipairs(hl.clocks) do
-      if c["end"] then
-        t = t + clipped_clock_minutes(c.start, c["end"], ts_s, te_s)
+      -- (a clock without a start time counts for nothing)
+      local stop = parser.clock_end(c)
+      if stop then
+        t = t + clipped_clock_minutes(c.start, stop, ts_s, te_s)
       end
     end
     if hl == run_hl and run_start and run_start:minutes() >= ts and run_start:minutes() <= te then
@@ -135,8 +138,9 @@ function M.sum_minutes(hl, from_min, to_min, own_only)
     local total = hl.naked_clock_minutes or 0
     local from_s, to_s = clip_bounds(from_min, to_min)
     for _, c in ipairs(hl.clocks) do
-      if c["end"] then
-        total = total + clipped_clock_minutes(c.start, c["end"], from_s, to_s)
+      local stop = parser.clock_end(c)
+      if stop then
+        total = total + clipped_clock_minutes(c.start, stop, from_s, to_s)
       end
     end
     return total

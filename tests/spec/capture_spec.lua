@@ -138,6 +138,34 @@ describe("capture.expand (org-capture-fill-template)", function()
     }, file_lines(p))
   end)
 
+  -- org-capture-fill-template: org-set-property puts the answer of a
+  -- plain template without a headline in a property drawer above its text
+  -- (the drawer org-insert-property-drawer makes before the first headline)
+  it("keeps the %^{PROP}p answer of a plain template", function()
+    local p = tmpfile({ "* A" })
+    local restore = answer({ "Bob" })
+    run(capture.capture, {
+      target = p,
+      headline = "A",
+      type = "plain",
+      template = "text %^{Owner}p",
+      immediate_finish = true,
+    })
+    restore()
+    eq({ "* A", ":PROPERTIES:", ":Owner:    Bob", ":END:", "text " }, file_lines(p))
+    -- a plain template starting with a headline: on that headline; in a
+    -- capture buffer too
+    buffer_setup()
+    local p2 = tmpfile({ "* A" })
+    restore = answer({ "Ann" })
+    local buf = run(capture.capture, { target = p2, type = "plain", template = "* H %^{Owner}p\n%?" })
+    restore()
+    eq({ "* H ", ":PROPERTIES:", ":Owner:    Ann", ":END:", "" }, buf_lines(buf))
+    eq({ 5, 0 }, vim.api.nvim_win_get_cursor(0))
+    run(capture.finalize, buf, { jump = false })
+    eq({ "* A", "* H ", ":PROPERTIES:", ":Owner:    Ann", ":END:" }, file_lines(p2))
+  end)
+
   it("repeats the text before %i on every line of the initial content", function()
     eq("- one\n- two", run(capture.expand, "- %i", { initial = "one\ntwo" }))
     eq("  > one\n  > two", run(capture.expand, "  > %i", { initial = "one\ntwo" }))
@@ -864,14 +892,50 @@ describe("capture buffer (capture.in_place = false)", function()
     eq(false, utils.exists(missing))
   end)
 
-  it("an immediate capture that can't be saved leaves no headline behind", function()
+  -- org-capture-finalize inserts the text before save-buffer: a save
+  -- that fails leaves it, with the headline made for it, in the target
+  -- buffer (there is no capture buffer to keep it in)
+  it("an immediate capture that can't be saved keeps its text in the target buffer", function()
     buffer_setup()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
     local p = dir .. "/no/such/dir/t.org"
-    local dbuf = run(capture.capture, { template = "* X", target = p, headline = "New", immediate_finish = true })
+    local warned = {}
+    local warn = utils.warn
+    utils.warn = function(m)
+      warned[#warned + 1] = m
+    end
+    -- no to "Directory ... does not exist; create?"
+    local restore = answer({ false })
+    local dbuf = run(capture.capture, {
+      template = "* X %i",
+      target = p,
+      headline = "New",
+      immediate_finish = true,
+    }, { initial = "text found nowhere else" })
+    restore()
+    utils.warn = warn
     eq(nil, dbuf)
     local tb = utils.find_buffer(p)
+    ok(tb, "the target buffer is kept")
+    eq({ "* New", "** X text found nowhere else" }, buf_lines(tb))
+    eq(true, vim.bo[tb].modified)
+    eq(true, vim.bo[tb].buflisted)
+    ok(
+      warned[1]:match("^Capture could not be saved; the text stays in the unsaved buffer .*t%.org: Canceled$"),
+      warned[1]
+    )
+    eq(false, utils.exists(p))
+    vim.api.nvim_buf_delete(tb, { force = true })
+    -- with `rollback` (the `org` command line, which still has the text)
+    -- the text is taken out again
+    restore = answer({ false })
+    dbuf = run(capture.capture, { template = "* Y", target = p, headline = "New", immediate_finish = true }, {
+      rollback = true,
+    })
+    restore()
+    eq(nil, dbuf)
+    tb = utils.find_buffer(p)
     eq(true, tb == nil or vim.deep_equal({ "" }, buf_lines(tb)))
   end)
 

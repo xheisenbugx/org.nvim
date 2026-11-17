@@ -315,3 +315,178 @@ describe("table_insert_row (org-table-insert-row)", function()
     eq({ 2, 2 }, vim.api.nvim_win_get_cursor(0))
   end)
 end)
+
+describe("`|` lines inside blocks are not tables (org-at-table-p)", function()
+  -- org-at-table-p asks org-element: a line starting with `|` in a src,
+  -- example, export, comment or verse block is text, so the table
+  -- commands leave it alone and C-c C-c runs the block (Emacs Org 9.8.10)
+  local src = {
+    "* Code",
+    "#+begin_src ocaml",
+    "let f = function",
+    "  | Some x -> x",
+    "  | None -> 0",
+    "#+end_src",
+  }
+
+  it("C-c C-c on such a line runs the block and leaves the code alone", function()
+    local buf = org_buffer(vim.deepcopy(src), { 4, 4 })
+    local babel = require("org.babel")
+    local orig, ran = babel.ctrl_c_ctrl_c, false
+    babel.ctrl_c_ctrl_c = function()
+      ran = true
+    end
+    local ok_, err = pcall(require("org.context").context_action)
+    babel.ctrl_c_ctrl_c = orig
+    ok(ok_, err)
+    ok(ran, "the src block is executed")
+    eq(src, buf_lines(buf))
+  end)
+
+  it("Insert-mode <Tab> there is not a field motion", function()
+    local buf = org_buffer(vim.deepcopy(src), { 4, 15 })
+    eq(false, require("org.context").insert_tab())
+    eq(src, buf_lines(buf))
+  end)
+
+  it("the table commands find no table in example, export, comment and verse blocks", function()
+    for _, kind in ipairs({ "example", "export html", "comment", "verse", "SRC sh" }) do
+      local name = kind:match("^%S+")
+      local lines = { "#+begin_" .. kind, "| a | bb |", "| ccc | d |", "#+end_" .. name }
+      local buf = org_buffer(vim.deepcopy(lines), { 2, 2 })
+      eq(nil, tbl.find(0, 2))
+      eq(false, tbl.align())
+      eq(lines, buf_lines(buf))
+    end
+  end)
+
+  it("a table after a block, in a quote block or after an unclosed #+begin_src is one", function()
+    local cases = {
+      { "#+begin_src sh", "echo", "#+end_src", "| a | bb |" },
+      { "#+begin_quote", "| a | bb |", "#+end_quote" },
+      { "#+begin_src sh", "| a | bb |", "* Next", "#+end_src" },
+      { "#+begin_src org", "#+begin_example", "#+end_example", "#+end_src", "| a | bb |" },
+    }
+    for _, lines in ipairs(cases) do
+      local l = 1
+      while not lines[l]:match("^|") do
+        l = l + 1
+      end
+      org_buffer(lines, { l, 2 })
+      ok(tbl.find(0, l), table.concat(lines, "\n"))
+    end
+  end)
+
+  it("a `|` line in a src block after a literal #+end_example is still code", function()
+    local lines = { "#+begin_src org", "#+begin_example", "#+end_example", "| a | bb |", "#+end_src" }
+    org_buffer(lines, { 4, 2 })
+    eq(nil, tbl.find(0, 4))
+  end)
+
+  it("finds the answer again after a change opens or closes a block", function()
+    -- an unclosed #+begin_src is no block: the table below it is one
+    local buf = org_buffer({ "#+begin_src sh", "| a | bb |", "text" }, { 2, 2 })
+    ok(tbl.find(0, 2))
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, { "#+end_src" })
+    eq(nil, tbl.find(0, 2))
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, { "#+end_example" })
+    ok(tbl.find(0, 2))
+  end)
+
+  it("a row added by <Tab> moves the code below without making it a table", function()
+    local buf = org_buffer({ "| a | b |", "", "#+begin_src ocaml", "  | Some x -> x", "#+end_src" }, { 1, 6 })
+    ok(tbl.find(0, 1))
+    eq(nil, tbl.find(0, 4))
+    tbl.next_field() -- adds a row below the last one
+    eq(6, #buf_lines(buf))
+    eq(nil, tbl.find(0, 5))
+    eq("  | Some x -> x", buf_lines(buf)[5])
+  end)
+
+  it("unclosed #+begin_ lines before a block are text", function()
+    local lines = { "#+begin_src a", "#+begin_example", "#+begin_src b", "#+begin_example", "| x |", "#+end_example" }
+    org_buffer(lines, { 5, 2 })
+    eq(nil, tbl.find(0, 5))
+    eq({ [3] = true, [4] = true, [5] = true }, tbl.literal_lines(0))
+  end)
+
+  it("aligning every table of the buffer skips the blocks", function()
+    local lines = {
+      "#+begin_src ocaml",
+      "  | Some x -> x",
+      "  | None -> 0",
+      "#+end_src",
+      "| a | bb |",
+      "| ccc | d |",
+    }
+    local buf = org_buffer(vim.deepcopy(lines), { 1, 0 })
+    tbl.align_all(buf)
+    eq({ lines[1], lines[2], lines[3], lines[4], "| a   | bb |", "| ccc | d  |" }, buf_lines(buf))
+  end)
+
+  it("recalculating every table of the buffer skips the blocks", function()
+    local lines = {
+      "#+begin_example",
+      "| 1 | |",
+      "#+TBLFM: $2=$1*2",
+      "#+end_example",
+      "| 3 | |",
+      "#+TBLFM: $2=$1*2",
+    }
+    local buf = org_buffer(vim.deepcopy(lines), { 1, 0 })
+    tbl.recalc_buffer(buf)
+    eq({ lines[1], lines[2], lines[3], lines[4], "| 3 | 6 |", lines[6] }, buf_lines(buf))
+  end)
+end)
+
+describe("column commands with the cursor on an hline", function()
+  -- org-table-current-column counts `+` as well as `|` on an hline, so
+  -- the column under the cursor is the one acted on (Emacs Org 9.8.10)
+  with_config({ table_fix_formulas_confirm = false })
+
+  it("delete_column deletes that column and fixes its formulas", function()
+    local buf = org_buffer({
+      "| a | b | c |",
+      "|---+---+---|",
+      "| 1 | 2 | 3 |",
+      "#+TBLFM: $3=$2*2::$1=7",
+    }, { 2, 6 })
+    tbl.delete_column()
+    eq({ "| a | c |", "|---+---|", "| 1 | 3 |", "#+TBLFM: $2=$INVALID*2::$1=7" }, buf_lines(buf))
+  end)
+
+  it("insert_column inserts left of it", function()
+    local buf = org_buffer({ "| a | b |", "|---+---|", "| 1 | 2 |" }, { 2, 6 })
+    tbl.insert_column()
+    eq({ "| a |   | b |", "|---+---+---|", "| 1 |   | 2 |" }, buf_lines(buf))
+  end)
+
+  it("move_column moves it", function()
+    local buf = org_buffer({ "| a | b | c |", "|---+---+---|", "| 1 | 2 | 3 |", "#+TBLFM: $3=$2" }, { 2, 6 })
+    tbl.move_column(1)
+    eq({ "| a | c | b |", "|---+---+---|", "| 1 | 3 | 2 |", "#+TBLFM: $2=$3" }, buf_lines(buf))
+  end)
+
+  it("on the first column's dashes it is column 1", function()
+    local buf = org_buffer({ "| a | b |", "|---+---|", "| 1 | 2 |" }, { 2, 2 })
+    tbl.delete_column()
+    eq({ "| b |", "|---|", "| 2 |" }, buf_lines(buf))
+  end)
+end)
+
+describe("coordinate overlays of a table starting with an hline", function()
+  -- the column labels sit over the first line's separators, `+` included
+  it("labels every column", function()
+    local buf = org_buffer({ "|---+----|", "| a | bb |", "| c | d  |" }, { 2, 2 })
+    local ns = vim.api.nvim_create_namespace("org.table.coordinates")
+    tbl.toggle_coordinate_overlays()
+    local label
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      if m[4].virt_lines then
+        label = m[4].virt_lines[1][1][1]
+      end
+    end
+    eq("  $1  $2", label)
+    tbl.toggle_coordinate_overlays()
+  end)
+end)

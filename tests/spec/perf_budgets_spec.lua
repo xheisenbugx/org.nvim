@@ -796,6 +796,63 @@ describe("perf: tables", function()
     ok(require("tests.helpers.highlighter").has(10, 3, "orgTable"), "the row is drawn as a table")
   end)
 
+  it("a table at the end of a long section edits as fast as one at its top", function()
+    -- whether a table is inside a src or example block (where `|` lines
+    -- are code) is read from the section above it once, not again on
+    -- every <Tab>, C-c C-c or character typed into a field
+    local table_mod, context = require("org.table"), require("org.context")
+    local typing = require("org.table.typing")
+    local function run(prefix)
+      local t = gen.table(300, 10, { long_cell = 40 })
+      local lines = { t[1] }
+      for i = 1, prefix do
+        lines[#lines + 1] = "Some text in a long section, line " .. i
+      end
+      vim.list_extend(lines, t, 2)
+      local buf = open(lines)
+      local row = prefix + 10
+      collectgarbage()
+      local spent = 0
+      local function timed(fn, ...)
+        local t0 = now()
+        fn(...)
+        spent = spent + now() - t0
+      end
+      vim.api.nvim_win_set_cursor(0, { row, 2 })
+      timed(function()
+        for _ = 1, 30 do
+          table_mod.next_field()
+        end
+        for _ = 1, 20 do
+          context.context_action()
+        end
+      end)
+      -- characters typed into a padded field in an Insert-mode session: the
+      -- table's handlers are timed, not the change itself (a change to a
+      -- 100,000-line buffer costs the same before any table)
+      vim.api.nvim_exec_autocmds("InsertEnter", { buffer = buf })
+      vim.api.nvim_win_set_cursor(0, { row + 5, 2 })
+      for ch in ("abcdefghijklmnopqrst"):gmatch(".") do
+        timed(typing._on_char, buf, ch)
+        local c = vim.api.nvim_win_get_cursor(0)
+        vim.api.nvim_buf_set_text(buf, c[1] - 1, c[2], c[1] - 1, c[2], { ch })
+        vim.api.nvim_win_set_cursor(0, { c[1], c[2] + 1 })
+        timed(typing._on_changed, buf)
+      end
+      vim.api.nvim_exec_autocmds("InsertLeave", { buffer = buf })
+      ok(vim.api.nvim_get_current_line():find("abcdefghijklmnopqrst", 1, true), "typed into the field")
+      return spent
+    end
+    local short = run(0)
+    vim.cmd("silent! %bwipeout!")
+    local long = run(100000)
+    report("table edits below 100,000 lines", long, (" (at the top: %.1f ms)"):format(short))
+    ok(
+      long <= 2 * short + 50 or not TIMED,
+      ("edits below 100,000 lines took %.0f ms, at the top %.0f ms"):format(long, short)
+    )
+  end)
+
   it("recalculates formulas linearly", function()
     local buf = open({ "" })
     local n

@@ -122,7 +122,7 @@ local function names(pat, path, rp)
     return true
   end
   if pat:find("[%*%?%[{]") then
-    for _, f in ipairs(vim.fn.glob(pat, false, true)) do
+    for _, f in ipairs(utils.glob(pat)) do
       if real(vim.fs.normalize(f)) == rp then
         return true
       end
@@ -147,7 +147,7 @@ local function allowed(path)
   local rp = real(path)
   for _, pat in ipairs(opts().allow or {}) do
     local e = vim.fs.normalize(pat)
-    local dirs = e:find("[%*%?%[{]") and vim.fn.glob(e, false, true) or { e }
+    local dirs = e:find("[%*%?%[{]") and utils.glob(e) or { e }
     for _, d in ipairs(dirs) do
       local rd = real(vim.fs.normalize(d)):gsub("/+$", "")
       if rp:sub(1, #rd + 1) == rd .. "/" or path:sub(1, #d + 1) == d .. "/" then
@@ -855,7 +855,7 @@ local function candidates(path)
     end
   end
   for _, pat in ipairs(opts().files or {}) do
-    for _, f in ipairs(vim.fn.glob(vim.fs.normalize(pat), false, true)) do
+    for _, f in ipairs(utils.glob(vim.fs.normalize(pat))) do
       add(f)
     end
   end
@@ -866,7 +866,7 @@ local function candidates(path)
   end
   local dir = vim.fs.dirname(path)
   for _, d in ipairs({ dir, vim.fs.dirname(dir), vim.fs.dirname(vim.fs.dirname(dir)) }) do
-    for _, f in ipairs(vim.fn.glob(d .. "/*.org", false, true)) do
+    for _, f in ipairs(utils.glob(d .. "/*.org")) do
       add(f)
     end
   end
@@ -1010,7 +1010,7 @@ end
 function M.health(h, o)
   local found = 0
   for _, pat in ipairs(o.files or {}) do
-    for _, f in ipairs(vim.fn.glob(vim.fs.normalize(pat), false, true)) do
+    for _, f in ipairs(utils.glob(vim.fs.normalize(pat))) do
       found = found + 1
       h.ok("literate file: " .. utils.abbreviate(f))
     end

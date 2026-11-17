@@ -154,6 +154,7 @@ local function ensure_buf(name)
       local st2 = states[buf]
       states[buf] = nil
       if st2 then
+        M.untrack_items(st2)
         st2.buf = nil
         st2.win = nil
       end
