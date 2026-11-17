@@ -321,13 +321,13 @@ describe("parser highlighter: dates and planning", function()
       local small = time(string.rep(unit, math.floor(20000 / #unit)))
       local big = time(string.rep(unit, math.floor(200000 / #unit)))
       -- ten times the text, well under a hundred times the time
-      ok(big < math.max(small, 1) * 40, string.format("%q: %.1f ms then %.1f ms", unit, small, big))
+      ok(big < math.max(small, 1) * 40 or under_coverage(), string.format("%q: %.1f ms then %.1f ms", unit, small, big))
     end
     for _, line in ipairs({
       "CLOCK: " .. string.rep("=> 1:00 =>  ", 20000),
       "* TODO " .. string.rep(" ", 200000) .. "COMMENT",
     }) do
-      ok(time(line) < 200, line:sub(1, 20))
+      ok(time(line) < 200 or under_coverage(), line:sub(1, 20))
     end
   end)
 end)

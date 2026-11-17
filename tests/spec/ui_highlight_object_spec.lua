@@ -439,7 +439,7 @@ describe("parser highlighter: objects", function()
       local small, made = time(unit, math.floor(20000 / #unit))
       local big = time(unit, math.floor(200000 / #unit))
       ok(made > 0, unit)
-      ok(big < math.max(small, 1) * 40, string.format("%s: %.1f ms then %.1f ms", unit, small, big))
+      ok(big < math.max(small, 1) * 40 or under_coverage(), string.format("%s: %.1f ms then %.1f ms", unit, small, big))
     end
   end)
 end)

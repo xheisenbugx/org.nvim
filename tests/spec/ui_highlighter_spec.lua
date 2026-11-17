@@ -90,7 +90,7 @@ describe("parser highlighter", function()
     time(100)
     local small, big = time(2000), time(20000)
     -- ten times the text, well under a hundred times the time
-    ok(big < math.max(small, 1) * 40, string.format("%.1f ms then %.1f ms", small, big))
+    ok(big < math.max(small, 1) * 40 or under_coverage(), string.format("%.1f ms then %.1f ms", small, big))
   end)
 
   it("leaves verbatim and code out of spell checking", function()
@@ -390,7 +390,7 @@ describe("parser highlighter: emphasis", function()
       local t = vim.uv.hrtime()
       local okr, err = pcall(vim.cmd, "redraw!")
       ok(okr, tostring(err))
-      ok((vim.uv.hrtime() - t) / 1e6 < 500, "slow redraw")
+      ok((vim.uv.hrtime() - t) / 1e6 < 500 or under_coverage(), "slow redraw")
       ok(hl.has(4, 3, "orgtodo"), hl.groups(4, 3))
       ok(hl.has(3, 8, "orgbold"), hl.groups(3, 8))
       msgs[#msgs + 1] = vim.api.nvim_exec2("messages", { output = true }).output

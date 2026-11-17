@@ -340,7 +340,7 @@ describe("parser highlighter: blocks", function()
     end
     time(100)
     local small, big = time(2000), time(20000)
-    ok(big < math.max(small, 1) * 40, string.format("%.1f ms then %.1f ms", small, big))
+    ok(big < math.max(small, 1) * 40 or under_coverage(), string.format("%.1f ms then %.1f ms", small, big))
   end)
 end)
 
@@ -430,7 +430,7 @@ describe("parser highlighter: latex", function()
     end
     time(100)
     local small, big = time(1000), time(10000)
-    ok(big < math.max(small, 1) * 40, string.format("%.1f ms then %.1f ms", small, big))
+    ok(big < math.max(small, 1) * 40 or under_coverage(), string.format("%.1f ms then %.1f ms", small, big))
   end)
 end)
 
