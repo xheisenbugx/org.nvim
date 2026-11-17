@@ -131,6 +131,26 @@ describe("clock in (Emacs)", function()
     eq(0, c["end"].min % 15)
   end)
 
+  test("rounds a tie to the even multiple, like org-current-time", function()
+    -- org-current-time rounds with (round MIN R): ties go to the even
+    -- multiple, so with 10 minutes 10:05 is 10:00 and 10:25 is 10:20
+    config.opts.clock.rounding_minutes = 10
+    local now = date.now
+    local t = date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 5 })
+    date.now = function()
+      return t
+    end
+    local buf = file_buffer({ "* A" })
+    local ok_run, err = pcall(function()
+      clock.clock_in()
+      t = date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 25 })
+      clock.clock_out()
+    end)
+    date.now = now
+    ok(ok_run, err)
+    eq("CLOCK: [2026-11-02 Mon 10:00]--[2026-11-02 Mon 10:20] =>  0:20", buf_lines(buf)[3])
+  end)
+
   test("marks the default task (16), starts where the last clock stopped (64)", function()
     local buf = file_buffer({ "* A", "* B" })
     vim.api.nvim_win_set_cursor(0, { 1, 0 })

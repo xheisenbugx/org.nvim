@@ -1885,8 +1885,11 @@ for none, a number N for "once there are N clock lines"), then
 `clock.into_drawer`, then the log drawer. With `log_note_clock_out` (or
 `#+STARTUP: lognoteclock-out`), clocking out asks for a note that goes
 below the CLOCK line. `clock.continuously` starts a new clock where the
-last one stopped, `clock.rounding_minutes` rounds clock times and
-`clock.in_resume` continues an entry's open CLOCK line.
+last one stopped, `clock.rounding_minutes` rounds clock times like Emacs
+(org-current-time): clocking out takes the nearest multiple, a tie going
+to the even one (with 10, 10:25 is 10:20); clocking in never starts in
+the future (with 10, 10:27 is 10:20). `clock.in_resume` continues an
+entry's open CLOCK line.
 
 Marking a clocked task done clocks it out (`clock.out_when_done`: true or a
 list of states). A running clock is restored after restarting Neovim

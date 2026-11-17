@@ -192,6 +192,27 @@ function M.last_clock_out(hl)
   return nil
 end
 
+--- `d` with its minutes rounded to a multiple of `r`, like org-current-time
+--- with ROUNDING-MINUTES: `(round MIN R)` takes a tie to the even multiple
+--- (with 10, 10:25 is 10:20 and 10:35 is 10:40); the hour and the day carry
+--- over. `d` itself when `r` is below 2.
+---@param d org.Date
+---@param r? integer
+---@return org.Date
+function M.round_minutes(d, r)
+  r = tonumber(r) or 0
+  if r <= 1 then
+    return d
+  end
+  -- min / r is exact for a tie (an odd number of halves)
+  local q = d.min / r
+  local f = floor(q)
+  if q - f > 0.5 or (q - f == 0.5 and f % 2 == 1) then
+    f = f + 1
+  end
+  return d:add(r * f - d.min, "min")
+end
+
 --- The time recorded by CLOSED and log notes (org-current-effective-time):
 --- with `use_last_clock_out_time_as_effective_time` and a headline, the
 --- last clock-out time of its subtree; with `use_effective_time`, before
