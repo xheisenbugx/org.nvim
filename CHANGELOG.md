@@ -8,6 +8,20 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.3.6] - 2026-11-17
+
+### Fixes
+
+- 50 bugs from a bug hunt across links, capture, agenda, babel, tables, dates and extensions ([#361](https://github.com/xheisenbugx/org.nvim/pull/361))
+- **ics:** Give a fetch command that isn't curl `-o FILE URL` again ([#362](https://github.com/xheisenbugx/org.nvim/pull/362))
+
+<details><summary>Tests, CI and chores (2)</summary>
+
+- **test:** Fix the timing flakes in the coverage run, the clock specs and the babel session specs ([#358](https://github.com/xheisenbugx/org.nvim/pull/358))
+- **ci:** Open an issue when the merge-back or the weekly coverage run fails ([#359](https://github.com/xheisenbugx/org.nvim/pull/359))
+
+</details>
+
 ## [v3.3.5] - 2026-11-16
 
 ### Fixes
@@ -672,6 +686,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.3.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.5...v3.3.6
 [v3.3.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.4...v3.3.5
 [v3.3.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.3...v3.3.4
 [v3.3.3]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.2...v3.3.3
