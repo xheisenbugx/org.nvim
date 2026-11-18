@@ -69,3 +69,4 @@ lua/org/yank.lua
 lua/org/cite.lua
 lua/org/cite
 lua/org/cite_mouse.lua
+lua/org/log.lua

@@ -110,7 +110,8 @@ local function native_indent(ft, lines, idx, like)
   end
   vim.api.nvim_buf_set_lines(scratch, 0, -1, false, lines)
   if ft and ft ~= "" then
-    pcall(function()
+    -- (the language's ftplugin may fail: the buffer is still there)
+    utils.try("babel edit: set the filetype " .. ft, function()
       vim.bo[scratch].filetype = ft
     end)
   end

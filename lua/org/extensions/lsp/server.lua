@@ -237,7 +237,7 @@ function M.preload(srv)
     local stop = vim.uv.hrtime() + 8e6
     while i < #list and vim.uv.hrtime() < stop do
       i = i + 1
-      pcall(function()
+      require("org.utils").try("lsp: index a file", function()
         local d = util.doc_from_path(list[i])
         if d then
           targets.index(d.file)
@@ -339,6 +339,7 @@ function M.cmd(dispatchers)
       srv.diagnostics.stop()
     end
     vim.schedule(function()
+      -- lint: allow pcall: Neovim's LSP client, which may be gone at exit
       pcall(dispatchers.on_exit, code or 0, 0)
     end)
   end
@@ -371,9 +372,10 @@ function M.cmd(dispatchers)
       end
       -- the id too: Neovim 0.12+ drops replies (inlay hints) whose
       -- request_id isn't the one it is waiting for
-      pcall(callback, err, err == nil and result or nil, id)
+      local utils = require("org.utils")
+      utils.try("lsp: reply handler", callback, err, err == nil and result or nil, id)
       if notify_reply_callback then
-        pcall(notify_reply_callback, id)
+        utils.try("lsp: reply handler", notify_reply_callback, id)
       end
     end)
     return true, id

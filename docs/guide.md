@@ -794,9 +794,11 @@ start of the next line and puts an icon at the link.
 read files and headlines as plain data, query them, change them (TODO
 state, tags, priority, properties, dates, clock, refile, archive, IDs),
 run agenda queries without opening the agenda, capture without a window,
-store and resolve links, and listen to events such as `OrgTodoStateChange`,
+store and resolve links, read what was clocked and done (`api.clocks`,
+`api.completed`), and listen to events such as `OrgTodoStateChange`,
 `OrgTagsChanged` or `OrgRefile`. Changes work whether or not the file is
-open, and never prompt.
+open, and never prompt unless you pass `interactive = true` to run one
+like its key (the note and date prompts).
 
 ```lua
 local api = require("org.api")

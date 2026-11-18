@@ -143,7 +143,7 @@ end
 --- The Column menu comes and goes with the view (org-columns-menu).
 local function sync_menus()
   if package.loaded["org.menu"] then
-    pcall(require("org.menu").sync)
+    utils.try("columns: sync the menu", require("org.menu").sync)
   end
 end
 

@@ -335,7 +335,7 @@ function M.show_reference(st, move)
         if rhs:sub(j, j + 1) == ".." then
           spec2, k = formula().parse_ref(rhs, j + 2)
         end
-        pcall(function()
+        utils.try("formula editor: mark a reference", function()
           local function rowof(sp, pos)
             if not sp.row then
               return r
@@ -618,7 +618,7 @@ function M.open()
   vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
     buffer = buf,
     callback = function()
-      pcall(M.show_reference, st, false)
+      utils.try("formula editor: show the reference", M.show_reference, st, false)
     end,
   })
   local function map(lhs, fn, desc, modes)
@@ -641,7 +641,7 @@ function M.open()
   for _, d in ipairs({ "Up", "Down", "Left", "Right" }) do
     map("<S-" .. d .. ">", function()
       M.shift_reference(d:lower())
-      pcall(M.show_reference, st, true)
+      utils.try("formula editor: show the reference", M.show_reference, st, true)
     end, "shift reference " .. d:lower())
   end
   map("<M-S-Up>", function()
@@ -669,7 +669,7 @@ function M.open()
       end)
     end
   end, "toggle table coordinates")
-  pcall(M.show_reference, st, false)
+  utils.try("formula editor: show the reference", M.show_reference, st, false)
   utils.notify("Edit formulas, finish with <C-c><C-c> or <C-c>'")
   return buf, st
 end
@@ -690,7 +690,7 @@ function M.move_test_row(st, dir)
     end
     l = l + dir
   end
-  pcall(M.show_reference, st, false)
+  utils.try("formula editor: show the reference", M.show_reference, st, false)
 end
 
 --- Scroll the table window (org-table-fedit-scroll).

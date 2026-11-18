@@ -82,7 +82,7 @@ local function cfg()
 end
 
 local function fire(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data or {}, modeline = false })
+  utils.user_event(pattern, data or {})
 end
 
 --- Complete "SS" or "M:SS" to "H:MM:SS" (org-timer-fix-incomplete). A

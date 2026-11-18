@@ -40,6 +40,7 @@ if jit then
   -- (macOS), with a large file loaded, a new area often couldn't be, and
   -- each time every trace was flushed; org.ui.emphasis and the rest were
   -- compiled again at every keystroke, which typed 4 times slower)
+  -- lint: allow pcall: a LuaJIT without jit.opt keeps its default
   pcall(function()
     require("jit.opt").start("sizemcode=256")
   end)

@@ -71,7 +71,10 @@ function M.notify(msg)
   local cfg = clock_cfg()
   local handler = cfg.notification_handler
   if type(handler) == "function" then
-    pcall(handler, msg)
+    local ok, err = utils.try("clock.notification_handler", handler, msg)
+    if not ok then
+      utils.warn("clock.notification_handler failed: " .. tostring(err))
+    end
   elseif type(handler) == "string" and handler ~= "" then
     pcall(vim.system, { handler, msg }, { detach = true })
   else

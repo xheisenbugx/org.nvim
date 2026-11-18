@@ -131,7 +131,7 @@ local function watch_delete_keys()
       deleting[bufnr] = nil
       return
     end
-    pcall(on_delete, bufnr, backward)
+    require("org.utils").try("table: delete in a field", on_delete, bufnr, backward)
   end, vim.api.nvim_create_namespace("org.table.typing.keys"))
 end
 

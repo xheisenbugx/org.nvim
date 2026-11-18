@@ -494,7 +494,7 @@ local function jump(hl)
   else
     utils.open_file(hl.file.filename, hl.line)
   end
-  pcall(require("org.fold").show_context, hl.line, "ancestors")
+  utils.try("ql: show the context", require("org.fold").show_context, hl.line, "ancestors")
 end
 
 --- Jump to an entry matching a query (org-ql-find). Searches the current

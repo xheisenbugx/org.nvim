@@ -165,7 +165,7 @@ local function run_hook(name, pattern, data)
       end
     end
   end
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data or {}, modeline = false })
+  utils.user_event(pattern, data or {})
 end
 
 --- The executable computing file checksums (org-mobile-checksum-binary).

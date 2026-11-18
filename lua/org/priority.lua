@@ -17,11 +17,10 @@ local function changed(bufnr, lnum, old, new)
     return
   end
   local name = vim.api.nvim_buf_get_name(bufnr)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgPriorityChanged",
-    data = { bufnr = bufnr, lnum = lnum, file = name ~= "" and vim.fs.normalize(name) or nil, from = old, to = new },
-    modeline = false,
-  })
+  utils.user_event(
+    "OrgPriorityChanged",
+    { bufnr = bufnr, lnum = lnum, file = name ~= "" and vim.fs.normalize(name) or nil, from = old, to = new }
+  )
 end
 
 --- Numeric value of a priority string or number (org-priority-to-value):

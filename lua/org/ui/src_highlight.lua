@@ -334,7 +334,7 @@ local function row_marks(entry, rel)
     local query, lang = t.query, t.lang
     local captures = query.captures
     -- (a query error leaves the rows with what was found before it)
-    pcall(function()
+    require("org.utils").try("src block highlight", function()
       for id, node, metadata in query:iter_captures(t.root, entry.source, first, last + 1) do
         local name = captures[id]
         if name and name:byte(1) ~= 95 and not SKIP[name] then

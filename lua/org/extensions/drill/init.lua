@@ -891,7 +891,7 @@ function M.write_meta(bufnr, lnum, scheduled, set, remove)
     local ok, hidden = pcall(fold.is_concealed, bufnr, hl.line + 1)
     vim.api.nvim_buf_set_lines(bufnr, hl.line, last, false, out)
     if ok and hidden and #out > 0 then
-      pcall(fold.conceal, bufnr, hl.line + 1, hl.line + #out)
+      utils.try("drill: conceal the entry", fold.conceal, bufnr, hl.line + 1, hl.line + #out)
     end
     local delta = #out - (last - hl.line)
     local drawer = #drawer > 0 and hl.line + (pline and 1 or 0) + 1 or nil

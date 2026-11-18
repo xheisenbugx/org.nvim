@@ -290,6 +290,17 @@ function M.check_core(h)
   if #own > 0 then
     h.info("your config has runtime files for the org filetype: " .. table.concat(own, ", "))
   end
+  -- the failures org.nvim caught and went on from (org.log loads on the
+  -- first one)
+  local log = package.loaded["org.log"]
+  local errors = log and log.counts.error or 0
+  if errors > 0 then
+    h.warn(string.format("%d error(s) caught and logged this session", errors), {
+      "`:Org log` shows them with the versions a bug report needs: add it to the report, see :h org-log",
+    })
+  else
+    h.ok("no errors logged this session (:Org log)")
+  end
 end
 
 --- What is wrong with the entries of `agenda_files` that give no agenda

@@ -42,6 +42,52 @@ return {
     },
   },
   {
+    name = "kanban: J moves a card after the next one of its column in the file",
+    files = {
+      ["tasks.org"] = {
+        "* TODO Write the report",
+        "  DEADLINE: <2026-10-14 Wed>",
+        "* DONE Pay the rent",
+        "* TODO Book the train",
+      },
+    },
+    open = "tasks.org",
+    setup = { agenda_files = { "{{dir}}/*.org" }, extensions = { kanban = { save = true, sort = "file" } } },
+    steps = {
+      { key = "{{global.kanban_open}}", expect = { screen = { "TODO  2", "Write the report", "Book the train" } } },
+      {
+        key = "J",
+        note = "past the DONE sibling between them, as M-down twice",
+        expect = {
+          file = {
+            "tasks.org",
+            lines = {
+              "* DONE Pay the rent",
+              "* TODO Book the train",
+              "* TODO Write the report",
+              "  DEADLINE: <2026-10-14 Wed>",
+            },
+          },
+        },
+      },
+      {
+        key = "K",
+        expect = {
+          file = {
+            "tasks.org",
+            lines = {
+              "* DONE Pay the rent",
+              "* TODO Write the report",
+              "  DEADLINE: <2026-10-14 Wed>",
+              "* TODO Book the train",
+            },
+          },
+        },
+      },
+      { key = "q", expect = { filetype = "org", no_screen = "Kanban" } },
+    },
+  },
+  {
     name = "journal: a new entry makes today's file, day and time headings",
     setup = { extensions = { journal = { directory = "{{dir}}/journal" } } },
     steps = {

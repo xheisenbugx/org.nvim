@@ -362,6 +362,7 @@ function Response:stream()
     ["Connection"] = "keep-alive",
   }))
   -- reading on: EOF (the page went away) closes the stream
+  -- lint: allow pcall: the page may have gone already (a closed socket)
   pcall(self.client.read_start, self.client, function(err, data)
     if err or not data then
       s:close()

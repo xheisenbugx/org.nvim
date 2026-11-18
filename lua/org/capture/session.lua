@@ -97,7 +97,7 @@ end
 --- Fire a capture User autocmd (the global org-capture-*-finalize-hook),
 --- after the template's own hook, like Emacs.
 local function emit(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+  utils.user_event(pattern, data)
 end
 
 local function first_headline_line(bufnr, start)
@@ -488,9 +488,9 @@ local function store_unnarrowed(s)
   if ttype == "entry" then
     line = first_headline_line(bufnr, line)
   elseif ttype == "table-line" then
-    pcall(require("org.table").align_at, bufnr, line)
+    utils.try("capture: align the table", require("org.table").align_at, bufnr, line)
   end
-  pcall(require("org.lists").update_statistics_for, bufnr, line)
+  utils.try("capture: update statistics cookies", require("org.lists").update_statistics_for, bufnr, line)
   local entry = marks.set(bufnr, line)
   run_hook(tpl.before_finalize, bufnr, line)
   emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })

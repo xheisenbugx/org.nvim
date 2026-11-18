@@ -185,7 +185,7 @@ local function save()
     path = name ~= "" and name or nil
   end
   pcall(vim.fn.mkdir, vim.fn.fnamemodify(f, ":h"), "p")
-  pcall(utils.write_json, f, {
+  local ok, err = utils.try("pomodoro: save " .. f, utils.write_json, f, {
     phase = st.phase,
     started = st.started,
     duration = st.duration,
@@ -196,6 +196,9 @@ local function save()
     title = st.title,
     pid = vim.fn.getpid(),
   })
+  if not ok then
+    utils.warn("pomodoro: could not save the session (state_file): " .. tostring(err))
+  end
 end
 
 local function null(v)
@@ -371,11 +374,7 @@ local function begin(phase, now)
     start_timer()
   end
   save()
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgPomodoroPhase",
-    data = { phase = phase, count = st.count, title = st.title },
-    modeline = false,
-  })
+  utils.user_event("OrgPomodoroPhase", { phase = phase, count = st.count, title = st.title })
   redraw()
 end
 
@@ -733,7 +732,7 @@ function M.restore()
     start_timer()
   end
   if torn_down and not paused_at and (data.phase == "work" or data.phase == "overtime") then
-    pcall(clock_in)
+    utils.try("pomodoro: clock in", clock_in)
   end
   redraw()
   return M.state
@@ -794,7 +793,7 @@ function M.setup(o)
   vim.api.nvim_create_autocmd("VimLeavePre", {
     group = augroup,
     callback = function()
-      pcall(save)
+      utils.try("pomodoro: save", save)
     end,
   })
   local ok, err = pcall(M.restore)
@@ -812,12 +811,12 @@ function M.teardown(again)
   end
   if M.state then
     -- kept in state_file: a following setup() goes on with it
-    pcall(save)
+    utils.try("pomodoro: save", save)
     stop_timer()
     -- set up again (the config sourced again): the next setup() goes on
     -- with the session and its clock, which is not split
     if not again and (M.state.phase == "work" or M.state.phase == "overtime") and not M.state.paused_at then
-      pcall(clock_out)
+      utils.try("pomodoro: clock out", clock_out)
     end
     M.state = nil
     torn_down = true

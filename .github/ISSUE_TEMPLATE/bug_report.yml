@@ -6,7 +6,8 @@ body:
     attributes:
       value: |
         Thanks for reporting! `:Org bug_report` inside Neovim fills in the
-        versions and, if you agree, your options for you.
+        versions and, if you agree, your options for you. `:Org log` shows
+        the errors org.nvim caught this session.
         Please search the [existing issues](https://github.com/xheisenbugx/org.nvim/issues) first.
   - type: textarea
     id: description
@@ -83,6 +84,12 @@ body:
       description: The first line of `nvim --version`.
     validations:
       required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: ":Org log"
+      description: Optional. What `:Org log` shows after the problem happened (the errors org.nvim caught, with the versions).
+      render: text
   - type: textarea
     id: health
     attributes:

@@ -351,7 +351,7 @@ local function redraw_agenda()
   end
   for _, b in ipairs(S.view.blocks or {}) do
     if b.type == "code_todos" then
-      pcall(view.redo)
+      require("org.utils").try("code todos: redo the agenda", view.redo)
       return
     end
   end

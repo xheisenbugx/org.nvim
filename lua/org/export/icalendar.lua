@@ -867,7 +867,10 @@ local function write_ics(path, text)
   fd:close()
   local hook = icfg().after_save_hook
   if type(hook) == "function" then
-    pcall(hook, path)
+    local ok, err = utils.try("icalendar after_save_hook", hook, path)
+    if not ok then
+      utils.warn("export.icalendar.after_save_hook failed: " .. tostring(err))
+    end
   end
   return path
 end
@@ -887,7 +890,7 @@ local function create_uids(bufnr)
     end
   end
   for i = #lnums, 1, -1 do
-    pcall(id.get_create, { bufnr = bufnr, lnum = lnums[i] })
+    utils.try("icalendar: create an ID", id.get_create, { bufnr = bufnr, lnum = lnums[i] })
   end
 end
 

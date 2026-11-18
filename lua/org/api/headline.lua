@@ -6,6 +6,17 @@
 --- file is loaded, never by a guess), run the same code as the keys and
 --- actions, and refresh the fields. See |org-api-headlines|.
 
+-- Not compiled by the JIT, like org.agenda.items: a query makes a handle
+-- per headline in short, branchy code (its dates, tags, properties), whose
+-- traces mostly abort or fill the machine-code area, which on macOS arm64
+-- flushes every trace in Neovim (see "Performance budgets" in
+-- CONTRIBUTING.md). Interpreted, its timings stay steady: compiled, it
+-- was 10-30% faster in a fresh Neovim, but a view's build sometimes took
+-- twice as long after a flush.
+if jit then
+  jit.off(true, true)
+end
+
 local files = require("org.files")
 local utils = require("org.utils")
 
@@ -24,6 +35,7 @@ local M = {}
 ---@field warning { type: string, value: integer, unit: string }|nil e.g. `-3d`
 ---@field date string `YYYY-MM-DD`
 ---@field time string|nil `HH:MM`
+---@field days integer the day number: days from 1970-01-01 to the date's day (subtract two to count the days between them; no time zone involved). Since API 1.3
 ---@field timestamp integer Unix time (local time zone; midnight without a time)
 ---@field text string the timestamp as org writes it, e.g. `<2026-10-02 Fri 10:00 +1w>`
 ---@field raw string the timestamp as written in the file, a range `<...>--<...>` whole (`text` when unknown)
@@ -51,6 +63,9 @@ local M = {}
 ---@field outline_path string[] titles of the ancestors
 ---@field archived boolean has the ARCHIVE tag
 ---@field commented boolean a COMMENT headline
+---@field bufnr integer|nil the buffer it was read from (nil when read from disk). Since API 1.3
+---@field effort number|nil minutes of the entry's own `effort_property` (Effort) property, as the agenda reads it (never inherited). Since API 1.3
+---@field priority_value number org-get-priority: 1000 × (lowest − priority), the default priority without a cookie, or `priority_get_priority_function`; higher sorts first. Since API 1.3
 local Headline = {}
 Headline.__index = Headline
 M.Headline = Headline
@@ -60,30 +75,65 @@ M.Headline = Headline
 ---------------------------------------------------------------------------
 
 --- The raw text of the `kind` planning timestamp of `hl`, as written (a
---- range `<...>--<...>` whole), found like the parser finds it.
+--- range `<...>--<...>` whole). The parser took the timestamp right after
+--- the keyword (blanks between), so it is the bracketed text there, and
+--- the range's end when its date has one.
+---@param hl org.Headline
+---@param kind "scheduled"|"deadline"|"closed"
+---@return string|nil
 local function planning_raw(hl, kind)
   local l = hl.planning_line and hl.file.lines[hl.planning_line]
+  if not l then
+    return nil
+  end
   local key = kind:upper() .. ":"
-  local s = l and l:find(key, 1, true)
+  local s = l:find(key, 1, true)
   if not s then
     return nil
   end
-  local rest = l:sub(s + #key)
-  local item = require("org.date").parse_all(rest)[1]
-  if item and rest:sub(1, item.start_col - 1):match("^%s*$") then
-    return item.raw
+  local stamp, after = l:match("^%s*([<%[][^>%]]*[>%]])()", s + #key)
+  if not stamp then
+    return nil
   end
+  local d = hl.planning[kind]
+  local range = d and d.range_end and l:match("^%-%-[<%[][^>%]]*[>%]]", after)
+  return range and (stamp .. range) or stamp
 end
 
---- Plain-data date of an org.date timestamp.
+--- `d:to_time()`, with os.time (slow: about 2 µs) called twice per day
+--- of a batch rather than once per date: on a day whose local midnights
+--- are 24 hours apart (no daylight-saving change that day), a time is its
+--- midnight plus its hours and minutes; another day asks os.time.
+---@param d table an org.date date
+---@param memo org.api.Batch
+---@return integer
+function M.unix(d, memo)
+  local key = d:days()
+  local t0 = memo.times[key]
+  if t0 == nil then
+    local a = os.time({ year = d.year, month = d.month, day = d.day, hour = 0, min = 0, sec = 0 })
+    local b = os.time({ year = d.year, month = d.month, day = d.day + 1, hour = 0, min = 0, sec = 0 })
+    t0 = (a and b and b - a == 86400) and a or false
+    memo.times[key] = t0
+  end
+  if t0 then
+    return t0 + (d.hour or 0) * 3600 + (d.min or 0) * 60
+  end
+  return d:to_time()
+end
+
+--- Plain-data date of an org.date timestamp. `memo` (see `M.batch`) keeps
+--- the Unix times of the days of one call.
 ---@param d table|nil
 ---@param raw? string
+---@param memo? org.api.Batch
 ---@return org.api.Date|nil
-function M.date(d, raw)
+function M.date(d, raw, memo)
   if not d then
     return nil
   end
   local text = d:to_string()
+  local timestamp = memo and M.unix(d, memo) or d:to_time()
   return {
     year = d.year,
     month = d.month,
@@ -97,7 +147,8 @@ function M.date(d, raw)
     warning = d.warning and { type = d.warning.type, value = d.warning.value, unit = d.warning.unit } or nil,
     date = d:to_date_string(),
     time = d.hour and string.format("%02d:%02d", d.hour, d.min or 0) or nil,
-    timestamp = d:to_time(),
+    days = d:days(),
+    timestamp = timestamp,
     text = text,
     raw = raw or text,
   }
@@ -147,6 +198,19 @@ end
 --- isn't a time of the day and years outside 1-9999 are errors.
 local function date_from_table(v)
   local date = require("org.date")
+  if v.year == nil and v.month == nil and v.day == nil and v.days ~= nil then
+    -- a day number (an |org.api.Date|'s `days`)
+    local n = integer(v.days)
+    if not n then
+      return nil, "invalid date: days is " .. vim.inspect(v.days) .. ", not an integer"
+    end
+    local c = {}
+    for k, x in pairs(v) do
+      c[k] = x
+    end
+    c.year, c.month, c.day = date.civil_from_days(n)
+    v = c
+  end
   if v.year == nil or v.month == nil or v.day == nil then
     return nil, "a date needs year, month and day"
   end
@@ -191,7 +255,8 @@ end
 
 --- An org.date timestamp from what the API accepts as a date: an org.date
 --- object, an |org.api.Date| (or any table with year, month, day and
---- optionally hour, min; see `date_from_table`), a Unix time, or a string:
+--- optionally hour, min, or with a day number `days`; see
+--- `date_from_table`), a Unix time, or a string:
 --- a timestamp (`<2026-10-02 Fri>`, `2026-10-02 10:00`) or anything the
 --- date prompt reads (`+2d`, `fri`, `10/5`).
 ---@param v any
@@ -440,38 +505,198 @@ vim.api.nvim_create_autocmd("BufReadPost", {
 -- Making handles
 ---------------------------------------------------------------------------
 
-local function fill(self, hl)
-  flush_dead()
-  for k in pairs(self) do
-    self[k] = nil
+--- A copy of a list or a map of strings (their values are strings, so one
+--- level is a deep copy, without vim.deepcopy's cost on every handle).
+---@generic T
+---@param t T
+---@return T
+local function copy(t)
+  local out = {}
+  for k, v in pairs(t) do
+    out[k] = v
   end
+  return out
+end
+
+---@class org.api.Batch
+---@field titles table<org.Headline, string> plain titles (ancestors' are shared)
+---@field times table<integer, integer|false> Unix time of each day's midnight by day number (false: a day with a daylight-saving change)
+---@field ranges table<org.File, table> priority ranges by file
+---@field want table<string, true>|nil the optional fields to fill (nil: all)
+
+--- The fields of a handle that are only filled when a query's `fields`
+--- asks for them (the others are cheap and always there).
+M.OPTIONAL_FIELDS = {
+  all_tags = true,
+  properties = true,
+  scheduled = true,
+  deadline = true,
+  closed = true,
+  effort = true,
+  category = true,
+  outline_path = true,
+  priority_value = true,
+}
+
+--- What the handles made in one call share: memoized titles, times and
+--- priority ranges, and with `fields` (a list of field names) the
+--- optional fields to fill. nil and an error for a field that isn't one.
+---@param fields? string[]
+---@return org.api.Batch|nil batch, string|nil err
+function M.batch(fields)
+  local want
+  if fields ~= nil then
+    if type(fields) ~= "table" then
+      return nil, "invalid fields: " .. vim.inspect(fields) .. " (a list of field names)"
+    end
+    want = {}
+    for _, f in ipairs(fields) do
+      if type(f) ~= "string" or not M.OPTIONAL_FIELDS[f] then
+        local names = vim.tbl_keys(M.OPTIONAL_FIELDS)
+        table.sort(names)
+        return nil, "invalid field: " .. vim.inspect(f) .. " (one of " .. table.concat(names, ", ") .. ")"
+      end
+      want[f] = true
+    end
+  end
+  return { titles = {}, times = {}, ranges = {}, want = want }
+end
+
+--- The plain title of `hl`, made once per batch of handles: the outline
+--- paths of a file's headlines share their ancestors' titles.
+---@param hl org.Headline
+---@param memo org.api.Batch
+---@return string
+local function plain_title(hl, memo)
+  local t = memo.titles[hl]
+  if not t then
+    t = hl:plain_title()
+    memo.titles[hl] = t
+  end
+  return t
+end
+
+--- Titles of the ancestors of `hl`, outermost first (org-get-outline-path).
+---@param hl org.Headline
+---@param memo org.api.Batch
+---@return string[]
+local function outline_path(hl, memo)
+  local up = {}
+  local p = hl.parent
+  while p do
+    up[#up + 1] = plain_title(p, memo)
+    p = p.parent
+  end
+  local path = {}
+  for i = #up, 1, -1 do
+    path[#path + 1] = up[i]
+  end
+  return path
+end
+
+local function has_tag(tags, tag)
+  for i = 1, #tags do
+    if tags[i] == tag then
+      return true
+    end
+  end
+  return false
+end
+
+--- The minutes of the entry's own effort, as the agenda reads it
+--- (org-entry-get without inheritance, org-duration-to-minutes), or nil.
+---@param hl org.Headline
+---@return number|nil
+local function effort(hl)
+  return require("org.properties").effort_minutes(hl)
+end
+
+--- org-get-priority of `hl` (see `org.priority.get_priority`), with the
+--- priority range of each file read once per batch.
+---@param hl org.Headline
+---@param memo org.api.Batch
+---@return number
+local function priority_value(hl, memo)
+  local prio = require("org.priority")
+  if type(require("org.config").opts.priority_get_priority_function) == "function" then
+    return prio.get_priority(hl)
+  end
+  local r = memo.ranges[hl.file]
+  if not r then
+    r = prio.range(hl.file)
+    memo.ranges[hl.file] = r
+  end
+  return 1000 * (r.lo - (prio.to_value(hl.priority) or r.def))
+end
+
+--- The fields of a handle of the parsed headline `hl`: all of them, or
+--- with `memo.want` the cheap ones and those it names. One constructor
+--- makes the table at its size (no growing it field by field).
+---@param hl org.Headline
+---@param memo org.api.Batch
+---@return table
+local function fields_of(hl, memo)
+  local want = memo.want
   local file = hl.file
-  self.title = hl.title
-  self.plain_title = hl:plain_title()
-  self.raw = hl.raw
-  self.level = hl.level
-  self.todo = hl.todo
-  self.done = hl:is_done()
-  self.todo_type = hl.todo and (self.done and "done" or "todo") or nil
-  self.priority = hl.priority
-  self.tags = vim.deepcopy(hl.tags)
-  self.all_tags = hl:get_tags()
-  self.properties = vim.deepcopy(hl.properties)
-  self.scheduled = M.date(hl.planning.scheduled, planning_raw(hl, "scheduled"))
-  self.deadline = M.date(hl.planning.deadline, planning_raw(hl, "deadline"))
-  self.closed = M.date(hl.planning.closed, planning_raw(hl, "closed"))
-  self.file = file.filename
-  self.line = hl.line
-  self.end_line = hl.end_line
-  self.id = hl.properties.ID
-  self.category = hl:get_category()
-  self.outline_path = hl:outline_path()
-  self.archived = hl:is_archived()
-  self.commented = hl.commented and true or false
-  local p = state(self)
-  p.bufnr = not file.filename and file.bufnr or nil
-  p.file, p.id, p.raw, p.title, p.line = file.filename, self.id, hl.raw, self.plain_title, hl.line
-  p.gone, p.stat = nil, nil
+  local planning = hl.planning
+  local done = hl:is_done()
+  local function date(kind)
+    if planning[kind] and (not want or want[kind]) then
+      return M.date(planning[kind], planning_raw(hl, kind), memo)
+    end
+  end
+  return {
+    title = hl.title,
+    plain_title = plain_title(hl, memo),
+    raw = hl.raw,
+    level = hl.level,
+    todo = hl.todo,
+    done = done,
+    todo_type = hl.todo and (done and "done" or "todo") or nil,
+    priority = hl.priority,
+    priority_value = (not want or want.priority_value) and priority_value(hl, memo) or nil,
+    tags = copy(hl.tags),
+    all_tags = (not want or want.all_tags) and hl:get_tags() or nil,
+    properties = (not want or want.properties) and copy(hl.properties) or nil,
+    scheduled = date("scheduled"),
+    deadline = date("deadline"),
+    closed = date("closed"),
+    effort = (not want or want.effort) and effort(hl) or nil,
+    file = file.filename,
+    bufnr = file.bufnr,
+    line = hl.line,
+    end_line = hl.end_line,
+    id = hl.properties.ID,
+    category = (not want or want.category) and hl:get_category() or nil,
+    outline_path = (not want or want.outline_path) and outline_path(hl, memo) or nil,
+    archived = has_tag(hl.tags, "ARCHIVE"),
+    commented = hl.commented and true or false,
+  }
+end
+
+--- Make handle `self` follow the parsed headline `hl` (see `locate`).
+---@param hl org.Headline
+local function follow(self, hl)
+  local file = hl.file
+  local p = priv[self]
+  local bufnr = not file.filename and file.bufnr or nil
+  if p then
+    p.bufnr, p.file, p.id, p.raw, p.title, p.line = bufnr, file.filename, self.id, hl.raw, self.plain_title, hl.line
+    p.gone, p.stat = nil, nil
+  else
+    -- made at its size (see `priv` for the fields)
+    p = {
+      bufnr = bufnr,
+      file = file.filename,
+      id = self.id,
+      raw = hl.raw,
+      title = self.plain_title,
+      line = hl.line,
+      stat = nil,
+      mark = nil,
+    }
+    priv[self] = p
+  end
   local b = file.bufnr
   if b and vim.api.nvim_buf_is_loaded(b) and files.cached_buffer(b) == file then
     mark(p, b, hl.line, hl.raw)
@@ -484,11 +709,27 @@ local function fill(self, hl)
   return self
 end
 
---- A handle for a parsed headline.
+--- Fill the fields of handle `self` from the parsed headline `hl` again
+--- (all of them).
+local function fill(self, hl)
+  flush_dead()
+  for k in pairs(self) do
+    self[k] = nil
+  end
+  for k, v in pairs(fields_of(hl, assert(M.batch()))) do
+    self[k] = v
+  end
+  return follow(self, hl)
+end
+
+--- A handle for a parsed headline. Handles made in one call share a
+--- batch (see `M.batch`).
 ---@param hl org.Headline
+---@param memo? org.api.Batch
 ---@return org.api.Headline
-function M.new(hl)
-  return fill(setmetatable({}, Headline), hl)
+function M.new(hl, memo)
+  flush_dead()
+  return follow(setmetatable(fields_of(hl, memo or assert(M.batch())), Headline), hl)
 end
 
 ---------------------------------------------------------------------------
@@ -705,7 +946,10 @@ end
 --- and refresh the handle from the line `fn` returns as its second value
 --- (default: where the headline moved to; false: none). `fn` returns nil
 --- for a failure. Returns fn's first value, or nil and an error message.
----@param opts? { save?: boolean }
+--- With `opts.interactive`, `fn` runs like a key: its prompts wait for
+--- the user and its messages are shown, so a change it refused or the
+--- user cancelled (it said why) returns nil without an error.
+---@param opts? { save?: boolean, interactive?: boolean }
 ---@return any res, string|nil err
 function M.edit(self, opts, fn)
   opts = opts or {}
@@ -716,13 +960,23 @@ function M.edit(self, opts, fn)
   local before = snapshot()
   local marks = require("org.marks")
   local mark = marks.set(bufnr, hl.line)
-  local ok, msgs, res, where = utils.noninteractive(fn, { bufnr = bufnr, lnum = hl.line }, hl)
+  local target = { bufnr = bufnr, lnum = hl.line }
+  local ok, msgs, res, where
+  if opts.interactive then
+    ok, res, where = pcall(fn, target, hl)
+    msgs = {}
+  else
+    ok, msgs, res, where = utils.noninteractive(fn, target, hl)
+  end
   local lnum = mark and mark:lnum()
   marks.del(mark)
   if not ok then
     return nil, tostring(res)
   end
   if res == nil then
+    if opts.interactive then
+      return nil
+    end
     return nil, last_problem(msgs) or "the change was not made"
   end
   local wbuf = bufnr
@@ -772,16 +1026,17 @@ end
 
 --- Change the TODO state (nil or "" removes the keyword), with the logging,
 --- blocking, repeaters and statistics of C-c C-t. A note the logging asks
---- for is `opts.note`, else only the time is recorded.
+--- for is `opts.note`, else only the time is recorded; with
+--- `opts.interactive` it is asked for, as C-c C-t asks (see `M.edit`).
 ---@param state string|nil
----@param opts? { note?: string, force?: boolean, save?: boolean }
+---@param opts? { note?: string, force?: boolean, save?: boolean, interactive?: boolean }
 ---@return org.api.Headline|nil self, string|nil err
 function Headline:set_todo(state, opts)
   opts = opts or {}
   local res, err = M.edit(self, opts, function(t)
     return require("org.todo").change_state(t, state or "", {
       note = opts.note,
-      inhibit_note = opts.note == nil,
+      inhibit_note = opts.note == nil and not opts.interactive,
       force = opts.force,
     })
   end)
@@ -915,18 +1170,32 @@ local function plan(self, kind, value, opts)
       return nil, err
     end
   end
+  local ts = require("org.timestamps")
   local res, err = M.edit(self, opts, function(t)
+    if opts.interactive and not d then
+      -- C-c C-s / C-c C-d: the date prompt asks for it
+      if kind == "deadline" then
+        return ts.deadline(t)
+      end
+      return ts.schedule(t)
+    end
+    -- a note the log asks for: opts.note, asked with `interactive`
+    local note = opts.note
+    if note == nil and not opts.interactive then
+      note = false
+    end
     -- removing a date the entry doesn't have is no failure
-    return require("org.timestamps").plan_date(t, kind, d, { note = opts.note or false }) or (d == nil or nil)
+    return ts.plan_date(t, kind, d, { note = note }) or (d == nil or nil)
   end)
   return res and self, err
 end
 
 --- Schedule the entry (C-c C-s): nil removes the date. The old repeater
 --- stays unless the new date has one. See `M.to_date` for the accepted
---- dates.
+--- dates. With `opts.interactive` and no date, the date prompt asks for
+--- it (and can remove it) and a log note is asked for, as C-c C-s does.
 ---@param value any|nil
----@param opts? { note?: string, save?: boolean }
+---@param opts? { note?: string, save?: boolean, interactive?: boolean }
 ---@return org.api.Headline|nil self, string|nil err
 function Headline:schedule(value, opts)
   return plan(self, "scheduled", value, opts)
@@ -935,9 +1204,9 @@ end
 Headline.set_scheduled = Headline.schedule
 
 --- Set the deadline (C-c C-d): nil removes it. (Not `deadline()`: that
---- name is the field.)
+--- name is the field.) `opts.interactive` as for `schedule`.
 ---@param value any|nil
----@param opts? { note?: string, save?: boolean }
+---@param opts? { note?: string, save?: boolean, interactive?: boolean }
 ---@return org.api.Headline|nil self, string|nil err
 function Headline:set_deadline(value, opts)
   return plan(self, "deadline", value, opts)
@@ -1140,7 +1409,85 @@ function Headline:children()
   if not hl then
     return {}
   end
-  return vim.tbl_map(M.new, hl.children)
+  local memo = M.batch()
+  return vim.tbl_map(function(c)
+    return M.new(c, memo)
+  end, hl.children)
+end
+
+--- Move the subtree right after (`after`) or before a sibling, as M-down /
+--- M-up past the siblings of its level in between do it.
+local function move_by(self, sibling, after, opts)
+  if type(sibling) ~= "table" or type(sibling.raw) ~= "string" then
+    return nil, "invalid sibling: " .. vim.inspect(sibling) .. " (a headline handle)"
+  end
+  local res, err = M.edit(self, opts, function(t, hl)
+    local obuf, o, oerr = M.resolve(sibling)
+    if not obuf or not o then
+      utils.warn(oerr or "the sibling was not found")
+      return nil
+    end
+    if obuf ~= t.bufnr or o.parent ~= hl.parent or o == hl then
+      utils.warn("not a sibling: " .. o.raw)
+      return nil
+    end
+    if o.level ~= hl.level then
+      utils.warn("the headline only moves past siblings of its level: " .. o.raw)
+      return nil
+    end
+    local sibs = hl.parent and hl.parent.children or hl.file.children
+    local i, j
+    for k, s in ipairs(sibs) do
+      if s == hl then
+        i = k
+      elseif s == o then
+        j = k
+      end
+    end
+    if not i or not j then
+      utils.warn("not a sibling: " .. o.raw)
+      return nil
+    end
+    -- the siblings of its level to move past: from the one after it to
+    -- the sibling (after) or the one before it (before) going down; going
+    -- up, from the one before it to the one after the sibling (after) or
+    -- the sibling itself (before)
+    local dir, first, last = 1, i + 1, after and j or j - 1
+    if j < i then
+      dir, first, last = -1, after and j + 1 or j, i - 1
+    end
+    local n = 0
+    for k = first, last do
+      if sibs[k].level == hl.level then
+        n = n + 1
+      end
+    end
+    if n == 0 then
+      return true
+    end
+    local line = require("org.structure").move_subtree_at(t, dir, n)
+    return line and true, line and { bufnr = t.bufnr, lnum = line }
+  end)
+  return res and self, err
+end
+
+--- Move the subtree right after the subtree of a sibling (a handle of a
+--- headline with the same parent and level), as M-down / M-up past the
+--- siblings in between move it (org-move-subtree-down / -up with a
+--- count). The handle follows it.
+---@param sibling org.api.Headline
+---@param opts? { save?: boolean }
+---@return org.api.Headline|nil self, string|nil err
+function Headline:move_after(sibling, opts)
+  return move_by(self, sibling, true, opts)
+end
+
+--- Move the subtree right before a sibling (see `move_after`).
+---@param sibling org.api.Headline
+---@param opts? { save?: boolean }
+---@return org.api.Headline|nil self, string|nil err
+function Headline:move_before(sibling, opts)
+  return move_by(self, sibling, false, opts)
 end
 
 return M

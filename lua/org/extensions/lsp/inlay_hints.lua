@@ -226,10 +226,12 @@ function M.refresh(srv, dispatchers)
   end
   local f = util.opts().features or {}
   if f.inlay_hints ~= false and supports(srv, "inlayHint") then
+    -- lint: allow pcall: a request to Neovim's LSP client, which may be stopping
     pcall(dispatchers.server_request, "workspace/inlayHint/refresh", vim.NIL)
   end
   if f.code_lens ~= false then
     if supports(srv, "codeLens") then
+      -- lint: allow pcall: a request to Neovim's LSP client, which may be stopping
       pcall(dispatchers.server_request, "workspace/codeLens/refresh", vim.NIL)
     else
       M.refresh_lenses()

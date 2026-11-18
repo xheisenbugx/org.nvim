@@ -249,6 +249,7 @@ backends.snacks = {
   end,
   hide = function(_, p)
     if p.handle then
+      -- lint: allow pcall: the snacks.nvim image, which may be gone already
       pcall(p.handle.close, p.handle)
       p.handle = nil
     end
@@ -282,6 +283,7 @@ backends["image.nvim"] = {
   hide = function(_, p)
     p.deferred = nil
     if p.handle then
+      -- lint: allow pcall: image.nvim's image, which may be gone already
       pcall(p.handle.clear, p.handle)
       p.handle = nil
     end

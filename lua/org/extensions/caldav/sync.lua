@@ -931,7 +931,7 @@ function M.run(only, opts)
     if any then
       local ok, view = pcall(require, "org.agenda.view")
       if ok then
-        pcall(view.redo)
+        utils().try("caldav: redo the agenda", view.redo)
       end
     end
     finish(results)

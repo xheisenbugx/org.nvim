@@ -69,8 +69,9 @@ end
 
 local heatmap = require("org.extensions.heatmap")
 
+--- The entries of the test file, as the org.api query heatmap.data takes.
 local function hls()
-  return require("org.files").get(path).headlines
+  return { files = path }
 end
 
 describe("heatmap extension", function()
@@ -116,7 +117,7 @@ describe("heatmap data", function()
       "* Night",
       string.format("  CLOCK: [%s 23:00]--[%s 01:30] =>  2:30", day(-1), day(0)),
     })
-    local values = heatmap.data("clock", require("org.files").get_buffer(b).headlines)
+    local values = heatmap.data("clock", { bufnr = b })
     eq(60, values[today - 1])
     eq(90, values[today])
   end)
@@ -132,7 +133,7 @@ describe("heatmap data", function()
         "* Fall back, across midnight",
         "  CLOCK: [2026-10-31 Sat 23:00]--[2026-11-01 Sun 03:00] =>  5:00",
       })
-      local hls = require("org.files").get_buffer(b).headlines
+      local hls = { bufnr = b }
       local values = heatmap.data("clock", hls)
       eq(120, values[date.parse("<2026-03-08>"):days()])
       eq(60, values[date.parse("<2026-10-31>"):days()])
@@ -375,7 +376,7 @@ describe("heatmap edges", function()
       "    felt good",
       "  :END:",
     })
-    local values = heatmap.data("habit", require("org.files").get_buffer(b).headlines)
+    local values = heatmap.data("habit", { bufnr = b })
     eq(1, values[today - 3])
     eq(1, values[today - 4])
   end)

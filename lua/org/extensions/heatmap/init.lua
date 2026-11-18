@@ -3,15 +3,14 @@
 --- A GitHub-contribution-style calendar: one cell per day, one column per
 --- week, shaded by the time clocked that day (CLOCK lines), the tasks
 --- closed, or the habits done, with month and weekday labels, totals and
---- streaks.
+--- streaks. Built on `org.api` only (`:h org-api`).
 ---
 --- ```lua
 --- require("org").setup({ extensions = { heatmap = { weeks = 26 } } })
 --- ```
 
+local api = require("org.api")
 local views = require("org.extensions.views_util")
-local date = require("org.date")
-local utils = require("org.utils")
 
 local M = {}
 
@@ -145,48 +144,37 @@ end
 -- Data
 ---------------------------------------------------------------------------
 
---- Days (day numbers) a headline was marked done: its CLOSED date, the
---- `- State "DONE" ... [date]` and `- CLOSING NOTE [date]` lines of its
---- log (as org-habit reads them) and its LAST_REPEAT property.
----@param hl org.Headline
----@return table<integer, true>
-function M.done_days(hl)
-  local out = {}
-  local cfg = hl.file.settings.todo
-  for i = hl.line + 1, hl.body_end or hl.line do
-    local line = hl.file.lines[i]
-    local kw, ts = line:match('^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])')
-    if not (kw and cfg:is_done(kw)) then
-      ts = line:match("^%s*%-%s+CLOSING NOTE%s+(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])")
-    end
-    local d = ts and date.parse(ts)
-    if d then
-      out[d:days()] = true
-    end
-  end
-  local closed = hl.planning.closed
-  if closed then
-    out[closed:days()] = true
-  end
-  -- set when a repeating task is done (with logging or clocks)
-  local lr = hl.properties.LAST_REPEAT and date.parse(hl.properties.LAST_REPEAT)
-  if lr then
-    out[lr:days()] = true
-  end
-  return out
+--- Is the entry a habit (its own STYLE property is "habit", as
+--- org-is-habit-p reads it)?
+---@param h org.api.Headline
+---@return boolean
+local function is_habit(h)
+  local style = h.properties.STYLE
+  return style ~= nil and style:lower() == "habit"
+end
+
+--- Minutes since the epoch of a date's wall-clock time (local time; the
+--- day number's midnight without a time).
+---@param d org.api.Date
+---@return integer
+local function wall_minutes(d)
+  return d.days * 1440 + (d.hour or 0) * 60 + (d.min or 0)
 end
 
 --- Add a clock's minutes to the days it covers, within minutes
 --- [lo, hi). Days are split at local midnight; each part counts the time
 --- that elapsed (like the clock table), so a clock across a DST change
 --- counts one hour less or more than its wall-clock span.
+---@param values table<integer, number>
+---@param c org.api.Clock
+---@param now org.api.Date
 local function add_clock(values, c, now, lo, hi)
   local stop_date = c["end"] or now
-  local s = c.start:minutes()
+  local s = wall_minutes(c.start)
   if s >= hi then
     return
   end
-  local e = stop_date:minutes()
+  local e = wall_minutes(stop_date)
   local s0, e0 = s, e
   s, e = math.max(s, lo), math.min(e, hi)
   if e <= s then
@@ -196,11 +184,11 @@ local function add_clock(values, c, now, lo, hi)
   -- else a local midnight
   local function epoch(w)
     if w == s0 then
-      return c.start:to_time()
+      return c.start.timestamp
     elseif w == e0 then
-      return stop_date:to_time()
+      return stop_date.timestamp
     end
-    return date.from_days(math.floor(w / 1440)):to_time()
+    return assert(api.date({ days = math.floor(w / 1440) })).timestamp
   end
   while s < e do
     local day = math.floor(s / 1440)
@@ -213,77 +201,83 @@ local function add_clock(values, c, now, lo, hi)
   end
 end
 
---- Per-day values of `kind` over the headlines `hls`: `values[day]` and
---- `details[day]` (a list of `{ title, value }`, largest first), for the
---- days `first` to `last` (all days when not given).
+--- Per-day values of `kind` over the entries an org.api query (`:h
+--- org-api-headlines`) gives: `values[day]` and `details[day]` (a list of
+--- `{ title, value }`, largest first), for the days `first` to `last` (all
+--- days when not given). "closed" counts the days entries were marked done
+--- (`api.completed()`: CLOSED, done state changes, closing notes,
+--- LAST_REPEAT), "habit" those of habits, "clock" the minutes of their
+--- CLOCK lines (`api.clocks()`).
 ---@param kind "clock"|"closed"|"habit"
----@param hls org.Headline[]
+---@param query org.api.Query
 ---@param first? integer
 ---@param last? integer
 ---@return table<integer, number> values, table<integer, table[]> details
-function M.data(kind, hls, first, last)
+function M.data(kind, query, first, last)
   local values, details = {}, {}
-  local now = date.now()
+  -- a detail shows the title (always there), a habit is told by its
+  -- STYLE property: no other field, unless a filter of the query reads
+  -- what it didn't ask for
+  local fields = query.fields
+  if fields == nil and query.filter == nil then
+    fields = {}
+  end
+  if fields and kind == "habit" then
+    fields = vim.list_extend({ "properties" }, fields)
+  end
+  local q = vim.tbl_extend("force", {}, query, {
+    from = first and { days = first } or nil,
+    to = last and { days = last } or nil,
+    fields = fields,
+  })
+  if kind == "habit" and not (query.property and query.property.STYLE ~= nil) then
+    -- only habits get their log read: the query's STYLE test runs before
+    -- any handle is made (it may inherit; is_habit reads the entry's own)
+    q.property = vim.tbl_extend("force", {}, query.property or {}, {
+      STYLE = function(v)
+        return v ~= nil and v:lower() == "habit"
+      end,
+    })
+  end
   first, last = first or -math.huge, last or math.huge
   local lo, hi = first * 1440, (last + 1) * 1440
-  local first_key = -math.huge
-  if first > -math.huge then
-    local f = date.from_days(first)
-    first_key = f.year * 10000 + f.month * 100 + f.day
-  end
-  local order = 0
-  -- called once per headline and day (its values are summed first), so
-  -- no search of the day's list: that made busy days quadratic
-  local function detail(day, hl, v)
-    local list = details[day]
-    if not list then
-      list = {}
-      details[day] = list
+  -- the entries in the order they come (file order), each with its own
+  -- values by day
+  local entries, by_handle = {}, {}
+  local function entry(h)
+    local e = by_handle[h]
+    if not e then
+      e = { h = h, order = #entries + 1, days = {} }
+      by_handle[h] = e
+      entries[#entries + 1] = e
     end
-    list[#list + 1] = { hl = hl, value = v, order = order }
+    return e
   end
-  for i, hl in ipairs(hls) do
-    order = i
-    if kind == "clock" then
-      local own
-      for _, c in ipairs(hl.clocks) do
-        -- a cheap test first: clocks that ended before the range (years of
-        -- them) are left without computing day numbers
-        local e = c["end"]
-        if not (e and (e.year * 10000 + e.month * 100 + e.day) < first_key) then
-          own = own or {}
-          add_clock(own, c, now, lo, hi)
-        end
-      end
-      for day, v in pairs(own or {}) do
-        values[day] = (values[day] or 0) + v
-        detail(day, hl, v)
-      end
-    elseif kind == "closed" or (kind == "habit" and require("org.agenda.habits").is_habit(hl)) then
-      for day in pairs(M.done_days(hl)) do
-        if day >= first and day <= last then
-          values[day] = (values[day] or 0) + 1
-          detail(day, hl, 1)
-        end
+  if kind == "clock" then
+    local now = assert(api.date(os.time()))
+    for _, c in ipairs(api.clocks(q) or {}) do
+      add_clock(entry(c.headline).days, c, now, lo, hi)
+    end
+  else
+    for _, c in ipairs(api.completed(q) or {}) do
+      if kind == "closed" or is_habit(c.headline) then
+        -- once a day per entry
+        entry(c.headline).days[c.date.days] = 1
       end
     end
   end
-  -- a detail's title is made when it is shown (a few a day), not for
-  -- every entry of the year
-  local titles = {}
-  local lazy = {
-    __index = function(d, k)
-      if k == "title" then
-        local t = titles[d.hl] or views.title(d.hl)
-        titles[d.hl] = t
-        return t
+  for _, e in ipairs(entries) do
+    for day, v in pairs(e.days) do
+      values[day] = (values[day] or 0) + v
+      local list = details[day]
+      if not list then
+        list = {}
+        details[day] = list
       end
-    end,
-  }
+      list[#list + 1] = { title = e.h.plain_title, value = v, order = e.order }
+    end
+  end
   for _, list in pairs(details) do
-    for _, d in ipairs(list) do
-      setmetatable(d, lazy)
-    end
     table.sort(list, function(a, b)
       if a.value ~= b.value then
         return a.value > b.value
@@ -395,7 +389,7 @@ local LABEL_W = 5
 --- Cells a week takes: the day cell (any width: "██", or "■" with
 --- ambiwidth=double) and a gap.
 local function pitch(o)
-  return math.max(1, utils.width(o.cell or "■")) + 1
+  return math.max(1, views.width(o.cell or "■")) + 1
 end
 
 local function weeks_for(o)
@@ -413,7 +407,7 @@ end
 
 --- The first and last day shown (Monday of the first week, today).
 function M.range(weeks, today)
-  local wd = date.from_days(today):weekday()
+  local wd = views.weekday(today)
   local monday = today - (wd - 1)
   return monday - (weeks - 1) * 7, today
 end
@@ -446,14 +440,16 @@ function M.render(st)
     return
   end
   local o = st.opts
-  local today = date.today_days()
-  local files = views.files(st.src)
-  st.file_set = views.file_set(files)
-  st.key = views.files_key(files)
-  local hls, err = views.collect(st.src, { tag = st.tag, files = files })
+  local today = api.today().days
+  local sf = views.source_files(st.src)
+  st.file_set, st.key = sf.file_set, sf.key
+  local q, err = views.api_query(st.src, { tag = st.tag, fields = {} })
   local first, last = M.range(st.weeks, today)
   st.first, st.last = first, last
-  local values, details = M.data(st.kind, hls, first, last)
+  local values, details = {}, {}
+  if q then
+    values, details = M.data(st.kind, q, first, last)
+  end
   st.values, st.details = values, details
   local shown = {}
   for day = first, last do
@@ -480,11 +476,11 @@ function M.render(st)
   local chars = vim.split(months, "")
   local last_m, next_free = nil, 1
   for w = 0, st.weeks - 1 do
-    local monday = date.from_days(first + w * 7)
-    local key = monday.year * 12 + monday.month
+    local year, month = views.civil(first + w * 7)
+    local key = year * 12 + month
     if key ~= last_m then
       local pos = w * pw + 1
-      local label = date.MONTH_NAMES[monday.month]
+      local label = views.MONTH_NAMES[month]
       if pos >= next_free and pos + #label - 1 <= #chars then
         for k = 1, #label do
           chars[pos + k - 1] = label:sub(k, k)
@@ -499,7 +495,7 @@ function M.render(st)
   local day_labels = { "Mon", "", "Wed", "", "Fri", "", "Sun" }
   for wd = 1, 7 do
     cv:line()
-    cv:put(utils.pad_right(" " .. day_labels[wd], LABEL_W), "OrgHeatmapLabel")
+    cv:put(views.pad_right(" " .. day_labels[wd], LABEL_W), "OrgHeatmapLabel")
     for w = 0, st.weeks - 1 do
       local day = first + w * 7 + wd - 1
       if day > last then
@@ -555,7 +551,7 @@ function M.render(st)
     vim.list_extend(stat2, {
       { "  ·  best ", "OrgHeatmapLabel" },
       { fmt_value(st.kind, s.best), "OrgHeatmapValue" },
-      { " on " .. date.from_days(s.best_day):strftime("%a %b %d"), "OrgHeatmapLabel" },
+      { " on " .. views.format_day(s.best_day, "%a %b %d"), "OrgHeatmapLabel" },
     })
   end
   cv:add(stat2)
@@ -565,7 +561,7 @@ function M.render(st)
   cv:draw(st.buf, ns)
   st.width = 0
   for _, l in ipairs(cv:strings()) do
-    st.width = math.max(st.width, utils.width(l))
+    st.width = math.max(st.width, views.width(l))
   end
   st.height = #cv.lines
 end
@@ -606,14 +602,14 @@ local function show_detail(st)
   end
   local v = st.values[day] or 0
   local chunks = {
-    { " ▸ " .. date.from_days(day):strftime("%a %Y-%m-%d") .. "  ", "OrgHeatmapDetail" },
+    { " ▸ " .. views.format_day(day, "%a %Y-%m-%d") .. "  ", "OrgHeatmapDetail" },
     { fmt_value(st.kind, v), "OrgHeatmapValue" },
   }
   local list = st.details[day] or {}
   for i = 1, math.min(3, #list) do
     local d = list[i]
     local val = st.kind == "clock" and (" " .. views.short_duration(d.value)) or ""
-    chunks[#chunks + 1] = { (i == 1 and "  ·  " or ", ") .. utils.truncate(d.title, 28) .. val, "OrgHeatmapLabel" }
+    chunks[#chunks + 1] = { (i == 1 and "  ·  " or ", ") .. views.truncate(d.title, 28) .. val, "OrgHeatmapLabel" }
   end
   if #list > 3 then
     chunks[#chunks + 1] = { string.format(", +%d more", #list - 3), "OrgHeatmapLabel" }
@@ -658,7 +654,7 @@ function M.refresh(lazy)
   if not st then
     return
   end
-  if lazy == true and st.key and st.key == views.files_key(views.files(st.src)) then
+  if lazy == true and st.key and st.key == views.source_files(st.src).key then
     return
   end
   M.render(st)
@@ -701,7 +697,7 @@ function M.agenda()
   if st.how.layout ~= "split" and st.how.layout ~= "vsplit" then
     M.close()
   end
-  require("org.agenda").open_day(day)
+  api.agenda.open({ from = { days = day }, span = "day" })
 end
 
 function M.close()
@@ -729,12 +725,12 @@ function M.open(o)
   local eopts = vim.deepcopy(opts())
   local src, err = views.resolve_source(o.source or eopts.source)
   if not src then
-    utils.error("heatmap: " .. err)
+    views.error("heatmap: " .. err)
     return
   end
   local kind = o.kind or eopts.kind
   if not vim.tbl_contains(M.KINDS, kind) then
-    utils.error("heatmap: unknown kind " .. tostring(kind))
+    views.error("heatmap: unknown kind " .. tostring(kind))
     return
   end
   M.close()
@@ -752,7 +748,7 @@ function M.open(o)
   M.render(st)
   local size = float_size(st)
   st.win, st.how = views.open(buf, eopts.layout, { width = size.width, height = size.height, title = "Heatmap" })
-  st.day = date.today_days()
+  st.day = api.today().days
   views.map(buf, eopts.keys, {
     next_kind = M.next_kind,
     prev_week = function()
@@ -788,7 +784,7 @@ function M.open(o)
       local weeks = weeks_for(st.opts)
       if weeks ~= st.weeks then
         st.weeks = weeks
-        pcall(M.render, st)
+        views.try("heatmap: render after a resize", M.render, st)
       end
       views.relayout(st.how, float_size(st))
       place(st)
@@ -833,7 +829,7 @@ function M.parse_args(args)
     elseif w == "agenda" or w == "buffer" or w == "subtree" then
       o.source = w
     elseif views.is_path(w) then
-      o.source = utils.expand(w)
+      o.source = views.expand(w)
     else
       o.tag = (w:gsub("^[+:]", ""):gsub(":$", ""))
     end

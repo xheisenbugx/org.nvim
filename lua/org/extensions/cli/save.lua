@@ -18,7 +18,7 @@ local short_path = M.short_path
 -- it watches this file, rereads changed files and the clock
 -- (org.clock.sync).
 local function touch_stamp()
-  pcall(function()
+  require("org.utils").try("cli: touch the stamp file", function()
     local path = require("org.extensions.cli").stamp_path()
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
     local fh = io.open(path, "wb")

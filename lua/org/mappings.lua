@@ -363,7 +363,7 @@ function M.register_which_key()
   for _, lhs in ipairs(emacs_prefixes()) do
     spec[#spec + 1] = { lhs, group = emacs_groups[lhs], mode = { "n", "x" } }
   end
-  pcall(wk.add, spec)
+  utils.try("mappings: which-key groups", wk.add, spec)
 end
 
 --- Agenda keys for `g?`, in display order: { section, { { name, desc }... } }.

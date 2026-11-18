@@ -112,6 +112,7 @@ local function ioctl_cell_size()
   if not request or not ok_ffi then
     return nil
   end
+  -- lint: allow pcall: declared already (ffi.cdef raises on a second declaration)
   pcall(
     ffi.cdef,
     [[
@@ -147,6 +148,7 @@ local function ask_cell_size()
   if not ok or type(tty.request) ~= "function" then
     return
   end
+  -- lint: allow pcall: vim.tty: a terminal that doesn't answer leaves the cell size estimated
   pcall(tty.request, "\27[16t", { timeout = 1000 }, function(resp)
     local ph, pw = resp:match("^\27%[6;(%d+);(%d+)t")
     if ph then

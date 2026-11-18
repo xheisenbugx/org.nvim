@@ -912,7 +912,7 @@ function M.refresh()
   end
   local ok, cols = pcall(require, "org.agenda.columns")
   if ok then
-    pcall(cols.refresh_if_active)
+    utils.try("agenda: refresh column view", cols.refresh_if_active)
   end
   M.fit_window()
   -- hooks: org-agenda-filter-hook after the filters changed, else
@@ -921,7 +921,7 @@ function M.refresh()
   local event = (S.filter_sig ~= nil and sig ~= S.filter_sig) and "OrgAgendaFilter" or "OrgAgendaFinalize"
   S.filter_sig = sig
   local data = { buf = buf, filters = vim.deepcopy(S.filters), filter = M.filter_desc() }
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = event, data = data, modeline = false })
+  utils.user_event(event, data)
 end
 
 --- With `agenda.window = "split"` (reorganize-frame), fit the agenda

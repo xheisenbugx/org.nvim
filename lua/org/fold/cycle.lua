@@ -228,7 +228,14 @@ end
 local function cycle_hook(state, hl)
   if (config.opts.ui.images or {}).cycle_display then
     local first_child = hl.children[1] and hl.children[1].line or nil
-    pcall(require("org.ui.images").cycle_display, state, hl.line, hl.end_line, first_child)
+    require("org.utils").try(
+      "cycle: image previews",
+      require("org.ui.images").cycle_display,
+      state,
+      hl.line,
+      hl.end_line,
+      first_child
+    )
   end
   run_cycle_hook("OrgCycle", state, hl.line)
 end

@@ -70,8 +70,12 @@ local function clock_cfg()
 end
 
 local function fire(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+  utils.user_event(pattern, data)
 end
+
+--- The error last shown for a failed write of `clock.persist_file`: the
+--- same failure again isn't shown again (it is in :Org log).
+local persist_failed
 
 local function persist()
   local cfg = clock_cfg()
@@ -80,11 +84,17 @@ local function persist()
   end
   local clock = cfg.persist == true or cfg.persist == "clock"
   local history = cfg.persist == true or cfg.persist == "history"
-  pcall(utils.write_json, cfg.persist_file, {
+  local ok, err = utils.try("clock: save " .. cfg.persist_file, utils.write_json, cfg.persist_file, {
     state = clock and M.state or vim.NIL,
     last = history and M.last or vim.NIL,
     history = history and M.history or {},
   })
+  if ok then
+    persist_failed = nil
+  elseif tostring(err) ~= persist_failed then
+    persist_failed = tostring(err)
+    utils.error("Could not save the clock (clock.persist_file): " .. persist_failed)
+  end
 end
 
 --- A date (with time) for a number of civil minutes since the epoch.

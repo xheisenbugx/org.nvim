@@ -43,7 +43,10 @@ function M.set(key, bufnr, lnum)
     raw = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or "",
   }
   pcall(vim.fn.mkdir, vim.fn.fnamemodify(path(), ":h"), "p")
-  pcall(utils.write_json, path(), data)
+  local ok, err = utils.try("bookmarks: save " .. name, utils.write_json, path(), data)
+  if not ok then
+    utils.error(string.format("Could not save the bookmark %s: %s", name, tostring(err)))
+  end
 end
 
 --- The bookmark named `name`.

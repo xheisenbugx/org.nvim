@@ -496,7 +496,7 @@ function M.insert_subtree(lines, dest)
     vim.api.nvim_buf_set_lines(bufnr, at, at, false, new)
   end
   -- org-auto-align-tags
-  pcall(require("org.tags").align, bufnr, at + 1)
+  utils.try("refile: align tags", require("org.tags").align, bufnr, at + 1)
   -- the moved IDs now live here
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name ~= "" then
@@ -777,18 +777,14 @@ function M.refile(target, opts)
   local raw = vim.api.nvim_buf_get_lines(dbuf, dline - 1, dline, false)[1]
   local entry = marks.set(dbuf, dline)
   local dname = vim.api.nvim_buf_get_name(dbuf)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgRefile",
-    data = {
-      bufnr = dbuf,
-      lnum = dline,
-      file = dname ~= "" and vim.fs.normalize(dname) or nil,
-      title = title,
-      source_bufnr = bufnr,
-      source_file = file.filename,
-      copy = copy and true or false,
-    },
-    modeline = false,
+  utils.user_event("OrgRefile", {
+    bufnr = dbuf,
+    lnum = dline,
+    file = dname ~= "" and vim.fs.normalize(dname) or nil,
+    title = title,
+    source_bufnr = bufnr,
+    source_file = file.filename,
+    copy = copy and true or false,
   })
   local now = entry and entry:lnum()
   marks.del(entry)

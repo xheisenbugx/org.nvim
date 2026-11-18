@@ -41,6 +41,7 @@ Kanban (`extensions = { kanban = { save = true } }`, `agenda_files` set):
 | --- | --- |
 | `{{global.kanban_open}}` | a float `Kanban`, filetype `orgkanban`; a column per keyword with its count (`TODO  2`, `DONE  1`), a card per heading; the first card selected |
 | `l` | the card moves to the next column (`TODO  1`, `DONE  2`), the selection follows it; with `save = true` the file on disk has the new keyword |
+| `J` / `K` (with `sort = "file"`) | the card's subtree moves after / before the next / previous card of its column in the file, past the siblings between them (other columns' cards too), as M-down / M-up do; only cards under the same heading |
 | `q` | the board closes, back in the org buffer |
 
 Journal (`extensions = { journal = { directory = "{{dir}}/journal" } }`):

@@ -134,7 +134,7 @@ local function context_properties(hl)
 end
 
 local function fire(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+  utils.user_event(pattern, data)
 end
 
 local function get_line(bufnr, lnum)
@@ -451,7 +451,7 @@ function M.archive_subtree(target, opts)
     local pline = parent:lnum()
     parent:del()
     if pline then
-      pcall(require("org.lists").update_statistics_for, bufnr, pline)
+      utils.try("archive: update statistics cookies", require("org.lists").update_statistics_for, bufnr, pline)
     end
   end
   -- (nowhere to put the cursor when an OrgArchive handler removed the entry)
@@ -505,7 +505,7 @@ function M.archive_to_sibling(target)
     local up = files.get_buffer(bufnr):headline_at(s)
     up = up and up.parent
     if up then
-      pcall(require("org.lists").update_parent_todo_statistics, bufnr, up.line)
+      utils.try("archive: update TODO statistics", require("org.lists").update_parent_todo_statistics, bufnr, up.line)
     end
     if bufnr == vim.api.nvim_get_current_buf() then
       pcall(vim.api.nvim_win_set_cursor, 0, { s, 0 })
@@ -551,7 +551,7 @@ function M.archive_to_sibling(target)
   if pline and sib_line then
     -- the parent's TODO cookies (org-update-parent-todo-statistics from
     -- the Archive sibling)
-    pcall(require("org.lists").update_parent_todo_statistics, bufnr, sib_line)
+    utils.try("archive: update TODO statistics", require("org.lists").update_parent_todo_statistics, bufnr, sib_line)
   end
   if bufnr == vim.api.nvim_get_current_buf() then
     local n = vim.api.nvim_buf_line_count(bufnr)
