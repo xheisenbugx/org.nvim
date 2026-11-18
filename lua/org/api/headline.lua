@@ -63,7 +63,7 @@ local M = {}
 ---@field archived boolean has the ARCHIVE tag
 ---@field commented boolean a COMMENT headline
 ---@field bufnr integer|nil the buffer it was read from (nil when read from disk). Since API 1.3
----@field effort number|nil minutes of the `effort_property` (Effort) property, inheritance per `use_property_inheritance` (org-get-effort). Since API 1.3
+---@field effort number|nil minutes of the entry's own `effort_property` (Effort) property, as the agenda reads it (never inherited). Since API 1.3
 ---@field priority_value number org-get-priority: 1000 × (lowest − priority), the default priority without a cookie, or `priority_get_priority_function`; higher sorts first. Since API 1.3
 local Headline = {}
 Headline.__index = Headline
@@ -539,8 +539,10 @@ function M.batch(fields)
     end
     want = {}
     for _, f in ipairs(fields) do
-      if type(f) ~= "string" then
-        return nil, "invalid field: " .. vim.inspect(f)
+      if type(f) ~= "string" or not M.OPTIONAL_FIELDS[f] then
+        local names = vim.tbl_keys(M.OPTIONAL_FIELDS)
+        table.sort(names)
+        return nil, "invalid field: " .. vim.inspect(f) .. " (one of " .. table.concat(names, ", ") .. ")"
       end
       want[f] = true
     end
@@ -589,12 +591,12 @@ local function has_tag(tags, tag)
   return false
 end
 
---- The minutes of the entry's effort (org-get-effort), or nil.
+--- The minutes of the entry's own effort, as the agenda reads it
+--- (org-entry-get without inheritance, org-duration-to-minutes), or nil.
 ---@param hl org.Headline
 ---@return number|nil
 local function effort(hl)
-  local v = hl:get_property(require("org.config").opts.effort_property or "Effort")
-  return v and require("org.date").parse_duration(v) or nil
+  return require("org.properties").effort_minutes(hl)
 end
 
 --- org-get-priority of `hl` (see `org.priority.get_priority`), with the
@@ -1160,7 +1162,10 @@ local function plan(self, kind, value, opts)
   local res, err = M.edit(self, opts, function(t)
     if opts.interactive and not d then
       -- C-c C-s / C-c C-d: the date prompt asks for it
-      return kind == "deadline" and ts.deadline(t) or ts.schedule(t)
+      if kind == "deadline" then
+        return ts.deadline(t)
+      end
+      return ts.schedule(t)
     end
     -- a note the log asks for: opts.note, asked with `interactive`
     local note = opts.note

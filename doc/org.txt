@@ -8697,8 +8697,8 @@ With `ui.choice_prompt = "input"` these prompts are the command line with
                         GitHub issue titled "[BUG] <subject> [<version>]"
                         prefilled with it (|vim.ui.open()|). A report too
                         long for a URL is left for you to paste (it is also
-                        in the + register). When `:Org log` has errors, the
-                        report says how many.
+                        in the + register). When `:Org log` has errors or
+                        warnings, the report says how many.
                                                                    *org-log*
 :Org log                Show the session log in a scratch buffer: the
                         org.nvim version (as `:Org version` says it), the
@@ -8866,8 +8866,8 @@ api.headlines([query])      Headlines matching every condition of `query`,
               `scheduled`, `deadline`, `closed`, `effort`, `category`,
               `outline_path`, `priority_value`. The others are always
               there; `filter` sees the handle so filled, and a method
-              (`h:reload()`) fills every field again. For views over
-              thousands of entries
+              (`h:reload()`) fills every field again. Another name is
+              an error. For views over thousands of entries
 api.headline_at([opts])     The headline containing a line: `opts.bufnr`
                             (default current) and `opts.lnum` (default the
                             cursor line), or `opts.file` and `opts.lnum`.
@@ -8887,8 +8887,11 @@ api.occurrences(date, from, to)
                             to day `to` (dates; both included), as the
                             agenda lists it: the timestamp itself without
                             a repeater, else each repetition (`+1w`,
-                            `.+1d` and `++1m` all repeat from it). nil
-                            and an error for a value that isn't a date.
+                            `.+1d` and `++1m` all repeat from it). A
+                            range `<a>--<b>` counts as its start: the
+                            days up to its end aren't listed. nil
+                            and an error for a value that isn't a date,
+                            and past 5,000 dates (ask for fewer days).
                             Since API 1.3.
 
 A headline handle has these fields, a snapshot taken when it was made:
@@ -8918,9 +8921,9 @@ A headline handle has these fields, a snapshot taken when it was made:
                   booleans
   Since API 1.3:
     bufnr         the buffer it was read from (nil when read from disk)
-    effort        the minutes of its `effort_property` (Effort), with
-                  inheritance per `use_property_inheritance`
-                  (org-get-effort); nil without one
+    effort        the minutes of its own `effort_property` (Effort),
+                  as the agenda reads it (never inherited); nil
+                  without one
     priority_value  org-get-priority: 1000 × (lowest − priority), the
                   default priority's without a cookie, or what
                   `priority_get_priority_function` returns; a higher value
@@ -8931,8 +8934,8 @@ repeater, warning, date = "2026-10-02", time = "09:30", days, timestamp
 (Unix time), text (as org writes it), raw (as written in the file) }`;
 for a range `<2026-10-02 Fri>--<2026-10-04 Sun>` the fields are its
 start, and `text` and `raw` the whole range. `days` (API 1.3) is the day
-number, the days from 1970-01-01 to the date's day: subtract two to count
-the days between them, without time zones. Where the API takes a date it
+number, the days from 1970-01-01 to the date's day: subtract one date's
+`days` from another's to count the days between them, without time zones. Where the API takes a date it
 accepts such a table (or any table with year, month, day and optionally
 hour and min, or since API 1.3 with `days` instead of year, month and
 day), a Unix time, or a string: a timestamp (`<2026-10-02 Fri 09:30>`,
@@ -8976,13 +8979,15 @@ longer points to an entry.
                                   `priority_enable_commands` is false
     h:set_property(name, value)   org-entry-put; nil deletes the property
     h:get_property(name, [inherit])  special properties too (`ALLTAGS`)
-    h:schedule(date)              C-c C-s, nil removes the date; also
+    h:schedule(date, [opts])      C-c C-s, nil removes the date; also
                                   h:set_scheduled(date). The old repeater
                                   stays unless the date has its own. With
-                                  `opts.interactive` (API 1.3) and no date,
-                                  the date prompt asks for it (and can
-                                  remove it), and a log note is asked for
-    h:set_deadline(date)          C-c C-d (the `deadline` field holds the
+                                  `opts.interactive` (API 1.3) it runs
+                                  like the key: without a date the date
+                                  prompt asks for one (and can remove
+                                  it), and a log note the options call
+                                  for is asked for, with a date too
+    h:set_deadline(date, [opts])  C-c C-d (the `deadline` field holds the
                                   date, so the method has another name);
                                   `opts.interactive` as for `schedule`
     h:move_after(sibling), h:move_before(sibling)
@@ -9080,7 +9085,8 @@ both agree. Text the `transclusion` extension inserted is left out.
 
 Agenda ~
                                                           *org-api-agenda*
-The entries of the agenda views as data, without opening the agenda.
+The entries of the agenda views as data, without opening the agenda
+(`api.agenda.open()` opens it).
 api.agenda.agenda([opts])   Days of an agenda span: `{ { date =
                             "2026-10-05", day = <date>, items = {...} } }`.
                             `opts.from` (a date, default today), `span`
@@ -9099,8 +9105,9 @@ api.agenda.search(query, [opts])  A search view query (|org-agenda-search|);
 api.agenda.open([opts])     Open the agenda view (<prefix>a) on the day
                             `opts.from` (a date, default today) for
                             `opts.span` (as for `api.agenda.agenda`,
-                            default `agenda.span`). nil and an error for
-                            an invalid date or span. Since API 1.3.
+                            default `agenda.span`). true, or nil and an
+                            error for an invalid date or span. Since API
+                            1.3.
 
 Items are sorted like the views (`agenda.sorting`) and are `{ type, kind,
 title, todo, priority, category, tags, done, day, date, time, end_time,
@@ -9185,30 +9192,41 @@ Since API 1.3, what was clocked and done, for reports, heatmaps and
 habit trackers. Both take a query as `api.headlines` does
 (|org-api-headlines|) with `from` and `to` (dates; default no limit),
 and return entries in file order with a `headline` handle, one per entry
-(filled per the query's `fields`):
+(filled per the query's `fields`). An entry can have several of each:
+count distinct headlines to count tasks.
 api.clocks([query])         The CLOCK lines of the matching entries (their
                             own, not their children's) that ran on one of
                             the days: `{ start, end, minutes, running,
                             line, headline }`. `end` is nil while it
-                            runs; `minutes` is its `=> H:MM` duration,
-                            else the time between its timestamps (until
-                            now while it runs).
+                            runs; `minutes` is the time between its
+                            timestamps (until now while it runs), not
+                            its `=> H:MM` text, as org-clock-sum counts
+                            it (0 for one that ends before it starts).
 api.completed([query])      When the matching entries were marked done,
-                            as org-habit reads it, on one of the days:
+                            on one of the days (the log lines org-habit
+                            reads, plus CLOSED and LAST_REPEAT):
                             `{ date, type, headline }`, `type` "closed"
                             (CLOSED), "state" (a `- State "DONE" ...`
                             log line of a change to a done keyword),
                             "note" (a `- CLOSING NOTE` line) or
                             "last_repeat" (the LAST_REPEAT property of a
-                            repeating entry). >lua
+                            repeating entry). One task marked done can
+                            give several (its CLOSED date and its state
+                            log line); an entry's CLOSED comes first,
+                            then its log lines, then LAST_REPEAT. >lua
     local api = require("org.api")
     local week = { from = "-6d", to = api.today(), tags = "work" }
     local minutes = 0
     for _, c in ipairs(api.clocks(week)) do
       minutes = minutes + c.minutes
     end
+    local done = {}
+    for _, c in ipairs(api.completed(week)) do
+      local h = c.headline
+      done[(h.file or h.bufnr) .. ":" .. h.line] = true
+    end
     print(("%d:%02d clocked, %d tasks done"):format(
-      math.floor(minutes / 60), minutes % 60, #api.completed(week)))
+      math.floor(minutes / 60), minutes % 60, vim.tbl_count(done)))
 <
 
 Session server ~
@@ -10103,8 +10121,9 @@ Read and change Org data through |org-api|: its functions and fields keep
 working across releases of the same major API version, where the other
 `org.*` modules can change in any release. The `kanban`, `timeline` and
 `heatmap` extensions read and change entries through it alone (their
-windows and drawing are shared code of the built-in views), so a
-third-party extension can do what they do.
+windows and drawing are shared code of the built-in views, and so is the
+org-ql filter of their `query` option), so a third-party extension can do
+what they do.
 
 ------------------------------------------------------------------------------
 org-ql                                                    *org-extensions-ql*

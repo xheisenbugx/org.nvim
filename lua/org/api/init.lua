@@ -95,7 +95,9 @@ end
 --- The dates a timestamp falls on from day `from` to day `to` (any dates
 --- the API accepts; both included), as the agenda lists it: the timestamp
 --- itself when it has no repeater, else every repetition (`+1w`, `.+1d`
---- and `++1m` all repeat from the timestamp). Since API 1.3.
+--- and `++1m` all repeat from the timestamp). A range counts as its
+--- start. nil and an error past
+--- 5,000 occurrences. Since API 1.3.
 ---@param value any
 ---@param from any
 ---@param to any
@@ -114,8 +116,15 @@ function M.occurrences(value, from, to)
   if not t then
     return nil, err
   end
+  local occ, more = require("org.date").occurrences(d, f:days(), t:days())
+  if more then
+    local function ymd(x)
+      return string.format("%04d-%02d-%02d", x.year, x.month, x.day)
+    end
+    return nil, string.format("more than %d occurrences from %s to %s: ask for fewer days", #occ, ymd(f), ymd(t))
+  end
   local out = {}
-  for i, o in ipairs(require("org.date").occurrences(d, f:days(), t:days())) do
+  for i, o in ipairs(occ) do
     out[i] = H.date(o)
   end
   return out
@@ -512,7 +521,13 @@ local function each_headline(query, fn)
     end
   end
   if query.agenda then
-    require("org.agenda.items").each_headline(fs, {}, visit)
+    -- a subtree skip is asked about the headlines the query matches only,
+    -- as org-agenda-skip runs after the matcher (`candidate`)
+    require("org.agenda.items").each_headline(fs, {
+      candidate = function(hl)
+        return not (range and (hl.line < range[1] or hl.line > range[2])) and keep(hl)
+      end,
+    }, visit)
   else
     for _, f in ipairs(fs) do
       for _, hl in ipairs(f.headlines) do
@@ -591,7 +606,7 @@ end
 ---@class org.api.Clock
 ---@field start org.api.Date
 ---@field end org.api.Date|nil nil while the clock runs
----@field minutes integer its `=> H:MM` duration, else the time between its timestamps (until now while it runs)
+---@field minutes integer the time between its timestamps (until now while it runs), not its `=> H:MM` text, as org-clock-sum counts it; 0 for one that ends before it starts or whose start has no time
 ---@field running boolean
 ---@field line integer the CLOCK line
 ---@field headline org.api.Headline the entry it clocks (one handle per entry)
@@ -628,11 +643,13 @@ function M.clocks(query)
         if not h then
           return
         end
-        local stop = e or now
+        -- from the timestamps, like org-clock-sum (and the clock table)
+        local stop = e and require("org.parser").clock_end(c) or (not e and now) or nil
+        local minutes = stop and math.floor(date.elapsed_minutes(s, stop)) or 0
         out[#out + 1] = {
           start = H.date(s, nil, times),
           ["end"] = e and H.date(e, nil, times) or nil,
-          minutes = (e and c.minutes) or math.floor((stop:to_time() - s:to_time()) / 60),
+          minutes = math.max(minutes, 0),
           running = e == nil,
           line = c.line,
           headline = h,
@@ -652,13 +669,43 @@ end
 ---@field headline org.api.Headline the entry (one handle per entry)
 
 local STATE_LOG = '^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])'
-local CLOSING_NOTE = "^%s*%-%s+CLOSING NOTE%s+(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])"
+-- the Lua patterns of org-habit's escapes in `log_note_headings.done`
+local NOTE_ESCAPES = {
+  t = "(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])",
+  d = "(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])",
+  T = "([<%[]%d%d%d%d%-%d%d%-%d%d[^>%]]*[>%]])",
+  D = "([<%[]%d%d%d%d%-%d%d%-%d%d[^>%]]*[>%]])",
+  s = '"%S+"',
+  S = '"%S+"',
+  u = ".-",
+  U = ".-",
+}
 
---- When the headlines matching `query` were marked done, as org-habit
---- reads it: their CLOSED date, the log lines of changes to a done
---- keyword and closing notes in their body, and their LAST_REPEAT
---- property; with `from` / `to`, those on one of those days. In file
---- order, an entry's in that order. Since API 1.3.
+--- The pattern of a closing-note line, its first capture the date, built
+--- from `log_note_headings.done` as org-habit-parse-todo builds its
+--- regexp; nil when the heading has no timestamp.
+---@return string|nil
+local function done_note_pattern()
+  local heading = (require("org.config").opts.log_note_headings or {}).done
+  if type(heading) ~= "string" or not heading:find("%%%-?%d*[tTdD]") then
+    return nil
+  end
+  local out, pos = {}, 1
+  for s, key, e in heading:gmatch("()%%%-?%d*([tTdDsSuU])()") do
+    out[#out + 1] = vim.pesc(heading:sub(pos, s - 1))
+    out[#out + 1] = NOTE_ESCAPES[key]
+    pos = e
+  end
+  out[#out + 1] = vim.pesc(heading:sub(pos))
+  return "^%s*%-%s+" .. table.concat(out)
+end
+
+--- When the headlines matching `query` were marked done: their CLOSED
+--- date, the log lines org-habit reads (changes to a done keyword, and
+--- closing notes per `log_note_headings.done`), and their LAST_REPEAT
+--- property; with `from` / `to`, those on one of those days. Entries in
+--- file order; an entry's CLOSED date first, then its log lines as they
+--- are written, then LAST_REPEAT. Since API 1.3.
 ---@param query? org.api.RangeQuery
 ---@return org.api.Completion[]|nil completions, string|nil err
 function M.completed(query)
@@ -671,6 +718,7 @@ function M.completed(query)
   from, to = from or -math.huge, to or math.huge
   local out = {}
   local times = H.batch()
+  local closing_note = done_note_pattern()
   local ok
   ok, err = each_with_handle(query, function(hl, handle)
     local function add(kind, d)
@@ -688,6 +736,9 @@ function M.completed(query)
       out[#out + 1] = { date = H.date(d, nil, times), type = kind, headline = h }
       return true
     end
+    if not add("closed", hl.planning.closed) then
+      return
+    end
     local done = hl.file.settings.todo
     local lines = hl.file.lines
     for i = hl.line + 1, hl.body_end or hl.line do
@@ -695,14 +746,11 @@ function M.completed(query)
       local kind = "state"
       local kw, ts = line:match(STATE_LOG)
       if not (kw and done:is_done(kw)) then
-        kind, ts = "note", line:match(CLOSING_NOTE)
+        kind, ts = "note", closing_note and line:match(closing_note) or nil
       end
       if ts and not add(kind, date.parse(ts)) then
         return
       end
-    end
-    if not add("closed", hl.planning.closed) then
-      return
     end
     local lr = hl.properties.LAST_REPEAT
     add("last_repeat", lr and date.parse(lr))

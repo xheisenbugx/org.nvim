@@ -1056,7 +1056,8 @@ function M.occurrences(ts, from_days, to_days)
     cur = base:add(k * r.value, r.unit)
     guard = guard + 1
   end
-  return out
+  -- (true: stopped at the guard with occurrences left before `to_days`)
+  return out, cur:days() <= to_days
 end
 
 --- Warning days for a deadline: explicit `-Nd` or config default.

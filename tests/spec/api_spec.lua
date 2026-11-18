@@ -1325,6 +1325,11 @@ describe("org.api", function()
       local res, err = api.occurrences("nonsense", "2026-10-01", "2026-10-31")
       eq(nil, res)
       ok(err)
+      -- past 5,000 dates: an error, not a list cut short
+      eq(4748, #assert(api.occurrences("<2026-01-01 Thu +1d>", "2026-01-01", "2038-12-31")))
+      res, err = api.occurrences("<2026-01-01 Thu +1d>", "2026-01-01", "2039-12-31")
+      eq(nil, res)
+      ok(err:match("more than 5000 occurrences"), err)
     end)
 
     it("todo_keywords() of the option, a file and a buffer, in their order", function()
@@ -1361,6 +1366,13 @@ describe("org.api", function()
       -- without a cookie
       eq({ 2000, 1000, 0 }, { hs[1].priority_value, hs[2].priority_value, hs[3].priority_value })
       eq(60, api.load(work).headlines[1].effort)
+      -- the entry's own, as the agenda reads it: never inherited
+      local inherit = config.opts.use_property_inheritance
+      config.opts.use_property_inheritance = true
+      local q = write(dir, "inherit.org", { "* P", "  :PROPERTIES:", "  :Effort: 1:00", "  :END:", "** child" })
+      local kids = assert(api.headlines({ files = q }))
+      config.opts.use_property_inheritance = inherit
+      eq({ 60, nil }, { kids[1].effort, kids[2].effort })
       eq(nil, hs[1].bufnr)
       open_file(p)
       eq(vim.api.nvim_get_current_buf(), assert(api.current()).headlines[1].bufnr)
@@ -1385,6 +1397,16 @@ describe("org.api", function()
       eq({ "B", "C" }, titles(assert(api.headlines({ within = b, agenda = true }))))
       eq({ "G" }, titles(assert(api.headlines({ bufnr = buf, planned = true }))))
       eq(6, #assert(api.headlines({ bufnr = buf, planned = false })))
+      -- a subtree skip is asked about the matches only (org-agenda-skip
+      -- runs after the matcher): a DONE parent the query doesn't match
+      -- doesn't hide its TODO child
+      local skip_buf = org_buffer({ "* DONE parent", "** TODO child" })
+      local agenda_opts = require("org.config").opts.agenda
+      local global = agenda_opts.skip_function_global
+      agenda_opts.skip_function_global = require("org.agenda").skip_subtree_if("todo", { "DONE" })
+      local res = titles(assert(api.headlines({ bufnr = skip_buf, agenda = true, todo = "TODO" })))
+      agenda_opts.skip_function_global = global
+      eq({ "child" }, res)
       vim.cmd("enew!")
       local _, err = api.headlines({ bufnr = 0 })
       ok(err:match("not an org buffer"))
@@ -1403,6 +1425,10 @@ describe("org.api", function()
       local res, err = api.headlines({ fields = "scheduled" })
       eq(nil, res)
       ok(err:match("fields"))
+      -- a misspelt name isn't a field nobody has
+      res, err = api.headlines({ files = work, fields = { "efort" } })
+      eq(nil, res)
+      ok(err:match('invalid field: "efort"'), err)
     end)
 
     it("clocks() lists the CLOCK lines of the entries, in a range of days", function()
@@ -1435,12 +1461,28 @@ describe("org.api", function()
       eq(1, #assert(api.clocks({ files = p, title = "two" })))
       local _, err = api.clocks({ files = p, from = "???" })
       ok(err)
+      -- minutes from the timestamps, not a stale `=>` text (org-clock-sum);
+      -- 0 for one that ends before it starts
+      local q = write(dir, "stale.org", {
+        "* Task",
+        "  CLOCK: [2026-10-01 Thu 09:00]--[2026-10-01 Thu 10:00] =>  2:00",
+        "  CLOCK: [2026-10-01 Thu 11:00]--[2026-10-01 Thu 10:00] => -1:00",
+      })
+      eq(
+        { 60, 0 },
+        vim.tbl_map(function(x)
+          return x.minutes
+        end, assert(api.clocks({ files = q })))
+      )
     end)
 
     it("completed() lists when entries were marked done", function()
       local p = write(dir, "done.org", {
         "* DONE Report",
         "  CLOSED: [2026-10-01 Thu 18:00]",
+        "  :LOGBOOK:",
+        '  - State "DONE"       from "TODO"       [2026-10-01 Thu 18:00]',
+        "  :END:",
         "* TODO Water plants",
         "  SCHEDULED: <2026-10-03 Sat .+1d>",
         "  :PROPERTIES:",
@@ -1458,16 +1500,29 @@ describe("org.api", function()
           return { x.headline.title, x.type, x.date.date }
         end, list)
       end
+      -- an entry's CLOSED first, then its log lines, then LAST_REPEAT
       eq({
         { "Report", "closed", "2026-10-01" },
+        { "Report", "state", "2026-10-01" },
         { "Water plants", "state", "2026-10-02" },
         { "Water plants", "note", "2026-09-28" },
         { "Water plants", "last_repeat", "2026-10-02" },
       }, rows(assert(api.completed({ files = p }))))
       eq(
-        { { "Report", "closed", "2026-10-01" } },
+        { { "Report", "closed", "2026-10-01" }, { "Report", "state", "2026-10-01" } },
         rows(assert(api.completed({ files = p, from = "2026-09-29", to = "2026-10-01" })))
       )
+      -- a closing note per `log_note_headings.done`, as org-habit reads it
+      local headings = config.opts.log_note_headings
+      config.opts.log_note_headings = vim.tbl_extend("force", headings, { done = "Finished %t" })
+      local q = write(dir, "finished.org", {
+        "* DONE Read",
+        "  - Finished [2026-10-01 Thu 10:00]",
+        "  - CLOSING NOTE [2026-09-30 Wed 10:00]",
+      })
+      local got = rows(assert(api.completed({ files = q })))
+      config.opts.log_note_headings = headings
+      eq({ { "Read", "note", "2026-10-01" } }, got)
     end)
 
     it("set_todo with interactive asks for the note the logging wants", function()
@@ -1518,13 +1573,17 @@ describe("org.api", function()
       eq("2026-10-20", h.scheduled.date)
       ok(h:set_deadline(nil, { interactive = true }))
       eq("2026-10-20", h.deadline.date)
-      cal.pick = function()
+      cal.pick = function(o)
+        asked[#asked + 1] = o.prompt
         return nil
       end
       local res, err = h:schedule(nil, { interactive = true })
+      eq({ nil, nil }, { res, err })
+      -- cancelling the deadline prompt asks nothing more (no Schedule)
+      res, err = h:set_deadline(nil, { interactive = true })
       cal.pick = pick
       eq({ nil, nil }, { res, err })
-      eq({ "Schedule", "Deadline" }, asked)
+      eq({ "Schedule", "Deadline", "Schedule", "Deadline" }, asked)
       ok(table.concat(disk(work), "\n"):find("SCHEDULED: <2026-10-20 Tue>", 1, true))
       -- without interactive, nil removes the date
       ok(h:schedule(nil))
