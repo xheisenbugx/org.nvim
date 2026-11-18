@@ -1476,6 +1476,77 @@ describe("org.api", function()
       )
     end)
 
+    it("clocks() gives plain dates, as api.date makes them", function()
+      local p = write(dir, "dates.org", {
+        "* Task",
+        "  :LOGBOOK:",
+        "  CLOCK: [2026-10-01 Thu 23:00]--[2026-10-02 Fri 01:30] =>  2:30",
+        "  CLOCK: [2026-09-30 Wed 09:00 +1w]--[2026-09-30 Wed 10:15] =>  1:15",
+        "  CLOCK: [2026-09-29 Tue 09:00-09:30]--[2026-09-29 Tue 10:00] =>  1:00",
+        "  CLOCK: [2026-09-28 Mon 09:00]--[2026-09-29 Tue] =>  0:00",
+        "  CLOCK: [2026-09-27 Sun]--[2026-09-27 Sun 10:00] =>  0:00",
+        "  :END:",
+      })
+      local cs = assert(api.clocks({ files = p }))
+      eq(
+        { 150, 75, 60, 1440, 0 },
+        vim.tbl_map(function(c)
+          return c.minutes
+        end, cs)
+      )
+      for _, c in ipairs(cs) do
+        for _, d in ipairs({ c.start, c["end"] }) do
+          -- field by field what api.date() makes of its text, in a plain
+          -- table: pairs(), vim.json.encode() and vim.deep_equal() see it whole
+          local want = assert(api.date(d.text))
+          eq(nil, getmetatable(d))
+          eq(want, d)
+          ok(vim.deep_equal(want, d))
+          eq(vim.json.decode(vim.json.encode(want)), vim.json.decode(vim.json.encode(d)))
+          eq(vim.tbl_count(want), vim.tbl_count(d))
+        end
+      end
+      eq("[2026-10-01 Thu 23:00]", cs[1].start.text)
+      eq({ type = "+", value = 1, unit = "w" }, cs[2].start.repeater)
+      eq("[2026-09-30 Wed 09:00 +1w]", cs[2].start.text)
+      eq({ 9, 30, "09:00", "[2026-09-29 Tue 09:00-09:30]" }, {
+        cs[3].start.end_hour,
+        cs[3].start.end_min,
+        cs[3].start.time,
+        cs[3].start.text,
+      })
+      eq({ nil, nil, "2026-09-27", "[2026-09-27 Sun]" }, {
+        cs[5].start.hour,
+        cs[5].start.time,
+        cs[5].start.date,
+        cs[5].start.text,
+      })
+    end)
+
+    it("clocks() counts the minutes of a daylight-saving day as they elapsed", function()
+      local saved = vim.env.TZ
+      date.set_tz(tz("America/New_York"))
+      local p = write(dir, "dst.org", {
+        "* Task",
+        "  :LOGBOOK:",
+        "  CLOCK: [2026-03-08 Sun 01:30]--[2026-03-08 Sun 03:30] =>  2:00",
+        "  CLOCK: [2026-03-07 Sat 22:00]--[2026-03-08 Sun 04:00] =>  6:00",
+        "  CLOCK: [2026-11-01 Sun 00:30]--[2026-11-01 Sun 02:30] =>  2:00",
+        "  CLOCK: [2026-11-02 Mon 00:30]--[2026-11-02 Mon 02:30] =>  2:00",
+        "  :END:",
+      })
+      local ok_, got = pcall(function()
+        return vim.tbl_map(function(c)
+          return { c.minutes, (c["end"].timestamp - c.start.timestamp) / 60 }
+        end, assert(api.clocks({ files = p })))
+      end)
+      date.set_tz(saved)
+      ok(ok_, got)
+      -- 2:00 to 3:00 is skipped in spring and 1:00 to 2:00 repeated in
+      -- the fall; the day after counts its wall-clock time
+      eq({ { 60, 60 }, { 300, 300 }, { 180, 180 }, { 120, 120 } }, got)
+    end)
+
     it("completed() lists when entries were marked done", function()
       local p = write(dir, "done.org", {
         "* DONE Report",

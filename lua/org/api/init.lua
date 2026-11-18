@@ -414,6 +414,8 @@ local function query_files(query)
   return M.agenda.files(query.files)
 end
 
+local NO_PROPERTY = {}
+
 --- Call `fn(hl)` for each parsed headline that meets every condition of
 --- `query` but its `filter` (which takes a handle), in file order.
 ---@param query org.api.Query
@@ -439,6 +441,7 @@ local function each_headline(query, fn)
   local tags = as_list(query.tags)
   local level = query.level
   local title = query.title and lower(query.title)
+  local property = query.property
   local function keep(hl)
     if query.archived == false then
       local h = hl
@@ -486,7 +489,8 @@ local function each_headline(query, fn)
         end
       end
     end
-    for name, want in pairs(query.property or {}) do
+    -- (no table made per headline when there is no property test)
+    for name, want in pairs(property or NO_PROPERTY) do
       local v = hl:get_property(name)
       if type(want) == "function" then
         if not want(v) then
@@ -581,7 +585,9 @@ end
 
 --- `fn(hl)` for the headlines of a range query, with the handle `h(hl)`
 --- that makes (once) the handle of `hl` an entry points to, or returns
---- false when the query's filter leaves it out.
+--- false when the query's filter leaves it out. `h` is for the call of
+--- `fn` it is given to (one function for every headline, not a closure
+--- made per headline).
 ---@param query org.api.Query
 ---@param fn fun(hl: org.Headline, h: fun(): org.api.Headline|false)
 ---@return boolean|nil ok, string|nil err
@@ -590,17 +596,19 @@ local function each_with_handle(query, fn)
   if not memo then
     return nil, err
   end
-  return each_headline(query, function(hl)
-    local handle
-    fn(hl, function()
-      if handle == nil then
-        handle = H.new(hl, memo)
-        if query.filter and not query.filter(handle) then
-          handle = false
-        end
+  local current, handle
+  local function get()
+    if handle == nil then
+      handle = H.new(current, memo)
+      if query.filter and not query.filter(handle) then
+        handle = false
       end
-      return handle
-    end)
+    end
+    return handle
+  end
+  return each_headline(query, function(hl)
+    current, handle = hl, nil
+    fn(hl, get)
   end)
 end
 
@@ -625,6 +633,7 @@ function M.clocks(query)
   end
   local date = require("org.date")
   local parser = require("org.parser")
+  local floor = math.floor
   local now = date.now()
   local now_time = now:to_time()
   -- year * 10000 + month * 100 + day compares like days, without
@@ -634,35 +643,54 @@ function M.clocks(query)
   end
   local from_key = from and key(date.from_days(from)) or -math.huge
   local to_key = to and key(date.from_days(to)) or math.huge
-  local out = {}
-  -- the Unix times of the dates, shared
-  local times = H.batch()
+  local now_key = key(now)
+  local out, n = {}, 0
+  -- the Unix times of the days, shared by the dates
+  local times = assert(H.batch())
+  -- the day numbers of the clocks' days, by key()
+  local day_at = {}
   local ok
   ok, err = each_with_handle(query, function(hl, handle)
     for _, c in ipairs(hl.clocks) do
       local s, e = c.start, c["end"]
-      if key(s) <= to_key and key(e or now) >= from_key then
+      local ks = s.year * 10000 + s.month * 100 + s.day
+      local ke = e and e.year * 10000 + e.month * 100 + e.day or now_key
+      if ks <= to_key and ke >= from_key then
         local h = handle()
         if not h then
           return
         end
+        local sday = day_at[ks]
+        if not sday then
+          sday = s:days()
+          day_at[ks] = sday
+        end
+        local sd = H.date(s, nil, times, sday) --[[@as org.api.Date]]
+        local ed
+        if e then
+          local eday = day_at[ke]
+          if not eday then
+            eday = e:days()
+            day_at[ke] = eday
+          end
+          ed = H.date(e, nil, times, eday)
+        end
         -- from the timestamps, like org-clock-sum (and the clock table),
         -- with the Unix times the dates have anyway
-        local sd = H.date(s, nil, times) --[[@as org.api.Date]]
-        local ed = e and H.date(e, nil, times) or nil
         local minutes = 0
         if not e then
-          minutes = math.floor((now_time - sd.timestamp) / 60)
-        elseif ed and s:has_time() and e:has_time() then
-          minutes = math.floor((ed.timestamp - sd.timestamp) / 60)
-        elseif s:has_time() then
+          minutes = floor((now_time - sd.timestamp) / 60)
+        elseif ed and s.hour and e.hour then
+          minutes = floor((ed.timestamp - sd.timestamp) / 60)
+        elseif s.hour then
           -- an end without a time: org-clock-sum takes the start's
-          minutes = math.floor(date.elapsed_minutes(s, assert(parser.clock_end(c))))
+          minutes = floor(date.elapsed_minutes(s, assert(parser.clock_end(c))))
         end
-        out[#out + 1] = {
+        n = n + 1
+        out[n] = {
           start = sd,
           ["end"] = ed,
-          minutes = math.max(minutes, 0),
+          minutes = minutes > 0 and minutes or 0,
           running = e == nil,
           line = c.line,
           headline = h,
