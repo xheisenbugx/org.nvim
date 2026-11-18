@@ -19,8 +19,9 @@
 -- per headline in short, branchy code (its dates, tags, properties), whose
 -- traces mostly abort or fill the machine-code area, which on macOS arm64
 -- flushes every trace in Neovim (see "Performance budgets" in
--- CONTRIBUTING.md). Interpreted, a board of 2,500 handles was built
--- several times faster.
+-- CONTRIBUTING.md). Interpreted, its timings stay steady: compiled, it
+-- was 10-30% faster in a fresh Neovim, but a view's build sometimes took
+-- twice as long after a flush.
 if jit then
   jit.off(true, true)
 end
@@ -623,7 +624,9 @@ function M.clocks(query)
     return nil, err
   end
   local date = require("org.date")
+  local parser = require("org.parser")
   local now = date.now()
+  local now_time = now:to_time()
   -- year * 10000 + month * 100 + day compares like days, without
   -- computing day numbers for the clocks out of the range
   local function key(d)
@@ -643,12 +646,22 @@ function M.clocks(query)
         if not h then
           return
         end
-        -- from the timestamps, like org-clock-sum (and the clock table)
-        local stop = e and require("org.parser").clock_end(c) or (not e and now) or nil
-        local minutes = stop and math.floor(date.elapsed_minutes(s, stop)) or 0
+        -- from the timestamps, like org-clock-sum (and the clock table),
+        -- with the Unix times the dates have anyway
+        local sd = H.date(s, nil, times) --[[@as org.api.Date]]
+        local ed = e and H.date(e, nil, times) or nil
+        local minutes = 0
+        if not e then
+          minutes = math.floor((now_time - sd.timestamp) / 60)
+        elseif ed and s:has_time() and e:has_time() then
+          minutes = math.floor((ed.timestamp - sd.timestamp) / 60)
+        elseif s:has_time() then
+          -- an end without a time: org-clock-sum takes the start's
+          minutes = math.floor(date.elapsed_minutes(s, assert(parser.clock_end(c))))
+        end
         out[#out + 1] = {
-          start = H.date(s, nil, times),
-          ["end"] = e and H.date(e, nil, times) or nil,
+          start = sd,
+          ["end"] = ed,
           minutes = math.max(minutes, 0),
           running = e == nil,
           line = c.line,

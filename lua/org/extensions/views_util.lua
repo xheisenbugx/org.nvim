@@ -357,7 +357,7 @@ end
 ---@field todo? string|string[]|boolean as in an org.api query
 ---@field done? boolean as in an org.api query
 ---@field planned? boolean as in an org.api query
----@field fields? string[] as in an org.api query (the tag filter adds `all_tags`)
+---@field fields? string[] as in an org.api query
 
 --- The org.api query (`:h org-api-headlines`) of the headlines of a
 --- resolved source that `opts` lets through, the way the agenda looks at
@@ -374,9 +374,16 @@ function M.api_query(src, opts)
   local tag = opts.tag and opts.tag ~= "" and opts.tag or nil
   if opts.fields then
     q.fields = vim.list_extend({}, opts.fields)
-    if tag then
-      q.fields[#q.fields + 1] = "all_tags"
-    end
+  end
+  if tag then
+    -- the tag, any case, inherited ones too: tested on the ALLTAGS
+    -- special property before any handle is made
+    local want = ":" .. tag:gsub("^[+:]", ""):gsub(":$", ""):lower() .. ":"
+    q.property = {
+      ALLTAGS = function(v)
+        return v ~= nil and v:lower():find(want, 1, true) ~= nil
+      end,
+    }
   end
   if src.kind == "buffer" or src.kind == "subtree" then
     if not vim.api.nvim_buf_is_valid(src.bufnr) then
@@ -424,15 +431,9 @@ function M.api_query(src, opts)
     end
     table.insert(preds, 1, pred)
   end
-  if tag or #preds > 0 then
+  if #preds > 0 then
     local parsed = {}
     q.filter = function(h)
-      if tag and not M.has_tag(h.all_tags, tag) then
-        return false
-      end
-      if #preds == 0 then
-        return true
-      end
       local key = h.file or h.bufnr
       local f = parsed[key]
       if f == nil then
@@ -495,21 +496,6 @@ function M.files_key(files)
     parts[i + 1] = tostring(f)
   end
   return table.concat(parts, " ")
-end
-
---- Whether the tags of a headline (inherited ones included: an org.api
---- handle's `all_tags`) have `tag`, ignoring case.
----@param tags string[]
----@param tag string
----@return boolean
-function M.has_tag(tags, tag)
-  tag = tag:gsub("^[+:]", ""):gsub(":$", ""):lower()
-  for _, t in ipairs(tags) do
-    if t:lower() == tag then
-      return true
-    end
-  end
-  return false
 end
 
 ---------------------------------------------------------------------------

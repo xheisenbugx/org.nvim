@@ -230,6 +230,15 @@ function M.data(kind, query, first, last)
     to = last and { days = last } or nil,
     fields = fields,
   })
+  if kind == "habit" and not (query.property and query.property.STYLE ~= nil) then
+    -- only habits get their log read: the query's STYLE test runs before
+    -- any handle is made (it may inherit; is_habit reads the entry's own)
+    q.property = vim.tbl_extend("force", {}, query.property or {}, {
+      STYLE = function(v)
+        return v ~= nil and v:lower() == "habit"
+      end,
+    })
+  end
   first, last = first or -math.huge, last or math.huge
   local lo, hi = first * 1440, (last + 1) * 1440
   -- the entries in the order they come (file order), each with its own

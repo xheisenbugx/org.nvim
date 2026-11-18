@@ -10,8 +10,9 @@
 -- per headline in short, branchy code (its dates, tags, properties), whose
 -- traces mostly abort or fill the machine-code area, which on macOS arm64
 -- flushes every trace in Neovim (see "Performance budgets" in
--- CONTRIBUTING.md). Interpreted, a board of 2,500 handles was built
--- several times faster.
+-- CONTRIBUTING.md). Interpreted, its timings stay steady: compiled, it
+-- was 10-30% faster in a fresh Neovim, but a view's build sometimes took
+-- twice as long after a flush.
 if jit then
   jit.off(true, true)
 end
@@ -99,8 +100,30 @@ local function planning_raw(hl, kind)
   return range and (stamp .. range) or stamp
 end
 
+--- `d:to_time()`, with os.time (slow: about 2 µs) called twice per day
+--- of a batch rather than once per date: on a day whose local midnights
+--- are 24 hours apart (no daylight-saving change that day), a time is its
+--- midnight plus its hours and minutes; another day asks os.time.
+---@param d table an org.date date
+---@param memo org.api.Batch
+---@return integer
+function M.unix(d, memo)
+  local key = d:days()
+  local t0 = memo.times[key]
+  if t0 == nil then
+    local a = os.time({ year = d.year, month = d.month, day = d.day, hour = 0, min = 0, sec = 0 })
+    local b = os.time({ year = d.year, month = d.month, day = d.day + 1, hour = 0, min = 0, sec = 0 })
+    t0 = (a and b and b - a == 86400) and a or false
+    memo.times[key] = t0
+  end
+  if t0 then
+    return t0 + (d.hour or 0) * 3600 + (d.min or 0) * 60
+  end
+  return d:to_time()
+end
+
 --- Plain-data date of an org.date timestamp. `memo` (see `M.batch`) keeps
---- the Unix times of the dates of one call.
+--- the Unix times of the days of one call.
 ---@param d table|nil
 ---@param raw? string
 ---@param memo? org.api.Batch
@@ -110,18 +133,7 @@ function M.date(d, raw, memo)
     return nil
   end
   local text = d:to_string()
-  local timestamp
-  if memo then
-    -- os.time is slow: dates without a time share their day's
-    local key = d:minutes()
-    timestamp = memo.times[key]
-    if not timestamp then
-      timestamp = d:to_time()
-      memo.times[key] = timestamp
-    end
-  else
-    timestamp = d:to_time()
-  end
+  local timestamp = memo and M.unix(d, memo) or d:to_time()
   return {
     year = d.year,
     month = d.month,
@@ -508,7 +520,7 @@ end
 
 ---@class org.api.Batch
 ---@field titles table<org.Headline, string> plain titles (ancestors' are shared)
----@field times table<integer, integer> Unix times by wall-clock minute
+---@field times table<integer, integer|false> Unix time of each day's midnight by day number (false: a day with a daylight-saving change)
 ---@field ranges table<org.File, table> priority ranges by file
 ---@field want table<string, true>|nil the optional fields to fill (nil: all)
 
