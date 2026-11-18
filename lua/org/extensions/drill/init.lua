@@ -19,7 +19,7 @@ M.schedule = schedule
 M.cloze = require("org.extensions.drill.cloze")
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Tag of drill cards (org-drill-question-tag).

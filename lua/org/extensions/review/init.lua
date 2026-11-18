@@ -17,7 +17,7 @@ local M = {}
 M.steps = steps_mod
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Steps in order: builtin names ("inbox", "stuck", "waiting",

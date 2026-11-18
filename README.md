@@ -450,7 +450,7 @@ its options or keys are called out in the release notes) or 🧪
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap` | `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`, `caldav` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal` | `src_lsp`, `caldav` |
 
 The [guide](docs/guide.md#-extensions) describes each one with a demo,
 the [extensions status](https://org-nvim.com/extensions.html) page shows
