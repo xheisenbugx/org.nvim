@@ -692,11 +692,14 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 (first active timestamp, else inactive), s scheduled,
                 d deadline, c created (first inactive timestamp at the
                 start of a line), k clocking time; missing dates count as
-                now. List keys: a, n, t, f, x (checkbox). Uppercase
-                reverses; a count (C-u) makes it case-sensitive. For `f`,
-                give a name from `sort_functions` or a Lua expression
-                returning a function(entry, lines), then optionally a
-                compare function. Children under a headline whose text
+                now. List keys: a, n, t, f, x (checkbox); as in Emacs,
+                only that list is repaired (not a list around it), and
+                the cursor then goes to the start of its first line.
+                Uppercase reverses; a count (C-u) makes it
+                case-sensitive. For `f`, give a name from
+                `sort_functions` or a Lua expression returning a
+                function(entry, lines), then optionally a compare
+                function. Children under a headline whose text
                 holds an inline task stay as they are, as in Emacs (it
                 takes the inline task for the first child).
 
@@ -1124,6 +1127,15 @@ sub-list indentation, circular item motion and the automatic rules.
                 item, it acts on that instead, as in Emacs.
                 With `ORDERED: t`, boxes after an unchecked one stay
                 unchecked. On other lines of an item: nothing.
+                At the very start of a list's first line (column 0, even
+                when the list or sub-list is indented) and on an
+                affiliated keyword line above it (`#+NAME:`,
+                `#+ATTR_ORG:`, ...), it acts on that list, as in Emacs: a
+                count 4 (C-u) removes the checkbox of each of its items
+                (not of their sub-items) when the first one has one, else
+                gives each of them `[ ]`; 16 (C-u C-u) gives each `[-]`.
+                Without a count, it toggles the first item's checkbox
+                (not on the keyword line), without the `ORDERED` rule.
 <C-Space>       Toggle checkboxes (org-toggle-checkbox): the item at the
 <C-c><C-x><C-b> cursor, every item of the Visual selection (following the
                 first one), or on a headline every item of its text. Items
@@ -1143,7 +1155,10 @@ sub-list indentation, circular item motion and the automatic rules.
 <S-Right/Left>  (ctx) On an item: cycle the bullet style.
 <C-c>-          (ctx) On an item: cycle the bullet style; elsewhere toggle
                 items (|org-structure|).
-<prefix>hb      Cycle the bullet style.
+<prefix>hb      Cycle the bullet style. On a description item
+                (`- term :: text`) the cycle skips the numbered and
+                lettered bullets, as in Emacs: `-`, `+`, then `*` when
+                the list is indented.
 :Org beginning_of_item / end_of_item    Go to the start / end of the item
                 (org-beginning-of-item, org-end-of-item; unbound, as in
                 Emacs).

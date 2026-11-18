@@ -25,11 +25,31 @@ local lopt = shared.lopt
 local set_lines = shared.set_lines
 local use_alpha = shared.use_alpha
 
+--- org-at-item-description-p on `line`, the first line of `item`: after
+--- the bullet, its blanks and a `[@N]` counter, the text matches
+--- \(\S-.+\)[ \t]+::\([ \t]+\|$\). The term needs two characters (not
+--- bytes: "- é :: b" isn't one either), so "- a :: b" isn't one, but a
+--- checkbox counts: "- [ ] a :: b" is.
+local function description_p(line, item)
+  local rest = line:sub(item.ind_len + #item.bullet + 1):gsub("^[ \t]+", "")
+  local counter = rest:match("^%[@start:(.*)$") or rest:match("^%[@(.*)$")
+  if counter then
+    local after = counter:match("^%d+%][ \t]*(.*)$")
+    if not after and lopt("allow_alphabetical") then
+      after = counter:match("^%a%][ \t]*(.*)$")
+    end
+    rest = after or rest
+  end
+  -- a Vim regexp: `.` is one character, multibyte ones included
+  return vim.fn.match(rest, [[\m^\S.\+[ \t]\+::\%([ \t]\+\|$\)]]) == 0
+end
+
 --- Cycle the bullet type of the list at cursor (org-cycle-list-bullet)
 --- through `-`, `+`, `*` (not at column 0), `1.`, `1)` and, with
 --- lists.allow_alphabetical and at most 26 items, `a.`, `A.`, `a)`,
---- `A)`. `dir` is 1 (next), -1
---- (previous), a bullet string or a 0-based index into the sequence.
+--- `A)`. A description item (the one at the cursor) is never numbered.
+--- `dir` is 1 (next), -1 (previous), a bullet string or a 0-based index
+--- into the sequence.
 function M.cycle_bullet(dir)
   dir = dir or 1
   local bufnr = vim.api.nvim_get_current_buf()
@@ -58,9 +78,9 @@ function M.cycle_bullet(dir)
     current = bullet
   end
   local term = lopt("ordered_item_terminator")
-  -- Emacs means to keep description lists unnumbered, but its test
-  -- (org-at-item-description-p) never matches here: they get numbered
-  local desc = false
+  -- description items can't be numbered (org-at-item-description-p, on
+  -- the item at point)
+  local desc = description_p(get_lines(bufnr, item.lnum, item.lnum)[1], item)
   local list = { "-", "+" }
   if item.indent > 0 then
     list[#list + 1] = "*"

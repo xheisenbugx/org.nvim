@@ -482,3 +482,284 @@ describe("lists: list to headings with odd levels (org-list-to-subtree)", functi
     eq({ "#+STARTUP: odd", "* A", "*** B", "***** item", "******* sub", "text" }, buf_lines(buf))
   end)
 end)
+
+describe("lists: C-c - on a description list (org-cycle-list-bullet)", function()
+  -- org-cycle-list-bullet leaves 1. 1) and the letters out of the cycle
+  -- when org-at-item-description-p matches the item at point: after the
+  -- bullet (and a [@N] counter), the regexp \(\S-.+\)[ \t]+::\([ \t]+\|$\),
+  -- so a one-character term ("a :: b") doesn't count, while one after a
+  -- checkbox does. Every line below is what Emacs Org 9.8.12 gave.
+  local function cycle(lines, cursor, n, dir)
+    org_buffer(lines, cursor)
+    return cycle_n(n, dir)
+  end
+
+  it("cycles - and + at column 0, and *, too, when indented", function()
+    eq(
+      { "+ Apple :: a fruit", "- Apple :: a fruit", "+ Apple :: a fruit", "- Apple :: a fruit" },
+      cycle({ "- Apple :: a fruit", "- Carrot :: a veg" }, { 1, 0 }, 4)
+    )
+    eq(
+      { "  + Apple :: a fruit", "  * Apple :: a fruit", "  - Apple :: a fruit", "  + Apple :: a fruit" },
+      cycle({ "* H", "  - Apple :: a fruit", "  - Carrot :: a veg" }, { 2, 0 }, 4)
+    )
+    eq(
+      { "+ Apple :: a fruit", "- Apple :: a fruit", "+ Apple :: a fruit" },
+      cycle({ "- Apple :: a fruit", "- Carrot :: a veg" }, { 1, 0 }, 3, -1)
+    )
+  end)
+
+  it("leaves a numbered description list for +", function()
+    eq(
+      { "+ Apple :: a fruit", "- Apple :: a fruit" },
+      cycle({ "1. Apple :: a fruit", "2. Carrot :: a veg" }, { 1, 0 }, 2)
+    )
+  end)
+
+  it("looks at the item at point, not at the first one", function()
+    eq({ "+ Carrot", "2. Carrot", "2) Carrot", "- Carrot" }, cycle({ "- Apple :: a fruit", "- Carrot" }, { 2, 0 }, 4))
+    eq(
+      { "+ Carrot :: a veg", "- Carrot :: a veg", "+ Carrot :: a veg" },
+      cycle({ "- Apple", "- Carrot :: a veg" }, { 2, 0 }, 3)
+    )
+  end)
+
+  it("needs a term of two characters, a checkbox or a counter before it", function()
+    eq({ "+ a :: b", "1. a :: b", "1) a :: b" }, cycle({ "- a :: b" }, { 1, 0 }, 3))
+    eq({ "+ ab :: b", "- ab :: b" }, cycle({ "- ab :: b" }, { 1, 0 }, 2))
+    eq({ "+ [ ] a :: b", "- [ ] a :: b" }, cycle({ "- [ ] a :: b" }, { 1, 0 }, 2))
+    eq({ "+ [@3] Apple :: b", "- [@3] Apple :: b" }, cycle({ "- [@3] Apple :: b" }, { 1, 0 }, 2))
+    eq({ "+ Apple\t:: b", "- Apple\t:: b" }, cycle({ "- Apple\t:: b" }, { 1, 0 }, 2))
+    eq({ "+ Apple ::", "- Apple ::" }, cycle({ "- Apple ::", "- Carrot :: x" }, { 1, 0 }, 2))
+    eq({ "+ Apple ::x", "1. Apple ::x" }, cycle({ "- Apple ::x", "- Carrot" }, { 1, 0 }, 2))
+  end)
+
+  it("counts the term in characters, not bytes", function()
+    eq({ "+ é :: b", "1. é :: b" }, cycle({ "- é :: b", "- c" }, { 1, 0 }, 2))
+    eq({ "+ 甲 :: b", "1. 甲 :: b" }, cycle({ "- 甲 :: b", "- c" }, { 1, 0 }, 2))
+    eq({ "+ 甲乙 :: b", "- 甲乙 :: b" }, cycle({ "- 甲乙 :: b", "- c" }, { 1, 0 }, 2))
+  end)
+
+  describe("with alphabetical bullets", function()
+    with_config({ lists = { allow_alphabetical = true } })
+    it("leaves the letters out too", function()
+      eq(
+        { "  + Apple :: a fruit", "  * Apple :: a fruit", "  - Apple :: a fruit" },
+        cycle({ "* H", "  - Apple :: a fruit", "  - Carrot :: a veg" }, { 2, 0 }, 3)
+      )
+    end)
+  end)
+end)
+
+describe("lists: C-c C-c at the start of a list (org-ctrl-c-ctrl-c on a plain-list)", function()
+  -- At the very start of a list's first line (column 0, even when the
+  -- list is indented, and for a sub-list too), and on an affiliated
+  -- keyword above it, org-element-context is the plain list, not the
+  -- item. org-ctrl-c-ctrl-c's plain-list branch then sets the boxes of
+  -- every item of that list after the first one's: C-u removes them when
+  -- the first item has one, else adds `[ ]`; C-u C-u sets `[-]`. Without
+  -- a prefix it toggles the first item's box. Then org-list-write-struct
+  -- (no ORDERED check) and the cookies. Every buffer below is what Emacs
+  -- Org 9.8.12 gave.
+  local G = { "* Groceries [/]", "- [ ] milk", "- [X] bread", "- [ ] eggs", "- butter" }
+  local G2 = { "* Groceries [/]", "- milk", "- [X] bread", "- [ ] eggs", "- butter" }
+  local N = { "* T [%]", "- [ ] parent", "  - [ ] c1", "  - [X] c2", "- [ ] p2" }
+
+  --- C-c C-c typed with count `n` (4 for C-u, 16 for C-u C-u) at `cursor`.
+  local function cc(lines, cursor, n)
+    local buf = org_buffer(lines, cursor)
+    _G.__org_lists_cc = function()
+      require("org.actions").run("context_action")
+    end
+    vim.keymap.set("n", "<F13>", "<Cmd>lua __org_lists_cc()<CR>")
+    vim.api.nvim_feedkeys((n and tostring(n) or "") .. vim.keycode("<F13>"), "x", false)
+    vim.keymap.del("n", "<F13>")
+    _G.__org_lists_cc = nil
+    return buf_lines(buf)
+  end
+
+  it("C-u removes every box when the first item has one", function()
+    eq({ "* Groceries [0/0]", "- milk", "- bread", "- eggs", "- butter" }, cc(G, { 2, 0 }, 4))
+    eq({ "- a", "  body", "- b" }, cc({ "- [ ] a", "  body", "- [X] b" }, { 1, 0 }, 4))
+  end)
+
+  it("C-u adds an empty box to every item when the first item has none", function()
+    eq({ "* Groceries [0/4]", "- [ ] milk", "- [ ] bread", "- [ ] eggs", "- [ ] butter" }, cc(G2, { 2, 0 }, 4))
+  end)
+
+  it("C-u C-u sets [-] on every item", function()
+    eq({ "* Groceries [0/4]", "- [-] milk", "- [-] bread", "- [-] eggs", "- [-] butter" }, cc(G, { 2, 0 }, 16))
+    eq({ "* Groceries [0/4]", "- [-] milk", "- [-] bread", "- [-] eggs", "- [-] butter" }, cc(G2, { 2, 0 }, 16))
+  end)
+
+  it("without a prefix toggles the first item's box, or only repairs", function()
+    eq({ "* Groceries [2/3]", "- [X] milk", "- [X] bread", "- [ ] eggs", "- butter" }, cc(G, { 2, 0 }))
+    eq({ "* Groceries [1/2]", "- milk", "- [X] bread", "- [ ] eggs", "- butter" }, cc(G2, { 2, 0 }))
+    eq({ "* H", "  1. [X] a", "  2. [X] b", "  3. c" }, cc({ "* H", "  1. [ ] a", "  3. [X] b", "  7. c" }, { 2, 0 }))
+  end)
+
+  it("says so when a parent's box can't change", function()
+    local notify, warn = {}, {}
+    local utils = require("org.utils")
+    local orig_notify, orig_warn = utils.notify, utils.warn
+    utils.notify = function(msg)
+      notify[#notify + 1] = msg
+    end
+    utils.warn = function(msg)
+      warn[#warn + 1] = msg
+    end
+    local okc, out = pcall(cc, { "- [ ] p", "  - [ ] c" }, { 1, 0 })
+    utils.notify, utils.warn = orig_notify, orig_warn
+    ok(okc, out)
+    eq({ "- [ ] p", "  - [ ] c" }, out)
+    eq({ "Cannot update this checkbox" }, notify)
+    eq({}, warn)
+  end)
+
+  it("leaves the cursor after a bullet at column 0 that the repair rewrote", function()
+    -- org-list-struct-apply-struct puts the new bullet back with
+    -- insert-before-markers, which pushes point past it; a checkbox
+    -- removed after it then takes the blank before the box, and point
+    local function cursor_after(lines, cursor, n)
+      cc(lines, cursor, n)
+      return vim.api.nvim_win_get_cursor(0)
+    end
+    eq({ 1, 3 }, cursor_after({ "1. [@3] [ ] a", "2. [X] b" }, { 1, 0 }, 4))
+    eq({ 1, 3 }, cursor_after({ "2. [ ] a", "5. [X] b" }, { 1, 0 }))
+    eq({ 1, 3 }, cursor_after({ "2. a", "5. b" }, { 1, 0 }, 4))
+    eq({ 1, 2 }, cursor_after({ "-   [ ] a", "- [X] b" }, { 1, 0 }))
+    eq({ 1, 2 }, cursor_after({ "-", "- [X] b" }, { 1, 0 }, 4))
+    eq({ 1, 2 }, cursor_after({ "2. [ ] a", "5. [X] b" }, { 1, 0 }, 4))
+    eq({ 1, 1 }, cursor_after({ "-   [X] a", "- [ ] b" }, { 1, 0 }, 4))
+    -- a bullet that stays, or one after indentation: column 0
+    eq({ 1, 0 }, cursor_after({ "- [ ] a", "- [X] b" }, { 1, 0 }, 4))
+    eq({ 2, 0 }, cursor_after({ "* H", "  2. [ ] a", "  5. [X] b" }, { 2, 0 }, 4))
+  end)
+
+  it("on a radio list's #+attr_org line: the plain list, not the radio buttons", function()
+    -- org-at-radio-list-p needs point on an item line
+    local R = { "#+attr_org: :radio t", "- [ ] a", "- [X] b" }
+    eq({ "#+attr_org: :radio t", "- a", "- b" }, cc(R, { 1, 0 }, 4))
+    eq({ "#+attr_org: :radio t", "- [-] a", "- [-] b" }, cc(R, { 1, 5 }, 16))
+    -- at column 0 of its first item, the radio buttons
+    eq({ "#+attr_org: :radio t", "- [X] a", "- [ ] b" }, cc(R, { 2, 0 }))
+  end)
+
+  it("acts on the item one column further", function()
+    eq({ "* Groceries [1/2]", "- milk", "- [X] bread", "- [ ] eggs", "- butter" }, cc(G, { 2, 1 }, 4))
+    eq({ "* T [50%]", "- [X] parent", "  - c1", "  - [X] c2", "- [ ] p2" }, cc(N, { 3, 2 }, 4))
+    eq({ "* H", "  1. a", "  2. [X] b", "  3. c" }, cc({ "* H", "  1. [ ] a", "  3. [X] b", "  7. c" }, { 2, 2 }, 4))
+  end)
+
+  it("at column 0 of an indented list, the whole list", function()
+    eq({ "* H", "  1. a", "  2. b", "  3. c" }, cc({ "* H", "  1. [ ] a", "  3. [X] b", "  7. c" }, { 2, 0 }, 4))
+    eq({ "* H", " - a", " - b" }, cc({ "* H", " - [ ] a", " - [X] b" }, { 2, 0 }, 4))
+  end)
+
+  it("on a sub-list's first line, that sub-list; on the top one, its top items", function()
+    eq({ "* T [0%]", "- [ ] parent", "  - c1", "  - c2", "- [ ] p2" }, cc(N, { 3, 0 }, 4))
+    eq({ "* T [0%]", "- [-] parent", "  - [-] c1", "  - [-] c2", "- [ ] p2" }, cc(N, { 3, 0 }, 16))
+    eq({ "* T [0%]", "- parent", "  - [ ] c1", "  - [X] c2", "- p2" }, cc(N, { 2, 0 }, 4))
+    eq({ "* T [0%]", "- [-] parent", "  - [ ] c1", "  - [X] c2", "- [-] p2" }, cc(N, { 2, 0 }, 16))
+  end)
+
+  it("only at the first item of its list", function()
+    eq({ "* Groceries [0/2]", "- [ ] milk", "- bread", "- [ ] eggs", "- butter" }, cc(G, { 3, 0 }, 4))
+    -- two blank lines end a list: "- [ ] b" starts another one
+    eq({ "- [ ] a", "", "", "- b", "- c" }, cc({ "- [ ] a", "", "", "- [ ] b", "- c" }, { 4, 0 }, 4))
+  end)
+
+  it("ignores ORDERED, which the item's C-c C-c follows", function()
+    local O = { "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [X] a", "- [X] b", "- [ ] c" }
+    eq({ "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [ ] a", "- [X] b", "- [ ] c" }, cc(O, { 5, 0 }))
+    eq({ "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [ ] a", "- [ ] b", "- [ ] c" }, cc(O, { 5, 1 }))
+  end)
+
+  it("on an affiliated keyword: the list, at any column, without toggling", function()
+    local K = { "* H", "#+NAME: foo", "- [ ] a", "- [X] b" }
+    eq({ "* H", "#+NAME: foo", "- a", "- b" }, cc(K, { 2, 4 }, 4))
+    eq(K, cc(K, { 2, 0 }))
+  end)
+end)
+
+describe("lists: the cursor after C-c ^ (org-sort-list)", function()
+  -- org-sort-list narrows to the list, goes to point-min and sorts with
+  -- sort-subr (whose save-excursion keeps point there), then runs
+  -- org-list-repair: point ends at the start of the list's first line,
+  -- column 0, whatever item it was on. When that repair renumbers a
+  -- bullet at column 0, its insert-before-markers pushes point past the
+  -- new bullet. Every buffer and position below is what Emacs Org
+  -- 9.8.12 gave.
+  local function sort(lines, cursor, key)
+    local buf = org_buffer(lines, cursor)
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function(opts)
+      for _, it in ipairs(opts.items) do
+        if it.key == key then
+          return it.value
+        end
+      end
+    end
+    local okc, err = pcall(require("org.actions").run, "ctrl_c_caret")
+    ui.menu = orig
+    ok(okc, err)
+    return { buf_lines(buf), vim.api.nvim_win_get_cursor(0) }
+  end
+
+  local F = { "* Fruits", "- pear", "- Apple", "- banana" }
+
+  it("leaves the cursor at the start of the list, from any item", function()
+    eq({ { "* Fruits", "- pear", "- banana", "- Apple" }, { 2, 0 } }, sort(F, { 3, 0 }, "A"))
+    eq({ { "* Fruits", "- Apple", "- banana", "- pear" }, { 2, 0 } }, sort(F, { 3, 4 }, "a"))
+    eq({ { "* Fruits", "- Apple", "- banana", "- pear" }, { 2, 0 } }, sort(F, { 4, 3 }, "a"))
+    eq({ { "* F", "- a", "- b", "- c" }, { 2, 0 } }, sort({ "* F", "- a", "- b", "- c" }, { 3, 2 }, "a"))
+    eq(
+      { { "* F", "Some text", "- apple", "- pear" }, { 3, 0 } },
+      sort({ "* F", "Some text", "- pear", "- apple" }, { 4, 1 }, "a")
+    )
+  end)
+
+  it("at column 0 of an indented list or a sub-list", function()
+    eq(
+      { { "* F", "  - Apple", "  - banana", "  - pear" }, { 2, 0 } },
+      sort({ "* F", "  - pear", "  - Apple", "  - banana" }, { 3, 5 }, "a")
+    )
+    eq(
+      { { "- top", "  - apple", "  - pear", "- b" }, { 2, 0 } },
+      sort({ "- top", "  - pear", "  - apple", "- b" }, { 3, 4 }, "a")
+    )
+    eq({ { "* F", "  1. apple", "  2. pear" }, { 2, 0 } }, sort({ "* F", "  3. pear", "  7. apple" }, { 3, 4 }, "a"))
+    eq({ { "* F", "\t- apple", "\t- pear" }, { 2, 0 } }, sort({ "* F", "\t- pear", "\t- apple" }, { 3, 1 }, "a"))
+  end)
+
+  it("after a bullet at column 0 that the repair renumbers", function()
+    eq({ { "* F", "1. apple", "2. pear" }, { 2, 3 } }, sort({ "* F", "1. pear", "2. apple" }, { 3, 3 }, "a"))
+  end)
+
+  it("repairs the sorted list only, as narrowed to it, without ORDERED", function()
+    -- org-list-repair runs inside the narrowing: the items around it,
+    -- and the sub-list's indentation under them, stay as they are
+    eq(
+      { { "1. top", "   - apple", "   - pear", "3. b" }, { 2, 0 } },
+      sort({ "1. top", "   - pear", "   - apple", "3. b" }, { 3, 5 }, "a")
+    )
+    eq(
+      { { "1. top", "  - apple", "  - pear", "2. b" }, { 2, 0 } },
+      sort({ "1. top", "  - pear", "  - apple", "2. b" }, { 3, 5 }, "a")
+    )
+    eq(
+      { { "- [ ] p", "  - [X] a", "  - [X] b", "- [ ] q" }, { 2, 0 } },
+      sort({ "- [ ] p", "  - [X] b", "  - [X] a", "- [ ] q" }, { 3, 4 }, "a")
+    )
+    eq(
+      { { "1. top", "   - apple", "   - pear", "     1. x", "     2. y", "2. b" }, { 2, 0 } },
+      sort({ "1. top", "   - pear", "     1. x", "     3. y", "   - apple", "2. b" }, { 5, 4 }, "a")
+    )
+    local O = { "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [X] b", "- [ ] a", "- [X] c" }
+    eq(
+      { { "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [ ] a", "- [X] b", "- [X] c" }, { 5, 0 } },
+      sort(O, { 6, 3 }, "a")
+    )
+  end)
+end)
