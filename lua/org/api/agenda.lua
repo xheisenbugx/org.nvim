@@ -171,6 +171,36 @@ function M.tags(match, opts)
   return finish(require("org.agenda.items").tags(M.files(opts.files), pred, opts.todo_only, {}), "tags")
 end
 
+--- Open the agenda view (org-agenda-list) on the day `opts.from` (any
+--- date the API accepts, default today) for `opts.span` ("day", "week",
+--- "fortnight", "month", "year" or a number of days; default
+--- `agenda.span`), as <prefix>a does. Since API 1.3.
+---@param opts? { from?: any, span?: string|integer }
+---@return boolean|nil ok, string|nil err
+function M.open(opts)
+  opts = opts or {}
+  local date = require("org.date")
+  local anchor = date.today_days()
+  if opts.from ~= nil then
+    local d, err = H.to_date(opts.from)
+    if not d then
+      return nil, err
+    end
+    anchor = d:days()
+  end
+  local span = opts.span
+  if span ~= nil and not require("org.agenda.render").span_days(span, anchor) then
+    return nil, "invalid span: " .. tostring(span)
+  end
+  local agenda = require("org.agenda")
+  if span == "day" then
+    agenda.open_day(anchor)
+  else
+    agenda.open_agenda({ span = span, anchor = anchor })
+  end
+  return true
+end
+
 --- Entries matching a search view query (org-search-view): words,
 --- `+word`, `-word`, `"a phrase"`, `{regexp}`; a leading `*` searches
 --- headlines only. `opts.todo_only` keeps entries with a not-done keyword

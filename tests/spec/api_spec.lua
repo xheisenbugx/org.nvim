@@ -1282,4 +1282,298 @@ describe("org.api", function()
       vim.cmd("bwipeout!")
     end)
   end)
+
+  describe("API 1.3", function()
+    local function titles(list)
+      return vim.tbl_map(function(h)
+        return h.title
+      end, list)
+    end
+    local function dates(list)
+      return vim.tbl_map(function(d)
+        return d.date
+      end, list)
+    end
+
+    it("is version 1.3", function()
+      ok(api.has("1.3"))
+    end)
+
+    it("today() is org's today; a date has its day number and is made from one", function()
+      eq("2026-10-02", api.today().date)
+      eq(TODAY, api.today().days)
+      eq(0, api.date("1970-01-01").days)
+      eq(date.days_from_civil(2026, 10, 5), api.date("2026-10-05").days)
+      local d = api.date({ days = date.days_from_civil(2026, 10, 5), hour = 10, min = 30 })
+      eq({ "2026-10-05", "10:30" }, { d.date, d.time })
+      local _, err = api.date({ days = "soon" })
+      ok(err:match("days"))
+      eq(date.days_from_civil(2026, 10, 1), api.load(work).headlines[3].closed.days)
+    end)
+
+    it("occurrences() lists the days a timestamp falls on", function()
+      eq(
+        { "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26" },
+        dates(assert(api.occurrences("<2026-10-05 Mon +1w>", "2026-10-01", "2026-10-31")))
+      )
+      eq({ "2026-10-05" }, dates(assert(api.occurrences("<2026-10-05 Mon>", "2026-10-01", "2026-10-31"))))
+      eq({}, dates(assert(api.occurrences("<2026-10-05 Mon>", "2026-11-01", "2026-11-30"))))
+      -- a handle's date as it is, and day numbers
+      local s = api.load(work).headlines[1].scheduled
+      local n = date.days_from_civil(2026, 10, 19)
+      eq({ "2026-10-19" }, dates(assert(api.occurrences(s, { days = n }, { days = n }))))
+      local res, err = api.occurrences("nonsense", "2026-10-01", "2026-10-31")
+      eq(nil, res)
+      ok(err)
+    end)
+
+    it("todo_keywords() of the option, a file and a buffer, in their order", function()
+      local g = assert(api.todo_keywords())
+      eq({ { "TODO", "NEXT", "DONE" }, { "TODO", "NEXT" }, { "DONE" } }, { g.all, g.todo, g.done })
+      local p = write(dir, "seq.org", { "#+TODO: TODO | DONE", "#+TODO: BUG FIX | FIXED", "* BUG A" })
+      local f = assert(api.todo_keywords(p))
+      eq({ "TODO", "DONE", "BUG", "FIX", "FIXED" }, f.all)
+      eq({ "TODO", "BUG", "FIX" }, f.todo)
+      eq(f.all, api.load(p).todo_keywords.all)
+      local buf = org_buffer({ "#+TODO: OPEN | SHUT", "* OPEN x" })
+      eq({ "OPEN", "SHUT" }, assert(api.todo_keywords(buf)).all)
+      eq({ "OPEN", "SHUT" }, assert(api.todo_keywords(0)).all)
+      local _, err = api.todo_keywords(dir .. "/missing.org")
+      ok(err:match("cannot read"))
+      vim.cmd("enew!")
+      local _, err2 = api.todo_keywords(0)
+      ok(err2:match("not an org buffer"))
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end)
+
+    it("handles have effort, priority_value and bufnr", function()
+      local p = write(dir, "prio.org", {
+        "* TODO [#A] First",
+        "  :PROPERTIES:",
+        "  :Effort: 1:30",
+        "  :END:",
+        "* TODO Second",
+        "* TODO [#C] Third",
+      })
+      local hs = assert(api.headlines({ files = p }))
+      eq({ 90, nil, nil }, { hs[1].effort, hs[2].effort, hs[3].effort })
+      -- org-get-priority: 1000 * (lowest - priority), the default (B)
+      -- without a cookie
+      eq({ 2000, 1000, 0 }, { hs[1].priority_value, hs[2].priority_value, hs[3].priority_value })
+      eq(60, api.load(work).headlines[1].effort)
+      eq(nil, hs[1].bufnr)
+      open_file(p)
+      eq(vim.api.nvim_get_current_buf(), assert(api.current()).headlines[1].bufnr)
+      vim.cmd("bwipeout!")
+    end)
+
+    it("queries a buffer, a subtree, what the agenda looks at and dated entries", function()
+      local buf = org_buffer({
+        "* TODO A",
+        "* B",
+        "** TODO C",
+        "** COMMENT D",
+        "*** TODO E",
+        "* TODO F :ARCHIVE:",
+        "* TODO G",
+        "  SCHEDULED: <2026-10-05 Mon>",
+      })
+      eq({ "A", "B", "C", "D", "E", "F", "G" }, titles(assert(api.headlines({ bufnr = buf }))))
+      eq({ "A", "B", "C", "G" }, titles(assert(api.headlines({ bufnr = buf, agenda = true }))))
+      local b = assert(api.headlines({ bufnr = buf, title = "B" }))[1]
+      eq({ "B", "C", "D", "E" }, titles(assert(api.headlines({ within = b }))))
+      eq({ "B", "C" }, titles(assert(api.headlines({ within = b, agenda = true }))))
+      eq({ "G" }, titles(assert(api.headlines({ bufnr = buf, planned = true }))))
+      eq(6, #assert(api.headlines({ bufnr = buf, planned = false })))
+      vim.cmd("enew!")
+      local _, err = api.headlines({ bufnr = 0 })
+      ok(err:match("not an org buffer"))
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end)
+
+    it("fills only the fields a query asks for, and every field again on reload", function()
+      local hs = assert(api.headlines({ files = work, fields = { "scheduled" } }))
+      local h = hs[1]
+      eq("2026-10-05", h.scheduled.date)
+      eq({ nil, nil, nil, nil }, { h.deadline, h.all_tags, h.properties, h.category })
+      eq({ "Write report", "TODO", "B", 4, "report-id" }, { h.plain_title, h.todo, h.priority, h.line, h.id })
+      ok(h:reload())
+      eq({ "work", "urgent" }, h.all_tags)
+      eq("2026-10-09", h.deadline.date)
+      local res, err = api.headlines({ fields = "scheduled" })
+      eq(nil, res)
+      ok(err:match("fields"))
+    end)
+
+    it("clocks() lists the CLOCK lines of the entries, in a range of days", function()
+      local p = write(dir, "time.org", {
+        "* Task one",
+        "  :LOGBOOK:",
+        "  CLOCK: [2026-10-01 Thu 09:00]--[2026-10-01 Thu 10:30] =>  1:30",
+        "  CLOCK: [2026-09-20 Sun 09:00]--[2026-09-20 Sun 09:30] =>  0:30",
+        "  :END:",
+        "* Task two",
+        "  CLOCK: [2026-10-02 Fri 11:00]",
+      })
+      local all = assert(api.clocks({ files = p }))
+      eq(3, #all)
+      local c = all[1]
+      eq(
+        { "Task one", "09:00", "10:30", 90, false, 3 },
+        { c.headline.title, c.start.time, c["end"].time, c.minutes, c.running, c.line }
+      )
+      -- one handle per entry
+      ok(rawequal(all[1].headline, all[2].headline))
+      -- a running clock: until now (12:00)
+      eq({ "Task two", true, nil, 60 }, { all[3].headline.title, all[3].running, all[3]["end"], all[3].minutes })
+      eq(2, #assert(api.clocks({ files = p, from = "2026-10-01", to = "2026-10-31" })))
+      local oct1 = assert(api.clocks({ files = p, from = "2026-10-01", to = "2026-10-01" }))
+      eq({ "Task one" }, {
+        oct1[1].headline.title,
+        oct1[2] and oct1[2].headline.title or nil,
+      })
+      eq(1, #assert(api.clocks({ files = p, title = "two" })))
+      local _, err = api.clocks({ files = p, from = "???" })
+      ok(err)
+    end)
+
+    it("completed() lists when entries were marked done", function()
+      local p = write(dir, "done.org", {
+        "* DONE Report",
+        "  CLOSED: [2026-10-01 Thu 18:00]",
+        "* TODO Water plants",
+        "  SCHEDULED: <2026-10-03 Sat .+1d>",
+        "  :PROPERTIES:",
+        "  :LAST_REPEAT: [2026-10-02 Fri 08:00]",
+        "  :END:",
+        "  :LOGBOOK:",
+        '  - State "DONE"       from "TODO"       [2026-10-02 Fri 08:00]',
+        '  - State "NEXT"       from "TODO"       [2026-09-30 Wed 08:00]',
+        "  - CLOSING NOTE [2026-09-28 Mon 08:00] \\\\",
+        "    all good",
+        "  :END:",
+      })
+      local function rows(list)
+        return vim.tbl_map(function(x)
+          return { x.headline.title, x.type, x.date.date }
+        end, list)
+      end
+      eq({
+        { "Report", "closed", "2026-10-01" },
+        { "Water plants", "state", "2026-10-02" },
+        { "Water plants", "note", "2026-09-28" },
+        { "Water plants", "last_repeat", "2026-10-02" },
+      }, rows(assert(api.completed({ files = p }))))
+      eq(
+        { { "Report", "closed", "2026-10-01" } },
+        rows(assert(api.completed({ files = p, from = "2026-09-29", to = "2026-10-01" })))
+      )
+    end)
+
+    it("set_todo with interactive asks for the note the logging wants", function()
+      config.opts.todo_keywords = { "TODO(t@)", "NEXT", "|", "DONE(d@)" }
+      local input_note = utils.input_note
+      local asked
+      utils.input_note = function(o)
+        asked = o.prompt
+        return "Typed note"
+      end
+      local h = assert(api.headlines({ files = work, title = "Plan offsite" }))[1]
+      local res, err = h:set_todo("DONE", { interactive = true })
+      utils.input_note = input_note
+      eq(h, res)
+      eq(nil, err)
+      ok(asked)
+      ok(table.concat(disk(work), "\n"):find("Typed note", 1, true))
+    end)
+
+    it("an interactive change org refuses returns nil without an error", function()
+      config.opts.enforce_todo_dependencies = true
+      local notify = vim.notify
+      local said = {}
+      vim.notify = function(m)
+        said[#said + 1] = m
+      end
+      local h = assert(api.headlines({ files = work, title = "Write report" }))[1]
+      local res, err = h:set_todo("DONE", { interactive = true })
+      local res2, err2 = h:set_todo("DONE")
+      vim.notify = notify
+      config.opts.enforce_todo_dependencies = false
+      eq({ nil, nil }, { res, err })
+      ok(#said > 0)
+      eq(nil, res2)
+      ok(err2)
+    end)
+
+    it("schedule and set_deadline with interactive ask with the date prompt", function()
+      local cal = require("org.calendar")
+      local pick = cal.pick
+      local asked = {}
+      cal.pick = function(o)
+        asked[#asked + 1] = o.prompt
+        return date.from_days(date.days_from_civil(2026, 10, 20))
+      end
+      local h = assert(api.headlines({ files = work, title = "Plan offsite" }))[1]
+      ok(h:schedule(nil, { interactive = true }))
+      eq("2026-10-20", h.scheduled.date)
+      ok(h:set_deadline(nil, { interactive = true }))
+      eq("2026-10-20", h.deadline.date)
+      cal.pick = function()
+        return nil
+      end
+      local res, err = h:schedule(nil, { interactive = true })
+      cal.pick = pick
+      eq({ nil, nil }, { res, err })
+      eq({ "Schedule", "Deadline" }, asked)
+      ok(table.concat(disk(work), "\n"):find("SCHEDULED: <2026-10-20 Tue>", 1, true))
+      -- without interactive, nil removes the date
+      ok(h:schedule(nil))
+      eq(nil, h.scheduled)
+    end)
+
+    it("move_after and move_before move a subtree past its siblings", function()
+      local p = write(dir, "order.org", { "* A", "** A1", "* B", "* C", "* D" })
+      local hs = assert(api.headlines({ files = p, level = 1 }))
+      local a, b, c, d = hs[1], hs[2], hs[3], hs[4]
+      eq(a, a:move_after(c))
+      eq({ "* B", "* C", "* A", "** A1", "* D" }, disk(p))
+      eq(3, a.line)
+      ok(a:move_before(b))
+      eq({ "* A", "** A1", "* B", "* C", "* D" }, disk(p))
+      ok(d:move_before(b))
+      eq({ "* A", "** A1", "* D", "* B", "* C" }, disk(p))
+      ok(d:move_after(c))
+      eq({ "* A", "** A1", "* B", "* C", "* D" }, disk(p))
+      -- already there: nothing moves
+      ok(b:move_after(a))
+      eq({ "* A", "** A1", "* B", "* C", "* D" }, disk(p))
+      local a1 = assert(api.headlines({ files = p, title = "A1" }))[1]
+      local res, err = a1:move_after(c)
+      eq(nil, res)
+      ok(err:match("not a sibling"))
+      local _, err2 = a:move_after("C")
+      ok(err2:match("invalid sibling"))
+    end)
+
+    it("agenda.open opens the agenda view on a day", function()
+      local agenda = require("org.agenda")
+      local open_day, open_agenda = agenda.open_day, agenda.open_agenda
+      local calls = {}
+      agenda.open_day = function(n)
+        calls[#calls + 1] = { "day", n }
+      end
+      agenda.open_agenda = function(o)
+        calls[#calls + 1] = { "agenda", o.span, o.anchor }
+      end
+      ok(api.agenda.open({ from = "2026-10-05", span = "day" }))
+      ok(api.agenda.open({ from = "2026-10-05", span = "week" }))
+      ok(api.agenda.open())
+      local res, err = api.agenda.open({ span = "eon" })
+      agenda.open_day, agenda.open_agenda = open_day, open_agenda
+      local mon = date.days_from_civil(2026, 10, 5)
+      eq({ { "day", mon }, { "agenda", "week", mon }, { "agenda", nil, TODAY } }, calls)
+      eq(nil, res)
+      ok(err:match("invalid span"))
+    end)
+  end)
 end)

@@ -26,14 +26,15 @@ local siblings = shared.siblings
 -- Moving subtrees
 ---------------------------------------------------------------------------
 
-local function move_subtree(dir, n)
-  local bufnr = buf()
-  n = n or math.max(vim.v.count, 1)
-  local hl = current_headline()
-  if not hl then
-    utils.warn("Not on a headline")
-    return
-  end
+--- Move the subtree of `hl` in `bufnr` past `n` siblings, down (`dir` 1)
+--- or up (-1). Returns the line it starts on now, or nil (with a warning)
+--- when it can't move.
+---@param bufnr integer
+---@param hl org.Headline
+---@param dir integer
+---@param n integer
+---@return integer|nil
+local function move_headline(bufnr, hl, dir, n)
   local sibs = siblings(hl)
   local idx = sibling_index(hl)
   -- the sibling to move past, n times, as org-get-next-sibling /
@@ -60,25 +61,37 @@ local function move_subtree(dir, n)
       break
     else
       utils.warn("Cannot move past superior level or buffer limit")
-      return
+      return nil
     end
   end
-  local folded = vim.fn.foldclosed(hl.line) == hl.line
-  local pos = cursor()
-  local offset = pos[1] - hl.line
   local text = get_lines(bufnr, hl.line, hl.end_line)
-  local new_start
   if dir > 0 then
     local other = sibs[i]
     -- insert after the other subtree, then delete the original
     insert_lines(bufnr, other.end_line + 1, text)
     set_lines(bufnr, hl.line, hl.end_line, {})
-    new_start = other.end_line + 1 - #text
-  else
-    local to = up_to or sibs[i].line
-    set_lines(bufnr, hl.line, hl.end_line, {})
-    insert_lines(bufnr, to, text)
-    new_start = to
+    return other.end_line + 1 - #text
+  end
+  local to = up_to or sibs[i].line
+  set_lines(bufnr, hl.line, hl.end_line, {})
+  insert_lines(bufnr, to, text)
+  return to
+end
+
+local function move_subtree(dir, n)
+  local bufnr = buf()
+  n = n or math.max(vim.v.count, 1)
+  local hl = current_headline()
+  if not hl then
+    utils.warn("Not on a headline")
+    return
+  end
+  local folded = vim.fn.foldclosed(hl.line) == hl.line
+  local pos = cursor()
+  local offset = pos[1] - hl.line
+  local new_start = move_headline(bufnr, hl, dir, n)
+  if not new_start then
+    return
   end
   vim.api.nvim_win_set_cursor(0, { new_start + offset, pos[2] })
   -- keep the moved subtree folded or open, like Emacs, without resetting
@@ -97,6 +110,23 @@ end
 
 function M.move_subtree_down()
   move_subtree(1)
+end
+
+--- Move the subtree of the headline at `target` past `n` (default 1)
+--- siblings, down (`dir` 1) or up (-1), like M-down / M-up with a count,
+--- without moving a cursor. Returns the line it starts on now, or nil
+--- (with a warning) when it can't move.
+---@param target { bufnr: integer, lnum: integer }
+---@param dir integer
+---@param n? integer
+---@return integer|nil
+function M.move_subtree_at(target, dir, n)
+  local hl = files.get_buffer(target.bufnr):headline_at(target.lnum)
+  if not hl then
+    utils.warn("Not on a headline")
+    return nil
+  end
+  return move_headline(target.bufnr, hl, dir, math.max(1, n or 1))
 end
 
 --- M-up / M-down with a Visual selection (org-metaup / org-metadown with

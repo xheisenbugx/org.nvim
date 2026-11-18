@@ -15,6 +15,16 @@
 --- end
 --- ```
 
+-- Not compiled by the JIT, like org.agenda.items: a query makes a handle
+-- per headline in short, branchy code (its dates, tags, properties), whose
+-- traces mostly abort or fill the machine-code area, which on macOS arm64
+-- flushes every trace in Neovim (see "Performance budgets" in
+-- CONTRIBUTING.md). Interpreted, a board of 2,500 handles was built
+-- several times faster.
+if jit then
+  jit.off(true, true)
+end
+
 local H = require("org.api.headline")
 local files = require("org.files")
 local utils = require("org.utils")
@@ -33,7 +43,7 @@ local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
 --- fields or events; a new MAJOR may break code written for an older one.
-M.version = "1.2.0"
+M.version = "1.3.0"
 
 --- Does this API provide `version` ("1", "1.0" or "1.0.0")? True when the
 --- major versions are equal and this one is not older.
@@ -73,6 +83,42 @@ function M.date(value)
     return nil, err
   end
   return H.date(d)
+end
+
+--- The day org considers today (org-today): before `extend_today_until`
+--- o'clock it is still the day before. Since API 1.3.
+---@return org.api.Date
+function M.today()
+  return H.date(require("org.date").today()) --[[@as org.api.Date]]
+end
+
+--- The dates a timestamp falls on from day `from` to day `to` (any dates
+--- the API accepts; both included), as the agenda lists it: the timestamp
+--- itself when it has no repeater, else every repetition (`+1w`, `.+1d`
+--- and `++1m` all repeat from the timestamp). Since API 1.3.
+---@param value any
+---@param from any
+---@param to any
+---@return org.api.Date[]|nil dates, string|nil err
+function M.occurrences(value, from, to)
+  local d, err = H.to_date(value)
+  if not d then
+    return nil, err
+  end
+  local f, t
+  f, err = H.to_date(from)
+  if not f then
+    return nil, err
+  end
+  t, err = H.to_date(to)
+  if not t then
+    return nil, err
+  end
+  local out = {}
+  for i, o in ipairs(require("org.date").occurrences(d, f:days(), t:days())) do
+    out[i] = H.date(o)
+  end
+  return out
 end
 
 --- The last warning or error among collected messages.
@@ -133,17 +179,29 @@ end
 ---@field category string
 ---@field filetags string[] `#+FILETAGS`
 ---@field properties table<string, string> file-level properties (property drawer before the first headline)
----@field todo_keywords { todo: string[], done: string[] } the keywords in effect in the file
+---@field todo_keywords org.api.TodoKeywords the keywords in effect in the file
 ---@field headlines org.api.Headline[] every headline, in document order
+
+---@class org.api.TodoKeywords
+---@field todo string[] the not-done keywords
+---@field done string[] the done keywords
+---@field all string[] every keyword, in the order they are defined (org-todo-keywords-1). Since API 1.3
+
+---@param todo org.TodoConfig
+---@return org.api.TodoKeywords
+local function keywords_of(todo)
+  local kws = { todo = {}, done = {}, all = {} }
+  for _, name in ipairs(todo:names()) do
+    kws.all[#kws.all + 1] = name
+    table.insert(todo:is_done(name) and kws.done or kws.todo, name)
+  end
+  return kws
+end
 
 ---@param f org.File
 ---@return org.api.File
 local function file_data(f)
-  local todo = f.settings.todo
-  local kws = { todo = {}, done = {} }
-  for _, name in ipairs(todo:names()) do
-    table.insert(todo:is_done(name) and kws.done or kws.todo, name)
-  end
+  local memo = H.batch()
   return {
     file = f.filename,
     bufnr = f.bufnr,
@@ -151,8 +209,10 @@ local function file_data(f)
     category = f:category(),
     filetags = vim.deepcopy(f.settings.filetags or {}),
     properties = vim.deepcopy(f.properties or {}),
-    todo_keywords = kws,
-    headlines = vim.tbl_map(H.new, f.headlines),
+    todo_keywords = keywords_of(f.settings.todo),
+    headlines = vim.tbl_map(function(hl)
+      return H.new(hl, memo)
+    end, f.headlines),
   }
 end
 
@@ -160,6 +220,30 @@ end
 ---@return string[]
 function M.agenda_files()
   return files.agenda_file_paths()
+end
+
+--- The TODO keywords in effect: of the `todo_keywords` option without an
+--- argument, else of a file (a path) or a buffer (a number, 0 the current
+--- one), its `#+TODO` lines included. nil and an error when the file
+--- can't be read or the buffer isn't an org buffer. Since API 1.3.
+---@param where? string|integer
+---@return org.api.TodoKeywords|nil keywords, string|nil err
+function M.todo_keywords(where)
+  if where == nil then
+    return keywords_of(require("org.todo_keywords").global())
+  elseif type(where) == "number" then
+    local bufnr = resolve_buf(where)
+    if not vim.api.nvim_buf_is_valid(bufnr) or not utils.is_org(bufnr) then
+      return nil, ("buffer %d is not an org buffer"):format(bufnr)
+    end
+    return keywords_of(files.get_buffer(bufnr).settings.todo)
+  end
+  local path = utils.expand(where)
+  local f = files.get(path)
+  if not f then
+    return nil, "cannot read " .. path
+  end
+  return keywords_of(f.settings.todo)
 end
 
 --- Read org files: one path gives one |org.api.File| (nil and an error
@@ -271,6 +355,15 @@ end
 ---@field id? string
 ---@field archived? boolean include (true, default) or skip (false) ARCHIVE-tagged subtrees
 ---@field filter? fun(h: org.api.Headline): boolean
+---@field bufnr? integer a buffer to read instead of `files` (also one without a file; 0 is the current one). Since API 1.3
+---@field within? org.api.Headline only the subtree of this headline, it included (`files` and `bufnr` are then ignored). Since API 1.3
+---@field agenda? boolean only the entries the agenda views look at (org-agenda-skip): not in a COMMENT subtree (per `agenda.skip_comment_trees`) or an ARCHIVE-tagged one, and not skipped by `agenda.skip_function_global`. Since API 1.3
+---@field planned? boolean with a SCHEDULED or DEADLINE date (true), or neither (false). Since API 1.3
+---@field fields? string[] fill only these of the fields a query computes per headline (`all_tags`, `properties`, `scheduled`, `deadline`, `closed`, `effort`, `category`, `outline_path`, `priority_value`); the others are always there. For big queries that need few of them. Since API 1.3
+
+---@class org.api.RangeQuery: org.api.Query
+---@field from? any the first day (any date the API accepts); default: no limit
+---@field to? any the last day; default: no limit
 
 local function as_list(v)
   if v == nil then
@@ -289,11 +382,34 @@ local function lower(s)
   return s:lower()
 end
 
---- Headlines matching every given condition of `query`, in file order.
----@param query? org.api.Query
----@return org.api.Headline[]|nil headlines, string|nil err
-function M.headlines(query)
-  query = query or {}
+--- The parsed files a query reads (`within`, `bufnr`, else `files`), and
+--- with `within` the lines of the subtree.
+---@param query org.api.Query
+---@return org.File[]|nil files, integer[]|nil range, string|nil err
+local function query_files(query)
+  if query.within ~= nil then
+    local hl, err = H.find(query.within)
+    if not hl then
+      return nil, nil, err
+    end
+    return { hl.file }, { hl.line, hl.end_line }
+  end
+  if query.bufnr ~= nil then
+    local bufnr = resolve_buf(query.bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) or not utils.is_org(bufnr) then
+      return nil, nil, ("buffer %d is not an org buffer"):format(bufnr)
+    end
+    return { files.get_buffer(bufnr) }
+  end
+  return M.agenda.files(query.files)
+end
+
+--- Call `fn(hl)` for each parsed headline that meets every condition of
+--- `query` but its `filter` (which takes a handle), in file order.
+---@param query org.api.Query
+---@param fn fun(hl: org.Headline)
+---@return boolean|nil ok, string|nil err
+local function each_headline(query, fn)
   local pred
   if query.match and query.match ~= "" then
     local err
@@ -331,6 +447,9 @@ function M.headlines(query)
       return false
     end
     if query.done ~= nil and hl:is_done() ~= query.done then
+      return false
+    end
+    if query.planned ~= nil and ((hl.planning.scheduled or hl.planning.deadline) ~= nil) ~= query.planned then
       return false
     end
     if type(level) == "number" and hl.level ~= level then
@@ -380,16 +499,216 @@ function M.headlines(query)
     end
     return true
   end
-  local out = {}
-  for _, f in ipairs(M.agenda.files(query.files)) do
-    for _, hl in ipairs(f.headlines) do
-      if keep(hl) then
-        local h = H.new(hl)
-        if not query.filter or query.filter(h) then
-          out[#out + 1] = h
-        end
+  local fs, range, err = query_files(query)
+  if not fs then
+    return nil, err
+  end
+  local function visit(hl)
+    if range and (hl.line < range[1] or hl.line > range[2]) then
+      return
+    end
+    if keep(hl) then
+      fn(hl)
+    end
+  end
+  if query.agenda then
+    require("org.agenda.items").each_headline(fs, {}, visit)
+  else
+    for _, f in ipairs(fs) do
+      for _, hl in ipairs(f.headlines) do
+        visit(hl)
       end
     end
+  end
+  return true
+end
+
+--- Headlines matching every given condition of `query`, in file order.
+---@param query? org.api.Query
+---@return org.api.Headline[]|nil headlines, string|nil err
+function M.headlines(query)
+  query = query or {}
+  local memo, err = H.batch(query.fields)
+  if not memo then
+    return nil, err
+  end
+  local out = {}
+  local ok
+  ok, err = each_headline(query, function(hl)
+    local h = H.new(hl, memo)
+    if not query.filter or query.filter(h) then
+      out[#out + 1] = h
+    end
+  end)
+  if not ok then
+    return nil, err
+  end
+  return out
+end
+
+--- The day numbers of a range query's `from` and `to` (nil: no limit).
+---@param query org.api.RangeQuery
+---@return integer|nil from, integer|nil to, string|nil err
+local function day_range(query)
+  local out = {}
+  for i, k in ipairs({ "from", "to" }) do
+    if query[k] ~= nil then
+      local d, err = H.to_date(query[k])
+      if not d then
+        return nil, nil, err
+      end
+      out[i] = d:days()
+    end
+  end
+  return out[1], out[2]
+end
+
+--- `fn(hl)` for the headlines of a range query, with the handle `h(hl)`
+--- that makes (once) the handle of `hl` an entry points to, or returns
+--- false when the query's filter leaves it out.
+---@param query org.api.Query
+---@param fn fun(hl: org.Headline, h: fun(): org.api.Headline|false)
+---@return boolean|nil ok, string|nil err
+local function each_with_handle(query, fn)
+  local memo, err = H.batch(query.fields)
+  if not memo then
+    return nil, err
+  end
+  return each_headline(query, function(hl)
+    local handle
+    fn(hl, function()
+      if handle == nil then
+        handle = H.new(hl, memo)
+        if query.filter and not query.filter(handle) then
+          handle = false
+        end
+      end
+      return handle
+    end)
+  end)
+end
+
+---@class org.api.Clock
+---@field start org.api.Date
+---@field end org.api.Date|nil nil while the clock runs
+---@field minutes integer its `=> H:MM` duration, else the time between its timestamps (until now while it runs)
+---@field running boolean
+---@field line integer the CLOCK line
+---@field headline org.api.Headline the entry it clocks (one handle per entry)
+
+--- The CLOCK lines of the headlines matching `query` (their own, not
+--- those of their children), in file order; with `from` / `to`, those
+--- that ran on one of those days. Since API 1.3.
+---@param query? org.api.RangeQuery
+---@return org.api.Clock[]|nil clocks, string|nil err
+function M.clocks(query)
+  query = query or {}
+  local from, to, err = day_range(query)
+  if err then
+    return nil, err
+  end
+  local date = require("org.date")
+  local now = date.now()
+  -- year * 10000 + month * 100 + day compares like days, without
+  -- computing day numbers for the clocks out of the range
+  local function key(d)
+    return d.year * 10000 + d.month * 100 + d.day
+  end
+  local from_key = from and key(date.from_days(from)) or -math.huge
+  local to_key = to and key(date.from_days(to)) or math.huge
+  local out = {}
+  -- the Unix times of the dates, shared
+  local times = H.batch()
+  local ok
+  ok, err = each_with_handle(query, function(hl, handle)
+    for _, c in ipairs(hl.clocks) do
+      local s, e = c.start, c["end"]
+      if key(s) <= to_key and key(e or now) >= from_key then
+        local h = handle()
+        if not h then
+          return
+        end
+        local stop = e or now
+        out[#out + 1] = {
+          start = H.date(s, nil, times),
+          ["end"] = e and H.date(e, nil, times) or nil,
+          minutes = (e and c.minutes) or math.floor((stop:to_time() - s:to_time()) / 60),
+          running = e == nil,
+          line = c.line,
+          headline = h,
+        }
+      end
+    end
+  end)
+  if not ok then
+    return nil, err
+  end
+  return out
+end
+
+---@class org.api.Completion
+---@field date org.api.Date when it was marked done
+---@field type "closed"|"state"|"note"|"last_repeat" where that is written: the CLOSED date, a `- State "DONE" ... [date]` log line (a change to a done keyword), a `- CLOSING NOTE [date]` line, or the LAST_REPEAT property (a repeating entry's last repeat)
+---@field headline org.api.Headline the entry (one handle per entry)
+
+local STATE_LOG = '^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])'
+local CLOSING_NOTE = "^%s*%-%s+CLOSING NOTE%s+(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])"
+
+--- When the headlines matching `query` were marked done, as org-habit
+--- reads it: their CLOSED date, the log lines of changes to a done
+--- keyword and closing notes in their body, and their LAST_REPEAT
+--- property; with `from` / `to`, those on one of those days. In file
+--- order, an entry's in that order. Since API 1.3.
+---@param query? org.api.RangeQuery
+---@return org.api.Completion[]|nil completions, string|nil err
+function M.completed(query)
+  query = query or {}
+  local from, to, err = day_range(query)
+  if err then
+    return nil, err
+  end
+  local date = require("org.date")
+  from, to = from or -math.huge, to or math.huge
+  local out = {}
+  local times = H.batch()
+  local ok
+  ok, err = each_with_handle(query, function(hl, handle)
+    local function add(kind, d)
+      if not d then
+        return true
+      end
+      local n = d:days()
+      if n < from or n > to then
+        return true
+      end
+      local h = handle()
+      if not h then
+        return false
+      end
+      out[#out + 1] = { date = H.date(d, nil, times), type = kind, headline = h }
+      return true
+    end
+    local done = hl.file.settings.todo
+    local lines = hl.file.lines
+    for i = hl.line + 1, hl.body_end or hl.line do
+      local line = lines[i]
+      local kind = "state"
+      local kw, ts = line:match(STATE_LOG)
+      if not (kw and done:is_done(kw)) then
+        kind, ts = "note", line:match(CLOSING_NOTE)
+      end
+      if ts and not add(kind, date.parse(ts)) then
+        return
+      end
+    end
+    if not add("closed", hl.planning.closed) then
+      return
+    end
+    local lr = hl.properties.LAST_REPEAT
+    add("last_repeat", lr and date.parse(lr))
+  end)
+  if not ok then
+    return nil, err
   end
   return out
 end

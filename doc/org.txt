@@ -8767,7 +8767,20 @@ major version, not older. Other modules (`org.parser`, `org.files`,
 Functions that can fail return nil and an error message. They never
 prompt: a prompt the change would show (a log note, a date, a choice)
 answers as if cancelled, so notes are left out and only the time is
-logged unless you pass `note`. Org's messages are not shown either.
+logged unless you pass `note`. Org's messages are not shown either. The
+changes that take `opts.interactive` (API 1.3: `h:set_todo()`,
+`h:schedule()`, `h:set_deadline()`) run like their key instead, for a
+plugin that acts on the user's behalf (a board moving a card): prompts
+wait for the user and messages are shown, so a change org refused or the
+user cancelled returns nil without an error (org said why).
+
+API 1.3 added what views over many entries need (the `kanban`, `timeline`
+and `heatmap` extensions are built on it): `api.today()`,
+`api.occurrences()`, `api.todo_keywords()`, `api.clocks()`,
+`api.completed()`, `api.agenda.open()`, the query keys `bufnr`, `within`,
+`agenda`, `planned` and `fields`, the handle fields `effort`,
+`priority_value` and `bufnr`, a date's `days`, `h:move_after()`,
+`h:move_before()` and `opts.interactive`.
 
 Files ~
                                                            *org-api-files*
@@ -8780,11 +8793,20 @@ api.load([paths])           Read files: one path returns one file (nil and
                             changes included.
 api.current([bufnr])        The file of a buffer (default current), nil
                             when it isn't an org buffer.
+api.todo_keywords([where])  The TODO keywords in effect `{ todo, done,
+                            all }`: of the `todo_keywords` option, or with
+                            a path or a buffer number (0 the current one)
+                            of that file, its `#+TODO` lines included.
+                            `all` lists them in the order they are defined
+                            (org-todo-keywords-1). nil and an error for a
+                            file that can't be read or a buffer that isn't
+                            org. Since API 1.3.
 
 A file is `{ file, bufnr, title, category, filetags, properties,
-todo_keywords = { todo, done }, headlines }`: `file` is the path (nil for a
-buffer without one), `properties` the file-level property drawer and
-`headlines` every headline in document order.
+todo_keywords = { todo, done, all }, headlines }`: `file` is the path (nil
+for a buffer without one), `properties` the file-level property drawer and
+`headlines` every headline in document order (`todo_keywords.all` since
+API 1.3).
 
 Headlines ~
                                                        *org-api-headlines*
@@ -8807,6 +8829,24 @@ api.headlines([query])      Headlines matching every condition of `query`,
     id        the ID property
     archived  false skips subtrees tagged ARCHIVE (default: included)
     filter    `function(h)` returning true to keep the handle
+  Since API 1.3:
+    bufnr     a buffer to read instead of `files` (also one without a
+              file; 0 the current one); nil and an error when it isn't
+              an org buffer
+    within    a handle: only its subtree, it included (`files` and
+              `bufnr` are then ignored)
+    agenda    true: only what the agenda views look at
+              (org-agenda-skip): not in a COMMENT subtree (per
+              `agenda.skip_comment_trees`) or one tagged ARCHIVE, and not
+              skipped by `agenda.skip_function_global`
+    planned   true: with a SCHEDULED or DEADLINE date; false: neither
+    fields    a list of the fields to fill among those that cost a query
+              over many headlines the most: `all_tags`, `properties`,
+              `scheduled`, `deadline`, `closed`, `effort`, `category`,
+              `outline_path`, `priority_value`. The others are always
+              there; `filter` sees the handle so filled, and a method
+              (`h:reload()`) fills every field again. For views over
+              thousands of entries
 api.headline_at([opts])     The headline containing a line: `opts.bufnr`
                             (default current) and `opts.lnum` (default the
                             cursor line), or `opts.file` and `opts.lnum`.
@@ -8818,6 +8858,17 @@ api.find_by_id(id)          The headline with this ID, found like `id:`
                             links find it.
 api.date(value)             A date in the form below, from any value the
                             API accepts as a date.
+api.today()                 The day org considers today (org-today: until
+                            `extend_today_until` o'clock it is still the
+                            day before), as a date. Since API 1.3.
+api.occurrences(date, from, to)
+                            The dates a timestamp falls on from day `from`
+                            to day `to` (dates; both included), as the
+                            agenda lists it: the timestamp itself without
+                            a repeater, else each repetition (`+1w`,
+                            `.+1d` and `++1m` all repeat from it). nil
+                            and an error for a value that isn't a date.
+                            Since API 1.3.
 
 A headline handle has these fields, a snapshot taken when it was made:
     title         text without TODO keyword, priority and tags
@@ -8844,14 +8895,26 @@ A headline handle has these fields, a snapshot taken when it was made:
     outline_path  titles of the ancestors
     archived, commented
                   booleans
+  Since API 1.3:
+    bufnr         the buffer it was read from (nil when read from disk)
+    effort        the minutes of its `effort_property` (Effort), with
+                  inheritance per `use_property_inheritance`
+                  (org-get-effort); nil without one
+    priority_value  org-get-priority: 1000 × (lowest − priority), the
+                  default priority's without a cookie, or what
+                  `priority_get_priority_function` returns; a higher value
+                  sorts first, as in the agenda
 
 A date is `{ year, month, day, hour, min, end_hour, end_min, active,
-repeater, warning, date = "2026-10-02", time = "09:30", timestamp (Unix
-time), text (as org writes it), raw (as written in the file) }`; for a
-range `<2026-10-02 Fri>--<2026-10-04 Sun>` the fields are its start, and
-`text` and `raw` the whole range. Where the API takes a date it accepts
-such a table (or any table with year, month, day and optionally hour and
-min), a Unix time, or a string: a timestamp (`<2026-10-02 Fri 09:30>`,
+repeater, warning, date = "2026-10-02", time = "09:30", days, timestamp
+(Unix time), text (as org writes it), raw (as written in the file) }`;
+for a range `<2026-10-02 Fri>--<2026-10-04 Sun>` the fields are its
+start, and `text` and `raw` the whole range. `days` (API 1.3) is the day
+number, the days from 1970-01-01 to the date's day: subtract two to count
+the days between them, without time zones. Where the API takes a date it
+accepts such a table (or any table with year, month, day and optionally
+hour and min, or since API 1.3 with `days` instead of year, month and
+day), a Unix time, or a string: a timestamp (`<2026-10-02 Fri 09:30>`,
 `2026-10-02`) or what the date prompt reads (`+2d`, `fri`). Fields out of
 range roll over like `os.time()`: day 32 of October is November 1, hour 25
 is 1:00 the next day, and so is a timestamp's day its month doesn't have
@@ -8875,7 +8938,9 @@ subtree moved, several headlines have its text), a method returns nil and
 longer points to an entry.
     h:set_todo(state, [opts])     C-c C-t; nil removes the keyword.
                                   `opts.note` is the note the logging asks
-                                  for, `opts.force` ignores blocking
+                                  for, `opts.force` ignores blocking;
+                                  `opts.interactive` (API 1.3) asks for
+                                  the note as C-c C-t does
     h:set_tags(tags)              a list or ":a:b:". A tag is letters and
                                   digits (of any script), `_`, `@`, `#`
                                   and `%` (org-tag-re); another name
@@ -8892,9 +8957,22 @@ longer points to an entry.
     h:get_property(name, [inherit])  special properties too (`ALLTAGS`)
     h:schedule(date)              C-c C-s, nil removes the date; also
                                   h:set_scheduled(date). The old repeater
-                                  stays unless the date has its own
+                                  stays unless the date has its own. With
+                                  `opts.interactive` (API 1.3) and no date,
+                                  the date prompt asks for it (and can
+                                  remove it), and a log note is asked for
     h:set_deadline(date)          C-c C-d (the `deadline` field holds the
-                                  date, so the method has another name)
+                                  date, so the method has another name);
+                                  `opts.interactive` as for `schedule`
+    h:move_after(sibling), h:move_before(sibling)
+                                  move the subtree right after or before
+                                  the subtree of a sibling (a handle of a
+                                  headline with the same parent and
+                                  level), as M-down / M-up past the
+                                  siblings in between move it
+                                  (org-move-subtree-down / -up with a
+                                  count); the handle follows it. Since
+                                  API 1.3
     h:clock_in(), h:clock_out()   clock_out returns the minutes
     h:is_clocked_in()             true while the headline's clock runs
     h:refile(dest, [opts])        dest: another handle, a file path, or
@@ -8997,6 +9075,11 @@ api.agenda.tags(match, [opts])  A tags/property match; `opts.todo_only`.
 api.agenda.search(query, [opts])  A search view query (|org-agenda-search|);
                             `opts.todo_only` (like `!`, also with a
                             leading `*`).
+api.agenda.open([opts])     Open the agenda view (<prefix>a) on the day
+                            `opts.from` (a date, default today) for
+                            `opts.span` (as for `api.agenda.agenda`,
+                            default `agenda.span`). nil and an error for
+                            an invalid date or span. Since API 1.3.
 
 Items are sorted like the views (`agenda.sorting`) and are `{ type, kind,
 title, todo, priority, category, tags, done, day, date, time, end_time,
@@ -9076,6 +9159,36 @@ api.clock.clock_out([opts]) Stop it wherever it runs; returns the minutes.
 api.clock.cancel([opts])    Cancel it (<prefix>xq): its CLOCK line is
                             removed.
 Both save the file of the CLOCK line (|org-api-saving|, `opts.save`).
+
+Since API 1.3, what was clocked and done, for reports, heatmaps and
+habit trackers. Both take a query as `api.headlines` does
+(|org-api-headlines|) with `from` and `to` (dates; default no limit),
+and return entries in file order with a `headline` handle, one per entry
+(filled per the query's `fields`):
+api.clocks([query])         The CLOCK lines of the matching entries (their
+                            own, not their children's) that ran on one of
+                            the days: `{ start, end, minutes, running,
+                            line, headline }`. `end` is nil while it
+                            runs; `minutes` is its `=> H:MM` duration,
+                            else the time between its timestamps (until
+                            now while it runs).
+api.completed([query])      When the matching entries were marked done,
+                            as org-habit reads it, on one of the days:
+                            `{ date, type, headline }`, `type` "closed"
+                            (CLOSED), "state" (a `- State "DONE" ...`
+                            log line of a change to a done keyword),
+                            "note" (a `- CLOSING NOTE` line) or
+                            "last_repeat" (the LAST_REPEAT property of a
+                            repeating entry). >lua
+    local api = require("org.api")
+    local week = { from = "-6d", to = api.today(), tags = "work" }
+    local minutes = 0
+    for _, c in ipairs(api.clocks(week)) do
+      minutes = minutes + c.minutes
+    end
+    print(("%d:%02d clocked, %d tasks done"):format(
+      math.floor(minutes / 60), minutes % 60, #api.completed(week)))
+<
 
 Session server ~
                                                           *org-api-remote*
