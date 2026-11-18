@@ -413,3 +413,16 @@ since, with hand-written cases in
   list, sorts from point-min and repairs the list, so point ends at
   column 0 of the list's first line, or after its bullet when the repair
   renumbers a bullet at column 0 (insert-before-markers).
+
+Still different, on badly indented lists only: org.nvim takes column 0
+of an item as the plain list when that item is the first of its list in
+org.nvim's reading of the list, and Emacs's parser can start a list
+elsewhere there.
+
+- `* H` / `  - [ ] a` / `- [ ] b` / `- [X] c`: at column 0 of `b`, Emacs
+  sees a plain list starting at `b`, and C-u removes the boxes of `b` and
+  `c`, leaving the indentation alone. org.nvim reads `b` as `a`'s
+  sibling, so it toggles `b` only and indents `b` and `c` under `a`.
+- `- p` / `   - [ ] a` / `  - [ ] b` / `  - [X] c`: at column 0 of `a` or
+  of `b`, Emacs removes the boxes of `a`, `b` and `c`. org.nvim acts on
+  `a` alone (it puts `b` back at the top), or on the item `b`.
