@@ -212,11 +212,10 @@ function M.task(h, o, today, clock_days)
   end
   local rep
   if not done then
-    for _, ts in ipairs({ sts or false, dts or false }) do
-      if ts and ts.repeater and (ts.repeater.value or 0) > 0 then
-        rep = ts
-        break
-      end
+    if sts and sts.repeater and (sts.repeater.value or 0) > 0 then
+      rep = sts
+    elseif dts and dts.repeater and (dts.repeater.value or 0) > 0 then
+      rep = dts
     end
   end
   return {
@@ -283,29 +282,51 @@ function M.build(st)
   local hs
   hs, err = api.headlines(q)
   local list = hs or {}
-  local function key(h)
-    return tostring(h.file or h.bufnr) .. ":" .. h.line
-  end
-  -- the days each task was clocked, dated or not: those without a date
-  -- get a row of their clocks
+  -- the days each task was clocked, by the handle of its row, dated or
+  -- not: those without a date get a row of their clocks
   local clocked
   if st.clocks and hs then
     clocked = {}
-    local seen = {}
+    -- the handles of the rows by file (or buffer) and line: the clocks'
+    -- are others, one per entry
+    local rows_at = {}
+    local function at(h)
+      local where = h.file or h.bufnr
+      local by_line = rows_at[where]
+      if not by_line then
+        by_line = {}
+        rows_at[where] = by_line
+      end
+      return by_line
+    end
     for _, h in ipairs(hs) do
-      seen[key(h)] = true
+      at(h)[h.line] = h
     end
     q.planned = nil
+    -- the entries not listed yet have no SCHEDULED or DEADLINE: of their
+    -- fields, the row reads the effort
+    q.fields = { "effort" }
+    -- the days of the row of each clock's handle
+    local days_of = {}
     for _, c in ipairs(api.clocks(q) or {}) do
-      local k = key(c.headline)
-      if not clocked[k] then
-        clocked[k] = {}
-        if not seen[k] then
-          seen[k] = true
-          list[#list + 1] = c.headline
+      local h = c.headline
+      local days = days_of[h]
+      if not days then
+        local by_line = at(h)
+        local row_h = by_line[h.line]
+        if not row_h then
+          row_h = h
+          by_line[h.line] = h
+          list[#list + 1] = h
         end
+        days = clocked[row_h]
+        if not days then
+          days = {}
+          clocked[row_h] = days
+        end
+        days_of[h] = days
       end
-      clocked[k][c.start.days] = true
+      days[c.start.days] = true
     end
   end
   -- file order: the source's files, then the lines
@@ -314,7 +335,7 @@ function M.build(st)
     rank[where] = i
   end
   for _, h in ipairs(list) do
-    local t = M.task(h, o, today, clocked and clocked[key(h)])
+    local t = M.task(h, o, today, clocked and clocked[h])
     if t then
       t.order = (rank[h.file or h.bufnr] or 0) * 1e8 + h.line
       rows[#rows + 1] = t
