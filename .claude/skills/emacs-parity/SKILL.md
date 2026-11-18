@@ -63,9 +63,9 @@ compare the buffer (or the export, the agenda text) line by line.
   (`tests/spec/tag_order_emacs_spec.lua` is a short example).
 - Comparisons against real Emacs output use the fixtures under
   `tests/fixtures/emacs/`, read by `tests/spec/emacs_*_parity_spec.lua`
-  (visibility, agenda, export, clocktable, lint, faces). To add a case,
-  change the inputs (`scripts/emacs-parity/README.md`, "Adding cases")
-  and regenerate:
+  (visibility, agenda, export, clocktable, lint, lists, capture, faces).
+  To add a case, change the inputs (`scripts/emacs-parity/README.md`,
+  "Adding cases") and regenerate:
   ```sh
   ORG_DIR=/path/to/org-<v> make parity-fixtures AREAS="agenda"
   git diff tests/fixtures/emacs

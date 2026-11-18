@@ -1,0 +1,20 @@
+* Fruits
+- pear
+- Apple
+- banana
+
+* Numbers
+- 10 ten
+- 9 nine
+- 100 hundred
+
+* Boxes
+- [X] done one
+- [ ] open one
+- no box
+- [X] done two
+
+* Ordered
+1. gamma
+2. alpha
+3. beta

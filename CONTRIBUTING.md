@@ -349,6 +349,8 @@ org.nvim with real Emacs output that's checked in under
 | `emacs_export_parity_spec.lua` | exports of `examples/*.org` |
 | `emacs_clocktable_parity_spec.lua` | clock tables |
 | `emacs_lint_parity_spec.lua` | org-lint reports |
+| `emacs_lists_parity_spec.lua` | plain-list editing keys (insert, indent, move, bullets, checkboxes, sorting) |
+| `emacs_capture_parity_spec.lua` | capture templates: targets, types, empty lines, escapes |
 
 They only read the fixtures, so you don't need Emacs to run them. To
 regenerate the fixtures after you change an input or add a case, you need
