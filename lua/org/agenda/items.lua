@@ -223,6 +223,17 @@ local function has_archive_tag(tags)
   return false
 end
 
+--- Is `file` tagged ARCHIVE in its `#+FILETAGS:`? org-agenda-skip then
+--- skips to the end of the buffer, everything in it, unless archived trees
+--- are included ((member org-archive-tag org-file-tags)). A heading in it
+--- is no archived heading though (org-in-archived-heading-p).
+---@param file org.File
+---@return boolean
+function M.file_archived(file)
+  local tags = file.settings and file.settings.filetags
+  return tags ~= nil and has_archive_tag(tags)
+end
+
 local function hidden(hl, include_archived, memo)
   local v = memo[hl]
   if v == nil then
@@ -237,14 +248,17 @@ local function hidden(hl, include_archived, memo)
   return v
 end
 
+local NONE = {}
+
 --- Skip predicates that skip the whole subtree of an entry they hold for
 --- (org-agenda-skip-subtree-if), set by `org.agenda.skip_subtree_if`.
 ---@type table<function, boolean>
 M.subtree_skips = setmetatable({}, { __mode = "k" })
 
 --- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT
---- subtrees unless `all` is set, and those `agenda.skip_function_global`
---- or `opts.skip` skip, org-agenda-skip).
+--- subtrees and the files tagged ARCHIVE in their FILETAGS unless `all` is
+--- set, and those `agenda.skip_function_global` or `opts.skip` skip,
+--- org-agenda-skip).
 ---
 --- Like Emacs, which calls the skip function only at the entries a view
 --- matches, a subtree skip (`M.subtree_skips`) is asked about the
@@ -286,8 +300,14 @@ function M.each_headline(files, opts, fn)
     end
     return false
   end
+  -- a file tagged ARCHIVE is skipped whole, checked once per file
+  local skip_archived_files = not opts.all and not opts.archives
   for fidx, file in ipairs(files) do
-    for _, hl in ipairs(file.headlines) do
+    local hls = file.headlines
+    if skip_archived_files and M.file_archived(file) then
+      hls = NONE
+    end
+    for _, hl in ipairs(hls) do
       local ok = opts.all or not hidden(hl, opts.archives, memo)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]

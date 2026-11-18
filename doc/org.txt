@@ -2148,7 +2148,9 @@ For each day, per file, in this order (org-agenda-get-day-entries):
 - A time grid (`agenda.time_grid`, org-agenda-time-grid) with the current
   time; the `remove-match` flag hides grid lines at the time of an entry.
 - Entries under ARCHIVE-tagged or COMMENT headlines are excluded
-  (`agenda.skip_comment_trees = false` keeps COMMENT trees).
+  (`agenda.skip_comment_trees = false` keeps COMMENT trees). A file
+  tagged ARCHIVE in its `#+FILETAGS:` is left out whole, from every view
+  (org-agenda-skip). `va` / `vA` bring both back.
   `agenda.skip_function_global(headline)` returning true leaves an entry
   out of every view, built-in ones included (org-agenda-skip-function-global).
 `agenda.entry_types` selects the kinds ("deadline", "scheduled",
@@ -2370,7 +2372,8 @@ All configurable under `mappings.agenda`:
                   true, false or "invisible"; needs
                   `enforce_todo_dependencies` or
                   `enforce_todo_checkbox_dependencies`)
-  va / vA         include archived trees / also the archive files
+  va / vA         include archived trees (and files tagged ARCHIVE in
+                  their `#+FILETAGS:`) / also the archive files
                   (`agenda.start_with_archives_mode`: "trees" or true
                   turns them on in new agendas)
   v[              include inactive timestamps (`[` leader)
@@ -8848,7 +8851,10 @@ api.headlines([query])      Headlines matching every condition of `query`,
     level     a number, or `{ min = 2, max = 3 }`
     title     text the title contains, ignoring case (`été` finds `ÉTÉ`)
     id        the ID property
-    archived  false skips subtrees tagged ARCHIVE (default: included)
+    archived  false skips subtrees tagged ARCHIVE (default: included);
+              the heading's own tag or an ancestor's, as
+              org-in-archived-heading-p: `#+FILETAGS: :ARCHIVE:` doesn't
+              count (`agenda = true` skips such a file)
     filter    `function(h)` returning true to keep the handle
   Since API 1.3:
     bufnr     a buffer to read instead of `files` (also one without a
@@ -8858,8 +8864,9 @@ api.headlines([query])      Headlines matching every condition of `query`,
               `bufnr` are then ignored)
     agenda    true: only what the agenda views look at
               (org-agenda-skip): not in a COMMENT subtree (per
-              `agenda.skip_comment_trees`) or one tagged ARCHIVE, and not
-              skipped by `agenda.skip_function_global`
+              `agenda.skip_comment_trees`), one tagged ARCHIVE or a file
+              tagged ARCHIVE in its `#+FILETAGS:`, and not skipped by
+              `agenda.skip_function_global`
     planned   true: with a SCHEDULED or DEADLINE date; false: neither
     fields    a list of the fields to fill among those that cost a query
               over many headlines the most: `all_tags`, `properties`,
@@ -10144,6 +10151,7 @@ search views and a dynamic block. Enable it with:
         views_file = vim.fn.stdpath("data") .. "/org/ql-views.json",
         save_view_key = "<C-x><C-s>", -- in search buffers
         include_hidden = false,      -- true: also COMMENT/ARCHIVE subtrees
+                                     -- and files tagged ARCHIVE
         expand_repeaters = true,     -- repeats count in date ranges
         cache = true,                -- remember results until files change
       },
@@ -10274,8 +10282,9 @@ Lua API ~
     ql.search("tags:work", { files = "buffer", title = "Work" })
     ql.query.compile("(tags \"x\")")                    -- headline predicate
 <
-Differences from Emacs org-ql: COMMENT and ARCHIVE subtrees are skipped,
-as in the agenda, unless `include_hidden` is set; repeaters are expanded
+Differences from Emacs org-ql: COMMENT and ARCHIVE subtrees, and files
+tagged ARCHIVE in their `#+FILETAGS:`, are skipped, as in the agenda,
+unless `include_hidden` is set; repeaters are expanded
 in date ranges (org-ql reads the timestamp only; `expand_repeaters = false`
 does the same); a timestamp range matches when it overlaps the period,
 where org-ql tests each end; `(pred ...)` needs a Lua function, as Lisp
@@ -12181,7 +12190,9 @@ Reading:
     Headings of the agenda files matching QUERY, as `file:line: heading`:
     the agenda search syntax (|org-agenda-search|), or org-ql queries
     when `ql` is enabled. `--match` takes a tags/property match
-    (`+work-boss`, `PRIORITY="A"`, |org-match-syntax|) instead.
+    (`+work-boss`, `PRIORITY="A"`, |org-match-syntax|) instead. As in
+    the agenda, archived and commented subtrees, and files tagged
+    ARCHIVE in their `#+FILETAGS:`, are left out.
 `org headlines [FILE...] [filters]`                   (also `org query`)
     Headings of the agenda files (or of the FILEs given) passing every
     filter: `--todo KW` (a keyword, or `any`, `open` for not done,
@@ -12192,8 +12203,8 @@ Reading:
     FROM..TO` and `--deadline FROM..TO` (dates as `--date` reads them,
     either side optional, a single date for that day, or `any`, `none`),
     `--file FILE` (one of the agenda files), `--match MATCH` and
-    `--limit N`. Archived and commented subtrees are left out unless
-    `--archived`. A `--todo` that is no keyword of the files is a
+    `--limit N`. Archived and commented subtrees, and files tagged
+    ARCHIVE in their `#+FILETAGS:`, are left out unless `--archived`. A `--todo` that is no keyword of the files is a
     `bad_value` error, as is a `--match` (here and in `search`) with
     text it can't read: where Emacs ignores the rest of a match from the
     first thing it can't read (`+work +boss` is `+work`), the CLI says
@@ -13672,7 +13683,8 @@ language is loaded on demand, the ql extension need not be enabled), and a
 tags / property match like `work+urgent-home` otherwise (|org-match-syntax|).
 The `query` option takes any org-ql query, plain syntax included.
 
-COMMENT and ARCHIVE subtrees are left out, as in the agenda. The views are
+COMMENT and ARCHIVE subtrees, and files tagged ARCHIVE in their
+`#+FILETAGS:`, are left out, as in the agenda. The views are
 scratch buffers; <CR> opens the heading in the window the view was opened
 from (floats and tabs close first), and <Esc> or `q` closes them. A key
 in a list of alternatives, like `q` in the default `quit = { "<Esc>", "q" }`,

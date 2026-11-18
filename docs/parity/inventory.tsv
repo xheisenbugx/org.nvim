@@ -305,7 +305,7 @@ org	org-agenda-ignore-properties	opt	na	-	Emacs agenda performance knob	-
 org	org-agenda-inhibit-startup	opt	na	-	Emacs agenda performance knob	-
 org	org-agenda-jump-prefer-future	opt	done	agenda goto_date via read_date_prefer_future (agenda/view.lua:2188)	follows read_date_prefer_future = Emacs default	-
 org	org-agenda-multi-occur-extra-files	opt	done	-	agenda.occur adds text_search_extra_files (defvaralias in Emacs); spec checks 2 matches; agenda-archives accepted anywhere, Emacs only as car	S
-org	org-agenda-skip-archived-trees	opt	done	agenda/items.lua:295; agenda va archives mode	skipped by default; va toggles instead of an option	-
+org	org-agenda-skip-archived-trees	opt	done	agenda/items.lua:237 (hidden), :232 (file_archived); agenda va archives mode	ARCHIVE trees and files tagged ARCHIVE in their FILETAGS skipped by default; va toggles instead of an option	-
 org	org-agenda-skip-unavailable-files	opt	done	-	check_agenda_files prompts R/A like org-check-agenda-file, silent with option; spec covers both; iterates list from the end	S
 org	org-agenda-text-search-extra-files	opt	done	agenda.text_search_extra_files (config/buffer.lua:241)	-	-
 org	org-allow-promoting-top-level-subtree	opt	done	-	PROBED: promote subtree with adapt t -> '# A', body kept, children promoted: identical to Emacs; spec	S

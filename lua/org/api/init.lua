@@ -363,11 +363,11 @@ end
 ---@field level? integer|{ min?: integer, max?: integer }
 ---@field title? string text the title contains (ignoring case)
 ---@field id? string
----@field archived? boolean include (true, default) or skip (false) ARCHIVE-tagged subtrees
+---@field archived? boolean include (true, default) or skip (false) ARCHIVE-tagged subtrees: the heading's own tag or an ancestor's (org-in-archived-heading-p), not `#+FILETAGS: :ARCHIVE:`
 ---@field filter? fun(h: org.api.Headline): boolean
 ---@field bufnr? integer a buffer to read instead of `files` (also one without a file; 0 is the current one). Since API 1.3
 ---@field within? org.api.Headline only the subtree of this headline, it included (`files` and `bufnr` are then ignored). Since API 1.3
----@field agenda? boolean only the entries the agenda views look at (org-agenda-skip): not in a COMMENT subtree (per `agenda.skip_comment_trees`) or an ARCHIVE-tagged one, and not skipped by `agenda.skip_function_global`. Since API 1.3
+---@field agenda? boolean only the entries the agenda views look at (org-agenda-skip): not in a COMMENT subtree (per `agenda.skip_comment_trees`), an ARCHIVE-tagged one or a file tagged ARCHIVE in its `#+FILETAGS:`, and not skipped by `agenda.skip_function_global`. Since API 1.3
 ---@field planned? boolean with a SCHEDULED or DEADLINE date (true), or neither (false). Since API 1.3
 ---@field fields? string[] fill only these of the fields a query computes per headline (`all_tags`, `properties`, `scheduled`, `deadline`, `closed`, `effort`, `category`, `outline_path`, `priority_value`); the others are always there. For big queries that need few of them. Since API 1.3
 

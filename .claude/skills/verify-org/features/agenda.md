@@ -1,7 +1,7 @@
 ---
 area: agenda
 recipe: scripts/verify/recipes/agenda.lua
-keys: global.agenda, agenda.quit, agenda.todo, agenda.later, agenda.earlier, agenda.today, agenda.save_all, agenda.switch_to, agenda.goto, agenda.redo, agenda.schedule, agenda.deadline, agenda.priority_up, agenda.set_tags, agenda.clock_in, agenda.refile, agenda.archive, agenda.day_view, agenda.week_view
+keys: global.agenda, agenda.quit, agenda.todo, agenda.later, agenda.earlier, agenda.today, agenda.save_all, agenda.switch_to, agenda.goto, agenda.redo, agenda.schedule, agenda.deadline, agenda.priority_up, agenda.set_tags, agenda.clock_in, agenda.refile, agenda.archive, agenda.day_view, agenda.week_view, agenda.archives_mode
 modules: lua/org/agenda, lua/org/agenda/items.lua, lua/org/agenda/render.lua, lua/org/agenda/view.lua
 specs: tests/spec/agenda_spec.lua, tests/spec/agenda_view_spec.lua, tests/spec/agenda_dispatch_spec.lua, tests/spec/agenda_emacs_spec.lua, tests/spec/emacs_agenda_parity_spec.lua, tests/spec/ui_agenda_rendering_spec.lua, tests/spec/agenda_commands_parity_spec.lua, tests/spec/agenda_items_review_spec.lua
 doc: org-agenda, org-agenda-keys, org-agenda-custom-commands, org-agenda-prefix, org-agenda-bulk
@@ -54,6 +54,9 @@ then the headline.
   Check which headline changed in the file (`expect.file` with `lines`).
 - The driver's clock is Monday 2026-10-12 09:00: the week is W42,
   12 – 18 October. Write dates in recipes from that.
+- A file with `#+FILETAGS: :ARCHIVE:` is left out of every view, as
+  ARCHIVE-tagged trees are, until `{{agenda.archives_mode}}`
+  (org-agenda-skip). A fixture file tagged that way shows nothing.
 - `agenda_files` must list the scenario's files (`"{{dir}}/todo.org"` or
   `"{{dir}}/*.org"`); with none the agenda is empty, which looks like a
   bug and isn't.

@@ -131,4 +131,26 @@ return {
       },
     },
   },
+  {
+    -- org-agenda-skip skips a file whose #+FILETAGS has ARCHIVE, unless
+    -- archived trees are included (org-agenda-archives-mode)
+    name = "a file tagged ARCHIVE in its FILETAGS stays out until archives mode",
+    files = {
+      ["old.org"] = { "#+FILETAGS: :ARCHIVE:", "* TODO Old shelved task", "  SCHEDULED: <2026-10-12 Mon>" },
+      ["live.org"] = { "* TODO Live task", "  SCHEDULED: <2026-10-12 Mon>" },
+    },
+    open = "live.org",
+    setup = { agenda_files = { "{{dir}}/old.org", "{{dir}}/live.org" } },
+    steps = {
+      {
+        key = "{{global.agenda}}a",
+        expect = { screen = "Scheduled:  TODO Live task", no_screen = "Old shelved task" },
+      },
+      {
+        key = "{{agenda.archives_mode}}",
+        expect = { screen = { "Scheduled:  TODO Old shelved task", "Scheduled:  TODO Live task" } },
+      },
+      { key = "{{agenda.archives_mode}}", expect = { no_screen = "Old shelved task" } },
+    },
+  },
 }
