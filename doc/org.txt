@@ -10073,15 +10073,14 @@ Each extension is marked as one of:
                 and keys only change with a note in the release notes
   experimental  works and is tested, but has seen less real use, so it is
                 prone to change: its options, commands, keys and output
-                (such as the JSON of |org-extensions-cli|) can change in
-                any release. Read the release notes before you upgrade if
-                a config or a script relies on one.
+                can change in any release. Read the release notes before
+                you upgrade if a config or a script relies on one.
 
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
-              `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`
-Experimental: `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
-              `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`,
-              `caldav`
+              `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`,
+              `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
+              `literate`, `lsp`, `timeline`, `hugo`, `journal`
+Experimental: `src_lsp`, `caldav`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -10874,7 +10873,7 @@ planning timestamps and the target without touching any file.
 ------------------------------------------------------------------------------
 Weekly review (GTD)                                    *org-extensions-review*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `review` walks you through a GTD weekly review, one step at a time, in a
 floating window:
@@ -10999,7 +10998,7 @@ Options ~
 ------------------------------------------------------------------------------
 Pomodoro                                             *org-extensions-pomodoro*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `pomodoro` runs the Pomodoro technique on top of the clock, like Emacs
 org-pomodoro:
@@ -11097,7 +11096,7 @@ when it exits.
 ------------------------------------------------------------------------------
 Spaced repetition (org-drill)                           *org-extensions-drill*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `drill` turns headlines into flashcards and schedules their reviews by
 spaced repetition, like Emacs org-drill:
@@ -11437,7 +11436,7 @@ Limits ~
 ------------------------------------------------------------------------------
 Hugo export (ox-hugo)                                   *org-extensions-hugo*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `hugo` exports Org to Markdown for the Hugo static site generator, like
 the Emacs package ox-hugo: a post gets a TOML or YAML front matter and
@@ -12082,7 +12081,7 @@ Differences from org-caldav ~
 ------------------------------------------------------------------------------
 Command line (org)                                       *org-extensions-cli*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `bin/org` is a shell command that runs org.nvim in a headless Neovim
 (`nvim --headless -l`), to print the agenda, capture, clock in and out,
@@ -12673,7 +12672,7 @@ Limits ~
 ------------------------------------------------------------------------------
 Diagrams (ob-mermaid, ob-dot, ob-plantuml)           *org-extensions-diagrams*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `diagrams` renders diagram source blocks to images: `mermaid` (with
 mermaid-cli's `mmdc`, like the third-party ob-mermaid), `dot` (Graphviz,
@@ -12789,7 +12788,7 @@ Limits ~
 ------------------------------------------------------------------------------
 Code and notes (code)                                    *org-extensions-code*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `code` connects the code you edit with your org notes: capture a selection
 with a link back to it, link to functions by name, keep an org file per git
@@ -12963,7 +12962,7 @@ Options ~
 ------------------------------------------------------------------------------
 Literate Neovim config (literate)                    *org-extensions-literate*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `literate` makes an org file your Neovim configuration: saving it tangles
 its Lua blocks and runs the ones you changed, so a new option or keymap
@@ -13068,7 +13067,7 @@ Options ~
 ------------------------------------------------------------------------------
 Language server                                           *org-extensions-lsp*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `lsp` runs a language server for org buffers inside Neovim: no program to
 install, the server is Lua in the same process (|vim.lsp.start()| with a
@@ -13777,7 +13776,7 @@ Highlight groups: `OrgKanbanTitle`, `OrgKanbanHint`, `OrgKanbanBorder`,
 ------------------------------------------------------------------------------
 Timeline                                             *org-extensions-timeline*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 A text-mode Gantt chart: one row per task with a SCHEDULED or DEADLINE date,
 on a date axis.
@@ -13994,7 +13993,7 @@ Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 ------------------------------------------------------------------------------
 Journal (org-journal)                                  *org-extensions-journal*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `journal` keeps a dated journal in a directory of Org files, like Emacs
 org-journal, whose file format it shares:

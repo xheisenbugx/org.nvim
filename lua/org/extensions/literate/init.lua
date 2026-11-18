@@ -20,7 +20,7 @@ local ns = vim.api.nvim_create_namespace("org.literate")
 local augroup = vim.api.nvim_create_augroup("org.literate", { clear = true })
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Org files (paths or globs) that are always literate (trusted).

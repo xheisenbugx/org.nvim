@@ -16,7 +16,7 @@ local M = {}
 local MOD = "org.extensions.cli"
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Directory `cli_install` puts the `org` symlink in.

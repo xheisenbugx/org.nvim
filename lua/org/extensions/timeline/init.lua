@@ -28,7 +28,7 @@ M.ZOOMS = {
 }
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Tasks come from: "agenda", "buffer", "subtree", or files / globs.
