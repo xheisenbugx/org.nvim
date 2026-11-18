@@ -10,10 +10,7 @@ local dir = P.dir .. "/lists"
 
 -- Cases that still differ from Emacs, with the reason. A case listed here
 -- must keep failing (remove it once it matches).
-local KNOWN = {
-  ["sort-cursor"] = "C-c ^ on a list: org-sort-list narrows to the list and sorts from point-min (no"
-    .. " save-excursion), leaving point on the first item; org.nvim keeps the cursor on its line",
-}
+local KNOWN = {}
 
 -- The keys of cases.txt and the actions their default keys run
 -- (lua/org/config/mappings.lua); lists.el has the Emacs commands.

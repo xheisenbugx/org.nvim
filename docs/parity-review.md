@@ -388,16 +388,12 @@ in place.
 
 | Area | Cases | Same as Emacs | Known differences |
 | --- | --- | --- | --- |
-| Plain lists | 76 | 75 | 1 |
+| Plain lists | 76 | 76 | 0 |
 | Capture (each mode) | 51 | 51 | 0 |
 
-The differences, each a `KNOWN` entry of
-[the lists spec](../tests/spec/emacs_lists_parity_spec.lua):
-
-- After C-c ^ the cursor stays on its line; Emacs leaves it on the list's
-  first item (org-sort-list).
-
-Fixed since, with hand-written cases in
+It found three differences, first `KNOWN` entries of
+[the lists spec](../tests/spec/emacs_lists_parity_spec.lua), all fixed
+since, with hand-written cases in
 [`lists_emacs_spec.lua`](../tests/spec/lists_emacs_spec.lua):
 
 - C-c - (and S-left / right) on a description item numbered the list.
@@ -413,3 +409,7 @@ Fixed since, with hand-written cases in
   `[ ]`; C-u C-u sets `[-]`; without a prefix it toggles the first box,
   and in each case it repairs the list without the ORDERED rule. One
   column further, it is the item again.
+- After C-c ^ the cursor stayed on its line. org-sort-list narrows to the
+  list, sorts from point-min and repairs the list, so point ends at
+  column 0 of the list's first line, or after its bullet when the repair
+  renumbers a bullet at column 0 (insert-before-markers).

@@ -681,3 +681,85 @@ describe("lists: C-c C-c at the start of a list (org-ctrl-c-ctrl-c on a plain-li
     eq(K, cc(K, { 2, 0 }))
   end)
 end)
+
+describe("lists: the cursor after C-c ^ (org-sort-list)", function()
+  -- org-sort-list narrows to the list, goes to point-min and sorts with
+  -- sort-subr (whose save-excursion keeps point there), then runs
+  -- org-list-repair: point ends at the start of the list's first line,
+  -- column 0, whatever item it was on. When that repair renumbers a
+  -- bullet at column 0, its insert-before-markers pushes point past the
+  -- new bullet. Every buffer and position below is what Emacs Org
+  -- 9.8.12 gave.
+  local function sort(lines, cursor, key)
+    local buf = org_buffer(lines, cursor)
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function(opts)
+      for _, it in ipairs(opts.items) do
+        if it.key == key then
+          return it.value
+        end
+      end
+    end
+    local okc, err = pcall(require("org.actions").run, "ctrl_c_caret")
+    ui.menu = orig
+    ok(okc, err)
+    return { buf_lines(buf), vim.api.nvim_win_get_cursor(0) }
+  end
+
+  local F = { "* Fruits", "- pear", "- Apple", "- banana" }
+
+  it("leaves the cursor at the start of the list, from any item", function()
+    eq({ { "* Fruits", "- pear", "- banana", "- Apple" }, { 2, 0 } }, sort(F, { 3, 0 }, "A"))
+    eq({ { "* Fruits", "- Apple", "- banana", "- pear" }, { 2, 0 } }, sort(F, { 3, 4 }, "a"))
+    eq({ { "* Fruits", "- Apple", "- banana", "- pear" }, { 2, 0 } }, sort(F, { 4, 3 }, "a"))
+    eq({ { "* F", "- a", "- b", "- c" }, { 2, 0 } }, sort({ "* F", "- a", "- b", "- c" }, { 3, 2 }, "a"))
+    eq(
+      { { "* F", "Some text", "- apple", "- pear" }, { 3, 0 } },
+      sort({ "* F", "Some text", "- pear", "- apple" }, { 4, 1 }, "a")
+    )
+  end)
+
+  it("at column 0 of an indented list or a sub-list", function()
+    eq(
+      { { "* F", "  - Apple", "  - banana", "  - pear" }, { 2, 0 } },
+      sort({ "* F", "  - pear", "  - Apple", "  - banana" }, { 3, 5 }, "a")
+    )
+    eq(
+      { { "- top", "  - apple", "  - pear", "- b" }, { 2, 0 } },
+      sort({ "- top", "  - pear", "  - apple", "- b" }, { 3, 4 }, "a")
+    )
+    eq({ { "* F", "  1. apple", "  2. pear" }, { 2, 0 } }, sort({ "* F", "  3. pear", "  7. apple" }, { 3, 4 }, "a"))
+    eq({ { "* F", "\t- apple", "\t- pear" }, { 2, 0 } }, sort({ "* F", "\t- pear", "\t- apple" }, { 3, 1 }, "a"))
+  end)
+
+  it("after a bullet at column 0 that the repair renumbers", function()
+    eq({ { "* F", "1. apple", "2. pear" }, { 2, 3 } }, sort({ "* F", "1. pear", "2. apple" }, { 3, 3 }, "a"))
+  end)
+
+  it("repairs the sorted list only, as narrowed to it, without ORDERED", function()
+    -- org-list-repair runs inside the narrowing: the items around it,
+    -- and the sub-list's indentation under them, stay as they are
+    eq(
+      { { "1. top", "   - apple", "   - pear", "3. b" }, { 2, 0 } },
+      sort({ "1. top", "   - pear", "   - apple", "3. b" }, { 3, 5 }, "a")
+    )
+    eq(
+      { { "1. top", "  - apple", "  - pear", "2. b" }, { 2, 0 } },
+      sort({ "1. top", "  - pear", "  - apple", "2. b" }, { 3, 5 }, "a")
+    )
+    eq(
+      { { "- [ ] p", "  - [X] a", "  - [X] b", "- [ ] q" }, { 2, 0 } },
+      sort({ "- [ ] p", "  - [X] b", "  - [X] a", "- [ ] q" }, { 3, 4 }, "a")
+    )
+    eq(
+      { { "1. top", "   - apple", "   - pear", "     1. x", "     2. y", "2. b" }, { 2, 0 } },
+      sort({ "1. top", "   - pear", "     1. x", "     3. y", "   - apple", "2. b" }, { 5, 4 }, "a")
+    )
+    local O = { "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [X] b", "- [ ] a", "- [X] c" }
+    eq(
+      { { "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [ ] a", "- [X] b", "- [X] c" }, { 5, 0 } },
+      sort(O, { 6, 3 }, "a")
+    )
+  end)
+end)

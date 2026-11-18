@@ -692,11 +692,14 @@ p / P           Put (org-yank). When the register holds whole subtrees
                 (first active timestamp, else inactive), s scheduled,
                 d deadline, c created (first inactive timestamp at the
                 start of a line), k clocking time; missing dates count as
-                now. List keys: a, n, t, f, x (checkbox). Uppercase
-                reverses; a count (C-u) makes it case-sensitive. For `f`,
-                give a name from `sort_functions` or a Lua expression
-                returning a function(entry, lines), then optionally a
-                compare function. Children under a headline whose text
+                now. List keys: a, n, t, f, x (checkbox); as in Emacs,
+                only that list is repaired (not a list around it), and
+                the cursor then goes to the start of its first line.
+                Uppercase reverses; a count (C-u) makes it
+                case-sensitive. For `f`, give a name from
+                `sort_functions` or a Lua expression returning a
+                function(entry, lines), then optionally a compare
+                function. Children under a headline whose text
                 holds an inline task stay as they are, as in Emacs (it
                 takes the inline task for the first child).
 
