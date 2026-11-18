@@ -1,0 +1,2 @@
+* Inbox
+Last line without a newline

@@ -91,11 +91,7 @@ function M.checkbox_radio_mode()
   vim.b.org_checkbox_radio_mode = on
   utils.notify("Org-List-Checkbox-Radio mode " .. (on and "enabled" or "disabled") .. " in current buffer")
   -- org-list-checkbox-radio-mode-hook
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgListCheckboxRadioMode",
-    data = { enabled = on, bufnr = vim.api.nvim_get_current_buf() },
-    modeline = false,
-  })
+  utils.user_event("OrgListCheckboxRadioMode", { enabled = on, bufnr = vim.api.nvim_get_current_buf() })
   return on
 end
 

@@ -9,7 +9,7 @@ local M = {}
 local R = "org.extensions.journal"
 
 --- `:h org-extensions-stability`.
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- The journal directory (org-journal-dir), relative to `org_directory`

@@ -289,7 +289,7 @@ local function show_images(st)
   end
   local ok, images = pcall(require, "org.ui.images")
   if ok and images.backend() then
-    pcall(images.show_links, st.buf, 1, vim.api.nvim_buf_line_count(st.buf))
+    require("org.utils").try("present: show images", images.show_links, st.buf, 1, vim.api.nvim_buf_line_count(st.buf))
   end
 end
 
@@ -392,7 +392,7 @@ local function render(st, lnum)
   end
   local ok, images = pcall(require, "org.ui.images")
   if ok then
-    pcall(images.clear, st.buf)
+    require("org.utils").try("present: clear images", images.clear, st.buf)
   end
   local buf = st.buf
   vim.bo[buf].modifiable = true
@@ -929,8 +929,8 @@ function M.quit()
   end
   st.closing = true
   if vim.api.nvim_buf_is_valid(st.buf) then
-    pcall(sync, st)
-    pcall(leave_big, st)
+    require("org.utils").try("present: sync", sync, st)
+    require("org.utils").try("present: leave", leave_big, st)
   end
   M.state = nil
   local slide = not st.big and st.slides[st.index] or nil

@@ -498,11 +498,7 @@ end
 --- "subtree" (or "empty", before only) after a local one.
 ---@param lnum? integer the headline or item cycled (local cycling)
 local function run_cycle_hook(pattern, state, lnum)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = pattern,
-    data = { state = state, bufnr = curbuf(), lnum = lnum },
-    modeline = false,
-  })
+  require("org.utils").user_event(pattern, { state = state, bufnr = curbuf(), lnum = lnum })
 end
 
 --- Where the cursor shows: the start of the closed fold holding it, else

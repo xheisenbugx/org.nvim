@@ -1129,3 +1129,73 @@ describe("clocks without a time (Emacs)", function()
     eq("| *Total time* | *1d 0:30* |", buf_lines(buf)[5])
   end)
 end)
+
+describe("clocks that end before they start (Emacs)", function()
+  -- org-clock-sum adds a clock only (when (> dt 0) ...), (floor dt 60) of
+  -- its seconds: Emacs 9.8.12 over these lines gives Task 60 minutes and no
+  -- time for Sub, a clock table of Task 1:00 (Sub not listed, total 1:00)
+  -- and a column view CLOCKSUM of 1:00
+  local lines = {
+    "* Task",
+    "  :LOGBOOK:",
+    "  CLOCK: [2026-10-12 Mon 09:00]--[2026-10-12 Mon 10:00] =>  1:00",
+    "  CLOCK: [2026-10-12 Mon 11:00]--[2026-10-12 Mon 10:30] => -0:30",
+    "  :END:",
+    "** Sub",
+    "   :LOGBOOK:",
+    "   CLOCK: [2026-10-12 Mon 14:00]--[2026-10-12 Mon 13:00] => -1:00",
+    "   :END:",
+  }
+
+  it("leaves them out of a headline's clocked minutes", function()
+    local file = require("org.parser").parse(lines)
+    local task, sub = file.headlines[1], file.headlines[2]
+    eq(60, task:clocked_minutes(nil, nil, false))
+    eq(60, task:clocked_minutes(nil, nil, true))
+    eq(0, sub:clocked_minutes(nil, nil, true))
+  end)
+
+  it("leaves them out of the clock sums, the clock table and CLOCKSUM", function()
+    local buf = org_buffer(lines, { 1, 0 })
+    local task = files.get_buffer(buf).headlines[1]
+    eq(60, clock.sum_minutes(task))
+    eq(60, clock.sum_minutes(task, nil, nil, true))
+    eq("1:00", require("org.columns").value(task, "CLOCKSUM"))
+    local l = clock.clocktable(require("org.dblock").parse_params(":maxlevel 2"), buf)
+    eq({
+      "| Headline     | Time   |",
+      "|--------------+--------|",
+      "| *Total time* | *1:00* |",
+      "|--------------+--------|",
+      "| Task         | 1:00   |",
+    }, vim.list_slice(l, #l - 4, #l))
+  end)
+
+  it("leaves them out when sorting entries by clocking time", function()
+    -- org-sort-entries ?K sorts by the :org-clock-minutes org-clock-sum
+    -- puts on each heading; Emacs 9.8.12: Write report (60), Review
+    -- notes (45), Plan sprint (20)
+    local buf = org_buffer({
+      "* Projects",
+      "** Write report",
+      "   :LOGBOOK:",
+      "   CLOCK: [2026-10-12 Mon 09:00]--[2026-10-12 Mon 10:00] =>  1:00",
+      "   CLOCK: [2026-10-12 Mon 11:00]--[2026-10-12 Mon 10:30] => -0:30",
+      "   :END:",
+      "** Review notes",
+      "   :LOGBOOK:",
+      "   CLOCK: [2026-10-12 Mon 13:00]--[2026-10-12 Mon 13:45] =>  0:45",
+      "   :END:",
+      "** Plan sprint",
+      "   :LOGBOOK:",
+      "   CLOCK: [2026-10-12 Mon 14:00]--[2026-10-12 Mon 14:20] =>  0:20",
+      "   :END:",
+    }, { 1, 0 })
+    require("org.structure").sort("K")
+    local order = {}
+    for _, l in ipairs(buf_lines(buf)) do
+      order[#order + 1] = l:match("^%*%* (.*)")
+    end
+    eq({ "Write report", "Review notes", "Plan sprint" }, order)
+  end)
+end)

@@ -450,7 +450,7 @@ its options or keys are called out in the release notes) or 🧪
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap` | `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`, `caldav` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal` | `src_lsp`, `caldav` |
 
 The [guide](docs/guide.md#-extensions) describes each one with a demo,
 the [extensions status](https://org-nvim.com/extensions.html) page shows
@@ -463,9 +463,11 @@ every option.
 
 Contributions of all sizes are welcome: bug reports, docs fixes, new link
 types, Babel languages, exporters, or anything on the
-[roadmap](docs/guide.md#-roadmap). Each piece of Org lives in its own small
-module, and there's a fast headless test suite, so it's easy to get
-started:
+[roadmap](docs/guide.md#-roadmap). To report a bug, `:Org bug_report`
+opens an issue with your versions filled in; add what `:Org log` shows
+(the errors org.nvim caught this session). Each piece of Org lives in its
+own small module, and there's a fast headless test suite, so it's easy to
+get started:
 
 ```sh
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim

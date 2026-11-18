@@ -17,7 +17,7 @@ local M = {}
 M.steps = steps_mod
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Steps in order: builtin names ("inbox", "stuck", "waiting",
@@ -164,7 +164,10 @@ local function save_state()
   end
   s.state.step = s.steps[s.index] and s.steps[s.index].name or s.index
   vim.fn.mkdir(vim.fn.fnamemodify(f, ":h"), "p")
-  pcall(utils.write_json, f, s.state)
+  local ok, err = utils.try("review: save " .. f, utils.write_json, f, s.state)
+  if not ok then
+    utils.warn("review: could not save the review (state_file): " .. tostring(err))
+  end
 end
 
 --- Forget an unfinished review.
@@ -463,7 +466,7 @@ function M.render()
     local bufs = loaded_buffers()
     for _, it in ipairs(items) do
       if it.hl and it.path then
-        pcall(track, it, bufs)
+        utils.try("review: track an item", track, it, bufs)
       end
     end
     for _, l in ipairs(extra) do
@@ -982,7 +985,7 @@ function M.open(it)
   end
   vim.api.nvim_win_set_buf(0, bufnr)
   vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
-  pcall(require("org.fold").reveal_cursor)
+  utils.try("review: reveal the cursor", require("org.fold").reveal_cursor)
   utils.notify("Weekly review paused: :Org review resumes it")
 end
 
@@ -1142,7 +1145,7 @@ function M.finish()
   if o.open_log then
     vim.api.nvim_win_set_buf(0, bufnr)
     pcall(vim.api.nvim_win_set_cursor, 0, { line, 0 })
-    pcall(require("org.fold").reveal_cursor)
+    utils.try("review: reveal the cursor", require("org.fold").reveal_cursor)
   end
   return bufnr, line
 end

@@ -1,0 +1,120 @@
+# Plain-list cases: <name> <file> <line>:<col> <command>...
+# Point starts at <line>:<col> (the column in characters: point before
+# that character, Neovim's cursor on it). Each command is the key's
+# command in Emacs (scripts/emacs-parity/lists.el) and the action the
+# key runs in org.nvim (tests/spec/emacs_lists_parity_spec.lua):
+#   M-RET      org-meta-return          meta_return (Insert mode, at point)
+#   M-S-RET    org-insert-todo-heading  meta_shift_return (Insert mode)
+#   M-left     org-metaleft             meta_left
+#   M-right    org-metaright            meta_right
+#   M-S-left   org-shiftmetaleft        shift_meta_left
+#   M-S-right  org-shiftmetaright       shift_meta_right
+#   M-up       org-metaup               meta_up
+#   M-down     org-metadown             meta_down
+#   S-left     org-shiftleft            shift_left
+#   S-right    org-shiftright           shift_right
+#   S-up       org-shiftup              shift_up
+#   S-down     org-shiftdown            shift_down
+#   C-c-       org-ctrl-c-minus         ctrl_c_minus
+#   C-c*       org-ctrl-c-star          ctrl_c_star
+#   C-cC-c     org-ctrl-c-ctrl-c        context_action
+#   C-c^<k>    org-sort, answering k    ctrl_c_caret, choosing k in the menu
+#   C-u        a prefix argument (C-u, a count of 4) for the next command
+#   ins:<text> insert <text> at point (to show where M-RET left it)
+#   L<l>:<c>   move point
+# The output is the buffer after the commands and "@ <line>", point's line.
+
+# Inserting items (M-RET, M-S-RET)
+insert-end          basic.org     3:9   M-RET ins:new
+insert-mid          basic.org     3:5   M-RET ins:X
+insert-after-bullet basic.org     3:2   M-RET ins:new
+insert-last         basic.org     4:10  M-RET ins:new
+insert-nested       nested.org    4:9   M-RET ins:new
+insert-parent       nested.org    1:3   M-RET ins:new
+insert-ordered      ordered.org   2:9   M-RET ins:new
+insert-cb-ordered   ordered.org   2:9   M-S-RET ins:new
+insert-paren-bol    paren.org     2:0   M-RET ins:new
+insert-cb-item      checkbox.org  2:10  M-RET ins:new
+insert-cb-shift     checkbox.org  2:10  M-S-RET ins:new
+insert-desc         desc.org      1:18  M-RET ins:Term
+insert-blank        blank.org     3:5   M-RET ins:new
+insert-multi-split  multi.org     2:8   M-RET ins:X
+insert-multi-end    multi.org     3:12  M-RET ins:new
+insert-before-text  ends.org      2:3   M-RET ins:new
+
+# Indenting and outdenting (M-left/right, M-S-left/right)
+indent              basic.org     3:0   M-right
+indent-first        basic.org     2:0   M-right
+outdent-top         basic.org     3:0   M-left
+indent-parent       nested.org    5:0   M-right
+indent-tree         nested.org    5:0   M-S-right
+indent-tree-first   nested.org    1:0   M-S-right
+outdent-child       nested.org    2:2   M-left
+outdent-tree        nested.org    3:2   M-S-left
+outdent-parent      nested.org    3:2   M-left
+indent-ordered      ordered.org   2:0   M-right
+outdent-ordered     ordered.org   4:3   M-left
+indent-multi        multi.org     4:0   M-right
+
+# Moving items (M-up/down)
+move-down           basic.org     3:0   M-down
+move-up-first       basic.org     2:0   M-up
+move-tree-up        nested.org    5:0   M-up
+move-child-up       nested.org    3:2   M-up
+move-ordered        ordered.org   3:0   M-up
+move-blank          blank.org     1:0   M-down
+move-multi          multi.org     1:0   M-down
+move-list-end       ends.org      2:0   M-down
+move-after-blanks   ends.org      6:0   M-down
+
+# Moving between items (S-up/down)
+item-prev           nested.org    5:0   S-up
+item-next-last      nested.org    4:4   S-down
+
+# Bullets (C-c -, S-left/right on the bullet)
+bullet-cycle-3      basic.org     3:0   C-c- C-c- C-c-
+bullet-left         basic.org     2:0   S-left
+bullet-right        basic.org     2:0   S-right
+bullet-right-text   basic.org     2:4   S-right
+bullet-nested       nested.org    2:2   C-c- C-c-
+bullet-ordered      ordered.org   1:0   C-c-
+bullet-paren        paren.org     1:0   C-c-
+bullet-desc         desc.org      1:0   C-c- C-c- C-c-
+bullet-list-end     ends.org      5:0   C-c-
+
+# Checkboxes and statistics cookies (C-c C-c)
+check-on            checkbox.org  2:0   C-cC-c
+check-off           checkbox.org  3:0   C-cC-c
+check-add           checkbox.org  5:0   C-u C-cC-c
+check-remove        checkbox.org  3:2   C-u C-cC-c
+check-remove-first  checkbox.org  2:0   C-u C-cC-c
+cookie-update       checkbox.org  1:13  C-cC-c
+check-child         stats.org     3:2   C-cC-c
+check-percent       stats.org     6:2   C-cC-c
+check-parent        stats.org     2:2   C-cC-c
+check-no-box-parent cookie.org    3:4   C-cC-c
+repair-numbers      misnum.org    1:0   C-cC-c
+repair-counter      misnum.org    6:0   C-cC-c
+
+# Items and headings (C-c *, C-c - off a list). C-u C-c * starts on the
+# list's first line: from a later item Emacs marks that item only
+# (org-mark-element) and, when items follow it, mangles the next one
+# (org-toggle-heading narrows to one character past the region).
+item-to-heading     basic.org     3:0   C-c*
+parent-to-heading   nested.org    1:0   C-c*
+multi-to-heading    multi.org     1:0   C-c*
+list-to-subtree     nested.org    1:0   C-u C-c*
+multi-to-subtree    multi.org     1:0   C-u C-c*
+heading-to-item     basic.org     1:0   C-c-
+text-to-item        basic.org     6:0   C-c-
+para-to-item        ends.org      3:0   C-c-
+
+# Sorting (C-c ^)
+sort-alpha          sort.org      2:0   C-c^a
+sort-alpha-rev      sort.org      2:0   C-c^A
+sort-cursor         sort.org      3:0   C-c^A
+sort-numeric        sort.org      7:0   C-c^n
+sort-checkbox       sort.org      12:0  C-c^x
+sort-ordered        sort.org      18:0  C-c^a
+sort-desc           desc.org      1:0   C-c^a
+sort-list-end       ends.org      5:0   C-c^A

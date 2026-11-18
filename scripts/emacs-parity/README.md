@@ -24,6 +24,8 @@ bundles an older Org, so you usually need `ORG_DIR`.
 | export | `export.el` | `examples/*.org` listed in `export/cases.txt`, with their backends | `export/<name>.{txt,html,tex,md}`: body-only, Babel off |
 | clocktable | `clocktable.el` | `clocktable/{a,b,c}.org`, `clocktable/tables.org` | `clocktable/tables.expected.org`: every block updated |
 | lint | `lint.el` | `examples/*.org`, `lint/*.org` | `lint/expected.txt`: `line:col [checker] message` |
+| lists | `lists.el` | `lists/*.org`, `lists/cases.txt` (file, start position, the keys typed: M-RET, M-left/right, M-up/down, C-c -, C-c C-c, C-c ^ ...) | `lists/expected.txt`: the buffer afterwards and `@ <line>`, the cursor's line |
+| capture | `capture.el` | the files of `capture/`, `capture/cases.txt` (template key, where the capture starts, the answers to its prompts); the templates are in `capture.el` and, in org.nvim's format, in the spec | `capture/expected.txt`: the template's file after C-c C-c, the copies' directory written `@DIR@/` |
 | faces | `faces.el` | `examples/*.org`, `fontify/*.org`, `faces/*.org` (or the files in `FACES_FILES`) | `faces/expected/<path>.txt`: per line, the faces and hidden text of each byte; with `FACES_QUOTE=1`, `org-fontify-quote-and-verse-blocks` is t and the inputs with a quote or verse block go to `faces/expected-quote/` (run it after the plain one) |
 | chars | `chars.el` | Org's syntax table, char-script-table, the char categories | `lua/org/ui/chars_data.lua`: the non-ASCII characters' syntax classes and word boundaries, for the parser highlighter (`org.ui.chars`) |
 
@@ -52,7 +54,15 @@ section is one test.
 - **Stable ids and paths.** Export reseeds `random` before each file, and
   the specs rename generated `orgXXXXXXX` ids by order of appearance
   anyway. Absolute paths become `@ROOT@/` (export) or `@DIR@/`
-  (clocktable links) on both sides.
+  (clocktable links, capture's `%a` and `%F`) on both sides.
+- **Commands as typed.** `lists.el` calls each key's command with
+  `call-interactively`, its own `this-command`, `post-command-hook`
+  after it and `transient-mark-mode` on, and ends the region a command
+  made when it changed the buffer, as the command loop does (C-u C-c *
+  marks the list). Prompts are stubbed: C-c ^ reads the sorting type,
+  anything else asking is an error. `capture.el` captures into a fresh
+  temporary copy of its files (`org-capture-finalize` saves them), with
+  `org-capture-bookmark` off, and answers the prompts from the case.
 
 ## When a comparison fails
 
@@ -77,6 +87,16 @@ then run `make parity-fixtures` again.
   fixtures small: the whole `tests/fixtures/emacs` tree is about 1.4 MB.
 - clocktable: add a block to `tables.org`.
 - lint: add a `.org` file to `lint/`.
+- lists: add a line to `lists/cases.txt` (its header lists the keys, the
+  Emacs command each runs in `lists.el` and the org.nvim action in
+  `tests/spec/emacs_lists_parity_spec.lua`); a new key goes into both
+  tables. Emacs's M-RET acts at point, so the spec types it in Insert
+  mode at the case's column.
+- capture: add a line to `capture/cases.txt`; a new template goes into
+  `parity-capture-templates` in `capture.el` and into `TEMPLATES` in
+  `tests/spec/emacs_capture_parity_spec.lua`, at the same place with the
+  same key. Each case captures into fresh copies of the files, so cases
+  don't see each other's captures.
 
 Then regenerate the fixtures and run
 `make test SPEC=tests/spec/emacs_<area>_parity_spec.lua`.

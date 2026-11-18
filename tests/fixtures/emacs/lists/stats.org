@@ -1,0 +1,9 @@
+* Project [33%]
+- [-] design [1/2]
+  - [ ] sketch
+  - [X] review
+- [ ] build [0%]
+  - [ ] frame
+  - [ ] walls
+  - [ ] roof
+- [X] ship

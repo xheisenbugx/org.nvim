@@ -664,11 +664,7 @@ end
 --- `OrgFollowLink`, with the buffer the link was followed from as `data`.
 ---@param bufnr? integer
 function M.run_follow_hook(bufnr)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgFollowLink",
-    data = { bufnr = bufnr or vim.api.nvim_get_current_buf() },
-    modeline = false,
-  })
+  utils.user_event("OrgFollowLink", { bufnr = bufnr or vim.api.nvim_get_current_buf() })
 end
 
 --- The URL or e-mail address around column `col` (1-based) of `line`, like

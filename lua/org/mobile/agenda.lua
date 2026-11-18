@@ -396,7 +396,7 @@ function M.create_sumo_agenda()
       local lines = vim.api.nvim_buf_get_lines(S.buf, 0, -1, false)
       content = text_of(agenda_file_lines(S, lines, blocks))
     end)
-    pcall(view.quit, true)
+    utils.try("mobile: close the agenda", view.quit, true)
     if not ok then
       error(err, 0)
     end

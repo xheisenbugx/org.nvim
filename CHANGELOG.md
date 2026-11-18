@@ -8,6 +8,29 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.4.0] - 2026-11-18
+
+### Features
+
+- Extensions on org.api 1.3, and :Org log for swallowed errors ([#366](https://github.com/xheisenbugx/org.nvim/pull/366))
+- **extensions:** Promote cli, code, diagrams, drill, hugo, journal, literate, lsp, pomodoro, review and timeline to stable ([#368](https://github.com/xheisenbugx/org.nvim/pull/368))
+
+### Fixes
+
+- **lists:** Bullet cycling, C-c C-c and C-c ^ as Emacs does them ([#370](https://github.com/xheisenbugx/org.nvim/pull/370))
+- Skip files tagged ARCHIVE, read custom habit notes, ignore backwards clocks ([#369](https://github.com/xheisenbugx/org.nvim/pull/369))
+
+### Performance
+
+- **api:** Cheaper handles and clock dates, and a faster timeline with clocks ([#371](https://github.com/xheisenbugx/org.nvim/pull/371))
+
+<details><summary>Tests, CI and chores (2)</summary>
+
+- **test(parity):** Compare plain-list editing and capture with Emacs output ([#365](https://github.com/xheisenbugx/org.nvim/pull/365))
+- **test(babel):** Wait up to 10 s for the Processing sketch to start ([#367](https://github.com/xheisenbugx/org.nvim/pull/367))
+
+</details>
+
 ## [v3.3.6] - 2026-11-17
 
 ### Fixes
@@ -686,6 +709,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.6...v3.4.0
 [v3.3.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.5...v3.3.6
 [v3.3.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.4...v3.3.5
 [v3.3.4]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.3...v3.3.4

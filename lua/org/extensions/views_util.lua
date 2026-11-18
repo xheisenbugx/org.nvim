@@ -3,8 +3,12 @@
 --- Not an extension itself: the helpers the `kanban`, `timeline`,
 --- `heatmap` and `sidebar` extensions share.
 ---
----   - `collect`: the headlines of a source (agenda files, a buffer, a
----     subtree, files) narrowed by an org-ql query, a tags match or a tag
+---   - `try`: run a function like pcall, a failure recorded in :Org log
+---   - `collect` / `api_query`: the org.api headline handles (or the
+---     org.api query) of a source (agenda files, a buffer, a subtree,
+---     files) narrowed by an org-ql query, a tags match or a tag
+---   - calendar days of day numbers and plain formatting, messages and
+---     prompts, so the views need no internal module beside org.api
 ---   - `Canvas`: lines built from highlighted segments, drawn into a
 ---     scratch buffer with extmarks
 ---   - `open` / `close`: the view's window (float, tab, split or current)
@@ -17,6 +21,10 @@
 local utils = require("org.utils")
 
 local M = {}
+
+--- Call `fn(...)` like `pcall`, recording a failure in the session log
+--- (`:Org log`) under `where`: for a redraw a view goes on from.
+M.try = utils.try
 
 ---------------------------------------------------------------------------
 -- Highlights
@@ -343,64 +351,138 @@ function M.compile_query(q)
 end
 
 ---@class org.views.CollectOpts
----@field query? string|table
----@field filter? string
----@field tag? string
----@field pred? fun(hl: org.Headline): boolean
----@field files? org.File[]
+---@field query? string|table an org-ql query
+---@field filter? string an org-ql sexp or a tags match (see `compile_filter`)
+---@field tag? string a single tag (inherited ones count, case ignored)
+---@field todo? string|string[]|boolean as in an org.api query
+---@field done? boolean as in an org.api query
+---@field planned? boolean as in an org.api query
+---@field fields? string[] as in an org.api query
 
---- Headlines of a resolved source, in file order. COMMENT and ARCHIVE
---- subtrees are skipped as in the agenda.
+--- The org.api query (`:h org-api-headlines`) of the headlines of a
+--- resolved source that `opts` lets through, the way the agenda looks at
+--- them (COMMENT and ARCHIVE subtrees skipped). nil and an error for a
+--- filter or query that doesn't compile or a subtree that is gone; false
+--- for a source that has no headlines now (a wiped-out buffer).
 ---@param src table from `resolve_source`
---- `query` is an org-ql query, `filter` an org-ql sexp or a tags match
---- (see `compile_filter`) and `tag` a single tag. `files` are the
---- source's files when the caller has them already.
 ---@param opts? org.views.CollectOpts
----@return org.Headline[] headlines, string|nil err
-function M.collect(src, opts)
+---@return org.api.RangeQuery|false|nil query, string|nil err
+function M.api_query(src, opts)
   opts = opts or {}
-  local out = {}
-  local range
-  if src.kind == "subtree" then
-    local root = M.subtree_root(src)
-    if not root then
-      return out, "The subtree is gone"
-    end
-    range = { root.line, root.end_line }
-  end
-  local filter, err = M.compile_filter(opts.filter)
-  if err then
-    return out, err
-  end
-  local query
-  if opts.query and opts.query ~= "" then
-    query, err = M.compile_query(opts.query)
-    if not query then
-      return out, err
-    end
-  end
+  local api = require("org.api")
+  local q = { agenda = true, todo = opts.todo, done = opts.done, planned = opts.planned }
   local tag = opts.tag and opts.tag ~= "" and opts.tag or nil
-  require("org.agenda.items").each_headline(opts.files or M.files(src), {}, function(hl)
-    if range and (hl.line < range[1] or hl.line > range[2]) then
-      return
+  if opts.fields then
+    q.fields = vim.list_extend({}, opts.fields)
+  end
+  if tag then
+    -- the tag, any case, inherited ones too: tested on the ALLTAGS
+    -- special property before any handle is made
+    local want = ":" .. tag:gsub("^[+:]", ""):gsub(":$", ""):lower() .. ":"
+    q.property = {
+      ALLTAGS = function(v)
+        return v ~= nil and v:lower():find(want, 1, true) ~= nil
+      end,
+    }
+  end
+  if src.kind == "buffer" or src.kind == "subtree" then
+    if not vim.api.nvim_buf_is_valid(src.bufnr) then
+      if src.kind == "buffer" then
+        return false
+      end
+      return nil, "The subtree is gone"
     end
-    if tag and not M.has_tag(hl, tag) then
-      return
+    if src.kind == "subtree" then
+      local root = M.subtree_root(src)
+      local h = root and api.headline_at({ bufnr = src.bufnr, lnum = root.line })
+      if not h then
+        return nil, "The subtree is gone"
+      end
+      q.within = h
+    else
+      q.bufnr = src.bufnr
     end
-    if opts.pred and not opts.pred(hl) then
-      return
+  elseif src.kind == "files" then
+    q.files = {}
+    for _, f in ipairs(M.files(src)) do
+      q.files[#q.files + 1] = f.filename
     end
-    for _, f in ipairs({ query or false, filter or false }) do
-      if f then
-        local ok, res = pcall(f, hl)
+  end
+  -- org-ql predicates read parsed headlines: the one of each handle
+  local preds = {}
+  local filter = vim.trim(opts.filter or "")
+  if filter:sub(1, 1) == "(" then
+    local pred, err = M.compile_query(filter)
+    if not pred then
+      return nil, err
+    end
+    preds[1] = pred
+  elseif filter ~= "" then
+    local _, err = require("org.agenda.search").try_compile(filter)
+    if err then
+      return nil, err
+    end
+    q.match = filter
+  end
+  if opts.query and opts.query ~= "" then
+    local pred, err = M.compile_query(opts.query)
+    if not pred then
+      return nil, err
+    end
+    table.insert(preds, 1, pred)
+  end
+  if #preds > 0 then
+    local parsed = {}
+    q.filter = function(h)
+      local key = h.file or h.bufnr
+      local f = parsed[key]
+      if f == nil then
+        f = (h.file and require("org.files").get(h.file))
+          or (h.bufnr and require("org.files").get_buffer(h.bufnr))
+          or false
+        parsed[key] = f
+      end
+      local hl = f and f:headline_on(h.line)
+      for _, pred in ipairs(preds) do
+        local ok, res = pcall(pred, hl)
         if not ok or not res then
-          return
+          return false
         end
       end
+      return true
     end
-    out[#out + 1] = hl
-  end)
-  return out
+  end
+  return q
+end
+
+--- Headline handles (org.api) of a resolved source, in file order. COMMENT
+--- and ARCHIVE subtrees are skipped as in the agenda.
+---@param src table from `resolve_source`
+---@param opts? org.views.CollectOpts
+---@return org.api.Headline[] headlines, string|nil err
+function M.collect(src, opts)
+  local q, err = M.api_query(src, opts)
+  if not q then
+    return {}, err
+  end
+  local hs
+  hs, err = require("org.api").headlines(q)
+  return hs or {}, err
+end
+
+--- What a view keeps of the files of a source at a build: `key` (see
+--- `files_key`) and `file_set` (see `file_set`) for its redraw watch, and
+--- `files`, each a path or (a buffer without a file) a buffer number, as
+--- `org.api.todo_keywords()` takes them.
+---@param src table from `resolve_source`
+---@return { key: string, file_set: table<string, true>, files: (string|integer)[] }
+function M.source_files(src)
+  local fs = M.files(src)
+  local where = {}
+  for _, f in ipairs(fs) do
+    where[#where + 1] = f.filename or f.bufnr
+  end
+  return { key = M.files_key(fs), file_set = M.file_set(fs), files = where }
 end
 
 --- A key that changes when the parse of any of `files` changes (org.files
@@ -416,34 +498,27 @@ function M.files_key(files)
   return table.concat(parts, " ")
 end
 
---- Whether a headline has `tag` (inherited tags count), ignoring case.
-function M.has_tag(hl, tag)
-  tag = tag:gsub("^[+:]", ""):gsub(":$", ""):lower()
-  for _, t in ipairs(hl:get_tags()) do
-    if t:lower() == tag then
-      return true
-    end
-  end
-  return false
-end
-
 ---------------------------------------------------------------------------
 -- Headline data
 ---------------------------------------------------------------------------
 
---- Effort of a headline in minutes, or nil.
----@param hl org.Headline
----@return integer|nil
-function M.effort(hl)
-  local v = hl:get_property(require("org.config").opts.effort_property or "Effort")
-  return v and require("org.date").parse_duration(v) or nil
+--- A reference to a headline that survives re-parsing (see `target`):
+--- the file (or buffer), line and text of an org.api headline handle.
+---@param h org.api.Headline
+---@return { filename?: string, bufnr?: integer, lnum: integer, raw: string }
+function M.handle_ref(h)
+  return { filename = h.file, bufnr = h.bufnr, lnum = h.line, raw = h.raw }
 end
 
---- A reference to a headline that survives re-parsing: file, line and
---- the headline's text.
----@param hl org.Headline
-function M.ref(hl)
-  return { filename = hl.file.filename, bufnr = hl.file.bufnr, lnum = hl.line, raw = hl.raw }
+--- Whether a view's edit saves its file: `save` when it is a boolean, else
+--- `agenda.save_after_edit` (for an org.api change's `opts.save`).
+---@param save boolean|nil
+---@return boolean
+function M.save_after_edit(save)
+  if save == nil then
+    save = require("org.config").opts.agenda.save_after_edit
+  end
+  return save and true or false
 end
 
 --- Whether two file names are the same file: a file parsed from disk and
@@ -493,17 +568,6 @@ function M.target(ref)
     end
   end
   return { bufnr = bufnr, lnum = lnum }
-end
-
---- Save the buffers of an edit when `save` is true, or when it is nil and
---- `agenda.save_after_edit` is set.
-function M.after_edit(bufnr, save)
-  if save == nil then
-    save = require("org.config").opts.agenda.save_after_edit
-  end
-  if save then
-    utils.save_buffer_or_warn(bufnr)
-  end
 end
 
 ---------------------------------------------------------------------------
@@ -663,7 +727,7 @@ end
 --- Open the headline of `ref` for editing: splits stay open and the
 --- file opens in the window the view was opened from; other layouts are
 --- closed first.
----@param ref table from `ref`
+---@param ref table from `handle_ref`
 ---@param how? table from `open`
 function M.jump(ref, how)
   local target = M.target(ref)
@@ -973,8 +1037,121 @@ function M.complete_tags()
 end
 
 ---------------------------------------------------------------------------
+-- Messages and prompts
+---------------------------------------------------------------------------
+
+--- Report an error as org does.
+---@param msg string
+function M.error(msg)
+  utils.error(msg)
+end
+
+--- Report a warning as org does.
+---@param msg string
+function M.warn(msg)
+  utils.warn(msg)
+end
+
+--- Ask for a line of text in an interactive action (a key's handler, see
+--- `map`); nil when cancelled.
+---@param opts { prompt: string, default?: string }
+---@return string|nil
+function M.input(opts)
+  return utils.input(opts)
+end
+
+--- Pick one of `items` in an interactive action (see `map`); nil when
+--- cancelled.
+---@param items string[]
+---@param opts? { prompt?: string }
+---@return string|nil
+function M.select(items, opts)
+  return utils.select(items, opts)
+end
+
+--- A path as org reads it: `~` and environment variables expanded,
+--- relative to `org_directory`.
+---@param path string
+---@return string
+function M.expand(path)
+  return utils.expand(path)
+end
+
+---------------------------------------------------------------------------
 -- Formatting
 ---------------------------------------------------------------------------
+
+--- Display width of `s`, in cells.
+---@param s string
+---@return integer
+function M.width(s)
+  return utils.width(s)
+end
+
+--- `s` cut to `width` display cells, with an ellipsis when it is cut.
+---@param s string
+---@param width integer
+---@return string
+function M.truncate(s, width)
+  return utils.truncate(s, width)
+end
+
+--- `s` padded with spaces to `width` display cells.
+---@param s string
+---@param width integer
+---@return string
+function M.pad_right(s, width)
+  return utils.pad_right(s, width)
+end
+
+--- English month and day names, as org writes timestamps.
+M.MONTH_NAMES = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
+M.DAY_NAMES = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }
+
+--- Year, month and day of a day number (days since 1970-01-01, an
+--- org.api date's `days`), in the proleptic Gregorian calendar.
+---@param n integer
+---@return integer year, integer month, integer day
+function M.civil(n)
+  -- Howard Hinnant's civil_from_days
+  local z = n + 719468
+  local era = math.floor(z / 146097)
+  local doe = z - era * 146097
+  local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
+  local y = yoe + era * 400
+  local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
+  local mp = math.floor((5 * doy + 2) / 153)
+  local d = doy - math.floor((153 * mp + 2) / 5) + 1
+  local m = mp < 10 and mp + 3 or mp - 9
+  return m <= 2 and y + 1 or y, m, d
+end
+
+--- ISO weekday of a day number: 1 is Monday, 7 Sunday.
+---@param n integer
+---@return integer
+function M.weekday(n)
+  return (n + 3) % 7 + 1
+end
+
+--- A day number formatted with `%a` (weekday), `%b` (month), `%d` (day,
+--- two digits), `%m` (month, two digits) and `%Y` (year), as org's
+--- format-time-string writes them.
+---@param n integer
+---@param fmt string
+---@return string
+function M.format_day(n, fmt)
+  local y, m, d = M.civil(n)
+  local fields = {
+    a = M.DAY_NAMES[M.weekday(n)],
+    b = M.MONTH_NAMES[m],
+    d = string.format("%02d", d),
+    m = string.format("%02d", m),
+    Y = tostring(y),
+  }
+  return (fmt:gsub("%%(%a)", function(c)
+    return fields[c]
+  end))
+end
 
 --- Pad or cut `s` to exactly `width` display cells.
 function M.fit(s, width)

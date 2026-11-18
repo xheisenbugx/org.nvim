@@ -58,11 +58,7 @@ local function loaded(filename, bufnr, source)
     return
   end
   vim.schedule(function()
-    pcall(vim.api.nvim_exec_autocmds, "User", {
-      pattern = "OrgFileLoaded",
-      data = { file = filename, bufnr = bufnr, source = source },
-      modeline = false,
-    })
+    utils.user_event("OrgFileLoaded", { file = filename, bufnr = bufnr, source = source })
   end)
 end
 

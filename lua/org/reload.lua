@@ -57,6 +57,7 @@ local function enabled()
 end
 
 local function close_handle(h)
+  -- lint: allow pcall: the handle may be closed already
   pcall(function()
     h:stop()
     if not h:is_closing() then

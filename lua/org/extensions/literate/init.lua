@@ -20,7 +20,7 @@ local ns = vim.api.nvim_create_namespace("org.literate")
 local augroup = vim.api.nvim_create_augroup("org.literate", { clear = true })
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Org files (paths or globs) that are always literate (trusted).
@@ -940,7 +940,7 @@ function M.goto_org()
     vim.api.nvim_win_set_buf(0, best.buf)
   end
   vim.api.nvim_win_set_cursor(0, { best.lnum, 0 })
-  pcall(require("org.fold").reveal_cursor, "link-search")
+  utils.try("literate: reveal the cursor", require("org.fold").reveal_cursor, "link-search")
   return best
 end
 
@@ -956,7 +956,7 @@ function M.setup(o)
     callback = function(ev)
       if not M.baseline[ev.buf] and vim.bo[ev.buf].filetype == "org" then
         -- only text is read here; a failure just leaves no baseline
-        pcall(function()
+        utils.try("literate: remember the baseline", function()
           if M.is_literate(ev.buf) then
             remember(ev.buf)
           end

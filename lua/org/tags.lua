@@ -105,16 +105,12 @@ function M.changed(bufnr, lnum, old, new)
   -- set once the headline line is rewritten (a rewrite leaves a mark at
   -- column 0, where lines inserted above no longer move it)
   local mark = marks.set(bufnr, lnum)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgTagsChanged",
-    data = {
-      bufnr = bufnr,
-      lnum = lnum,
-      file = name ~= "" and vim.fs.normalize(name) or nil,
-      from = vim.deepcopy(old),
-      to = vim.deepcopy(new),
-    },
-    modeline = false,
+  utils.user_event("OrgTagsChanged", {
+    bufnr = bufnr,
+    lnum = lnum,
+    file = name ~= "" and vim.fs.normalize(name) or nil,
+    from = vim.deepcopy(old),
+    to = vim.deepcopy(new),
   })
   local now = mark and mark:lnum()
   marks.del(mark)

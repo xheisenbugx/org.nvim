@@ -371,3 +371,58 @@ Gaps it found:
   `http:`); `docview:FILE::PAGE` opens the file but drops the page.
 - No spec follows `ftp:`, `news:`, `irc:`, `info:` or `docview:` links,
   and none runs `awk` or `D` blocks.
+
+## Plain lists and capture against Emacs output
+
+Plain-list editing and capture were only checked by hand-written cases,
+so two areas of Emacs fixtures now cover them
+([`scripts/emacs-parity/README.md`](../scripts/emacs-parity/README.md)):
+`lists` types the default keys (M-RET and M-S-RET at a column, M-left /
+right with and without the subtree, M-up / down, C-c -, S-left / right,
+S-up / down, C-c C-c with and without C-u, C-c *, C-u C-c *, C-c ^) on
+small lists, and compares the buffer and the cursor's line; `capture`
+runs each template (every target and type, `:prepend`, the empty-line
+properties, `%t %T %u %U %a %f %F %i %<...> %^{...} %^g %^{PROP}p`) and
+compares the target file, with org.nvim editing in a capture buffer and
+in place.
+
+| Area | Cases | Same as Emacs | Known differences |
+| --- | --- | --- | --- |
+| Plain lists | 76 | 76 | 0 |
+| Capture (each mode) | 51 | 51 | 0 |
+
+It found three differences, first `KNOWN` entries of
+[the lists spec](../tests/spec/emacs_lists_parity_spec.lua), all fixed
+since, with hand-written cases in
+[`lists_emacs_spec.lua`](../tests/spec/lists_emacs_spec.lua):
+
+- C-c - (and S-left / right) on a description item numbered the list.
+  Emacs leaves `1.`, `1)` and the letters out of the cycle when
+  org-at-item-description-p matches the item at point, a regexp that
+  needs a term of two characters ("- a :: b" is numbered) or a checkbox
+  before it (org-cycle-list-bullet).
+- C-u C-c C-c with the cursor at the start of the first item toggled that
+  item's checkbox only. At column 0 of a list's first line (indented
+  lists and sub-lists too) Emacs's org-element-context is the plain list,
+  not the item, so org-ctrl-c-ctrl-c's plain-list branch runs: C-u
+  removes every box of that list when the first item has one, else adds
+  `[ ]`; C-u C-u sets `[-]`; without a prefix it toggles the first box,
+  and in each case it repairs the list without the ORDERED rule. One
+  column further, it is the item again.
+- After C-c ^ the cursor stayed on its line. org-sort-list narrows to the
+  list, sorts from point-min and repairs the list, so point ends at
+  column 0 of the list's first line, or after its bullet when the repair
+  renumbers a bullet at column 0 (insert-before-markers).
+
+Still different, on badly indented lists only: org.nvim takes column 0
+of an item as the plain list when that item is the first of its list in
+org.nvim's reading of the list, and Emacs's parser can start a list
+elsewhere there.
+
+- `* H` / `  - [ ] a` / `- [ ] b` / `- [X] c`: at column 0 of `b`, Emacs
+  sees a plain list starting at `b`, and C-u removes the boxes of `b` and
+  `c`, leaving the indentation alone. org.nvim reads `b` as `a`'s
+  sibling, so it toggles `b` only and indents `b` and `c` under `a`.
+- `- p` / `   - [ ] a` / `  - [ ] b` / `  - [X] c`: at column 0 of `a` or
+  of `b`, Emacs removes the boxes of `a`, `b` and `c`. org.nvim acts on
+  `a` alone (it puts `b` back at the top), or on the item `b`.

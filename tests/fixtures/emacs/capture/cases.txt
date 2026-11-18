@@ -1,0 +1,72 @@
+# Capture cases: <name> <key> <origin> [<answer>...]
+# The template at <key> (scripts/emacs-parity/capture.el in Emacs terms,
+# tests/spec/emacs_capture_parity_spec.lua in org.nvim's) captures from
+# <origin> into a copy of these files, and the capture is finished as
+# C-c C-c does; the output is the template's file afterwards. <origin>:
+#   -                 a buffer visiting no file
+#   <file>:<l>        that file (an Org file or notes.txt), the cursor at the
+#                     start of line <l> (%a)
+#   <file>:<l1>-<l2>  the same, lines l1 to l2 selected (the region: %i)
+#   string:<text>     org-capture-string / capture_string with <text> as
+#                     %i ("_" for a space)
+# The prompts get the <answer>s in turn ("_" for a space, "~" for an empty
+# answer, which takes the default). "Now" is 2026-10-01 Thu 12:00.
+
+# Targets and placement
+entry-file          e   -
+entry-prepend       ep  -
+entry-no-stars      x   -
+headline            h   -
+headline-prepend    hp  -
+headline-new        hn  -
+headline-case       hc  -
+headline-relevel    hd  -
+olp                 o   -
+regexp              r   -
+datetree            d   -
+datetree-week       dw  -
+datetree-month      dm  -
+datetree-olp        do  -
+datetree-day        dd  -
+datetree-quarter    dq  -
+no-newline          nl  -
+no-newline-plain    np  -
+immediate           if  -
+
+# Types
+item                i   -
+item-prepend        ip  -
+item-ordered        in  -
+item-no-list        iw  -
+item-initial        ii  source.org:2-3
+checkitem           c   -
+checkitem-ordered   co  -
+checkitem-default   ce  -
+table-line          t   -
+table-line-pos      tp  -
+table-line-prepend  tP  -
+table-line-new      tn  -
+plain               p   -
+plain-prepend       pp  -
+plain-file          pf  -
+
+# Empty lines
+empty-lines         el  -
+empty-lines-before  eb  -
+empty-lines-after   ea  -
+item-empty-lines    il  -
+
+# Escapes
+dates               T   -
+literal             L   -
+text-after-cursor   m   -
+planning            s   -
+link-heading        a   source.org:1
+link-todo-heading   a   source.org:4
+link-text-file      a   notes.txt:2
+origin-file         f   source.org:1
+initial-string      I   string:hello_world
+initial-region      Ir  source.org:2-3
+prompts             P   -   My_title ~
+tags                g   -   work:urgent
+property            pr  -   1:00

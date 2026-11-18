@@ -209,7 +209,7 @@ end
 local function redo_agenda()
   local ok, view = pcall(require, "org.agenda.view")
   if ok then
-    pcall(view.redo)
+    utils().try("ics: redo the agenda", view.redo)
   end
 end
 
@@ -307,9 +307,10 @@ end
 
 -- the minute timer: never raises (an error would repeat every minute)
 local function tick()
-  local ok, err = pcall(M.refresh_stale)
+  local ok, err = utils().try("ics: refresh", M.refresh_stale)
   if not ok and warned.__tick ~= tostring(err) then
     warned.__tick = tostring(err)
+    -- lint: allow pcall: the error is logged already; a vim.notify that fails must not raise in the timer
     pcall(utils().error, "ics: " .. tostring(err))
   end
 end

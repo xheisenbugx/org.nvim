@@ -477,6 +477,7 @@ end
 
 local function stop(st)
   if st.timer then
+    -- lint: allow pcall: the timer may be closed already
     pcall(function()
       st.timer:stop()
       st.timer:close()

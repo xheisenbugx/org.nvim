@@ -176,6 +176,7 @@ function M.error_notify(code, stderr)
   vim.api.nvim_buf_set_lines(b, 0, -1, false, lines)
   if #vim.fn.win_findbuf(b) == 0 then
     local win = vim.api.nvim_get_current_win()
+    -- lint: allow pcall: no room for a window (E36): the warning below still says what happened
     pcall(function()
       vim.cmd("botright split")
       vim.api.nvim_win_set_buf(0, b)

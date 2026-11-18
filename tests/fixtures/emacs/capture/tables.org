@@ -1,0 +1,9 @@
+* Log
+| Date | What |
+|------+------|
+| x    | y    |
+|------+------|
+| tot  |      |
+
+* Empty
+Nothing here yet.

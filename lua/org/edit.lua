@@ -607,25 +607,33 @@ local function log_beginning(lines, hl, reversed)
   return i, false
 end
 
+--- Do log notes go newest first in `file` (org-log-states-order-reversed:
+--- `log_states_order_reversed`, or `#+STARTUP: [no]logstatesreversed`)?
+---@param file org.File
+---@return boolean
+function M.log_states_reversed(file)
+  local startup = file.settings.startup or {}
+  if startup.logstatesreversed then
+    return true
+  elseif startup.nologstatesreversed then
+    return false
+  end
+  return require("org.config").opts.log_states_order_reversed ~= false
+end
+
 --- Add a log entry (list of lines, first starts with "- ") to the headline.
 --- Fires the `OrgNoteStored` User autocmd (org-after-note-stored-hook).
 function M.add_log_entry(bufnr, lnum, entry_lines)
   if not entry_lines or #entry_lines == 0 then
     return
   end
-  local cfg = require("org.config").opts
   local file = files.get_buffer(bufnr)
   local hl = file:headline_at(lnum)
   if not hl then
     return
   end
   local drawer = M.log_drawer_name(hl)
-  local reversed = cfg.log_states_order_reversed ~= false
-  if file.settings.startup.logstatesreversed then
-    reversed = true
-  elseif file.settings.startup.nologstatesreversed then
-    reversed = false
-  end
+  local reversed = M.log_states_reversed(file)
   local first
   if drawer then
     local s, e = M.ensure_drawer(bufnr, hl.line, drawer)
@@ -655,11 +663,7 @@ end
 --- Fire the `OrgNoteStored` User autocmd (org-after-note-stored-hook) for
 --- a note stored at line `lnum` of the entry at line `headline`.
 function M.note_stored(bufnr, lnum, headline)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgNoteStored",
-    data = { bufnr = bufnr, lnum = lnum, headline = headline },
-    modeline = false,
-  })
+  utils.user_event("OrgNoteStored", { bufnr = bufnr, lnum = lnum, headline = headline })
 end
 
 --- Emacs default note headings (org-log-note-headings).

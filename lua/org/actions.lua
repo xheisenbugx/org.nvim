@@ -84,6 +84,7 @@ group("Anywhere", {
     global = true,
   },
   bug_report = { "org.bug_report", "submit", desc = "Report a bug (org-submit-bug-report)", global = true },
+  log = { "org.log", "open", desc = "Show the session log of caught errors, for a bug report", global = true },
   tutor = {
     "org.tutor",
     "start",

@@ -17,6 +17,7 @@ local report_once = shared.report_once
 local timers = {}
 
 local function close_handle(h)
+  -- lint: allow pcall: the handle may be closed already
   pcall(function()
     h:stop()
     if not h:is_closing() then

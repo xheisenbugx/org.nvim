@@ -794,9 +794,11 @@ start of the next line and puts an icon at the link.
 read files and headlines as plain data, query them, change them (TODO
 state, tags, priority, properties, dates, clock, refile, archive, IDs),
 run agenda queries without opening the agenda, capture without a window,
-store and resolve links, and listen to events such as `OrgTodoStateChange`,
+store and resolve links, read what was clocked and done (`api.clocks`,
+`api.completed`), and listen to events such as `OrgTodoStateChange`,
 `OrgTagsChanged` or `OrgRefile`. Changes work whether or not the file is
-open, and never prompt.
+open, and never prompt unless you pass `interactive = true` to run one
+like its key (the note and date prompts).
 
 ```lua
 local api = require("org.api")
@@ -904,7 +906,7 @@ its options may still change):
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap` | `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`, `caldav` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal` | `src_lsp`, `caldav` |
 
 An experimental extension is promoted once it meets measurable criteria
 (specs, coverage, docs, releases without a breaking change, no open bugs),
@@ -914,9 +916,8 @@ each one stands.
 
 > [!NOTE]
 > 🧪 Experimental extensions are prone to change. Their options, commands,
-> keys and output (such as the `org` command line's JSON) can change in any
-> release, so read the release notes before you upgrade if a config or a
-> script relies on one.
+> keys and output can change in any release, so read the release notes
+> before you upgrade if a config or a script relies on one.
 
 - ✅ **`present`** ([org-present](https://github.com/rlister/org-present)):
   `:Org present` shows the buffer as a slideshow, one top-level heading per
@@ -964,7 +965,7 @@ each one stands.
 
   ![Quick add: typing a Todoist-style line with a live preview of the parsed entry, which lands under the matching heading with its date, tags, priority and effort](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/quickadd.gif)
 
-- 🧪 **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
+- ✅ **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
   through a weekly review in a float: empty the inbox (refile, schedule,
   set a state, delete or skip each entry), stuck projects, waiting-for,
   overdue, the next two weeks, someday/maybe, last week's clocked time and
@@ -974,7 +975,7 @@ each one stands.
 
   ![Weekly review: scheduling and deleting inbox entries, stepping through stuck projects, waiting, overdue, upcoming, someday and clocked time, answering a reflection question, and the review logged in a date tree](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/review.gif)
 
-- 🧪 **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
+- ✅ **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
   `<prefix>zs` starts a pomodoro on the heading at the cursor and clocks it
   in; when the 25 minutes are up the entry's `POMODOROS` count goes up, the
   clock stops and a 5-minute break starts (15 minutes after every fourth),
@@ -984,7 +985,7 @@ each one stands.
 
   ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/pomodoro.gif)
 
-- 🧪 **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
+- ✅ **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
   flashcards with spaced repetition. Headings tagged `:drill:` are cards
   (simple, two-sided, multi-sided and cloze deletions such as
   `[Nile||river]`); `:Org drill` (`<prefix>D`) reviews the due ones in a
@@ -1005,7 +1006,7 @@ each one stands.
 
   ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/merge.gif)
 
-- 🧪 **`hugo`** ([ox-hugo](https://ox-hugo.scripter.co/)): export posts
+- ✅ **`hugo`** ([ox-hugo](https://ox-hugo.scripter.co/)): export posts
   for the Hugo static site generator, one post per file or one per subtree
   with an `EXPORT_FILE_NAME` (inheriting `EXPORT_HUGO_*` properties from its
   parents), with TOML or YAML front matter (dates from CLOSED, drafts from
@@ -1059,7 +1060,7 @@ each one stands.
 
   ![A sync adds the calendar's events to calendar.org as headings and sends the file's own entry; they show in the week agenda; a changed heading is sent and the event on the server keeps its attendee and alarm; an event moved in another calendar app moves the entry; deleting an entry asks before deleting the event](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/caldav.gif)
 
-- 🧪 **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
+- ✅ **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
   prints the agenda as text, CSV or JSON, captures with a template, clocks
   in and out, reports the running clock (for tmux, SketchyBar or Raycast),
   searches, queries and exports, adds headings under a heading or in a
@@ -1081,7 +1082,7 @@ each one stands.
 
   ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/org-cli.gif)
 
-- 🧪 **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
+- ✅ **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
   ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
   blocks, plus extras for `plantuml`: `C-c C-c` writes the diagram and
   inserts a `file:` link (a name is generated when there's no `:file`),
@@ -1091,7 +1092,7 @@ each one stands.
 
   ![Diagrams: C-c C-c on a mermaid block inserts a file: link to a real PNG, and saving renders every diagram block, re-rendering only the one that changed](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/diagrams.gif)
 
-- 🧪 **`code`**: a bridge between code and notes. `code_capture` turns a
+- ✅ **`code`**: a bridge between code and notes. `code_capture` turns a
   Visual selection into a `#+begin_src` block with a link back and the git
   branch; `[[code:src/app.lua::M.setup]]` links jump to a symbol through
   LSP (else treesitter or a text search); each repository gets an org file
@@ -1102,7 +1103,7 @@ each one stands.
 
   ![code: a Visual selection in a Lua file captured as a src block with a code: link and the branch, the link followed back to the function, and the project agenda with the TODO comments of the repository](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/code.gif)
 
-- 🧪 **`literate`**: a literate Neovim config. Saving `init.org` tangles it
+- ✅ **`literate`**: a literate Neovim config. Saving `init.org` tangles it
   and runs only the Lua blocks you changed, so an option or keymap applies
   at once; errors are diagnostics on the org line. Plus `literate_reload`,
   `literate_run_block`, `literate_health`, a jump from the tangled file
@@ -1111,7 +1112,7 @@ each one stands.
 
   ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/literate.gif)
 
-- 🧪 **`lsp`**: a language server for org buffers that runs inside Neovim
+- ✅ **`lsp`**: a language server for org buffers that runs inside Neovim
   (nothing to install), so every LSP feature and plugin works in Org
   files: the outline as document symbols, headlines of all your files as
   workspace symbols, org-lint diagnostics as you type, hover on
@@ -1171,7 +1172,7 @@ each one stands.
 
   ![Kanban board: moving a card to NEXT goes over the WIP limit, filtering by a tag, moving a card to DONE and opening its heading with CLOSED logged](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/kanban.gif)
 
-- 🧪 **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
+- ✅ **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
   DEADLINE or Effort: bars from start to deadline, ◆ deadlines, today's
   column, overdue tasks in red, optional clocked days. `+` / `-` zoom
   (day, week, month), `[` / `]` pan, `S` / `D` reschedule
@@ -1194,7 +1195,7 @@ each one stands.
 
   ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/sidebar.gif)
 
-- 🧪 **`journal`** ([org-journal](https://github.com/bastibe/org-journal)):
+- ✅ **`journal`** ([org-journal](https://github.com/bastibe/org-journal)):
   a dated journal, one file per day, week, month or year in org-journal's
   format. `<prefix>Lj` adds a timed entry to today, moving yesterday's
   unfinished TODOs over; `<prefix>Ln` / `<prefix>Lp` go between days,

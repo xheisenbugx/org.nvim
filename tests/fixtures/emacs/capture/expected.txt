@@ -1,0 +1,537 @@
+=== entry-file
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* TODO 
+=== entry-prepend
+#+TITLE: Inbox
+* First 
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+=== entry-no-stars
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* No stars here 
+=== headline
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+** TODO 
+  [2026-10-01 Thu]
+* Notes
+Some notes.
+=== headline-prepend
+#+TITLE: Inbox
+
+* Tasks
+** Urgent 
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+=== headline-new
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+* Later
+** Someday 
+=== headline-case
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+** Found 
+=== headline-relevel
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+** Deep                                                                :deep:
+*** Deeper 
+=== olp
+* Projects
+** Emacs
+Notes on Emacs.
+** Neovim
+*** Plugins
+*** Idea 
+* Someday
+=== regexp
+* Projects
+** Emacs
+Notes on Emacs.
+*** After match 
+** Neovim
+*** Plugins
+* Someday
+=== datetree
+#+TITLE: Journal
+
+* 2026
+** 2026-09 September
+*** 2026-09-30 Wednesday
+**** Yesterday
+** 2026-10 October
+*** 2026-10-01 Thursday
+**** Today 
+[2026-10-01 Thu 12:00]
+=== datetree-week
+#+TITLE: Weeks
+* 2026
+** 2026-W40
+*** 2026-10-01 Thursday
+**** This week 
+=== datetree-month
+#+TITLE: Weeks
+* 2026
+** 2026-10 October
+*** This month 
+=== datetree-olp
+* Projects
+** Emacs
+Notes on Emacs.
+** Neovim
+*** Plugins
+* Someday
+** 2026
+*** 2026-10 October
+**** 2026-10-01 Thursday
+***** Dated 
+=== datetree-day
+* 2026
+** 2026-10 October
+*** 2026-10-01 Thursday
+**** Earlier
+**** Now 
+*** 2026-10-02 Friday
+=== datetree-quarter
+#+TITLE: Weeks
+* 2026
+** 2026-Q4
+*** 2026-10 October
+**** This quarter 
+=== no-newline
+* Inbox
+Last line without a newline
+* Appended 
+=== no-newline-plain
+* Inbox
+Last line without a newline
+More text
+=== immediate
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+** Quick
+* Notes
+Some notes.
+=== item
+* Shopping
+- milk
+- bread
+- eggs 
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two
+=== item-prepend
+* Shopping
+- butter
+- milk
+- bread
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two
+=== item-ordered
+* Shopping
+- milk
+- bread
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two
+3) three
+=== item-no-list
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+- first item
+=== item-initial
+* Shopping
+- milk
+- bread
+- Body line one.
+  Body line two.
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two
+=== checkitem
+* Shopping
+- milk
+- bread
+
+* Todo
+- [ ] call
+- [X] write
+- [ ] read 
+
+* Ordered
+1) one
+2) two
+=== checkitem-ordered
+* Shopping
+- milk
+- bread
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two
+3) four
+=== checkitem-default
+* Shopping
+- milk
+- bread
+- [ ] 
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two
+=== table-line
+* Log
+| Date             | What |
+|------------------+------|
+| x                | y    |
+|------------------+------|
+| tot              |      |
+| <2026-10-01 Thu> |      |
+
+* Empty
+Nothing here yet.
+=== table-line-pos
+* Log
+| Date | What |
+|------+------|
+| x    | y    |
+| new  | row  |
+|------+------|
+| tot  |      |
+
+* Empty
+Nothing here yet.
+=== table-line-prepend
+* Log
+| Date  | What |
+|-------+------|
+| first | row  |
+| x     | y    |
+|-------+------|
+| tot   |      |
+
+* Empty
+Nothing here yet.
+=== table-line-new
+* Log
+| Date | What |
+|------+------|
+| x    | y    |
+|------+------|
+| tot  |      |
+
+* Empty
+Nothing here yet.
+|   |   |
+|---+---|
+| a | b |
+=== plain
+* Notes
+:PROPERTIES:
+:CATEGORY: notes
+:END:
+Body text.
+Plain [2026-10-01 Thu 12:00]
+** Child
+* Other
+=== plain-prepend
+* Notes
+:PROPERTIES:
+:CATEGORY: notes
+:END:
+Plain first
+Body text.
+** Child
+* Other
+=== plain-file
+* Notes
+:PROPERTIES:
+:CATEGORY: notes
+:END:
+Body text.
+** Child
+* Other
+At the end
+=== empty-lines
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+** Spaced 
+
+* Notes
+Some notes.
+=== empty-lines-before
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+
+** Before 
+=== empty-lines-after
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+** After 
+
+* Notes
+Some notes.
+=== item-empty-lines
+* Shopping
+- milk
+- bread
+
+* Todo
+- [ ] call
+- [X] write
+
+- spaced
+
+* Ordered
+1) one
+2) two
+=== dates
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Dates <2026-10-01 Thu> <2026-10-01 Thu 12:00>
+  [2026-10-01 Thu] [2026-10-01 Thu 12:00]
+=== literal
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Literal 50% done %t
+  100%% sure
+=== text-after-cursor
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+** Meeting  with the team
+* Notes
+Some notes.
+=== planning
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+** TODO Review 
+SCHEDULED: <2026-10-01 Thu>
+* Notes
+Some notes.
+=== link-heading
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Link [[file:@DIR@/source.org::*Source heading][Source heading]]
+=== link-todo-heading
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Link [[file:@DIR@/source.org::*Task heading][Task heading]]
+=== link-text-file
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Link [[file:@DIR@/notes.txt::a line to link]]
+=== origin-file
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* From source.org
+  @DIR@/source.org
+  2026/10/01 12:00
+=== initial-string
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Initial hello world
+=== initial-region
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Quote
+  > Body line one.
+  > Body line two.
+=== prompts
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* My title
+  Owner: alice
+  Again: My title
+=== tags
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Tagged                                                        :work:urgent:
+=== property
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.
+
+* Estimated 
+:PROPERTIES:
+:Effort:   1:00
+:END:

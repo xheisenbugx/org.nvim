@@ -69,7 +69,7 @@ function M.setup(opts)
     vim.schedule(function()
       local ok, clock = pcall(require, "org.clock")
       if ok and clock.restore then
-        pcall(clock.restore)
+        require("org.utils").try("clock: restore the persisted clock", clock.restore)
       end
     end)
   end

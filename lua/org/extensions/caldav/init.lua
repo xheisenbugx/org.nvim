@@ -321,7 +321,7 @@ end
 
 -- the timer's sync: never raises (an error would repeat every time)
 local function tick()
-  pcall(function()
+  utils().try("caldav: sync", function()
     require("org.extensions.caldav.sync").run(nil, { auto = true })
   end)
 end

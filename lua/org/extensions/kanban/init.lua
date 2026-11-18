@@ -1,9 +1,9 @@
 ---@mod org.extensions.kanban Kanban board of TODO states
 ---
 --- A board with one column per TODO keyword (or group of keywords) and a
---- card per headline. Moving a card changes the headline's TODO state with
---- the regular `org.todo` code, so logging, CLOSED, blocking and repeaters
---- behave as with `C-c C-t`.
+--- card per headline. Moving a card changes the headline's TODO state as
+--- `C-c C-t` does (through org.api), so logging, CLOSED, blocking and
+--- repeaters behave the same. Built on `org.api` only (`:h org-api`).
 ---
 --- ```lua
 --- require("org").setup({ extensions = { kanban = {
@@ -11,9 +11,8 @@
 --- } } })
 --- ```
 
+local api = require("org.api")
 local views = require("org.extensions.views_util")
-local date = require("org.date")
-local utils = require("org.utils")
 
 local M = {}
 
@@ -149,27 +148,46 @@ end
 -- Columns and cards
 ---------------------------------------------------------------------------
 
+---@class org.kanban.Keywords
+---@field all string[] the keywords, in the order they are defined
+---@field is table<string, true> the keywords
+---@field done table<string, true> the done keywords
+
+--- The TODO keywords of `api.todo_keywords()` as lookups.
+---@param kws org.api.TodoKeywords
+---@return org.kanban.Keywords
+local function keyword_set(kws)
+  local set = { all = kws.all, is = {}, done = {} }
+  for _, k in ipairs(kws.all) do
+    set.is[k] = true
+  end
+  for _, k in ipairs(kws.done) do
+    set.done[k] = true
+  end
+  return set
+end
+
 --- The columns of the board: `{ name, keywords, set, wip, done }`.
 ---@param o table options
----@param files org.File[]
+---@param global org.kanban.Keywords the keywords of the `todo_keywords` option
+---@param sets org.kanban.Keywords[] the keywords of the board's files
 ---@return table[]
-function M.columns(o, files)
-  local global = require("org.todo_keywords").global()
+function M.columns(o, global, sets)
   local spec = o.columns
   if not spec or #spec == 0 then
     spec = {}
     local seen = {}
-    local function add(cfg)
-      for _, kw in ipairs(cfg.keywords) do
-        if not seen[kw.name] then
-          seen[kw.name] = true
-          spec[#spec + 1] = kw.name
+    local function add(set)
+      for _, name in ipairs(set.all) do
+        if not seen[name] then
+          seen[name] = true
+          spec[#spec + 1] = name
         end
       end
     end
     add(global)
-    for _, f in ipairs(files) do
-      add(f.settings.todo)
+    for _, set in ipairs(sets) do
+      add(set)
     end
   end
   local cols = {}
@@ -180,10 +198,10 @@ function M.columns(o, files)
       local set, done = {}, true
       for _, k in ipairs(kws) do
         set[k] = true
-        local is_done = global:is_done(k)
-        for _, f in ipairs(files) do
-          if f.settings.todo:is_keyword(k) then
-            is_done = f.settings.todo:is_done(k)
+        local is_done = global.done[k] == true
+        for _, s in ipairs(sets) do
+          if s.is[k] then
+            is_done = s.done[k] == true
             break
           end
         end
@@ -198,25 +216,50 @@ function M.columns(o, files)
   return cols
 end
 
-local function card_of(hl, today)
-  local dl, sc = hl.planning.deadline, hl.planning.scheduled
+--- Days before a deadline its warning starts: the `-Nd` cookie's
+--- (org-get-wdays: a month is 30.4 days, a year 365.25), else 14.
+---@param dl org.api.Date
+---@return integer
+local function warning_days(dl)
+  local w = dl.warning
+  if not w then
+    return 14
+  end
+  local mult = { h = 1 / 24, d = 1, w = 7, m = 30.4, y = 365.25 }
+  return math.floor(w.value * (mult[w.unit] or 1))
+end
+
+--- `H:MM` for a number of minutes.
+---@param minutes number
+---@return string
+local function format_duration(minutes)
+  local neg = minutes < 0
+  minutes = math.abs(math.floor(minutes + 0.5))
+  local s = string.format("%d:%02d", math.floor(minutes / 60), minutes % 60)
+  return neg and "-" .. s or s
+end
+
+---@param h org.api.Headline
+---@param today integer
+---@param keywords org.kanban.Keywords|nil the TODO keywords of its file
+local function card_of(h, today, keywords)
+  local dl, sc = h.deadline, h.scheduled
   return {
-    ref = views.ref(hl),
-    title = views.title(hl),
-    todo = hl.todo,
-    priority = hl.priority,
-    tags = hl.tags,
-    done = hl:is_done(),
-    deadline = dl and (dl:days() - today) or nil,
-    warning = dl and date.warning_days(dl) or nil,
-    scheduled = sc and (sc:days() - today) or nil,
-    effort = views.effort(hl),
-    category = hl:get_category(),
-    prio_value = require("org.agenda.items").priority_value(hl),
+    h = h,
+    ref = views.handle_ref(h),
+    title = h.plain_title,
+    todo = h.todo,
+    priority = h.priority,
+    tags = h.tags,
+    done = h.done,
+    deadline = dl and (dl.days - today) or nil,
+    warning = dl and warning_days(dl) or nil,
+    scheduled = sc and (sc.days - today) or nil,
+    effort = h.effort,
+    category = h.category,
+    prio_value = h.priority_value,
     -- the TODO keywords of the card's file (#+TODO lines)
-    todo_cfg = hl.file.settings.todo,
-    -- siblings share a parent (the file for top-level headlines)
-    parent = hl.parent or hl.file,
+    keywords = keywords,
   }
 end
 
@@ -248,36 +291,64 @@ local function sort_cards(cards, how)
   end)
 end
 
+--- The fields of the headline handles (`:h org-api-headlines`) the cards
+--- show or are sorted by, beside the ones a handle always has.
+---@param o table options
+---@return string[]
+function M.fields(o)
+  local card, sort = o.card or {}, o.sort
+  local fields = {}
+  local function want(name, yes)
+    if yes then
+      fields[#fields + 1] = name
+    end
+  end
+  want("deadline", card.deadline ~= false or sort == "priority" or sort == "deadline")
+  want("scheduled", card.scheduled or sort == "scheduled")
+  want("effort", card.effort ~= false)
+  want("category", card.category)
+  want("priority_value", sort == "priority")
+  return fields
+end
+
 --- Build the board data: columns with their cards. Remembers in `st` the
 --- files shown (`file_set`, `key`) for the redraw watch.
 ---@param st table board state
 ---@return table[] columns, string|nil err
 function M.build(st)
   local o = st.opts
-  local files = views.files(st.src)
-  st.file_set = views.file_set(files)
-  st.key = views.files_key(files)
-  local cols = M.columns(o, files)
-  local by_kw = {}
-  for _, c in ipairs(cols) do
-    for _, k in ipairs(c.keywords) do
-      by_kw[k] = by_kw[k] or c
+  local sf = views.source_files(st.src)
+  st.file_set, st.key = sf.file_set, sf.key
+  local sets, by_file = {}, {}
+  for _, where in ipairs(sf.files) do
+    local kws = api.todo_keywords(where)
+    if kws then
+      sets[#sets + 1] = keyword_set(kws)
+      by_file[where] = sets[#sets]
     end
   end
-  local hls, err = views.collect(st.src, {
-    files = files,
+  local cols = M.columns(o, keyword_set(assert(api.todo_keywords())), sets)
+  local by_kw, kws = {}, {}
+  for _, c in ipairs(cols) do
+    for _, k in ipairs(c.keywords) do
+      if not by_kw[k] then
+        by_kw[k] = c
+        kws[#kws + 1] = k
+      end
+    end
+  end
+  local hs, err = views.collect(st.src, {
     query = o.query,
     filter = st.filter,
     tag = st.tag,
-    pred = function(hl)
-      return hl.todo ~= nil and by_kw[hl.todo] ~= nil
-    end,
+    todo = kws,
+    fields = M.fields(o),
   })
-  local today = date.today_days()
-  for i, hl in ipairs(hls) do
-    local card = card_of(hl, today)
+  local today = api.today().days
+  for i, h in ipairs(hs) do
+    local card = card_of(h, today, by_file[h.file or h.bufnr])
     card.order = i
-    local c = by_kw[hl.todo]
+    local c = by_kw[h.todo]
     c.cards[#c.cards + 1] = card
   end
   for _, c in ipairs(cols) do
@@ -296,7 +367,7 @@ local B = { tl = "╭", tr = "╮", bl = "╰", br = "╯", h = "─", v = "│"
 --- two cells wide with 'ambiwidth' "double"; a cell they can't fill is a
 --- space.
 local function fill(ch, cells)
-  local cw = math.max(1, utils.width(ch))
+  local cw = math.max(1, views.width(ch))
   local n = math.max(0, math.floor(cells / cw))
   return string.rep(ch, n) .. string.rep(" ", math.max(0, cells - n * cw))
 end
@@ -304,7 +375,7 @@ M._fill = fill
 
 --- A border row `w` cells wide: `l`, `h` repeated, `r`.
 local function edge(l, h, r, w)
-  return l .. fill(h, w - utils.width(l) - utils.width(r)) .. r
+  return l .. fill(h, w - views.width(l) - views.width(r)) .. r
 end
 
 --- Wrap `s` into at most `n` lines of `width` cells; the last is cut.
@@ -313,7 +384,7 @@ local function wrap(s, width, n)
   local out, cur, i = {}, "", 1
   while i <= #words do
     local cand = cur == "" and words[i] or (cur .. " " .. words[i])
-    if cur == "" or utils.width(cand) <= width then
+    if cur == "" or views.width(cand) <= width then
       cur, i = cand, i + 1
     elseif #out == n - 1 then
       break
@@ -326,7 +397,7 @@ local function wrap(s, width, n)
   end
   out[#out + 1] = cur
   for k, l in ipairs(out) do
-    out[k] = utils.truncate(l, width)
+    out[k] = views.truncate(l, width)
   end
   return out
 end
@@ -336,12 +407,12 @@ M._wrap = wrap
 --- The first and last segment of each row are the border.
 local function card_rows(card, w, o)
   local border = "OrgKanbanBorder"
-  local inner = w - 2 * utils.width(B.v) - 2
+  local inner = w - 2 * views.width(B.v) - 2
   local rows = {}
   local function row(segs)
     local used = 0
     for _, s in ipairs(segs) do
-      used = used + utils.width(s[1])
+      used = used + views.width(s[1])
     end
     local line = { { B.v .. " ", border } }
     vim.list_extend(line, segs)
@@ -369,7 +440,7 @@ local function card_rows(card, w, o)
     if mw > 0 then
       text = "  " .. text
     end
-    local tw = utils.width(text)
+    local tw = views.width(text)
     if mw + tw <= inner then
       meta[#meta + 1] = { text, hl }
       mw = mw + tw
@@ -384,21 +455,21 @@ local function card_rows(card, w, o)
     add("▸ " .. views.relative_days(card.scheduled), "OrgKanbanScheduled")
   end
   if o.card.effort ~= false and card.effort then
-    add("◷ " .. date.format_duration(card.effort), "OrgKanbanEffort")
+    add("◷ " .. format_duration(card.effort), "OrgKanbanEffort")
   end
   if #meta > 0 then
     row(meta)
   end
   local tagsegs, tw = {}, 0
   if o.card.tags ~= false and #card.tags > 0 then
-    local text = utils.truncate(":" .. table.concat(card.tags, ":") .. ":", inner)
+    local text = views.truncate(":" .. table.concat(card.tags, ":") .. ":", inner)
     tagsegs[1] = { text, "OrgTags" }
-    tw = utils.width(text)
+    tw = views.width(text)
   end
   if o.card.category and card.category then
     local cat = card.category
-    if tw + utils.width(cat) + 1 <= inner then
-      tagsegs[#tagsegs + 1] = { string.rep(" ", inner - tw - utils.width(cat)) .. cat, "OrgKanbanCategory" }
+    if tw + views.width(cat) + 1 <= inner then
+      tagsegs[#tagsegs + 1] = { string.rep(" ", inner - tw - views.width(cat)) .. cat, "OrgKanbanCategory" }
     end
   end
   if #tagsegs > 0 then
@@ -409,18 +480,18 @@ local function card_rows(card, w, o)
 end
 
 local function header_rows(col, w)
-  local todo_cfg = require("org.todo_keywords").global()
   local segs, used = { { " " } }, 1
   local label = col.name
-  local hl = views.todo_group(col.keywords[1], todo_cfg)
-  segs[#segs + 1] = { utils.truncate(label, math.max(1, w - 8)), hl }
-  used = used + utils.width(segs[#segs][1])
+  -- the face of the keyword per the `todo_keywords` option
+  local hl = views.todo_group(col.keywords[1])
+  segs[#segs + 1] = { views.truncate(label, math.max(1, w - 8)), hl }
+  used = used + views.width(segs[#segs][1])
   local n = #col.cards
   local count = col.wip and string.format("%d/%d", n, col.wip) or tostring(n)
   local over = col.wip and n > col.wip
   local ctext = "  " .. count .. (over and " !" or "")
   segs[#segs + 1] = { ctext, over and "OrgKanbanWipExceeded" or "OrgKanbanCount" }
-  used = used + utils.width(ctext)
+  used = used + views.width(ctext)
   segs[#segs + 1] = { string.rep(" ", math.max(0, w - used)) }
   return { segs, { { fill(B.rule, w), over and "OrgKanbanWipExceeded" or hl } } }
 end
@@ -653,14 +724,16 @@ function M.selected()
   return col and col.cards[st.sel.row] or nil
 end
 
-local function same_ref(a, b)
-  if a.lnum ~= b.lnum then
-    return false
-  end
+--- Whether two references are in the same file (or buffer).
+local function same_file(a, b)
   if a.filename and b.filename then
     return views.same_file(a.filename, b.filename)
   end
   return a.filename == b.filename and a.bufnr == b.bufnr
+end
+
+local function same_ref(a, b)
+  return a.lnum == b.lnum and same_file(a, b)
 end
 
 --- Select the card whose headline is at `ref` (file and line), if shown.
@@ -685,7 +758,7 @@ function M.refresh(lazy)
   if not st then
     return
   end
-  if lazy == true and st.key and st.key == views.files_key(views.files(st.src)) then
+  if lazy == true and st.key and st.key == views.source_files(st.src).key then
     return
   end
   local card = M.selected()
@@ -726,11 +799,20 @@ end
 local function usable_keywords(col, card)
   local out = {}
   for _, k in ipairs(col.keywords) do
-    if not card.todo_cfg or card.todo_cfg:is_keyword(k) then
+    if not card.keywords or card.keywords.is[k] then
       out[#out + 1] = k
     end
   end
   return out
+end
+
+--- Report what an org.api change returned instead of the handle: a change
+--- that org refused or the user cancelled has said why already.
+---@param err string|nil
+local function report(err)
+  if err then
+    views.warn("kanban: " .. err)
+  end
 end
 
 --- Move the selected card to the previous (`dir` = -1) or next column:
@@ -758,18 +840,15 @@ function M.move_card(dir)
   local kw = kws[1]
   local co, main = coroutine.running()
   if st.opts.choose_keyword and #kws > 1 and co and not main then
-    kw = utils.select(kws, { prompt = "State: " })
+    kw = views.select(kws, { prompt = "State: " })
     if not kw or not current() then
       return
     end
   end
-  local target = views.target(card.ref)
-  if not target then
-    return
-  end
-  local res = require("org.todo").change_state(target, kw)
-  if res then
-    views.after_edit(target.bufnr, st.opts.save)
+  -- as C-c C-t: a note the logging wants is asked for
+  local ok, err = card.h:set_todo(kw, { interactive = true, save = views.save_after_edit(st.opts.save) })
+  if not ok then
+    report(err)
   end
   if current() == st then
     st.cols, st.err = M.build(st)
@@ -791,46 +870,40 @@ function M.move_order(dir)
     return
   end
   if st.opts.sort ~= "file" then
-    utils.warn("kanban: cards are sorted by " .. tostring(st.opts.sort) .. '; reorder them with sort = "file"')
+    views.warn("kanban: cards are sorted by " .. tostring(st.opts.sort) .. '; reorder them with sort = "file"')
     return
   end
   local other = st.cols[st.sel.col].cards[st.sel.row + dir]
   if not other then
     return
   end
-  if card.parent ~= other.parent then
-    utils.warn("kanban: only cards under the same heading can be reordered")
-    return
-  end
-  local a, b = views.target(card.ref), views.target(other.ref)
-  if not a or not b or a.bufnr ~= b.bufnr then
-    return
-  end
-  local file = require("org.files").get_buffer(a.bufnr)
-  local ha, hb = file:headline_at(a.lnum), file:headline_at(b.lnum)
-  if not ha or not hb or ha.line ~= a.lnum or hb.line ~= b.lnum then
-    return
-  end
-  local buf = a.bufnr
-  local text = vim.api.nvim_buf_get_lines(buf, ha.line - 1, ha.end_line, false)
-  local new_line
-  if dir > 0 and hb.line > ha.end_line then
-    vim.api.nvim_buf_set_lines(buf, hb.end_line, hb.end_line, false, text)
-    vim.api.nvim_buf_set_lines(buf, ha.line - 1, ha.end_line, false, {})
-    new_line = hb.end_line - #text + 1
-  elseif dir < 0 and hb.end_line < ha.line then
-    vim.api.nvim_buf_set_lines(buf, ha.line - 1, ha.end_line, false, {})
-    vim.api.nvim_buf_set_lines(buf, hb.line - 1, hb.line - 1, false, text)
-    new_line = hb.line
+  -- siblings share a parent heading (or both are at the top of one file)
+  local pa, pb = card.h:parent(), other.h:parent()
+  local siblings
+  if pa or pb then
+    siblings = pa ~= nil and pb ~= nil and same_ref(views.handle_ref(pa), views.handle_ref(pb))
   else
+    siblings = same_file(card.ref, other.ref)
+  end
+  if not siblings then
+    views.warn("kanban: only cards under the same heading can be reordered")
     return
   end
-  views.after_edit(buf, st.opts.save)
+  local save = views.save_after_edit(st.opts.save)
+  local ok, err
+  if dir > 0 then
+    ok, err = card.h:move_after(other.h, { save = save })
+  else
+    ok, err = card.h:move_before(other.h, { save = save })
+  end
+  if not ok then
+    report(err)
+    return
+  end
   if current() == st then
     st.cols, st.err = M.build(st)
-    local ref = vim.deepcopy(card.ref)
-    ref.lnum = new_line
-    reselect(st, ref)
+    -- the handle followed the subtree
+    reselect(st, views.handle_ref(card.h))
     M.draw(st)
   end
 end
@@ -851,13 +924,13 @@ function M.ask_filter()
   if not st then
     return
   end
-  local input = utils.input({ prompt = "Filter (tags match or (ql query)): ", default = st.filter or "" })
+  local input = views.input({ prompt = "Filter (tags match or (ql query)): ", default = st.filter or "" })
   if input == nil or current() ~= st then
     return
   end
   local _, err = views.compile_filter(input)
   if err then
-    utils.error(err)
+    views.error(err)
     return
   end
   local card = M.selected()
@@ -920,7 +993,7 @@ function M.open(o)
   end
   local src, err = views.resolve_source(o.source or eopts.source)
   if not src then
-    utils.error("kanban: " .. err)
+    views.error("kanban: " .. err)
     return
   end
   M.close()
@@ -992,7 +1065,7 @@ function M.open(o)
       if ev.event == "VimResized" then
         views.relayout(st.how)
       end
-      pcall(M.draw, st)
+      views.try("kanban: draw after a resize", M.draw, st)
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -1029,7 +1102,7 @@ function M.parse_args(args)
   if first == "agenda" or first == "buffer" or first == "subtree" then
     o.source, args = first, rest
   elseif first and views.is_path(first) then
-    o.source, args = utils.expand(first), rest
+    o.source, args = views.expand(first), rest
   end
   if args ~= "" then
     o.filter = args
@@ -1053,7 +1126,7 @@ function M.command(args)
   if o.filter then
     local _, err = views.compile_filter(o.filter)
     if err then
-      utils.error(err)
+      views.error(err)
       return
     end
   end

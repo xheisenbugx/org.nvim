@@ -371,6 +371,7 @@ function M.cmd(dispatchers)
     end
     srv.closing = true
     vim.schedule(function()
+      -- lint: allow pcall: Neovim's LSP client, which may be gone at exit
       pcall(dispatchers.on_exit, code or 0, 0)
     end)
   end
@@ -391,9 +392,10 @@ function M.cmd(dispatchers)
       if result == nil and not err then
         result = vim.NIL
       end
-      pcall(callback, err, err == nil and result or nil)
+      local utils = require("org.utils")
+      utils.try("src_lsp: reply handler", callback, err, err == nil and result or nil)
       if notify_reply_callback then
-        pcall(notify_reply_callback, id)
+        utils.try("src_lsp: reply handler", notify_reply_callback, id)
       end
     end
     if method == "initialize" then

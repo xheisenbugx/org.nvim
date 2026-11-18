@@ -62,7 +62,7 @@ local function remove(bufnr, id)
   end
   local b = backend_of(p)
   if b then
-    pcall(b.hide, bufnr, p)
+    utils.try("images: hide", b.hide, bufnr, p)
   end
   pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p.mark)
   list[id] = nil
@@ -296,6 +296,7 @@ local function add(bufnr, kind, spec, src, backend)
   local ok, err = pcall(show, backend, bufnr, p)
   if not ok then
     list[p.id] = nil
+    -- lint: allow pcall: undoing the show that failed, whose error is returned
     pcall(backend.hide, bufnr, p)
     pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p.mark)
     return false, tostring(err)
@@ -517,8 +518,8 @@ function M.refit(keep)
           if resized or (p.backend == "native" and p.shown and wraps_after(bufnr, p) ~= (p.below == true)) then
             local b = backend_of(p)
             if mark_pos(bufnr, p.mark) and b then
-              pcall(b.hide, bufnr, p)
-              pcall(show, b, bufnr, p)
+              utils.try("images: hide", b.hide, bufnr, p)
+              utils.try("images: show", show, b, bufnr, p)
             end
           end
         end

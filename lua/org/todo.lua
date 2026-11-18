@@ -153,7 +153,7 @@ end
 
 --- Fire a User autocmd with `data`.
 local function emit(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+  utils.user_event(pattern, data)
 end
 
 local function truthy_prop(v)
@@ -379,7 +379,7 @@ function M.run_statistics_hooks(bufnr, hl)
 end
 
 local function update_parent_statistics(bufnr, hl)
-  pcall(require("org.lists").update_parent_todo_statistics, bufnr, hl.line)
+  utils.try("todo: update TODO statistics", require("org.lists").update_parent_todo_statistics, bufnr, hl.line)
   local file = files.get_buffer(bufnr)
   M.run_statistics_hooks(bufnr, file:headline_on(hl.line) or hl)
 end
@@ -745,7 +745,7 @@ function M.change_state(target, new, opts)
   if clock_out then
     local here, clock = clocked_here(bufnr, lnum)
     if here and clock then
-      pcall(clock.clock_out, { switch_to_state = false, note = false })
+      utils.try("todo: clock out on DONE", clock.clock_out, { switch_to_state = false, note = false })
     end
   end
   if cfg.provide_todo_statistics ~= false then

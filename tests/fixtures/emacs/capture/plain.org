@@ -1,0 +1,7 @@
+* Notes
+:PROPERTIES:
+:CATEGORY: notes
+:END:
+Body text.
+** Child
+* Other

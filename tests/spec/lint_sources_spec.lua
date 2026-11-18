@@ -175,6 +175,83 @@ describe("source lint", function()
     end)
   end)
 
+  describe("pcall", function()
+    it("flags a pcall / xpcall statement whose callee isn't a vim function", function()
+      eq(
+        { "1:pcall", "2:pcall", "3:pcall", "4:pcall", "6:pcall", "8:pcall", "9:pcall", "10:pcall" },
+        hits({
+          "pcall(utils.write_json, path, data)",
+          'pcall(require("org.lists").update_statistics_for, bufnr, l)',
+          "if x then pcall(fn) end",
+          "pcall(function()",
+          "end)",
+          "xpcall(save, debug.traceback)",
+          "local a = 1",
+          "pcall(vim.api.nvim_exec_autocmds, 'User', { pattern = 'X' })",
+          "do pcall(cb, 1) end",
+          "f() pcall(g)",
+        })
+      )
+    end)
+
+    it("flags nvim_exec_autocmds through an alias too", function()
+      eq({ "2:pcall" }, hits({ "local api = vim.api", "pcall(api.nvim_exec_autocmds, 'User', {})" }))
+    end)
+
+    it("accepts vim functions, their aliases, used results and utils.try", function()
+      eq(
+        {},
+        hits({
+          "local api = vim.api",
+          "local api2, fn = vim.api, vim.fn",
+          "local timer = assert(vim.uv.new_timer())",
+          "proc = vim.system({ 'ls' })",
+          "pcall(vim.api.nvim_win_close, win, true)",
+          "pcall(vim.cmd, 'normal! zv')",
+          "pcall(api.nvim_buf_del_extmark, buf, ns, id)",
+          "pcall(fn.delete, path)",
+          "pcall(timer.close, timer)",
+          "pcall(proc.kill, proc, 15)",
+          "local ok = pcall(write, path)",
+          "local ok2, err = pcall(write, path)",
+          "if pcall(write, path) then end",
+          "return pcall(write, path)",
+          "local t = { pcall(write, path) }",
+          "f(pcall(write, path))",
+          "x = not pcall(write, path) or pcall(write, path)",
+          "M.pcall(write)",
+          "obj:pcall(write)",
+          "local function pcall2() end",
+          "utils.try('bookmarks: save', utils.write_json, path, data)",
+          "-- pcall(write, path) in a comment",
+          "local s = 'pcall(write, path)'",
+        })
+      )
+    end)
+
+    it("doesn't take a table key or a field for an alias", function()
+      eq(
+        { "2:pcall", "3:pcall" },
+        hits({
+          "local t = { timer = vim.uv.new_timer() }",
+          "pcall(timer.close, timer)",
+          "pcall(t.timer.close, t.timer)",
+        })
+      )
+    end)
+
+    it("is allowed with a reason", function()
+      eq(
+        {},
+        hits({
+          "-- lint: allow pcall: the job may have exited already",
+          "pcall(obj.kill, obj, 15)",
+          "pcall(job.kill, job) -- lint: allow pcall: exited already",
+        })
+      )
+    end)
+  end)
+
   describe("allow comments", function()
     it("allow a hit on the same line or the line before, with a reason", function()
       eq(

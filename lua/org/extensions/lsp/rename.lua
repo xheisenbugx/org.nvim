@@ -298,7 +298,7 @@ function M.rename(doc, lnum, col, new)
   end
   if subject.kind == "id" then
     -- the ID database follows (org-id-locations)
-    pcall(function()
+    require("org.utils").try("lsp rename: update the ID locations", function()
       local id = require("org.id")
       id.forget(subject.name)
       id.register(new, subject.path)

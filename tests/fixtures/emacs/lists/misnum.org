@@ -1,0 +1,8 @@
+1. one
+1. two
+7. three
+
+* Counter
+1. one
+2. [@5] five
+3. six

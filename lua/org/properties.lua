@@ -146,11 +146,7 @@ function M.entry_put(bufnr, lnum, name, value)
   else
     edit.set_property(bufnr, lnum, name, value)
   end
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgPropertyChanged",
-    data = { bufnr = bufnr, lnum = lnum, name = name, value = value },
-    modeline = false,
-  })
+  utils.user_event("OrgPropertyChanged", { bufnr = bufnr, lnum = lnum, name = name, value = value })
   return true
 end
 
@@ -510,10 +506,24 @@ function M.toggle_ordered(target)
   return true
 end
 
---- Effort of a headline in minutes, or nil.
-function M.effort_minutes(hl)
+--- Effort of a headline in minutes, or nil. `cache` (the minutes, or
+--- false, by property value) parses each value once over many headlines.
+---@param cache? table<string, number|false>
+---@return number|nil
+function M.effort_minutes(hl, cache)
   local v = hl:get_property(config.opts.effort_property or "Effort", false)
-  return v and date.parse_duration(v) or nil
+  if v == nil then
+    return nil
+  end
+  if not cache then
+    return date.parse_duration(v) or nil
+  end
+  local m = cache[v]
+  if m == nil then
+    m = date.parse_duration(v) or false
+    cache[v] = m
+  end
+  return m or nil
 end
 
 return M

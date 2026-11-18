@@ -169,11 +169,12 @@ function M.agenda(files, from, to, opts)
     package.loaded["org.agenda.holidays"].reset()
   end
 
-  -- sexp lines before the first heading (Emacs searches the whole buffer)
+  -- sexp lines before the first heading (Emacs searches the whole buffer;
+  -- org-agenda-skip skips a file tagged ARCHIVE, those lines too)
   if types.sexp and not (opts.restrict and opts.restrict.range) then
     for fidx, file in ipairs(files) do
       ctx.fidx = fidx
-      if has_sexps(file) then
+      if has_sexps(file) and (opts.archives or not M.file_archived(file)) then
         shared.add_sexps(ctx, nil, file, 1, file.preamble_end or 0)
       end
     end

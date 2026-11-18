@@ -1,0 +1,11 @@
+* Shopping
+- milk
+- bread
+
+* Todo
+- [ ] call
+- [X] write
+
+* Ordered
+1) one
+2) two

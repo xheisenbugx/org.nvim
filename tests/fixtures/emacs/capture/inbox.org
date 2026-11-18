@@ -1,0 +1,8 @@
+#+TITLE: Inbox
+
+* Tasks
+** TODO Existing task
+   SCHEDULED: <2026-09-30 Wed>
+
+* Notes
+Some notes.

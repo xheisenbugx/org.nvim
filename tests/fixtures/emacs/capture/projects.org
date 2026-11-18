@@ -1,0 +1,6 @@
+* Projects
+** Emacs
+Notes on Emacs.
+** Neovim
+*** Plugins
+* Someday

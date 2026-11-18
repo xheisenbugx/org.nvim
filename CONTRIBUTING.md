@@ -7,7 +7,9 @@ you need to get started.
 ## Ways to help
 
 - **Report bugs.** Please include the org snippet that triggers the bug, the
-  keys you pressed, what you expected, and the output of `:checkhealth org`.
+  keys you pressed, what you expected, the output of `:checkhealth org`, and
+  what `:Org log` shows (the errors org.nvim caught this session, with the
+  versions). `:Org bug_report` opens an issue with the versions filled in.
 - **Compare with Emacs.** If org.nvim does something differently from Emacs
   Org mode and the doc doesn't mention it
   ([`:h org-differences`](doc/org.txt)), please open an issue.
@@ -202,6 +204,7 @@ Besides stylua, `make lint` runs `scripts/lint_sources.lua` over `lua/`
 | `glob` | `vim.fn.glob(x)` / `vim.fn.globpath(d, x)` where an argument isn't a string literal. `glob()` runs `` `backticks` `` as shell commands, `globpath()` splits its directories at commas, and paths often come from the document or a link. | `utils.glob(pattern)` (no shell; `*`, `?`, `[..]`, `{a,b}`, `**`) |
 | `gsub` | `s:gsub(pat, repl)` / `string.gsub` where `repl` is a variable or a concatenation: a `%` in a path, label or user text is read as a capture. | a literal, a function, a table, or `utils.gsub_escape(value)` |
 | `keyword-span` | a value captured from a `#+KEY: value` line located again with `line:find(value)` from the start of the line, which finds `#+name: name` inside the keyword. | capture the column in the same match: `line:match("^#%+name:%s*()(.-)$")` |
+| `pcall` | `pcall(f, ...)` / `xpcall(f, ...)` as a statement, its result dropped, when `f` isn't a `vim.*` function or a local bound to one (`local api = vim.api`, `timer = vim.uv.new_timer()`): the error goes nowhere, so a failed write or a broken statistics cookie leaves no trace. `nvim_exec_autocmds` is flagged too, as it runs the user's handlers. | `utils.try(where, f, ...)`, which returns like `pcall` and records a failure in the session log (`:Org log`), then `utils.error` / `utils.warn` when the user must know (a write that lost data, their own callback failing); `utils.user_event(pattern, data)` for a User autocmd. A harmless failure (a job that may have exited, a handle closed already) takes an allow comment saying so. |
 
 When a hit is audited and safe (a config option, a number, a constant),
 allow it with a comment on the same line or the line above, and say why:
@@ -346,6 +349,8 @@ org.nvim with real Emacs output that's checked in under
 | `emacs_export_parity_spec.lua` | exports of `examples/*.org` |
 | `emacs_clocktable_parity_spec.lua` | clock tables |
 | `emacs_lint_parity_spec.lua` | org-lint reports |
+| `emacs_lists_parity_spec.lua` | plain-list editing keys (insert, indent, move, bullets, checkboxes, sorting) |
+| `emacs_capture_parity_spec.lua` | capture templates: targets, types, empty lines, escapes |
 
 They only read the fixtures, so you don't need Emacs to run them. To
 regenerate the fixtures after you change an input or add a case, you need
@@ -1135,6 +1140,36 @@ options, actions or keys is called out in the release notes, and a
 breaking one (`feat(<name>)!:` or a `BREAKING CHANGE:` footer) bumps the
 major version. Nothing is demoted automatically: a stable extension below
 the bar is a prompt to add the missing specs or docs.
+
+### Extensions use org.api
+
+An extension reads and changes Org data through `org.api` (`:h org-api`):
+its functions and fields only change with a major version of the API,
+where `org.files`, `org.parser`, `org.utils` and every other module are
+internal and can change in any release. An extension built on the API is
+one a third party could have written, and it keeps working when the
+internals move. `kanban`, `timeline` and `heatmap` are built that way
+(their windows and drawing come from `org.extensions.views_util`, the
+shared code of the built-in views).
+
+`make lint` runs `scripts/lint_extension_requires.lua`, which lists every
+org module an extension's code names (a `require`, `pcall(require, …)`,
+a require through an alias, `org.lazy`'s `on_load`, a module name in a
+local), leaving out `org.api*`, the registry `org.extensions`,
+`org.extensions.views_util` and the extension's own modules, and compares
+the `<extension> <module>` pairs with `scripts/extension_requires.txt`,
+the dependencies extensions had when the check came in. It fails on a pair
+the file lacks (a new internal dependency) and on a listed pair no longer
+found, so the list only shrinks:
+
+- When the API lacks what you need, extend it (an addition raises its
+  minor version, `:h org-api-version`, with a spec in
+  `tests/spec/api_spec.lua` and an entry under `:h org-api`) rather than
+  requiring the internal module.
+- When you move an extension (or part of one) to the API, delete the
+  lines the check says are gone.
+- `views_util`'s own pairs are in the list too: shared code is no way
+  around the check.
 
 ## Lessons from past debugging
 

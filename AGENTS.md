@@ -43,12 +43,23 @@ make verify RECIPE=agenda                  # drive a feature in a child Neovim, 
   `backticks`; use `utils.expand_vars` / `utils.expand`), `vim.fn.glob()` /
   `globpath()` on a non-literal (same; use `utils.glob`), a `gsub`
   replacement that is a variable or concatenation (`%` in it is a capture;
-  wrap it in `utils.gsub_escape`), and a `#+KEY:` value's column found again
-  with `line:find(value)` (capture it with `()`). An audited safe use takes
-  `-- lint: allow <rule>: <reason>` on its line or the line above.
+  wrap it in `utils.gsub_escape`), a `#+KEY:` value's column found again
+  with `line:find(value)` (capture it with `()`), and a `pcall(f, ...)` /
+  `xpcall` statement whose result is dropped when `f` isn't a `vim.*`
+  function (or a local bound to one; `nvim_exec_autocmds` counts as not):
+  use `utils.try(where, f, ...)`, which records the failure for
+  `:Org log`, and `utils.user_event(pattern, data)` to fire a User
+  autocmd. An audited safe use takes `-- lint: allow <rule>: <reason>` on
+  its line or the line above (for `pcall`: why the failure is harmless,
+  such as a job that may have exited).
 - `make lint` also runs `scripts/readme_stats.lua`: the sizes `README.md`
   quotes (lines of Lua, tests, spec files) must be no more than the counts
   and at most 10% behind them. `make readme-stats` rewrites them.
+- `make lint` also runs `scripts/lint_extension_requires.lua`: an extension
+  may name no internal org module beyond those in
+  `scripts/extension_requires.txt` (a list that only shrinks). Use
+  `org.api` (extend it if needed); delete a line when its use is gone
+  (CONTRIBUTING.md, "Extensions use org.api").
 - `make typecheck` runs lua-language-server (CI pins 3.19.1) over the
   repo with `.luarc.json`. Any warning or error fails it; the type-system
   checks the code isn't annotated well enough for yet (`need-check-nil`,
@@ -193,10 +204,11 @@ else. Intentional differences go under `:h org-differences` in `doc/org.txt`.
 
 `tests/spec/emacs_*_parity_spec.lua` compare org.nvim with real Emacs output
 checked in under `tests/fixtures/emacs/` (visibility, agenda, export, clock
-tables, org-lint). Regenerate those fixtures with `make parity-fixtures`
-(it needs Emacs with Org 9.8.12, see `scripts/emacs-parity/README.md`), never
-by hand. Rewrite rules for intentional differences live only in `NORMALISE`
-in `tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
+tables, org-lint, plain-list editing, capture). Regenerate those fixtures
+with `make parity-fixtures` (it needs Emacs with Org 9.8.12, see
+`scripts/emacs-parity/README.md`), never by hand. Rewrite rules for
+intentional differences live only in `NORMALISE` in
+`tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
 
 ## Tests
 

@@ -802,11 +802,7 @@ end
 --- Run the User autocmd of a mode hook (org-indent-mode-hook,
 --- org-num-mode-hook) with `data.enabled`.
 local function mode_hook(pattern, bufnr, on)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = pattern,
-    data = { bufnr = bufnr, enabled = on },
-    modeline = false,
-  })
+  require("org.utils").user_event(pattern, { bufnr = bufnr, enabled = on })
 end
 
 --- org-num-mode: toggle virtual headline numbering in this buffer.

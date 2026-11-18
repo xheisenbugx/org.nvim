@@ -680,6 +680,23 @@ describe("perf: 10,000 headlines", function()
         vim.cmd("redraw")
       end)
     end)
+
+    it("builds the timeline with clocks in budget", function()
+      -- through org.api: a handle per task, two dates per clock (80 ms
+      -- on an M1 Ultra; 110 ms before handles and dates got cheaper, 32 ms
+      -- before the port to org.api)
+      local timeline = require("org.extensions.timeline")
+      local views = require("org.extensions.views_util")
+      local st = { opts = vim.deepcopy(timeline.defaults), src = views.resolve_source("agenda"), clocks = true }
+      -- (the file parsed first)
+      timeline.build(st)
+      local rows
+      budget("timeline with clocks of 10,000 headlines", 1000, function()
+        rows = timeline.build(st)
+      end)
+      -- every task not done is clocked, a row each
+      eq(8000, #rows)
+    end)
   end)
 
   it("lints in budget", function()
@@ -687,6 +704,40 @@ describe("perf: 10,000 headlines", function()
     budget("lint 10,000 headlines", 12000, function()
       require("org.lint").lint(0)
     end)
+  end)
+end)
+
+describe("perf: clocks", function()
+  setup()
+  local timeline = require("org.extensions.timeline")
+  local views = require("org.extensions.views_util")
+  local states = {}
+  --- A timeline over `n` clocks (gen.clocks), its file parsed.
+  local function state(n)
+    if not states[n] then
+      local path = vim.fn.tempname() .. ".org"
+      vim.fn.writefile(gen.clocks(n), path)
+      local st = { opts = vim.deepcopy(timeline.defaults), src = views.resolve_source(path), clocks = true }
+      timeline.build(st)
+      states[n] = st
+    end
+    return states[n]
+  end
+
+  it("builds the timeline with clocks in budget and linearly", function()
+    -- two plain dates per clock, their strings memoized (68 ms on an M1
+    -- Ultra; 95 ms before, 5 ms before the port to org.api)
+    local st = state(32000)
+    local rows
+    budget("timeline with 32,000 clocks", 700, function()
+      rows = timeline.build(st)
+    end)
+    eq(80, #rows)
+    local days = vim.tbl_count(rows[1].clock_days)
+    ok(days > 250, days)
+    linear("timeline with clocks", 16000, function(s)
+      timeline.build(s)
+    end, state)
   end)
 end)
 

@@ -237,11 +237,11 @@ function M.change_all_lines(old, bufnr, lnum, opts)
   end
   local ok, cols = pcall(require, "org.agenda.columns")
   if ok then
-    pcall(cols.refresh_if_active)
+    utils.try("agenda: refresh column view", cols.refresh_if_active)
   end
   -- org-agenda-finalize, narrowed to each line, runs the finalize hook
   local data = { buf = M.state.buf, filters = vim.deepcopy(M.state.filters), filter = M.filter_desc(), lines = changed }
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgAgendaFinalize", data = data, modeline = false })
+  utils.user_event("OrgAgendaFinalize", data)
   return true
 end
 

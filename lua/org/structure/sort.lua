@@ -293,7 +293,16 @@ local function sort_list(bufnr, lnum, choice, with_case)
   for i = #slots, 1, -1 do
     set_lines(bufnr, slots[i].s, slots[i].e, records[i].lines)
   end
-  lists.repair(bufnr, sibs[1].lnum)
+  -- Emacs sorts from point-min of the list narrowed from its start, then
+  -- repairs it there: only that list, and the cursor ends at column 0 of
+  -- its first line, or after its bullet when that is at column 0 and the
+  -- repair changed it (insert-before-markers)
+  local first = sibs[1].lnum
+  local before = get_lines(bufnr, first, first)[1]
+  vim.api.nvim_win_set_cursor(0, { first, 0 })
+  lists.repair_list(bufnr, first)
+  local col = lists.line_start_col_after(before, get_lines(bufnr, first, first)[1])
+  vim.api.nvim_win_set_cursor(0, { first, col })
 end
 
 --- Sort entries (org-sort-entries): the children of the current headline,

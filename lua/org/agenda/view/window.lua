@@ -414,7 +414,7 @@ function M.open(view, opts)
   pcall(vim.api.nvim_win_set_cursor, M.state.win, { target, 0 })
   local ok, cols = pcall(require, "org.agenda.columns")
   if ok then
-    pcall(cols.refresh_if_active, true)
+    utils.try("agenda: refresh column view", cols.refresh_if_active, true)
   end
 end
 
@@ -513,7 +513,7 @@ function M.redo(opts)
   -- when org-agenda-view-columns-initially is set (even after `q` in it)
   local ok, cols = pcall(require, "org.agenda.columns")
   if ok and not cols.active() then
-    pcall(cols.refresh_if_active, true)
+    utils.try("agenda: refresh column view", cols.refresh_if_active, true)
   end
 end
 

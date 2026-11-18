@@ -1502,11 +1502,7 @@ function M.enable(bufnr)
   })
   utils.notify("Orgtbl mode enabled")
   -- orgtbl-mode-hook
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgtblMode",
-    data = { enabled = true, bufnr = bufnr },
-    modeline = false,
-  })
+  utils.user_event("OrgtblMode", { enabled = true, bufnr = bufnr })
 end
 
 --- Disable orgtbl-mode in `bufnr`.
@@ -1519,11 +1515,7 @@ function M.disable(bufnr)
   pcall(vim.api.nvim_del_augroup_by_name, "orgtbl." .. bufnr)
   require("org.table.typing").detach(bufnr)
   -- orgtbl-mode-hook
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgtblMode",
-    data = { enabled = false, bufnr = bufnr },
-    modeline = false,
-  })
+  utils.user_event("OrgtblMode", { enabled = false, bufnr = bufnr })
 end
 
 --- Toggle orgtbl-mode, the table editor for buffers that are not org

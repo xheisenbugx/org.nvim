@@ -293,3 +293,53 @@ describe("views_util watch", function()
     ok(msgs[1]:find("boom", 1, true))
   end)
 end)
+
+describe("views_util on org.api", function()
+  with_config({ todo_keywords = { "TODO NEXT | DONE" } })
+
+  it("turns day numbers into calendar days as org.date does", function()
+    local date = require("org.date")
+    for n = -800, 30000, 37 do
+      local y, m, d = views.civil(n)
+      eq({ date.civil_from_days(n) }, { y, m, d }, n)
+      eq(date.from_days(n):weekday(), views.weekday(n), n)
+    end
+    local n = date.days_from_civil(2026, 3, 5)
+    for _, fmt in ipairs({ "%b %d", "%b %d %Y", "%a %b %d", "%a %Y-%m-%d" }) do
+      eq(date.from_days(n):strftime(fmt), views.format_day(n, fmt))
+    end
+  end)
+
+  it("collects handles of a source, with the fields asked for", function()
+    local buf = org_buffer({ "* TODO One :x:", "  DEADLINE: <2026-10-05 Mon>", "* NEXT Two", "* DONE Three" })
+    local src = views.resolve_source("buffer")
+    local hs = views.collect(src, { todo = { "TODO", "NEXT" }, fields = { "deadline" } })
+    eq({ "One", "Two" }, {
+      hs[1].title,
+      hs[2].title,
+    })
+    eq("2026-10-05", hs[1].deadline.date)
+    eq(nil, hs[1].category)
+    -- a tag filter has the tags it needs
+    hs = views.collect(src, { tag = "X", fields = {} })
+    eq(1, #hs)
+    eq({ filename = nil, bufnr = buf, lnum = 1, raw = "* TODO One :x:" }, views.handle_ref(hs[1]))
+    local sf = views.source_files(src)
+    eq({ buf }, sf.files)
+    ok(sf.key)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    eq({}, views.collect(src))
+  end)
+
+  it("saves after an edit as the view or agenda.save_after_edit says", function()
+    eq(true, views.save_after_edit(true))
+    eq(false, views.save_after_edit(false))
+    local cfg = require("org.config").opts.agenda
+    local saved = cfg.save_after_edit
+    cfg.save_after_edit = true
+    eq(true, views.save_after_edit(nil))
+    cfg.save_after_edit = false
+    eq(false, views.save_after_edit(nil))
+    cfg.save_after_edit = saved
+  end)
+end)

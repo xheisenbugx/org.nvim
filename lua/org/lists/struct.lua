@@ -438,6 +438,59 @@ function M.repair(bufnr, lnum)
   end
 end
 
+--- org-list-repair narrowed to the (sub-)list whose first item starts on
+--- `lnum`, as org-sort-list runs it: that list and its sub-lists are a
+--- list of their own, so its items are top-level items aligned to the
+--- first one, and the items around it (and their checkboxes) stay as
+--- they are. No ORDERED rule (org-list-write-struct).
+function M.repair_list(bufnr, lnum)
+  bufnr = curbuf(bufnr)
+  local struct, first = M.struct_at(bufnr, lnum)
+  if not struct or not first then
+    return
+  end
+  local sibs = new_siblings_from(struct, first)
+  local stop = sibs[#sibs].end_lnum
+  local outer = first.parent -- what struct_at set its `par` to
+  local items = {}
+  for _, it in ipairs(struct.items) do
+    if it.lnum >= first.lnum and it.lnum <= stop then
+      if it.par == outer then
+        it.par = nil
+      end
+      items[#items + 1] = it
+      it.idx = #items
+    end
+  end
+  write_struct({
+    bufnr = bufnr,
+    items = items,
+    first = first.lnum,
+    last = stop,
+    lines = get_lines(bufnr, first.lnum, stop),
+  }, false)
+end
+
+--- Column where point at the start of an item's line ends when
+--- org-list-struct-apply-struct rewrites that line from `before` to
+--- `after` (org.nvim's apply_struct keeps column 0). Emacs puts a changed
+--- bullet back with insert-before-markers: point at a bullet at column 0
+--- goes past the new one. A checkbox removed after it (no counter between)
+--- then takes the blank before the box, and point back with it.
+---@param before string
+---@param after string
+---@return integer
+function M.line_start_col_after(before, after)
+  local b, a = M.parse_item_line(before), M.parse_item_line(after)
+  if not b or not a or b.ind_len > 0 or b.bullet_ws == a.bullet_ws then
+    return 0
+  end
+  if b.checkbox and not a.checkbox and not a.counter then
+    return #a.bullet
+  end
+  return #a.bullet_ws
+end
+
 shared.apply_struct = apply_struct
 shared.bullet_string = bullet_string
 shared.fix_box = fix_box

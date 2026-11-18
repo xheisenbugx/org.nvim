@@ -369,11 +369,7 @@ function M.insert_heading_at_point(opts)
   end
   tb:apply()
   -- org-insert-heading-hook
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgInsertHeading",
-    data = { bufnr = bufnr, lnum = cursor()[1] },
-    modeline = false,
-  })
+  utils.user_event("OrgInsertHeading", { bufnr = bufnr, lnum = cursor()[1] })
 end
 
 --- The TODO keyword of a new TODO heading (org-insert-todo-heading): the
