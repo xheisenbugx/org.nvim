@@ -33,7 +33,82 @@ function M.is_habit(hl)
   return style ~= nil and style:lower() == "habit"
 end
 
+--- A state change log line (`- State "DONE" from "TODO" [date]`): the
+--- keyword, then the last inactive timestamp of the line, as
+--- org-habit-parse-todo's regexp takes it (`State "%s".*` then
+--- org-ts-regexp-inactive).
+M.STATE_LOG = '^%s*%-%s+State%s+"([^"]+)".*(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])'
+
+-- org-habit-parse-todo's escapes of the done note heading as Lua patterns
+-- (org-replace-escapes): %t / %d an inactive timestamp
+-- (org-ts-regexp-inactive), %T / %D an active one (org-ts-regexp), %s / %S
+-- a quoted state, %u / %U any text
+local NOTE_ESCAPES = {
+  t = "(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])",
+  d = "(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])",
+  T = "(<%d%d%d%d%-%d%d%-%d%d[^>]*>)",
+  D = "(<%d%d%d%d%-%d%d%-%d%d[^>]*>)",
+  s = '"%S+"',
+  S = '"%S+"',
+  u = ".-",
+  U = ".-",
+}
+
+-- the length of the Emacs regexp each escape becomes, which a width pads
+-- with spaces: org-ts-regexp-inactive, org-ts-regexp, "\"\\S-+\"" and ".*?"
+local REGEXP_LENGTH = { t = 69, d = 69, T = 67, D = 67, s = 6, S = 6, u = 3, U = 3 }
+
+-- the patterns built, by heading
+local note_patterns = {}
+
+--- The Lua pattern of a "done" note line (`- CLOSING NOTE [date]`), its
+--- first capture the date, built from `log_note_headings.done` as
+--- org-habit-parse-todo builds its regexp; nil when the heading has no
+--- timestamp (Emacs signals an error then, |org-differences|).
+---
+--- An escape with a width (`%-12s`) is padded as org-replace-escapes pads
+--- the regexp text it becomes: with the spaces the width leaves over its
+--- length (6 for `%s`), after it for `%-12s`, before it for `%12s`. The
+--- note written for "DONE" has as many; a longer state has fewer and isn't
+--- read, as in Emacs. A precision (`%.3s`) is no escape there (regexp-quote
+--- turned its dot into `\.`), so it is text here too.
+---@return string|nil
+function M.done_note_pattern()
+  local heading = (require("org.config").opts.log_note_headings or {}).done
+  if type(heading) ~= "string" then
+    return nil
+  end
+  local pat = note_patterns[heading]
+  if pat == nil then
+    pat = false
+    if heading:find("%%%-?%d*[tTdD]") then
+      local out, pos = {}, 1
+      for s, left, width, key, e in heading:gmatch("()%%(%-?)(%d*)([tTdDsSuU])()") do
+        out[#out + 1] = vim.pesc(heading:sub(pos, s - 1))
+        local pad = (" "):rep(math.max(0, (tonumber(width) or 0) - REGEXP_LENGTH[key]))
+        if left == "-" then
+          out[#out + 1] = NOTE_ESCAPES[key] .. pad
+        else
+          out[#out + 1] = pad .. NOTE_ESCAPES[key]
+        end
+        pos = e
+      end
+      out[#out + 1] = vim.pesc(heading:sub(pos))
+      pat = "^%s*%-%s+" .. table.concat(out)
+    end
+    note_patterns[heading] = pat
+  end
+  return pat or nil
+end
+
 --- Collect habit data: current schedule, intervals and completion days.
+---
+--- The completions are the log lines org-habit-parse-todo reads: changes
+--- to a done keyword and "done" notes (`log_note_headings.done`), at most
+--- `preceding_days + following_days` of them, from the heading down with
+--- `log_states_order_reversed`, else from the end of the entry up. The
+--- entry ends at the next heading line, an inline task's included
+--- (org-entry-end-position).
 ---@return table|nil { scheduled_days, min_days, max_days, has_max, type, done_days = set }
 function M.parse(hl)
   local s = hl.planning.scheduled
@@ -45,16 +120,28 @@ function M.parse(hl)
   local max_days = r.max and to_days(r.max.value, r.max.unit) or min_days
   local done_days = {}
   local cfg = hl.file.settings.todo
-  for i = hl.line + 1, hl.body_end do
-    local line = hl.file.lines[i]
-    local kw, ts = line:match('^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])')
+  local note = M.done_note_pattern()
+  local hcfg = require("org.config").opts.agenda.habits or {}
+  local maxdays = (hcfg.preceding_days or 21) + (hcfg.following_days or 7)
+  local first, last, step = hl.line + 1, hl:entry_end(), 1
+  if not require("org.edit").log_states_reversed(hl.file) then
+    first, last, step = last, first, -1
+  end
+  local lines = hl.file.lines
+  local count = 0
+  for i = first, last, step do
+    if count >= maxdays then
+      break
+    end
+    local line = lines[i]
+    local kw, ts = line:match(M.STATE_LOG)
     if not (kw and cfg:is_done(kw)) then
-      -- the "done" note heading (CLOSING NOTE %t)
-      ts = line:match("^%s*%-%s+CLOSING NOTE%s+(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])")
+      ts = note and line:match(note) or nil
     end
     local d = ts and date.parse(ts)
     if d then
       done_days[d:days()] = true
+      count = count + 1
     end
   end
   -- the CLOSED planning stamp is no completion: org-habit-parse-todo only

@@ -2144,7 +2144,12 @@ For each day, per file, in this order (org-agenda-get-day-entries):
 - Habits (`:STYLE: habit` and a repeater) in today's agenda, without a
   leader, with a consistency graph from column
   `agenda.habits.graph_column` (40) that overwrites the end of the line
-  (org-habit).
+  (org-habit). A habit is done on the days of its changes to a done
+  keyword and of its "done" notes, read with the heading
+  `log_note_headings.done` sets (`CLOSING NOTE %t` by default); at most
+  `preceding_days + following_days` of them, the first ones under the
+  heading (the last ones with `log_states_order_reversed = false`), as
+  org-habit-parse-todo reads them.
 - A time grid (`agenda.time_grid`, org-agenda-time-grid) with the current
   time; the `remove-match` flag hides grid lines at the time of an entry.
 - Entries under ARCHIVE-tagged or COMMENT headlines are excluded
@@ -9215,7 +9220,9 @@ api.completed([query])      When the matching entries were marked done,
                             `{ date, type, headline }`, `type` "closed"
                             (CLOSED), "state" (a `- State "DONE" ...`
                             log line of a change to a done keyword),
-                            "note" (a `- CLOSING NOTE` line) or
+                            "note" (a "done" note line, `- CLOSING
+                            NOTE [date]` or the heading
+                            `log_note_headings.done` sets) or
                             "last_repeat" (the LAST_REPEAT property of a
                             repeating entry). One task marked done can
                             give several (its CLOSED date and its state
@@ -9512,6 +9519,11 @@ Differences from Emacs:
   after the command). As in Emacs, a cancelled note (C-c C-k) logs
   nothing and the change itself stays. An empty `add_note` note stores
   nothing (Emacs stores the bare "Note taken on" heading).
+- Habits: when `log_note_headings.done` has no timestamp (`"Done by %u"`,
+  or `""`), a habit's done days are its changes to a done keyword only,
+  and the "done" notes are not read (Emacs's org-habit-parse-todo signals
+  wrong-type-argument there, and the agenda stops). `api.completed` does
+  the same.
 - Table formulas: GNU Calc is reimplemented in Lua for what tables use
   (|org-table-calc|): numbers, dates, complex numbers, HMS forms, error
   forms, intervals, modulo forms, vectors and matrices, `usimplify` with

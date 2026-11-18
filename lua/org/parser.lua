@@ -1553,6 +1553,18 @@ function Headline:is_hidden_by_ancestor()
   return false
 end
 
+--- The last line of the entry as org-entry-end-position finds it (the line
+--- before the next heading line): unlike `body_end`, an inline task ends
+--- it, and an inline task's own entry ends before its END line.
+---@return integer
+function Headline:entry_end()
+  if self.inlinetask then
+    return self.body_end
+  end
+  local nxt = self.file.headlines[self.index + 1]
+  return nxt and nxt.line - 1 or #self.file.lines
+end
+
 function Headline:id()
   return self.properties.ID
 end
