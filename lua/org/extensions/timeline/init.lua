@@ -4,14 +4,14 @@
 --- scheduled day to the deadline (or as long as its Effort), the deadline
 --- as ◆, today marked, overdue tasks in the error colour and, optionally,
 --- the days the task was clocked.
+--- Built on `org.api` only (`:h org-api`).
 ---
 --- ```lua
 --- require("org").setup({ extensions = { timeline = { zoom = "week" } } })
 --- ```
 
+local api = require("org.api")
 local views = require("org.extensions.views_util")
-local date = require("org.date")
-local utils = require("org.utils")
 
 local M = {}
 
@@ -159,8 +159,11 @@ local function effort_days(minutes, o)
   return math.max(1, math.ceil(minutes / ((o.hours_per_day or 8) * 60)))
 end
 
+--- Minutes into its day of a date with a time, else nil.
+---@param ts org.api.Date|nil
+---@return integer|nil
 local function time_of(ts)
-  return ts and ts:has_time() and (ts.hour * 60 + (ts.min or 0)) or nil
+  return ts and ts.hour and (ts.hour * 60 + (ts.min or 0)) or nil
 end
 
 --- The row of a headline, or nil when it has no date to show:
@@ -168,26 +171,19 @@ end
 --- `start_min` / `finish_min` when known, `deadline` and `deadline_min`,
 --- `overdue`, `done`, `clock_days` and, for a repeating task, `rep`
 --- (the repeating timestamp, whose later occurrences are drawn too).
----@param hl org.Headline
+---@param h org.api.Headline
 ---@param o table options
 ---@param today integer
----@param clocks boolean
-function M.task(hl, o, today, clocks)
-  local sts, dts = hl.planning.scheduled, hl.planning.deadline
-  local s = sts and sts:days()
-  local d = dts and dts:days()
-  local done = hl:is_done()
-  local clock_days
-  if clocks then
-    for _, c in ipairs(hl.clocks) do
-      clock_days = clock_days or {}
-      clock_days[c.start:days()] = true
-    end
-  end
+---@param clock_days? table<integer, true> the days it was clocked (nil: not shown)
+function M.task(h, o, today, clock_days)
+  local sts, dts = h.scheduled, h.deadline
+  local s = sts and sts.days
+  local d = dts and dts.days
+  local done = h.done
   if not s and not d and not clock_days then
     return nil
   end
-  local effort = views.effort(hl)
+  local effort = h.effort
   local ed = effort_days(effort, o)
   local smin, dmin = time_of(sts), time_of(dts)
   local start, finish, start_min, finish_min
@@ -224,9 +220,10 @@ function M.task(hl, o, today, clocks)
     end
   end
   return {
-    ref = views.ref(hl),
-    todo = hl.todo,
-    title = views.title(hl),
+    h = h,
+    ref = views.handle_ref(h),
+    todo = h.todo,
+    title = h.plain_title,
     start = start,
     finish = finish,
     start_min = start_min,
@@ -262,24 +259,64 @@ end
 ---@return table[] rows, string|nil err
 function M.build(st)
   local o = st.opts
-  local today = date.today_days()
-  local files = views.files(st.src)
-  st.file_set = views.file_set(files)
-  st.key = views.files_key(files)
-  local hls, err = views.collect_parsed(st.src, {
-    files = files,
+  local today = api.today().days
+  local sf = views.source_files(st.src)
+  st.file_set, st.key = sf.file_set, sf.key
+  local rows = {}
+  -- the tasks with a date (and DONE ones only with show_done: done =
+  -- false leaves them out)
+  local done
+  if not o.show_done then
+    done = false
+  end
+  local q, err = views.api_query(st.src, {
     query = o.query,
     filter = st.filter,
     tag = st.tag,
-    pred = function(hl)
-      return o.show_done or not hl:is_done()
-    end,
+    done = done,
+    planned = true,
+    fields = { "scheduled", "deadline", "effort" },
   })
-  local rows = {}
-  for i, hl in ipairs(hls) do
-    local t = M.task(hl, o, today, st.clocks)
+  if not q then
+    return rows, err
+  end
+  local hs
+  hs, err = api.headlines(q)
+  local list = hs or {}
+  local function key(h)
+    return tostring(h.file or h.bufnr) .. ":" .. h.line
+  end
+  -- the days each task was clocked, dated or not: those without a date
+  -- get a row of their clocks
+  local clocked
+  if st.clocks and hs then
+    clocked = {}
+    local seen = {}
+    for _, h in ipairs(hs) do
+      seen[key(h)] = true
+    end
+    q.planned = nil
+    for _, c in ipairs(api.clocks(q) or {}) do
+      local k = key(c.headline)
+      if not clocked[k] then
+        clocked[k] = {}
+        if not seen[k] then
+          seen[k] = true
+          list[#list + 1] = c.headline
+        end
+      end
+      clocked[k][c.start.days] = true
+    end
+  end
+  -- file order: the source's files, then the lines
+  local rank = {}
+  for i, where in ipairs(sf.files) do
+    rank[where] = i
+  end
+  for _, h in ipairs(list) do
+    local t = M.task(h, o, today, clocked and clocked[key(h)])
     if t then
-      t.order = i
+      t.order = (rank[h.file or h.bufnr] or 0) * 1e8 + h.line
       rows[#rows + 1] = t
     end
   end
@@ -291,8 +328,9 @@ end
 --- `to`: one per event, a span per occurrence.
 ---@return table[]
 function M.event_rows(from, to)
-  local ok, ics = pcall(require, "org.extensions.ics")
-  if not ok then
+  -- the ics extension, when it is on (through the extension registry)
+  local ics = require("org.extensions").loaded.ics --[[@as table|nil]]
+  if not (ics and ics.agenda_items) then
     return {}
   end
   local items_ok, items = pcall(ics.agenda_items, from, to, {})
@@ -359,7 +397,7 @@ end
 --- line up.
 local function glyphs()
   local function pick(ch, alt)
-    return utils.width(ch) == 1 and ch or alt
+    return views.width(ch) == 1 and ch or alt
   end
   return {
     v = "│",
@@ -377,7 +415,7 @@ local G = glyphs()
 --- `ch` repeated over `cells` display cells; a cell it can't fill (it is
 --- two cells wide) is a space.
 local function fill(ch, cells)
-  local cw = math.max(1, utils.width(ch))
+  local cw = math.max(1, views.width(ch))
   local n = math.max(0, math.floor(cells / cw))
   return string.rep(ch, n) .. string.rep(" ", math.max(0, cells - n * cw))
 end
@@ -385,7 +423,7 @@ end
 --- Number of cells that fit in the chart area: at least 4, or 1 at hour
 --- zoom, where a cell is a whole day.
 local function cell_count(st)
-  local width = win_width(st) - label_width(st) - 2 - utils.width(G.v)
+  local width = win_width(st) - label_width(st) - 2 - views.width(G.v)
   local w = zoom(st).width
   return math.max(w > 3 and 1 or 4, math.floor(width / w))
 end
@@ -466,10 +504,10 @@ local function row_features(st, row, n, today, last_day)
   end
   if row.rep and row.start then
     -- later occurrences: the whole bar (and deadline) shifted
-    local base = row.rep:days()
+    local base = row.rep.days
     local len = row.finish - row.start
-    for _, occ in ipairs(date.occurrences(row.rep, s0 - len, last_day + len)) do
-      local delta = occ:days() - base
+    for _, occ in ipairs(api.occurrences(row.rep, { days = s0 - len }, { days = last_day + len }) or {}) do
+      local delta = occ.days - base
       if delta > 0 then
         cover({
           start = row.start + delta,
@@ -604,29 +642,30 @@ local function axis(st, n, today)
   local labels = {}
   for i = 0, n - 1 do
     local a, b = cell_days(st, i)
-    local d = date.from_days(a)
+    local _, _, dday = views.civil(a)
+    local wday = views.weekday(a)
     local pos = i * w + 1
     -- a month label where the month starts (the first cell always)
-    local md = i == 0 and d or date.from_days(b)
-    local key = md.year * 12 + md.month
+    local my, mm = views.civil(i == 0 and a or b)
+    local key = my * 12 + mm
     if key ~= last_month then
-      labels[#labels + 1] = { pos = pos, month = md.month, year = md.year, first = i == 0 }
+      labels[#labels + 1] = { pos = pos, month = mm, year = my, first = i == 0 }
       last_month = key
     end
     if z.name == "hour" then
-      write(days, pos, string.format("%s %d", date.DAY_NAMES[d:weekday()], d.day))
+      write(days, pos, string.format("%s %d", views.DAY_NAMES[wday], dday))
       for h = 0, 21, 3 do
         write(wdays, pos + h, tostring(h))
       end
     elseif z.name == "day" then
-      write(days, pos, string.format("%2d", d.day))
-      write(wdays, pos, date.DAY_NAMES[d:weekday()]:sub(1, 2))
+      write(days, pos, string.format("%2d", dday))
+      write(wdays, pos, views.DAY_NAMES[wday]:sub(1, 2))
     elseif z.name == "week" then
-      if d:weekday() == 1 then
-        write(days, pos, tostring(d.day))
+      if wday == 1 then
+        write(days, pos, tostring(dday))
       end
     else
-      if d.day <= 7 then
+      if dday <= 7 then
         write(days, pos, "┊")
       end
     end
@@ -637,7 +676,7 @@ local function axis(st, n, today)
   -- labels that would run into the next one are shortened or left out
   for k, l in ipairs(labels) do
     local room = (labels[k + 1] and labels[k + 1].pos or total + 1) - l.pos - 1
-    local label = date.MONTH_NAMES[l.month]
+    local label = views.MONTH_NAMES[l.month]
     if (l.first or l.month == 1) and room >= #label + 5 then
       label = label .. " " .. l.year
     end
@@ -689,7 +728,7 @@ function M.draw(st)
   end
   local o = st.opts
   G = glyphs()
-  local today = date.today_days()
+  local today = api.today().days
   local n = cell_count(st)
   st.cells = n
   local z = zoom(st)
@@ -702,7 +741,7 @@ function M.draw(st)
   end
   st.rows = rows
   local cv = views.Canvas.new()
-  local first, last = date.from_days(st.start), date.from_days(last_day)
+  local first_year, last_year = views.civil(st.start), views.civil(last_day)
   cv:add({
     { " Timeline", "OrgTimelineTitle" },
     { "  " .. views.source_label(st.src), "OrgTimelineHint" },
@@ -710,8 +749,8 @@ function M.draw(st)
       string.format(
         "  · %s · %s – %s",
         z.name,
-        first:strftime(first.year == last.year and "%b %d" or "%b %d %Y"),
-        last:strftime("%b %d %Y")
+        views.format_day(st.start, first_year == last_year and "%b %d" or "%b %d %Y"),
+        views.format_day(last_day, "%b %d %Y")
       ),
       "OrgTimelineHint",
     },
@@ -754,13 +793,12 @@ function M.draw(st)
   local bgs = {}
   for i = 0, n - 1 do
     local a, b = cell_days(st, i)
-    local we = z.days == 1 and z.width > 1 and date.from_days(a):weekday() >= 6
+    local we = z.days == 1 and z.width > 1 and views.weekday(a) >= 6
     local t = today >= a and today <= b
     bgs[i] = (we and t) and "wet" or (we and "we") or (t and "t") or nil
   end
   st.first_row_line = #cv.lines + 1
   st.line_rows = {}
-  local todo_cfg = require("org.todo_keywords").global()
   for _, row in ipairs(rows) do
     local lnum = cv:line()
     st.line_rows[lnum] = row
@@ -768,8 +806,8 @@ function M.draw(st)
     -- the label is `lw` cells: keyword and title cut to fit together
     local room = lw
     if row.todo then
-      local group = views.todo_group(row.todo, todo_cfg)
-      local kw_w = utils.width(row.todo)
+      local group = views.todo_group(row.todo)
+      local kw_w = views.width(row.todo)
       if kw_w < room then
         cv:put(row.todo, group)
         cv:put(" ")
@@ -836,7 +874,7 @@ function M.refresh(lazy)
   if not st then
     return
   end
-  if lazy == true and st.key and st.key == views.files_key(views.files(st.src)) then
+  if lazy == true and st.key and st.key == views.source_files(st.src).key then
     return
   end
   M.render(st)
@@ -848,7 +886,7 @@ local function start_for(st, day, offset)
   local s = day - offset * z.days
   if z.days == 7 then
     -- weeks start on Monday
-    s = s - (date.from_days(s):weekday() - 1)
+    s = s - (views.weekday(s) - 1)
   end
   return s
 end
@@ -867,7 +905,7 @@ end
 --- or in the middle when fewer cells fit (at hour zoom).
 local function start_today(st)
   local before = math.min(st.opts.days_before or 3, math.floor((cell_count(st) - 1) / 2))
-  return start_for(st, date.today_days(), math.max(0, before))
+  return start_for(st, api.today().days, math.max(0, before))
 end
 
 --- Zoom in (`dir` = -1) or out (1), keeping today in view when it is,
@@ -881,7 +919,7 @@ function M.zoom(dir)
   if nz == st.zoom then
     return
   end
-  local today = date.today_days()
+  local today = api.today().days
   local z = zoom(st)
   local on_screen = today >= st.start and today < st.start + st.cells * z.days
   local mid = st.start + math.floor(st.cells / 2) * z.days
@@ -916,7 +954,7 @@ function M.jump()
   local row = M.row_at_cursor()
   if st and row then
     if not row.ref then
-      utils.warn("timeline: a calendar event has no heading to open")
+      views.warn("timeline: a calendar event has no heading to open")
       return
     end
     views.jump(row.ref, st.how)
@@ -932,17 +970,19 @@ function M.plan(kind)
     return
   end
   if not row.ref then
-    utils.warn("timeline: a calendar event can't be rescheduled here")
+    views.warn("timeline: a calendar event can't be rescheduled here")
     return
   end
-  local target = views.target(row.ref)
-  if not target then
-    return
+  -- C-c C-s / C-c C-d: the date prompt asks for the date
+  local o = { interactive = true, save = views.save_after_edit(st.opts.save) }
+  local ok, err
+  if kind == "deadline" then
+    ok, err = row.h:set_deadline(nil, o)
+  else
+    ok, err = row.h:schedule(nil, o)
   end
-  local ts = require("org.timestamps")
-  local res = kind == "deadline" and ts.deadline(target) or ts.schedule(target)
-  if res then
-    views.after_edit(target.bufnr, st.opts.save)
+  if not ok and err then
+    views.warn("timeline: " .. err)
   end
   if current() == st then
     M.render(st)
@@ -989,7 +1029,7 @@ function M.open(o)
   end
   local src, err = views.resolve_source(o.source or eopts.source)
   if not src then
-    utils.error("timeline: " .. err)
+    views.error("timeline: " .. err)
     return
   end
   M.close()
@@ -1084,7 +1124,7 @@ function M.parse_args(args)
     elseif not o.zoom and zoom_index(w) then
       o.zoom = w
     elseif not o.source and #rest == 0 and views.is_path(w) then
-      o.source = utils.expand(w)
+      o.source = views.expand(w)
     else
       rest[#rest + 1] = w
     end
@@ -1110,7 +1150,7 @@ function M.command(args)
   if o.filter then
     local _, err = views.compile_filter(o.filter)
     if err then
-      utils.error(err)
+      views.error(err)
       return
     end
   end
