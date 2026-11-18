@@ -1143,7 +1143,10 @@ sub-list indentation, circular item motion and the automatic rules.
 <S-Right/Left>  (ctx) On an item: cycle the bullet style.
 <C-c>-          (ctx) On an item: cycle the bullet style; elsewhere toggle
                 items (|org-structure|).
-<prefix>hb      Cycle the bullet style.
+<prefix>hb      Cycle the bullet style. On a description item
+                (`- term :: text`) the cycle skips the numbered and
+                lettered bullets, as in Emacs: `-`, `+`, then `*` when
+                the list is indented.
 :Org beginning_of_item / end_of_item    Go to the start / end of the item
                 (org-beginning-of-item, org-end-of-item; unbound, as in
                 Emacs).

@@ -11,9 +11,6 @@ local dir = P.dir .. "/lists"
 -- Cases that still differ from Emacs, with the reason. A case listed here
 -- must keep failing (remove it once it matches).
 local KNOWN = {
-  ["bullet-desc"] = "C-c - on a description list: org-cycle-list-bullet leaves 1. 1) (and letters) out when"
-    .. " org-at-item-description-p, which matches here, so Emacs cycles - + - and gives +; org.nvim's"
-    .. " cycle_bullet (lists/convert.lua, desc = false) numbers it: - + 1. 1)",
   ["check-remove-first"] = "C-u C-c C-c at the start of the first item (the cursor on its bullet): Emacs's"
     .. " org-element-context there is the plain list, and org-ctrl-c-ctrl-c's plain-list branch removes"
     .. " (or adds, from the first item's state) the checkbox of every item, the cookie becoming [0/0];"

@@ -482,3 +482,71 @@ describe("lists: list to headings with odd levels (org-list-to-subtree)", functi
     eq({ "#+STARTUP: odd", "* A", "*** B", "***** item", "******* sub", "text" }, buf_lines(buf))
   end)
 end)
+
+describe("lists: C-c - on a description list (org-cycle-list-bullet)", function()
+  -- org-cycle-list-bullet leaves 1. 1) and the letters out of the cycle
+  -- when org-at-item-description-p matches the item at point: after the
+  -- bullet (and a [@N] counter), the regexp \(\S-.+\)[ \t]+::\([ \t]+\|$\),
+  -- so a one-character term ("a :: b") doesn't count, while one after a
+  -- checkbox does. Every line below is what Emacs Org 9.8.12 gave.
+  local function cycle(lines, cursor, n, dir)
+    org_buffer(lines, cursor)
+    return cycle_n(n, dir)
+  end
+
+  it("cycles - and + at column 0, and *, too, when indented", function()
+    eq(
+      { "+ Apple :: a fruit", "- Apple :: a fruit", "+ Apple :: a fruit", "- Apple :: a fruit" },
+      cycle({ "- Apple :: a fruit", "- Carrot :: a veg" }, { 1, 0 }, 4)
+    )
+    eq(
+      { "  + Apple :: a fruit", "  * Apple :: a fruit", "  - Apple :: a fruit", "  + Apple :: a fruit" },
+      cycle({ "* H", "  - Apple :: a fruit", "  - Carrot :: a veg" }, { 2, 0 }, 4)
+    )
+    eq(
+      { "+ Apple :: a fruit", "- Apple :: a fruit", "+ Apple :: a fruit" },
+      cycle({ "- Apple :: a fruit", "- Carrot :: a veg" }, { 1, 0 }, 3, -1)
+    )
+  end)
+
+  it("leaves a numbered description list for +", function()
+    eq(
+      { "+ Apple :: a fruit", "- Apple :: a fruit" },
+      cycle({ "1. Apple :: a fruit", "2. Carrot :: a veg" }, { 1, 0 }, 2)
+    )
+  end)
+
+  it("looks at the item at point, not at the first one", function()
+    eq({ "+ Carrot", "2. Carrot", "2) Carrot", "- Carrot" }, cycle({ "- Apple :: a fruit", "- Carrot" }, { 2, 0 }, 4))
+    eq(
+      { "+ Carrot :: a veg", "- Carrot :: a veg", "+ Carrot :: a veg" },
+      cycle({ "- Apple", "- Carrot :: a veg" }, { 2, 0 }, 3)
+    )
+  end)
+
+  it("needs a term of two characters, a checkbox or a counter before it", function()
+    eq({ "+ a :: b", "1. a :: b", "1) a :: b" }, cycle({ "- a :: b" }, { 1, 0 }, 3))
+    eq({ "+ ab :: b", "- ab :: b" }, cycle({ "- ab :: b" }, { 1, 0 }, 2))
+    eq({ "+ [ ] a :: b", "- [ ] a :: b" }, cycle({ "- [ ] a :: b" }, { 1, 0 }, 2))
+    eq({ "+ [@3] Apple :: b", "- [@3] Apple :: b" }, cycle({ "- [@3] Apple :: b" }, { 1, 0 }, 2))
+    eq({ "+ Apple\t:: b", "- Apple\t:: b" }, cycle({ "- Apple\t:: b" }, { 1, 0 }, 2))
+    eq({ "+ Apple ::", "- Apple ::" }, cycle({ "- Apple ::", "- Carrot :: x" }, { 1, 0 }, 2))
+    eq({ "+ Apple ::x", "1. Apple ::x" }, cycle({ "- Apple ::x", "- Carrot" }, { 1, 0 }, 2))
+  end)
+
+  it("counts the term in characters, not bytes", function()
+    eq({ "+ é :: b", "1. é :: b" }, cycle({ "- é :: b", "- c" }, { 1, 0 }, 2))
+    eq({ "+ 甲 :: b", "1. 甲 :: b" }, cycle({ "- 甲 :: b", "- c" }, { 1, 0 }, 2))
+    eq({ "+ 甲乙 :: b", "- 甲乙 :: b" }, cycle({ "- 甲乙 :: b", "- c" }, { 1, 0 }, 2))
+  end)
+
+  describe("with alphabetical bullets", function()
+    with_config({ lists = { allow_alphabetical = true } })
+    it("leaves the letters out too", function()
+      eq(
+        { "  + Apple :: a fruit", "  * Apple :: a fruit", "  - Apple :: a fruit" },
+        cycle({ "* H", "  - Apple :: a fruit", "  - Carrot :: a veg" }, { 2, 0 }, 3)
+      )
+    end)
+  end)
+end)

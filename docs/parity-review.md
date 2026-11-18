@@ -388,16 +388,23 @@ in place.
 
 | Area | Cases | Same as Emacs | Known differences |
 | --- | --- | --- | --- |
-| Plain lists | 76 | 73 | 3 |
+| Plain lists | 76 | 74 | 2 |
 | Capture (each mode) | 51 | 51 | 0 |
 
 The differences, each a `KNOWN` entry of
 [the lists spec](../tests/spec/emacs_lists_parity_spec.lua):
 
-- C-c - on a description list numbers it; Emacs leaves `1.` and `1)` out
-  of the cycle for description items (org-cycle-list-bullet).
 - C-u C-c C-c with the cursor at the start of the first item toggles that
   item's checkbox; Emacs acts on the whole list there (org-ctrl-c-ctrl-c
   on the plain list removes or adds every item's checkbox).
 - After C-c ^ the cursor stays on its line; Emacs leaves it on the list's
   first item (org-sort-list).
+
+Fixed since, with hand-written cases in
+[`lists_emacs_spec.lua`](../tests/spec/lists_emacs_spec.lua):
+
+- C-c - (and S-left / right) on a description item numbered the list.
+  Emacs leaves `1.`, `1)` and the letters out of the cycle when
+  org-at-item-description-p matches the item at point, a regexp that
+  needs a term of two characters ("- a :: b" is numbered) or a checkbox
+  before it (org-cycle-list-bullet).
