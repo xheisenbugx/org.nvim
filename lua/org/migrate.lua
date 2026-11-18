@@ -1598,6 +1598,9 @@ function M.read_setup(text, chunkname)
         record(opts)
       end
       if type(s.config) == "function" then
+        -- (the user's config function, run where only setup() is recorded: it may
+        -- fail on what isn't there; the setup() calls made before it failed count)
+        -- lint: allow pcall: the user's config function, in a sandbox that only records setup()
         pcall(setfenv(s.config, env), s, opts or {})
       end
       return
@@ -1677,7 +1680,7 @@ function M.command(args)
   vim.bo[buf].swapfile = false
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   -- (a failing ftplugin, such as a missing tree-sitter parser, is no reason to stop)
-  pcall(function()
+  require("org.utils").try("migrate: set the filetype", function()
     vim.bo[buf].filetype = "lua"
   end)
   pcall(vim.api.nvim_buf_set_name, buf, "org-migrated-setup.lua")

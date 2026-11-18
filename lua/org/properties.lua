@@ -146,11 +146,7 @@ function M.entry_put(bufnr, lnum, name, value)
   else
     edit.set_property(bufnr, lnum, name, value)
   end
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgPropertyChanged",
-    data = { bufnr = bufnr, lnum = lnum, name = name, value = value },
-    modeline = false,
-  })
+  utils.user_event("OrgPropertyChanged", { bufnr = bufnr, lnum = lnum, name = name, value = value })
   return true
 end
 

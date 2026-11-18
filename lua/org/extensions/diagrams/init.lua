@@ -459,7 +459,7 @@ local function on_executed(ev)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
-  pcall(M.preview, bufnr, d.result)
+  require("org.utils").try("diagrams: preview", M.preview, bufnr, d.result)
 end
 
 ---------------------------------------------------------------------------
@@ -508,7 +508,7 @@ function M.setup(o)
   })
   if o.cache and (o.cache_max_age or o.cache_max_size) then
     vim.defer_fn(function()
-      pcall(M.prune_cache)
+      require("org.utils").try("diagrams: prune the cache", M.prune_cache)
     end, 2000)
   end
 end

@@ -125,7 +125,7 @@ I["plain-list"] = function(el, contents)
   local lines = vim.split((contents:gsub("\n$", "")), "\n", { plain = true })
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  pcall(require("org.lists").repair, buf, 1)
+  require("org.utils").try("export org: repair lists", require("org.lists").repair, buf, 1)
   lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   vim.api.nvim_buf_delete(buf, { force = true })
   return table.concat(lines, "\n") .. "\n"

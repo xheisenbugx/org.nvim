@@ -273,6 +273,7 @@ local function src_regions(bufnr, config)
           end
           local ok = pcall(cmd, string.format("syntax include @%s syntax/%s.vim", cluster, syn))
           if not ok then
+            -- lint: allow pcall: a language may have no Vim syntax at all
             pcall(cmd, string.format("syntax include @%s syntax/%s.lua", cluster, syn))
           end
           for _, var in ipairs(NO_CONCEAL) do

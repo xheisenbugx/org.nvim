@@ -63,11 +63,12 @@ function M.cmd_tags()
       end
     end
   end
-  pcall(function()
+  local utils = require("org.utils")
+  utils.try("cli info: tags of the options", function()
     define(tags.option_definitions())
   end)
   for _, f in ipairs(require("org.files").agenda_files()) do
-    pcall(function()
+    utils.try("cli info: tags of an agenda file", function()
       define(f:tag_definitions())
     end)
     for _, t in ipairs(f.settings.filetags or {}) do

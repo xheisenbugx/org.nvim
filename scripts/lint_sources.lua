@@ -30,6 +30,19 @@
 --                 "^[ \t]*CLOSED:" ...). The copies drifted (`%s` against
 --                 `[ \t]`, some without CLOSED); use
 --                 parser.is_planning_line (org-planning-line-re).
+--   pcall         pcall(f, ...) / xpcall(f, ...) as a statement, its result
+--                 dropped, when `f` isn't a vim.* function: the error goes
+--                 nowhere, not even to :Org log. A vim.* callee (vim.cmd,
+--                 vim.api.nvim_win_close) or one through a variable the
+--                 file assigns a vim.* value (`local api = vim.api` then
+--                 api.nvim_buf_del_extmark, `t = assert(vim.uv.new_timer())`
+--                 then t.stop, `proc = vim.system(cmd)` then proc.kill) is
+--                 UI or process cleanup that may fail harmlessly, except
+--                 nvim_exec_autocmds, which runs the user's handlers (use
+--                 utils.user_event). Use utils.try(where, f, ...), which
+--                 records the failure in :Org log, or check the result;
+--                 allow a harmless one (a job that may have exited, a
+--                 handle closed already) with its reason.
 --
 -- An audited, safe use is allowed by a comment on the same line or the
 -- line above, with a reason:
@@ -41,7 +54,14 @@
 
 local M = {}
 
-M.rules = { expand = true, glob = true, gsub = true, ["keyword-span"] = true, ["planning-line"] = true }
+M.rules = {
+  expand = true,
+  glob = true,
+  gsub = true,
+  ["keyword-span"] = true,
+  ["planning-line"] = true,
+  pcall = true,
+}
 
 ---------------------------------------------------------------------------
 -- Tokenizer
@@ -567,6 +587,120 @@ local function check_planning_line(toks, hits)
   end
 end
 
+-- pcall: `pcall(` / `xpcall(` where a statement starts, i.e. after a token
+-- that ends one (`)`, `end`, a name, a literal ...) rather than one that
+-- continues an expression (`=`, `,`, `return`, `and`, `if` ...).
+local STATEMENT_KEYWORDS = {
+  ["then"] = true,
+  ["do"] = true,
+  ["else"] = true,
+  ["end"] = true,
+  ["repeat"] = true,
+  ["break"] = true,
+  ["nil"] = true,
+  ["true"] = true,
+  ["false"] = true,
+}
+local STATEMENT_OPS = { [")"] = true, ["]"] = true, ["}"] = true, [";"] = true, ["::"] = true, ["..."] = true }
+
+local function starts_statement(prev)
+  if prev == nil or prev.t == "string" or prev.t == "number" then
+    return true
+  elseif prev.t == "op" then
+    return STATEMENT_OPS[prev.v] == true
+  elseif KEYWORDS[prev.v] then
+    return STATEMENT_KEYWORDS[prev.v] == true
+  end
+  return true
+end
+
+--- Does the expression at `k` start with vim (or assert(vim...)?
+local function vim_value(toks, k)
+  return is(toks[k], "name", "vim")
+    or (is(toks[k], "name", "assert") and is(toks[k + 1], "op", "(") and is(toks[k + 2], "name", "vim"))
+end
+
+--- Variables assigned a vim.* value anywhere in the file:
+--- `local api = vim.api`, `local api, fn = vim.api, vim.fn`,
+--- `timer = assert(vim.uv.new_timer())`, `proc = vim.system(cmd)`.
+local function vim_aliases(toks)
+  local aliases = {}
+  for i = 1, #toks do
+    if is(toks[i], "op", "=") then
+      -- the names before `=`: `a` or `a, b` (not a field, not a key of a
+      -- table constructor)
+      local names, j = {}, i - 1
+      while is(toks[j], "name") and not KEYWORDS[toks[j].v] do
+        table.insert(names, 1, toks[j].v)
+        if is(toks[j - 1], "op", ",") and is(toks[j - 2], "name") and not KEYWORDS[toks[j - 2].v] then
+          j = j - 2
+        else
+          break
+        end
+      end
+      local prev = toks[j - 1]
+      if #names > 0 and (is(prev, "name", "local") or starts_statement(prev)) then
+        -- the first token of each expression of the list
+        local k, n, depth = i + 1, 1, 0
+        if vim_value(toks, k) then
+          aliases[names[1]] = true
+        end
+        while k <= #toks and n < #names do
+          local tk = toks[k]
+          if tk.t == "op" and OPEN[tk.v] then
+            depth = depth + 1
+          elseif tk.t == "op" and (tk.v == ")" or tk.v == "]" or tk.v == "}") then
+            depth = depth - 1
+          elseif depth == 0 and is(tk, "op", ",") then
+            n = n + 1
+            if vim_value(toks, k + 1) then
+              aliases[names[n]] = true
+            end
+          elseif depth == 0 and tk.t == "name" and KEYWORDS[tk.v] and not STATEMENT_KEYWORDS[tk.v] then
+            break
+          end
+          k = k + 1
+        end
+      end
+    end
+  end
+  return aliases
+end
+
+local function check_pcall(toks, hits)
+  local aliases
+  for i = 1, #toks do
+    local tk = toks[i]
+    if
+      is(tk, "name")
+      and (tk.v == "pcall" or tk.v == "xpcall")
+      and is(toks[i + 1], "op", "(")
+      and starts_statement(toks[i - 1])
+    then
+      local args = call_args(toks, i + 1)
+      local f = args[1]
+      local callee = f and dotted(toks, f[1], f[2])
+      local root = callee and callee:match("^[%w_]+")
+      aliases = aliases or vim_aliases(toks)
+      local vim_fn = root and (root == "vim" or aliases[root])
+      if not vim_fn or callee:match("nvim_exec_autocmds$") then
+        local what = callee or (f and is(toks[f[1]], "name", "function") and "function() ... end")
+          or (f and src_text(toks, f[1], f[2]))
+          or "?"
+        hits[#hits + 1] = {
+          line = tk.line,
+          rule = "pcall",
+          msg = tk.v
+            .. "("
+            .. what
+            .. ", ...) drops its error: use utils.try(where, f, ...) so it reaches :Org log,"
+            .. " or allow it with the reason the failure is harmless",
+        }
+      end
+    end
+  end
+end
+
 ---------------------------------------------------------------------------
 -- Allow comments
 ---------------------------------------------------------------------------
@@ -599,6 +733,7 @@ function M.check(src)
   check_gsub(toks, raw)
   check_keyword_span(toks, raw)
   check_planning_line(toks, raw)
+  check_pcall(toks, raw)
   local allows, out = parse_allows(comments)
   for _, h in ipairs(raw) do
     local allowed = false

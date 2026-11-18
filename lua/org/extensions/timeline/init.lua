@@ -1091,7 +1091,7 @@ function M.open(o)
       if ev.event == "VimResized" then
         views.relayout(st.how)
       end
-      pcall(M.draw, st)
+      views.try("timeline: draw after a resize", M.draw, st)
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {

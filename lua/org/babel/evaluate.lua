@@ -39,7 +39,7 @@ local this_stack = {}
 
 --- Fire a `User` autocmd (Emacs hooks).
 function M.fire(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, modeline = false, data = data })
+  utils.user_event(pattern, data)
 end
 
 --- Evaluate `src` (a block, or the target of a call) with merged `args`,

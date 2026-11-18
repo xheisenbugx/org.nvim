@@ -248,7 +248,7 @@ function M.dblock(params, ctx)
     local bufnr, start = ctx.bufnr, ctx.start_line + #keywords + 1
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(bufnr) then
-        pcall(tbl.shrink, bufnr, start)
+        utils.try("columnview: shrink the table", tbl.shrink, bufnr, start)
       end
     end)
   end

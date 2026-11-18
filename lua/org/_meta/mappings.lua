@@ -228,6 +228,7 @@
 ---| "link_preview_refresh" # Refresh image previews in the buffer
 ---| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "list_make_subtree" # Turn the list into a subtree
+---| "log" # Show the session log of caught errors, for a bug report
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
 ---| "mark_subtree" # Select subtree

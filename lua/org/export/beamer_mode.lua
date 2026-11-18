@@ -63,7 +63,7 @@ local function install_property_hook()
     callback = function(ev)
       local d = ev.data or {}
       if d.name == "BEAMER_env" or d.name == "BEAMER_col" then
-        pcall(M.property_changed, d.bufnr, d.lnum, d.name, d.value)
+        utils.try("beamer mode: property changed", M.property_changed, d.bufnr, d.lnum, d.name, d.value)
       end
     end,
   })
@@ -219,7 +219,7 @@ function M.mode(bufnr, on)
     pcall(vim.api.nvim_set_hl, 0, "OrgBeamerTag", { default = true, link = "Special" })
     pcall(vim.api.nvim_set_hl, 0, "orgBeamerTag", { default = true, link = "OrgBeamerTag" })
     -- (the decorations draw the tags: org.ui.highlight.headline)
-    pcall(require("org.ui.decorations").render, bufnr)
+    utils.try("beamer mode: redraw", require("org.ui.decorations").render, bufnr)
   else
     for _, lhs in ipairs(keys()) do
       pcall(vim.keymap.del, "n", lhs, { buffer = bufnr })
@@ -230,13 +230,9 @@ function M.mode(bufnr, on)
       end)
     end
     vim.b[bufnr].org_beamer_saved_maps = nil
-    pcall(require("org.ui.decorations").render, bufnr)
+    utils.try("beamer mode: redraw", require("org.ui.decorations").render, bufnr)
   end
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgBeamerMode",
-    data = { bufnr = bufnr, enabled = on },
-    modeline = false,
-  })
+  utils.user_event("OrgBeamerMode", { bufnr = bufnr, enabled = on })
   return on
 end
 

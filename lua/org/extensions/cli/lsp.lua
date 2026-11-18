@@ -603,10 +603,12 @@ function M.cmd_lsp(_, _)
     end, 5)
   end)
   if input then
+    -- lint: allow pcall: stdin may be closed already
     pcall(input.read_stop, input)
-    pcall(input.close, input)
+    pcall(input.close, input) -- lint: allow pcall: closed already
   end
   if out then
+    -- lint: allow pcall: stdout may be closed already
     pcall(out.close, out)
   end
   restore()

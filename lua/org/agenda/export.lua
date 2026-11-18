@@ -445,11 +445,7 @@ function M.lines_to_write(S, lines, path)
       out = res
     end
   end
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgAgendaBeforeWrite",
-    data = { lines = vim.list_slice(out), path = path, buf = S.buf },
-    modeline = false,
-  })
+  utils.user_event("OrgAgendaBeforeWrite", { lines = vim.list_slice(out), path = path, buf = S.buf })
   local changed = #out ~= #before
   for i = 1, #before do
     if changed then
@@ -581,7 +577,7 @@ function M.store_views(overrides)
               n = n + 1
             end
           end
-          pcall(view_mod().quit, true)
+          utils.try("agenda export: close the agenda", view_mod().quit, true)
         end)
       end
     end

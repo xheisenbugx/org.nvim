@@ -1104,7 +1104,7 @@ local function target_file(feed)
 end
 
 local function fire(pattern, data)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+  utils.user_event(pattern, data)
 end
 
 --- Call a handler with the cursor on the inbox headline of `bufnr`.

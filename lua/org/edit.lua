@@ -655,11 +655,7 @@ end
 --- Fire the `OrgNoteStored` User autocmd (org-after-note-stored-hook) for
 --- a note stored at line `lnum` of the entry at line `headline`.
 function M.note_stored(bufnr, lnum, headline)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = "OrgNoteStored",
-    data = { bufnr = bufnr, lnum = lnum, headline = headline },
-    modeline = false,
-  })
+  utils.user_event("OrgNoteStored", { bufnr = bufnr, lnum = lnum, headline = headline })
 end
 
 --- Emacs default note headings (org-log-note-headings).

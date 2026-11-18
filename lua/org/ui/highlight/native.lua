@@ -228,7 +228,7 @@ function M.watch(bufnr)
         return
       end
       local row = api.nvim_win_get_cursor(win)[1] - 1
-      pcall(require("org.ui.decorations").line_marks, ev.buf, row)
+      require("org.utils").try("native highlight: line marks", require("org.ui.decorations").line_marks, ev.buf, row)
     end,
   })
   if not ok then

@@ -7,6 +7,7 @@ local config = require("org.config")
 local edit = require("org.edit")
 local files = require("org.files")
 local shared = require("org.capture.shared")
+local utils = require("org.utils")
 
 local M = require("org.capture")
 
@@ -377,7 +378,7 @@ local function place_table_line(bufnr, loc, tpl, lines, pos_line)
     at = te
   end
   vim.api.nvim_buf_set_lines(bufnr, at, at, false, lines)
-  pcall(require("org.table").align_at, bufnr, at + 1)
+  utils.try("capture: align the table", require("org.table").align_at, bufnr, at + 1)
   return at + 1
 end
 
@@ -407,7 +408,7 @@ function M.place(loc, tpl, lines)
     first = place_plain(bufnr, loc, tpl, lines, line, col)
   end
   -- update statistics cookies around the new text
-  pcall(require("org.lists").update_statistics_for, bufnr, first)
+  utils.try("capture: update statistics cookies", require("org.lists").update_statistics_for, bufnr, first)
   return first
 end
 

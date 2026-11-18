@@ -201,6 +201,21 @@ local function load_db()
   return db
 end
 
+--- The error last shown for a failed write of the database: the same
+--- failure again isn't shown again (it is in :Org log).
+local save_failed
+
+--- Write the database with `write(path, data)`, reporting a failure.
+local function write_db(write, path, data)
+  local ok, err = utils.try("id: save " .. path, write, path, data)
+  if ok then
+    save_failed = nil
+  elseif tostring(err) ~= save_failed then
+    save_failed = tostring(err)
+    utils.warn("Could not save the ID locations (id.locations_file): " .. save_failed)
+  end
+end
+
 local function save_db()
   local path = db_path()
   if next(scan) and not scan_json then
@@ -213,14 +228,14 @@ local function save_db()
     if stamps then
       lines[#lines + 1] = SCAN_COMMENT .. stamps
     end
-    pcall(utils.writefile, path, lines)
+    write_db(utils.writefile, path, lines)
   elseif stamps then
     -- the id -> file map with the scan as one more member
     local member = vim.json.encode(SCAN_KEY) .. ":" .. stamps
     local text = next(db or {}) and vim.json.encode(db):sub(1, -2) .. "," .. member .. "}" or "{" .. member .. "}"
-    pcall(utils.writefile, path, { text })
+    write_db(utils.writefile, path, { text })
   else
-    pcall(utils.write_json, path, db or {})
+    write_db(utils.write_json, path, db or {})
   end
 end
 

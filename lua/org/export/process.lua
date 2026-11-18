@@ -56,6 +56,7 @@ local function kill_tree(obj, signal)
   end
   if is_win then
     pcall(vim.system, { "taskkill", "/T", "/F", "/PID", tostring(pid) })
+    -- lint: allow pcall: the process may have exited already
     pcall(obj.kill, obj, signal)
     return
   end
@@ -63,6 +64,7 @@ local function kill_tree(obj, signal)
   -- that latexmk's pdflatex or soffice's workers stop too
   local ok, res = pcall(vim.uv.kill, -pid, signal)
   if not ok or res ~= 0 then
+    -- lint: allow pcall: the process may have exited already
     pcall(obj.kill, obj, signal)
   end
 end

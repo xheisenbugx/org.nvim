@@ -128,7 +128,11 @@ local function notify(entry, minutes_left)
   local body = string.format("%s at %s (%s) — %s", kind, t, when, it.category)
   local custom = (config.opts.notifications or {}).notifier
   if type(custom) == "function" then
-    pcall(custom, { title = title, body = body, item = it, minutes = minutes_left })
+    local ok, err =
+      utils.try("notifications.notifier", custom, { title = title, body = body, item = it, minutes = minutes_left })
+    if not ok then
+      utils.warn("notifications.notifier failed: " .. tostring(err))
+    end
     return
   end
   utils.notify(title .. "\n" .. body, vim.log.levels.WARN, { title = "org reminder" })

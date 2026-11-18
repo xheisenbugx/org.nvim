@@ -120,11 +120,7 @@ function M.show(matches, title, kind, message)
   end
   if occur then
     -- org-occur-hook
-    pcall(vim.api.nvim_exec_autocmds, "User", {
-      pattern = "OrgOccur",
-      data = { bufnr = bufnr, title = title, matches = #matches },
-      modeline = false,
-    })
+    utils.user_event("OrgOccur", { bufnr = bufnr, title = title, matches = #matches })
   end
 end
 

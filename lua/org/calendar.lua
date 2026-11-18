@@ -583,7 +583,7 @@ function M.pick(opts)
           callback = function()
             local d, futurep = interpret(vim.fn.getcmdline())
             if win and vim.api.nvim_win_is_valid(win) then
-              pcall(draw, { date = d, futurep = futurep })
+              utils.try("calendar: draw", draw, { date = d, futurep = futurep })
             end
           end,
         })

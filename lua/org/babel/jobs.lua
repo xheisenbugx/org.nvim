@@ -430,6 +430,7 @@ function M.set_kill(job, kill)
   end
   job.kill = kill
   if job.cancelled then
+    -- lint: allow pcall: the job may have exited already
     pcall(kill)
   end
 end
@@ -445,6 +446,7 @@ end
 function M.kill_process(obj, force)
   local pid = obj.pid
   if pid and vim.fn.has("win32") == 1 then
+    -- lint: allow pcall: the process may have exited already
     pcall(function()
       vim.system({ "taskkill", "/T", "/F", "/PID", tostring(pid) }):wait(1000)
     end)
@@ -452,11 +454,13 @@ function M.kill_process(obj, force)
     local ok, res = pcall(vim.uv.kill, -pid, force and "sigkill" or "sigterm")
     if (not ok or res ~= 0) and vim.fn.executable("pkill") == 1 then
       -- not a group leader: its direct children at least
+      -- lint: allow pcall: they may have exited already
       pcall(function()
         vim.system({ "pkill", force and "-KILL" or "-TERM", "-P", tostring(pid) }):wait(1000)
       end)
     end
   end
+  -- lint: allow pcall: the process may have exited already
   pcall(obj.kill, obj, force and 9 or 15)
 end
 

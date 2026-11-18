@@ -40,7 +40,7 @@ function M.on_require(name, fn)
         if value == nil then
           value = package.loaded[name] == nil and true or package.loaded[name]
         end
-        pcall(fn, value)
+        require("org.utils").try("integrations: on loading " .. name, fn, value)
         return value
       elseif type(loader) == "string" then
         errs[#errs + 1] = loader

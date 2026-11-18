@@ -175,7 +175,7 @@ end
 --- `attach.git`, commit the attachment repository (org-attach-git-commit).
 local function after_change(dir, target)
   local data = { dir = dir }
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgAttachAfterChange", data = data, modeline = false })
+  utils.user_event("OrgAttachAfterChange", data)
   local vcs = require("org.attach_git")
   if vcs.enabled() then
     local bufnr, file = edit.resolve(target)
@@ -187,7 +187,7 @@ end
 --- User autocmd `OrgAttachOpen` (data: `{ path }`) and, with `attach.git`,
 --- fetch its git-annex content when missing (org-attach-git-annex-get-maybe).
 local function before_open(path, dir, target)
-  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgAttachOpen", data = { path = path }, modeline = false })
+  utils.user_event("OrgAttachOpen", { path = path })
   local vcs = require("org.attach_git")
   if vcs.enabled() then
     local bufnr, file = edit.resolve(target)
@@ -256,9 +256,7 @@ local function store_link(source, dest)
     link, desc = "file:" .. source, vim.fn.fnamemodify(source, ":t")
   end
   if link then
-    pcall(function()
-      require("org.links").store(link, desc)
-    end)
+    utils.try("attach: store the link", require("org.links").store, link, desc)
   end
   local name = vim.fn.fnamemodify(dest, ":t")
   return link or ("attachment:" .. name), desc or name

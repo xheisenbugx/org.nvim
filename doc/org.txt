@@ -404,6 +404,8 @@ org.nvim ~
   |org-migrate|) and headlines.nvim; and ftplugin, syntax or indent
   files for the org filetype from other plugins (a warning) or your own
   config (shown, not a warning). Neovim's own `org.vim` files are ignored.
+- the errors org.nvim caught and logged this session: a warning when
+  there are any, as they may be bugs; `:Org log` shows them (|org-log|)
 
 org.nvim configuration ~
 - options given to setup() that org.nvim doesn't know (typos, removed
@@ -8695,7 +8697,26 @@ With `ui.choice_prompt = "input"` these prompts are the command line with
                         GitHub issue titled "[BUG] <subject> [<version>]"
                         prefilled with it (|vim.ui.open()|). A report too
                         long for a URL is left for you to paste (it is also
-                        in the + register).
+                        in the + register). When `:Org log` has errors, the
+                        report says how many.
+                                                                   *org-log*
+:Org log                Show the session log in a scratch buffer: the
+                        org.nvim version (as `:Org version` says it), the
+                        Neovim version and OS, then what org.nvim caught
+                        and went on from this session, newest last, each
+                        with its time, where it happened, the error and
+                        its stack traceback. These are failures that would
+                        otherwise pass without a word: a statistics cookie
+                        that couldn't be updated after a capture or
+                        archive, a state file that couldn't be written, an
+                        error in a function of your config
+                        (`notifications.notifier`, a hook) or in a handler
+                        of a User autocmd org.nvim fires (|org-api-events|).
+                        Add it to a bug report. It is kept in memory only
+                        (the last 200 entries; the same failure again
+                        counts up the last entry). `q` or <Esc> closes the
+                        buffer. `:checkhealth org` says how many errors
+                        were logged (|org-health|).
 
 org-mouse                                                       *org-mouse*
 `mouse.org_mouse = true` loads org-mouse (Emacs: (require 'org-mouse)); it
@@ -9250,6 +9271,9 @@ Handlers run during the command, like Emacs hooks, and may edit buffers:
 the command follows its entries where a handler moves them (the region
 command its headlines; a refile the line it returns, its bookmark and the
 API handle).
+An error in a handler doesn't stop the command: Neovim shows it (with the
+event's name) and `:Org log` keeps it (|org-log|). When org.nvim can't
+fire the event at all, it warns and logs that too.
 Other features fire their own events (clock, capture, agenda, babel, ...;
 see their sections). >lua
     local api = require("org.api")
@@ -14642,7 +14666,8 @@ org.nvim follows Emacs Org 9.8: the same file format, commands, options
 (named after the Emacs variables) and defaults. What differs on purpose is
 in |org-differences|; |org-migrate-differences| compares with
 nvim-orgmode. A difference listed in neither is likely a bug: report it
-with `:Org bug_report` (|org-bug-report|).
+with `:Org bug_report` (|org-bug-report|), and add what `:Org log`
+shows (|org-log|).
 
 Images don't show ~
                                                               *org-faq-images*

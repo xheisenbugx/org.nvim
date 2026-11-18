@@ -30,6 +30,81 @@ function M.error(msg)
 end
 
 ---------------------------------------------------------------------------
+-- Caught failures (the session log, :Org log)
+---------------------------------------------------------------------------
+
+--- The stack traceback of the error `try` caught last, taken by its
+--- handler while the stack is still there.
+local try_trace
+
+local function try_handler(err)
+  try_trace = debug.traceback("", 2):gsub("^\n", "")
+  return err
+end
+
+local function try_result(where, ok, ...)
+  if ok then
+    return ok, ...
+  end
+  local err = ...
+  -- an interactive action cancelled (`M.abort`) isn't a failure
+  if err ~= "org_abort" then
+    require("org.log").add("error", where, err, try_trace)
+  end
+  try_trace = nil
+  return false, err
+end
+
+--- Call `fn(...)` like `pcall`, and record a failure in the session log
+--- (`:Org log`, `org.log`) under `where`, with its traceback: for a
+--- failure org.nvim goes on from, which would otherwise leave no trace.
+--- Returns what `pcall` returns. Showing it to the user is the caller's
+--- choice (`M.error`, `M.warn`). On success it costs what `xpcall` does.
+---@param where string what is being done, for the log ("bookmarks: save")
+---@param fn function
+---@return boolean ok, any ... the results, or the error
+function M.try(where, fn, ...)
+  return try_result(where, xpcall(fn, try_handler, ...))
+end
+
+--- Fire the User autocommand `pattern` with `data` (modeline off) for the
+--- handlers users and other plugins register, without letting their
+--- failure stop the org command that fires it. An error in a handler is
+--- shown by Neovim (with the event's name) and recorded in the session
+--- log too; not being able to fire it at all (from a fast event, say) is
+--- org.nvim's own failure: logged and shown as a warning.
+---@param pattern string
+---@param data? any
+function M.user_event(pattern, data)
+  local where = "User " .. pattern
+  local fast = vim.in_fast_event()
+  local errmsg
+  if not fast then
+    errmsg = vim.v.errmsg
+    vim.v.errmsg = ""
+  end
+  local ok, err = M.try(where, vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+  if not fast then
+    local handler_err = vim.v.errmsg
+    if handler_err ~= "" then
+      require("org.log").add("error", where .. " (a handler)", handler_err)
+    else
+      vim.v.errmsg = errmsg
+    end
+  end
+  if not ok then
+    local msg = string.format("Could not run the User %s autocommands: %s (see :Org log)", pattern, tostring(err))
+    if fast then
+      vim.schedule(function()
+        M.warn(msg)
+      end)
+    else
+      M.warn(msg)
+    end
+  end
+end
+
+---------------------------------------------------------------------------
 -- Non-interactive calls (org.api)
 ---------------------------------------------------------------------------
 
@@ -219,11 +294,7 @@ function M.input_note(opts)
       end,
     })
     -- org-log-buffer-setup-hook
-    pcall(vim.api.nvim_exec_autocmds, "User", {
-      pattern = "OrgLogBufferSetup",
-      data = { bufnr = buf, purpose = what },
-      modeline = false,
-    })
+    M.user_event("OrgLogBufferSetup", { bufnr = buf, purpose = what })
   end)
 end
 
@@ -424,6 +495,7 @@ end
 local c_snprintf
 if string.format("%.2f", 0.125) ~= "0.12" and jit then
   local ffi = require("ffi")
+  -- lint: allow pcall: declared already (ffi.cdef raises on a second declaration)
   pcall(ffi.cdef, "int snprintf(char *str, size_t size, const char *format, ...);")
   c_snprintf = function(spec, x)
     local size = 64
@@ -754,7 +826,8 @@ function M.readfile(path)
   end
   local content = fd:read("*a")
   fd:close()
-  return M.split_content(content)
+  -- (nil: a directory, which opens but can't be read)
+  return content and M.split_content(content) or nil
 end
 
 --- The lines of a file's contents, as `readfile` returns them (for
@@ -788,7 +861,12 @@ function M.writefile(path, lines)
   M.mkdir_p(vim.fn.fnamemodify(path, ":h"))
   local fd, err = io.open(path, "wb")
   if not fd then
-    error("org: cannot write " .. path .. ": " .. tostring(err))
+    -- (io.open's message starts with the path again)
+    local reason = tostring(err)
+    if reason:sub(1, #path + 2) == path .. ": " then
+      reason = reason:sub(#path + 3)
+    end
+    error("org: cannot write " .. path .. ": " .. reason, 0)
   end
   fd:write(table.concat(lines, "\n"))
   if #lines > 0 then

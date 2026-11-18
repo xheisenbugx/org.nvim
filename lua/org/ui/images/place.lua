@@ -299,6 +299,7 @@ function M.sync(force)
   local want = M._layout()
   for key, cur in pairs(placed) do
     if force or not want[key] then
+      -- lint: allow pcall: vim.ui.img: Neovim may have dropped the image already
       pcall(img.del, cur.id)
       placed[key] = nil
     end
@@ -309,6 +310,7 @@ function M.sync(force)
     local cur = placed[key]
     if cur then
       if not same(cur.opts, w.opts) then
+        -- lint: allow pcall: vim.ui.img: Neovim may have dropped the image already
         pcall(img.set, cur.id, w.opts)
         cur.opts = w.opts
       end
@@ -386,9 +388,9 @@ function M._update_reveal()
           local want = want_revealed(bufnr, p.backend, p.height, r, d and d.end_row or r)
           if want ~= (p.revealed == true) then
             local b = backend_of(p)
-            pcall(b.hide, bufnr, p)
+            require("org.utils").try("images: hide", b.hide, bufnr, p)
             p.revealed = want
-            pcall(show, b, bufnr, p)
+            require("org.utils").try("images: show", show, b, bufnr, p)
             M._schedule_sync()
           end
         end
@@ -440,7 +442,7 @@ function M.attach(bufnr)
         local b = backend_of(p)
         if p.deferred and b and mark_pos(bufnr, p.mark) then
           p.deferred = nil
-          pcall(show, b, bufnr, p)
+          require("org.utils").try("images: show", show, b, bufnr, p)
         end
       end
     end,
@@ -491,7 +493,7 @@ vim.api.nvim_create_autocmd({ "WinNew", "CompleteChanged", "CompleteDone" }, {
   group = vim.api.nvim_create_augroup("org.images.floats", { clear = true }),
   callback = function()
     if next(placed) then
-      pcall(M.sync)
+      require("org.utils").try("images: place", M.sync)
     end
   end,
 })

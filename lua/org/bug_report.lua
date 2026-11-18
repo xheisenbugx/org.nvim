@@ -31,12 +31,16 @@ M.PRIVACY = {
   "information before submitting the report.",
 }
 
-local function nvim_version()
+--- The Neovim version, as the first line of `nvim --version` says it.
+---@return string
+function M.nvim_version()
   local v = vim.version()
   return string.format("NVIM v%d.%d.%d%s", v.major, v.minor, v.patch, v.prerelease and ("-" .. v.prerelease) or "")
 end
 
-local function os_name()
+--- The operating system: name, release and machine.
+---@return string
+function M.os_name()
   local u = vim.uv.os_uname()
   return string.format("%s %s (%s)", u.sysname, u.release, u.machine)
 end
@@ -80,10 +84,19 @@ function M.body(include_config)
     "",
     "------------------------------------------------------------------------",
     "",
-    "Neovim  : " .. nvim_version(),
+    "Neovim  : " .. M.nvim_version(),
     "Package : " .. require("org.version").string(true),
-    "OS      : " .. os_name(),
+    "OS      : " .. M.os_name(),
   }
+  -- the errors org.nvim caught this session (org.log loads on the first)
+  local log = package.loaded["org.log"]
+  if log and log.counts.error + log.counts.warn > 0 then
+    lines[#lines + 1] = string.format(
+      "Log     : %d error(s), %d warning(s) this session: paste what `:Org log` shows",
+      log.counts.error,
+      log.counts.warn
+    )
+  end
   if include_config then
     vim.list_extend(lines, { "", "current state:", "==============", "```lua" })
     vim.list_extend(lines, M.changed_options())

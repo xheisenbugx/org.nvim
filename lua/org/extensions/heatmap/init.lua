@@ -775,7 +775,7 @@ function M.open(o)
       local weeks = weeks_for(st.opts)
       if weeks ~= st.weeks then
         st.weeks = weeks
-        pcall(M.render, st)
+        views.try("heatmap: render after a resize", M.render, st)
       end
       views.relayout(st.how, float_size(st))
       place(st)

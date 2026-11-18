@@ -505,7 +505,7 @@ function M.teardown()
   require("org.write_hooks").unregister("transclusion")
   for buf in pairs(M.buffers) do
     if valid(buf) then
-      pcall(M.remove_all, buf)
+      utils.try("transclusion: remove all", M.remove_all, buf)
       unwrap_key(buf)
       api.nvim_buf_clear_namespace(buf, ns, 0, -1)
       api.nvim_buf_clear_namespace(buf, ns_region, 0, -1)

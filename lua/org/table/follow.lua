@@ -106,11 +106,7 @@ end
 --- Fire the User autocmd of a minor mode hook (org-table-follow-field-mode-hook,
 --- org-table-header-line-mode-hook).
 local function mode_hook(pattern, enabled, bufnr)
-  pcall(vim.api.nvim_exec_autocmds, "User", {
-    pattern = pattern,
-    data = { enabled = enabled, bufnr = bufnr },
-    modeline = false,
-  })
+  utils.user_event(pattern, { enabled = enabled, bufnr = bufnr })
 end
 
 --- Start follow-field mode in the current buffer.

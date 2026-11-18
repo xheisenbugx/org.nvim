@@ -3,6 +3,7 @@
 --- Not an extension itself: the helpers the `kanban`, `timeline`,
 --- `heatmap` and `sidebar` extensions share.
 ---
+---   - `try`: run a function like pcall, a failure recorded in :Org log
 ---   - `collect` / `api_query`: the org.api headline handles (or the
 ---     org.api query) of a source (agenda files, a buffer, a subtree,
 ---     files) narrowed by an org-ql query, a tags match or a tag
@@ -20,6 +21,10 @@
 local utils = require("org.utils")
 
 local M = {}
+
+--- Call `fn(...)` like `pcall`, recording a failure in the session log
+--- (`:Org log`) under `where`: for a redraw a view goes on from.
+M.try = utils.try
 
 ---------------------------------------------------------------------------
 -- Highlights

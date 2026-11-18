@@ -7,7 +7,9 @@ you need to get started.
 ## Ways to help
 
 - **Report bugs.** Please include the org snippet that triggers the bug, the
-  keys you pressed, what you expected, and the output of `:checkhealth org`.
+  keys you pressed, what you expected, the output of `:checkhealth org`, and
+  what `:Org log` shows (the errors org.nvim caught this session, with the
+  versions). `:Org bug_report` opens an issue with the versions filled in.
 - **Compare with Emacs.** If org.nvim does something differently from Emacs
   Org mode and the doc doesn't mention it
   ([`:h org-differences`](doc/org.txt)), please open an issue.
@@ -202,6 +204,7 @@ Besides stylua, `make lint` runs `scripts/lint_sources.lua` over `lua/`
 | `glob` | `vim.fn.glob(x)` / `vim.fn.globpath(d, x)` where an argument isn't a string literal. `glob()` runs `` `backticks` `` as shell commands, `globpath()` splits its directories at commas, and paths often come from the document or a link. | `utils.glob(pattern)` (no shell; `*`, `?`, `[..]`, `{a,b}`, `**`) |
 | `gsub` | `s:gsub(pat, repl)` / `string.gsub` where `repl` is a variable or a concatenation: a `%` in a path, label or user text is read as a capture. | a literal, a function, a table, or `utils.gsub_escape(value)` |
 | `keyword-span` | a value captured from a `#+KEY: value` line located again with `line:find(value)` from the start of the line, which finds `#+name: name` inside the keyword. | capture the column in the same match: `line:match("^#%+name:%s*()(.-)$")` |
+| `pcall` | `pcall(f, ...)` / `xpcall(f, ...)` as a statement, its result dropped, when `f` isn't a `vim.*` function or a local bound to one (`local api = vim.api`, `timer = vim.uv.new_timer()`): the error goes nowhere, so a failed write or a broken statistics cookie leaves no trace. `nvim_exec_autocmds` is flagged too, as it runs the user's handlers. | `utils.try(where, f, ...)`, which returns like `pcall` and records a failure in the session log (`:Org log`), then `utils.error` / `utils.warn` when the user must know (a write that lost data, their own callback failing); `utils.user_event(pattern, data)` for a User autocmd. A harmless failure (a job that may have exited, a handle closed already) takes an allow comment saying so. |
 
 When a hit is audited and safe (a config option, a number, a constant),
 allow it with a comment on the same line or the line above, and say why:
