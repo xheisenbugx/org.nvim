@@ -1942,7 +1942,9 @@ end
 --- optionally restricted to clocks starting within [from_min, to_min).
 --- With `include_children`, the clocks of every headline in the subtree
 --- count too, inline tasks included: org-clock-sum adds an inline task's
---- time to each enclosing headline like a deeper one's.
+--- time to each enclosing headline like a deeper one's. A clock that ends
+--- before it starts counts for nothing, as org-clock-sum only adds
+--- (when (> dt 0) ...).
 ---@param from_min? integer
 ---@param to_min? integer
 ---@param include_children? boolean
@@ -1958,7 +1960,10 @@ function Headline:clocked_minutes(from_min, to_min, include_children)
         local s = c.start:minutes()
         if (not from_min or s >= from_min) and (not to_min or s < to_min) then
           -- from the timestamps, not the `=> H:MM` text, like org-clock-sum
-          total = total + date.elapsed_minutes(c.start, stop)
+          local m = date.elapsed_minutes(c.start, stop)
+          if m > 0 then
+            total = total + math.floor(m)
+          end
         end
       end
     end

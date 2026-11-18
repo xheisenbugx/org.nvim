@@ -1887,7 +1887,9 @@ any case); a line with text after it is a paragraph and its time is not
 counted. A naked `CLOCK: => 2:00` adds two hours to the entry's clock
 sums, whatever their time range. A clock whose start has no time
 (`[2026-09-23 Wed]--...`) counts for nothing, and an end without a time
-takes the start's (org-clock-sum).
+takes the start's (org-clock-sum). A clock that ends before it starts
+counts for nothing too: in the clock table, CLOCKSUM, the statusline
+total, sorting by clocking time and the extensions that sum clocks.
 
 The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
 for none, a number N for "once there are N clock lines"), then
