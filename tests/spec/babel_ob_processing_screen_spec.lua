@@ -49,9 +49,12 @@ describe("babel ob-processing", function()
     ok(not name:find("-", 1, true))
     eq(name, vim.fn.fnamemodify(sketch, ":h:t"))
     eq({ "int n=2;", "size(n, n);" }, vim.fn.readfile(sketch))
-    vim.wait(2000, function()
-      return vim.fn.filereadable(log) == 1
-    end)
+    -- the sketch runs detached: under a loaded full suite the fake can
+    -- take more than 2 s to start, and the file exists before echo has
+    -- written its line
+    ok(vim.wait(10000, function()
+      return vim.fn.filereadable(log) == 1 and #vim.fn.readfile(log) > 0
+    end))
     local dirname = vim.fn.fnamemodify(sketch, ":h")
     eq({ "--force --sketch=" .. dirname .. " --output=" .. dirname .. "/output --run" }, vim.fn.readfile(log))
     org_buffer({ "#+begin_src python", "1", "#+end_src" }, { 2, 0 })
