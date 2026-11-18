@@ -371,3 +371,33 @@ Gaps it found:
   `http:`); `docview:FILE::PAGE` opens the file but drops the page.
 - No spec follows `ftp:`, `news:`, `irc:`, `info:` or `docview:` links,
   and none runs `awk` or `D` blocks.
+
+## Plain lists and capture against Emacs output
+
+Plain-list editing and capture were only checked by hand-written cases,
+so two areas of Emacs fixtures now cover them
+([`scripts/emacs-parity/README.md`](../scripts/emacs-parity/README.md)):
+`lists` types the default keys (M-RET and M-S-RET at a column, M-left /
+right with and without the subtree, M-up / down, C-c -, S-left / right,
+S-up / down, C-c C-c with and without C-u, C-c *, C-u C-c *, C-c ^) on
+small lists, and compares the buffer and the cursor's line; `capture`
+runs each template (every target and type, `:prepend`, the empty-line
+properties, `%t %T %u %U %a %f %F %i %<...> %^{...} %^g %^{PROP}p`) and
+compares the target file, with org.nvim editing in a capture buffer and
+in place.
+
+| Area | Cases | Same as Emacs | Known differences |
+| --- | --- | --- | --- |
+| Plain lists | 76 | 73 | 3 |
+| Capture (each mode) | 51 | 51 | 0 |
+
+The differences, each a `KNOWN` entry of
+[the lists spec](../tests/spec/emacs_lists_parity_spec.lua):
+
+- C-c - on a description list numbers it; Emacs leaves `1.` and `1)` out
+  of the cycle for description items (org-cycle-list-bullet).
+- C-u C-c C-c with the cursor at the start of the first item toggles that
+  item's checkbox; Emacs acts on the whole list there (org-ctrl-c-ctrl-c
+  on the plain list removes or adds every item's checkbox).
+- After C-c ^ the cursor stays on its line; Emacs leaves it on the list's
+  first item (org-sort-list).

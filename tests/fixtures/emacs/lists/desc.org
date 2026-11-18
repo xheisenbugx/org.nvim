@@ -1,0 +1,3 @@
+- Apple :: a fruit
+- Carrot :: a vegetable
+- Bean :: a legume
