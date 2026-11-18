@@ -184,6 +184,37 @@ describe("timeline edge cases", function()
     ok(row(st, "Clocked only"))
   end)
 
+  it("gives a clocked task one row with its clocked days and its dates", function()
+    local d1, d2 = date.days_from_civil(2026, 1, 5), date.days_from_civil(2026, 1, 7)
+    write({
+      "* TODO Planned",
+      "  SCHEDULED: " .. ts(0),
+      "  :LOGBOOK:",
+      "  CLOCK: [2026-01-05 Mon 10:00]--[2026-01-05 Mon 11:00] =>  1:00",
+      "  CLOCK: [2026-01-07 Wed 10:00]--[2026-01-07 Wed 10:30] =>  0:30",
+      "  :END:",
+      "* TODO Unplanned",
+      "  :PROPERTIES:",
+      "  :EFFORT: 2:00",
+      "  :END:",
+      "  :LOGBOOK:",
+      "  CLOCK: [2026-01-07 Wed 09:00]--[2026-01-07 Wed 09:30] =>  0:30",
+      "  CLOCK: [2026-01-05 Mon 09:00]--[2026-01-05 Mon 09:30] =>  0:30",
+      "  CLOCK: [2026-01-05 Mon 14:00]--[2026-01-05 Mon 15:00] =>  1:00",
+      "  :END:",
+    })
+    setup({ clocks = true })
+    local st = timeline.open()
+    eq(2, #st.rows)
+    local planned, unplanned = row(st, "Planned"), row(st, "Unplanned")
+    eq({ [d1] = true, [d2] = true }, planned.clock_days)
+    eq({ today, today }, { planned.start, planned.finish })
+    eq(today, planned.h.scheduled.days)
+    eq({ [d1] = true, [d2] = true }, unplanned.clock_days)
+    eq({ d1, d2, 120 }, { unplanned.first, unplanned.last, unplanned.effort })
+    eq(nil, unplanned.start)
+  end)
+
   it("reports a filter it can't read instead of opening", function()
     write({ "* TODO Task", "  SCHEDULED: " .. ts(0) })
     setup({})

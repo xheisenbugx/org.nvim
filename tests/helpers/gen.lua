@@ -174,6 +174,31 @@ function M.headlines(n)
   return out
 end
 
+--- `n` CLOCK lines, 400 per scheduled task (a task clocked most days of
+--- a year), on about 300 days of 2026.
+function M.clocks(n)
+  local out = { "#+TITLE: Clocks", "" }
+  local per = 400
+  for i = 1, math.max(1, math.floor(n / per)) do
+    out[#out + 1] = ("* TODO Long task %d"):format(i)
+    out[#out + 1] = "SCHEDULED: <2026-11-01 Sun>"
+    out[#out + 1] = ":LOGBOOK:"
+    for k = 1, per do
+      local d, m = 1 + (k % 28), 1 + (k % 11)
+      out[#out + 1] = ("CLOCK: [2026-%02d-%02d Mon 09:%02d]--[2026-%02d-%02d Mon 10:%02d] =>  1:00"):format(
+        m,
+        d,
+        k % 60,
+        m,
+        d,
+        k % 60
+      )
+    end
+    out[#out + 1] = ":END:"
+  end
+  return out
+end
+
 --- A table of `rows` x `cols`, with a header, and optionally a #+TBLFM.
 function M.table(rows, cols, opts)
   opts = opts or {}

@@ -1515,7 +1515,16 @@ end
 --- Title with links replaced by their descriptions and emphasis kept.
 ---@return string
 function Headline:plain_title()
-  local t = self.title:gsub("%[%[([^%]]-)%]%[([^%]]-)%]%]", "%2")
+  local title = self.title
+  if not title:find("[", 1, true) then
+    -- no link or cookie (they all start with a bracket): the patterns
+    -- below, and vim.trim, cost more than the rest of an org.api handle
+    if title:find("^%s") or title:find("%s$") then
+      return vim.trim(title)
+    end
+    return title
+  end
+  local t = title:gsub("%[%[([^%]]-)%]%[([^%]]-)%]%]", "%2")
   t = t:gsub("%[%[([^%]]-)%]%]", "%1")
   -- strip statistics cookies
   t = t:gsub("%s*%[%d*%%%]", ""):gsub("%s*%[%d*/%d*%]", "")

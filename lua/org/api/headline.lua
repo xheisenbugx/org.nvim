@@ -106,9 +106,10 @@ end
 --- midnight plus its hours and minutes; another day asks os.time.
 ---@param d table an org.date date
 ---@param memo org.api.Batch
+---@param days? integer the day number of `d`, when the caller has it
 ---@return integer
-function M.unix(d, memo)
-  local key = d:days()
+function M.unix(d, memo, days)
+  local key = days or d:days()
   local t0 = memo.times[key]
   if t0 == nil then
     local a = os.time({ year = d.year, month = d.month, day = d.day, hour = 0, min = 0, sec = 0 })
@@ -122,18 +123,87 @@ function M.unix(d, memo)
   return d:to_time()
 end
 
+--- `HH:MM` strings by `hour * 100 + min` (string.format is most of the
+--- cost of a date, uncompiled).
+local hhmm_memo = {}
+
+---@param h integer
+---@param m integer
+---@return string
+local function hhmm(h, m)
+  local k = h * 100 + m
+  local s = hhmm_memo[k]
+  if not s then
+    s = string.format("%02d:%02d", h, m)
+    hhmm_memo[k] = s
+  end
+  return s
+end
+
+--- `YYYY-MM-DD` strings by `year * 10000 + month * 100 + day`.
+local ymd_memo = {}
+
+---@param d table an org.date date
+---@return string
+local function ymd(d)
+  local k = d.year * 10000 + d.month * 100 + d.day
+  local s = ymd_memo[k]
+  if not s then
+    s = d:to_date_string()
+    ymd_memo[k] = s
+  end
+  return s
+end
+
+--- `YYYY-MM-DD Day` strings by `year * 10000 + month * 100 + day`.
+local ymd_day_memo = {}
+
+--- `d:to_string()` (`days`: its day number), in one concatenation of
+--- memoized strings when it has no repeater, warning or range (a CLOCK
+--- line's, most planning dates): string.format, the parts table and the
+--- strings made on the way are most of the cost of a date, uncompiled.
+---@param d table an org.date date
+---@param days integer
+---@return string
+local function text_of(d, days)
+  if d.repeater or d.warning or d.range_end then
+    return d:to_string()
+  end
+  local k = d.year * 10000 + d.month * 100 + d.day
+  local prefix = ymd_day_memo[k]
+  if not prefix then
+    -- (Date:dayname(): its weekday's name)
+    prefix = ymd(d) .. " " .. require("org.date").DAY_NAMES[(days + 3) % 7 + 1]
+    ymd_day_memo[k] = prefix
+  end
+  -- (to_string: brackets for anything but an active date)
+  local open, close = "[", "]"
+  if d.active then
+    open, close = "<", ">"
+  end
+  if not d.hour then
+    return open .. prefix .. close
+  elseif d.end_hour then
+    return open .. prefix .. " " .. hhmm(d.hour, d.min or 0) .. "-" .. hhmm(d.end_hour, d.end_min or 0) .. close
+  end
+  return open .. prefix .. " " .. hhmm(d.hour, d.min or 0) .. close
+end
+
 --- Plain-data date of an org.date timestamp. `memo` (see `M.batch`) keeps
---- the Unix times of the days of one call.
+--- the Unix times of the days of one call; `days` is the day number of
+--- `d` when the caller has it.
 ---@param d table|nil
 ---@param raw? string
 ---@param memo? org.api.Batch
+---@param days? integer
 ---@return org.api.Date|nil
-function M.date(d, raw, memo)
+function M.date(d, raw, memo, days)
   if not d then
     return nil
   end
-  local text = d:to_string()
-  local timestamp = memo and M.unix(d, memo) or d:to_time()
+  days = days or d:days()
+  local text = text_of(d, days)
+  local timestamp = memo and M.unix(d, memo, days) or d:to_time()
   return {
     year = d.year,
     month = d.month,
@@ -145,9 +215,9 @@ function M.date(d, raw, memo)
     active = d.active ~= false,
     repeater = d.repeater and { type = d.repeater.type, value = d.repeater.value, unit = d.repeater.unit } or nil,
     warning = d.warning and { type = d.warning.type, value = d.warning.value, unit = d.warning.unit } or nil,
-    date = d:to_date_string(),
-    time = d.hour and string.format("%02d:%02d", d.hour, d.min or 0) or nil,
-    days = d:days(),
+    date = ymd(d),
+    time = d.hour and hhmm(d.hour, d.min or 0) or nil,
+    days = days,
     timestamp = timestamp,
     text = text,
     raw = raw or text,
@@ -522,6 +592,7 @@ end
 ---@field titles table<org.Headline, string> plain titles (ancestors' are shared)
 ---@field times table<integer, integer|false> Unix time of each day's midnight by day number (false: a day with a daylight-saving change)
 ---@field ranges table<org.File, table> priority ranges by file
+---@field efforts table<string, number|false> effort minutes by property value
 ---@field want table<string, true>|nil the optional fields to fill (nil: all)
 
 --- The fields of a handle that are only filled when a query's `fields`
@@ -559,7 +630,7 @@ function M.batch(fields)
       want[f] = true
     end
   end
-  return { titles = {}, times = {}, ranges = {}, want = want }
+  return { titles = {}, times = {}, ranges = {}, efforts = {}, want = want }
 end
 
 --- The plain title of `hl`, made once per batch of handles: the outline
@@ -604,11 +675,13 @@ local function has_tag(tags, tag)
 end
 
 --- The minutes of the entry's own effort, as the agenda reads it
---- (org-entry-get without inheritance, org-duration-to-minutes), or nil.
+--- (org-entry-get without inheritance, org-duration-to-minutes), or nil;
+--- each value parsed once per batch.
 ---@param hl org.Headline
+---@param memo org.api.Batch
 ---@return number|nil
-local function effort(hl)
-  return require("org.properties").effort_minutes(hl)
+local function effort(hl, memo)
+  return require("org.properties").effort_minutes(hl, memo.efforts)
 end
 
 --- org-get-priority of `hl` (see `org.priority.get_priority`), with the
@@ -661,7 +734,7 @@ local function fields_of(hl, memo)
     scheduled = date("scheduled"),
     deadline = date("deadline"),
     closed = date("closed"),
-    effort = (not want or want.effort) and effort(hl) or nil,
+    effort = (not want or want.effort) and effort(hl, memo) or nil,
     file = file.filename,
     bufnr = file.bufnr,
     line = hl.line,
