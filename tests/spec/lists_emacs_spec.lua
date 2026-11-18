@@ -550,3 +550,134 @@ describe("lists: C-c - on a description list (org-cycle-list-bullet)", function(
     end)
   end)
 end)
+
+describe("lists: C-c C-c at the start of a list (org-ctrl-c-ctrl-c on a plain-list)", function()
+  -- At the very start of a list's first line (column 0, even when the
+  -- list is indented, and for a sub-list too), and on an affiliated
+  -- keyword above it, org-element-context is the plain list, not the
+  -- item. org-ctrl-c-ctrl-c's plain-list branch then sets the boxes of
+  -- every item of that list after the first one's: C-u removes them when
+  -- the first item has one, else adds `[ ]`; C-u C-u sets `[-]`. Without
+  -- a prefix it toggles the first item's box. Then org-list-write-struct
+  -- (no ORDERED check) and the cookies. Every buffer below is what Emacs
+  -- Org 9.8.12 gave.
+  local G = { "* Groceries [/]", "- [ ] milk", "- [X] bread", "- [ ] eggs", "- butter" }
+  local G2 = { "* Groceries [/]", "- milk", "- [X] bread", "- [ ] eggs", "- butter" }
+  local N = { "* T [%]", "- [ ] parent", "  - [ ] c1", "  - [X] c2", "- [ ] p2" }
+
+  --- C-c C-c typed with count `n` (4 for C-u, 16 for C-u C-u) at `cursor`.
+  local function cc(lines, cursor, n)
+    local buf = org_buffer(lines, cursor)
+    _G.__org_lists_cc = function()
+      require("org.actions").run("context_action")
+    end
+    vim.keymap.set("n", "<F13>", "<Cmd>lua __org_lists_cc()<CR>")
+    vim.api.nvim_feedkeys((n and tostring(n) or "") .. vim.keycode("<F13>"), "x", false)
+    vim.keymap.del("n", "<F13>")
+    _G.__org_lists_cc = nil
+    return buf_lines(buf)
+  end
+
+  it("C-u removes every box when the first item has one", function()
+    eq({ "* Groceries [0/0]", "- milk", "- bread", "- eggs", "- butter" }, cc(G, { 2, 0 }, 4))
+    eq({ "- a", "  body", "- b" }, cc({ "- [ ] a", "  body", "- [X] b" }, { 1, 0 }, 4))
+  end)
+
+  it("C-u adds an empty box to every item when the first item has none", function()
+    eq({ "* Groceries [0/4]", "- [ ] milk", "- [ ] bread", "- [ ] eggs", "- [ ] butter" }, cc(G2, { 2, 0 }, 4))
+  end)
+
+  it("C-u C-u sets [-] on every item", function()
+    eq({ "* Groceries [0/4]", "- [-] milk", "- [-] bread", "- [-] eggs", "- [-] butter" }, cc(G, { 2, 0 }, 16))
+    eq({ "* Groceries [0/4]", "- [-] milk", "- [-] bread", "- [-] eggs", "- [-] butter" }, cc(G2, { 2, 0 }, 16))
+  end)
+
+  it("without a prefix toggles the first item's box, or only repairs", function()
+    eq({ "* Groceries [2/3]", "- [X] milk", "- [X] bread", "- [ ] eggs", "- butter" }, cc(G, { 2, 0 }))
+    eq({ "* Groceries [1/2]", "- milk", "- [X] bread", "- [ ] eggs", "- butter" }, cc(G2, { 2, 0 }))
+    eq({ "* H", "  1. [X] a", "  2. [X] b", "  3. c" }, cc({ "* H", "  1. [ ] a", "  3. [X] b", "  7. c" }, { 2, 0 }))
+  end)
+
+  it("says so when a parent's box can't change", function()
+    local notify, warn = {}, {}
+    local utils = require("org.utils")
+    local orig_notify, orig_warn = utils.notify, utils.warn
+    utils.notify = function(msg)
+      notify[#notify + 1] = msg
+    end
+    utils.warn = function(msg)
+      warn[#warn + 1] = msg
+    end
+    local okc, out = pcall(cc, { "- [ ] p", "  - [ ] c" }, { 1, 0 })
+    utils.notify, utils.warn = orig_notify, orig_warn
+    ok(okc, out)
+    eq({ "- [ ] p", "  - [ ] c" }, out)
+    eq({ "Cannot update this checkbox" }, notify)
+    eq({}, warn)
+  end)
+
+  it("leaves the cursor after a bullet at column 0 that the repair rewrote", function()
+    -- org-list-struct-apply-struct puts the new bullet back with
+    -- insert-before-markers, which pushes point past it; a checkbox
+    -- removed after it then takes the blank before the box, and point
+    local function cursor_after(lines, cursor, n)
+      cc(lines, cursor, n)
+      return vim.api.nvim_win_get_cursor(0)
+    end
+    eq({ 1, 3 }, cursor_after({ "1. [@3] [ ] a", "2. [X] b" }, { 1, 0 }, 4))
+    eq({ 1, 3 }, cursor_after({ "2. [ ] a", "5. [X] b" }, { 1, 0 }))
+    eq({ 1, 3 }, cursor_after({ "2. a", "5. b" }, { 1, 0 }, 4))
+    eq({ 1, 2 }, cursor_after({ "-   [ ] a", "- [X] b" }, { 1, 0 }))
+    eq({ 1, 2 }, cursor_after({ "-", "- [X] b" }, { 1, 0 }, 4))
+    eq({ 1, 2 }, cursor_after({ "2. [ ] a", "5. [X] b" }, { 1, 0 }, 4))
+    eq({ 1, 1 }, cursor_after({ "-   [X] a", "- [ ] b" }, { 1, 0 }, 4))
+    -- a bullet that stays, or one after indentation: column 0
+    eq({ 1, 0 }, cursor_after({ "- [ ] a", "- [X] b" }, { 1, 0 }, 4))
+    eq({ 2, 0 }, cursor_after({ "* H", "  2. [ ] a", "  5. [X] b" }, { 2, 0 }, 4))
+  end)
+
+  it("on a radio list's #+attr_org line: the plain list, not the radio buttons", function()
+    -- org-at-radio-list-p needs point on an item line
+    local R = { "#+attr_org: :radio t", "- [ ] a", "- [X] b" }
+    eq({ "#+attr_org: :radio t", "- a", "- b" }, cc(R, { 1, 0 }, 4))
+    eq({ "#+attr_org: :radio t", "- [-] a", "- [-] b" }, cc(R, { 1, 5 }, 16))
+    -- at column 0 of its first item, the radio buttons
+    eq({ "#+attr_org: :radio t", "- [X] a", "- [ ] b" }, cc(R, { 2, 0 }))
+  end)
+
+  it("acts on the item one column further", function()
+    eq({ "* Groceries [1/2]", "- milk", "- [X] bread", "- [ ] eggs", "- butter" }, cc(G, { 2, 1 }, 4))
+    eq({ "* T [50%]", "- [X] parent", "  - c1", "  - [X] c2", "- [ ] p2" }, cc(N, { 3, 2 }, 4))
+    eq({ "* H", "  1. a", "  2. [X] b", "  3. c" }, cc({ "* H", "  1. [ ] a", "  3. [X] b", "  7. c" }, { 2, 2 }, 4))
+  end)
+
+  it("at column 0 of an indented list, the whole list", function()
+    eq({ "* H", "  1. a", "  2. b", "  3. c" }, cc({ "* H", "  1. [ ] a", "  3. [X] b", "  7. c" }, { 2, 0 }, 4))
+    eq({ "* H", " - a", " - b" }, cc({ "* H", " - [ ] a", " - [X] b" }, { 2, 0 }, 4))
+  end)
+
+  it("on a sub-list's first line, that sub-list; on the top one, its top items", function()
+    eq({ "* T [0%]", "- [ ] parent", "  - c1", "  - c2", "- [ ] p2" }, cc(N, { 3, 0 }, 4))
+    eq({ "* T [0%]", "- [-] parent", "  - [-] c1", "  - [-] c2", "- [ ] p2" }, cc(N, { 3, 0 }, 16))
+    eq({ "* T [0%]", "- parent", "  - [ ] c1", "  - [X] c2", "- p2" }, cc(N, { 2, 0 }, 4))
+    eq({ "* T [0%]", "- [-] parent", "  - [ ] c1", "  - [X] c2", "- [-] p2" }, cc(N, { 2, 0 }, 16))
+  end)
+
+  it("only at the first item of its list", function()
+    eq({ "* Groceries [0/2]", "- [ ] milk", "- bread", "- [ ] eggs", "- butter" }, cc(G, { 3, 0 }, 4))
+    -- two blank lines end a list: "- [ ] b" starts another one
+    eq({ "- [ ] a", "", "", "- b", "- c" }, cc({ "- [ ] a", "", "", "- [ ] b", "- c" }, { 4, 0 }, 4))
+  end)
+
+  it("ignores ORDERED, which the item's C-c C-c follows", function()
+    local O = { "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [X] a", "- [X] b", "- [ ] c" }
+    eq({ "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [ ] a", "- [X] b", "- [ ] c" }, cc(O, { 5, 0 }))
+    eq({ "* T", ":PROPERTIES:", ":ORDERED: t", ":END:", "- [ ] a", "- [ ] b", "- [ ] c" }, cc(O, { 5, 1 }))
+  end)
+
+  it("on an affiliated keyword: the list, at any column, without toggling", function()
+    local K = { "* H", "#+NAME: foo", "- [ ] a", "- [X] b" }
+    eq({ "* H", "#+NAME: foo", "- a", "- b" }, cc(K, { 2, 4 }, 4))
+    eq(K, cc(K, { 2, 0 }))
+  end)
+end)

@@ -438,6 +438,26 @@ function M.repair(bufnr, lnum)
   end
 end
 
+--- Column where point at the start of an item's line ends when
+--- org-list-struct-apply-struct rewrites that line from `before` to
+--- `after` (org.nvim's apply_struct keeps column 0). Emacs puts a changed
+--- bullet back with insert-before-markers: point at a bullet at column 0
+--- goes past the new one. A checkbox removed after it (no counter between)
+--- then takes the blank before the box, and point back with it.
+---@param before string
+---@param after string
+---@return integer
+function M.line_start_col_after(before, after)
+  local b, a = M.parse_item_line(before), M.parse_item_line(after)
+  if not b or not a or b.ind_len > 0 or b.bullet_ws == a.bullet_ws then
+    return 0
+  end
+  if b.checkbox and not a.checkbox and not a.counter then
+    return #a.bullet
+  end
+  return #a.bullet_ws
+end
+
 shared.apply_struct = apply_struct
 shared.bullet_string = bullet_string
 shared.fix_box = fix_box

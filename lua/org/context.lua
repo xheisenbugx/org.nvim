@@ -102,39 +102,55 @@ local function at_line(lnum, fn)
   return r
 end
 
---- C-c C-c on a plain list away from its items (org-ctrl-c-ctrl-c on a
---- plain-list): with C-u, add or remove the checkboxes of its top items
---- after the first one's; with C-u C-u, set them to `[-]`; then repair it.
-local function plain_list_action(lnum, arg)
+--- C-c C-c on the plain list whose first item starts on `lnum`
+--- (org-ctrl-c-ctrl-c on a plain-list): with C-u, add or remove the
+--- checkbox of every item of that (sub-)list after the first one's; with
+--- C-u C-u, set them to `[-]`; without, toggle the first item's checkbox
+--- when `at_begin` (the cursor at the very start of its line; else it is
+--- on an affiliated keyword above the list). Then repair the list
+--- (org-list-write-struct, which doesn't look at ORDERED) and update the
+--- cookies.
+local function plain_list_action(lnum, arg, at_begin)
   local bufnr = vim.api.nvim_get_current_buf()
   local lists = require("org.lists")
-  local first = lists.item_at(bufnr, lnum)
-  if not first then
+  local struct, first = lists.struct_at(bufnr, lnum)
+  if not struct or not first then
     return nil
   end
-  if lists.radio_list_p(bufnr, first) or vim.b[bufnr].org_checkbox_radio_mode then
+  -- org-at-radio-list-p needs the cursor on an item line
+  if (at_begin and lists.radio_list_p(bufnr, first)) or vim.b[bufnr].org_checkbox_radio_mode then
     return lists.toggle_radio_button(arg)
   end
-  local struct = lists.struct_at(bufnr, lnum)
-  if not struct then
-    return nil
+  local before = line_at(first.lnum)
+  local box = first.checkbox
+  local new
+  if arg == 16 then
+    new = "-"
+  elseif arg == 4 then
+    new = not box and " " or nil
+  elseif box == "X" then
+    new = " "
+  else
+    new = "X"
   end
   if arg then
-    local new
-    if arg == 16 then
-      new = "-"
-    elseif not first.checkbox then
-      new = " "
-    end
     for _, it in ipairs(struct.items) do
-      if it.par == nil then
+      if it.par == first.par then
         it.box = new
       end
     end
+  elseif box and at_begin then
+    first.box = new
   end
   local shared = require("org.lists.shared")
-  shared.write_struct(struct, shared.ordered_p(bufnr, lnum))
+  shared.write_struct(struct, false) -- no ORDERED check
+  if not shared.struct_changed(struct) then
+    utils.notify("Cannot update this checkbox")
+  end
   lists.update_checkbox_count_maybe(bufnr, lnum)
+  if at_begin then
+    vim.api.nvim_win_set_cursor(0, { first.lnum, lists.line_start_col_after(before, line_at(first.lnum)) })
+  end
   return true
 end
 
@@ -271,7 +287,13 @@ function M.context_action()
   local item = list_item(lnum)
   if item and item.lnum == lnum then
     local arg = vim.v.count > 0 and (vim.v.count >= 16 and 16 or 4) or nil
-    return require("org.lists").ctrl_c_ctrl_c_item(item, arg)
+    local lists = require("org.lists")
+    -- at the very start of a list's first line (column 0, before any
+    -- indentation), org-element-context is the plain list, not the item
+    if col == 1 and lists.siblings(item)[1] == item then
+      return plain_list_action(lnum, arg, true)
+    end
+    return lists.ctrl_c_ctrl_c_item(item, arg)
   end
   utils.warn("C-c C-c can do nothing useful here")
 end

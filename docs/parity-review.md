@@ -388,15 +388,12 @@ in place.
 
 | Area | Cases | Same as Emacs | Known differences |
 | --- | --- | --- | --- |
-| Plain lists | 76 | 74 | 2 |
+| Plain lists | 76 | 75 | 1 |
 | Capture (each mode) | 51 | 51 | 0 |
 
 The differences, each a `KNOWN` entry of
 [the lists spec](../tests/spec/emacs_lists_parity_spec.lua):
 
-- C-u C-c C-c with the cursor at the start of the first item toggles that
-  item's checkbox; Emacs acts on the whole list there (org-ctrl-c-ctrl-c
-  on the plain list removes or adds every item's checkbox).
 - After C-c ^ the cursor stays on its line; Emacs leaves it on the list's
   first item (org-sort-list).
 
@@ -408,3 +405,11 @@ Fixed since, with hand-written cases in
   org-at-item-description-p matches the item at point, a regexp that
   needs a term of two characters ("- a :: b" is numbered) or a checkbox
   before it (org-cycle-list-bullet).
+- C-u C-c C-c with the cursor at the start of the first item toggled that
+  item's checkbox only. At column 0 of a list's first line (indented
+  lists and sub-lists too) Emacs's org-element-context is the plain list,
+  not the item, so org-ctrl-c-ctrl-c's plain-list branch runs: C-u
+  removes every box of that list when the first item has one, else adds
+  `[ ]`; C-u C-u sets `[-]`; without a prefix it toggles the first box,
+  and in each case it repairs the list without the ORDERED rule. One
+  column further, it is the item again.

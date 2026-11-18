@@ -1124,6 +1124,15 @@ sub-list indentation, circular item motion and the automatic rules.
                 item, it acts on that instead, as in Emacs.
                 With `ORDERED: t`, boxes after an unchecked one stay
                 unchecked. On other lines of an item: nothing.
+                At the very start of a list's first line (column 0, even
+                when the list or sub-list is indented) and on an
+                affiliated keyword line above it (`#+NAME:`,
+                `#+ATTR_ORG:`, ...), it acts on that list, as in Emacs: a
+                count 4 (C-u) removes the checkbox of each of its items
+                (not of their sub-items) when the first one has one, else
+                gives each of them `[ ]`; 16 (C-u C-u) gives each `[-]`.
+                Without a count, it toggles the first item's checkbox
+                (not on the keyword line), without the `ORDERED` rule.
 <C-Space>       Toggle checkboxes (org-toggle-checkbox): the item at the
 <C-c><C-x><C-b> cursor, every item of the Visual selection (following the
                 first one), or on a headline every item of its text. Items
