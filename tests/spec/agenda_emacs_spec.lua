@@ -887,3 +887,104 @@ describe("agenda todo-state sorting across files (:h org-differences)", function
     eq({ "a-todo", "b-wait", "a-next", "b-todo" }, out)
   end)
 end)
+
+describe("agenda over a file tagged ARCHIVE in its FILETAGS (org-agenda-skip)", function()
+  -- org-agenda-skip goes to the end of the buffer when
+  -- org-agenda-skip-archived-trees is on, archives mode is off and
+  -- (member org-archive-tag org-file-tags). Emacs 9.8.12 over these two
+  -- files lists only live.org's entries in the day agenda, the TODO list,
+  -- tags (also TODO-only), search and stuck projects, the sexp before
+  -- old.org's first heading skipped too; with archives mode on, old.org's
+  -- entries are back (over old.org without that sexp: Emacs stops at it
+  -- there with "Before first headline", a difference of its own).
+  local old_lines = {
+    "#+FILETAGS: :ARCHIVE:",
+    "* TODO Old task :work:",
+    "  SCHEDULED: " .. ts(0),
+    "* TODO Old project",
+    "* Note " .. ts(0, "10:00") .. " old meeting",
+  }
+  local old_plain = parser.parse(vim.deepcopy(old_lines), "/tmp/agenda_filetags_old.org")
+  table.insert(old_lines, 2, "%%(and t) Sexp before the first heading")
+  local old = parser.parse(old_lines, "/tmp/agenda_filetags_old.org")
+  local live = parser.parse({
+    "#+FILETAGS: :home:",
+    "* TODO Live task :work:",
+    "  SCHEDULED: " .. ts(0),
+    "* TODO Live project",
+    "* Note " .. ts(0, "11:00") .. " live meeting",
+  }, "/tmp/agenda_filetags_live.org")
+  local both = { old, live }
+  local function has_old(list)
+    for _, it in ipairs(list or {}) do
+      if it.filename == old.filename then
+        return true
+      end
+    end
+    return false
+  end
+  local function plain_titles(list)
+    local out = {}
+    for _, t in ipairs(titles(list)) do
+      out[#out + 1] = (t:gsub(" <[^>]*>", ""))
+    end
+    table.sort(out)
+    return out
+  end
+  local tagged_work = require("org.agenda.search").compile("work")
+  local function task(hl)
+    return hl.title:lower():find("task", 1, true) ~= nil
+  end
+
+  it("leaves the whole file out of every view", function()
+    local by_day = items.agenda(both, T, T, { today = T })
+    eq({ "Live task", "Note " .. ts(0, "11:00") .. " live meeting" }, titles(by_day[T]))
+    eq({ "Live project", "Live task" }, titles(items.todo(both)))
+    eq({ "Live task" }, titles(items.tags(both, tagged_work, false)))
+    eq({ "Live task" }, titles(items.tags(both, tagged_work, true)))
+    eq({ "Live task" }, titles(items.search(both, task)))
+    ok(
+      not has_old(
+        items.stuck(both, { block = { stuck_projects = { match = "+LEVEL=1/-DONE", todo_keywords = { "NEXT" } } } })
+      )
+    )
+  end)
+
+  it("lists it in archives mode", function()
+    local plain = { old_plain, live }
+    eq(
+      { "Live task", "Note live meeting", "Note old meeting", "Old task" },
+      plain_titles(items.agenda(plain, T, T, { today = T, archives = "trees" })[T])
+    )
+    eq(
+      { "Live project", "Live task", "Old project", "Old task" },
+      titles(items.todo(plain, nil, { archives = "trees" }))
+    )
+    eq({ "Live task", "Old task" }, titles(items.tags(plain, tagged_work, false, { archives = true })))
+    -- the sexp before the first heading is listed too
+    ok(
+      vim.tbl_contains(
+        titles(items.agenda(both, T, T, { today = T, archives = "trees" })[T]),
+        "Sexp before the first heading"
+      )
+    )
+  end)
+
+  it("is still not an archived heading (org-in-archived-heading-p)", function()
+    -- Emacs's :archivedp is the heading's own ARCHIVE tag, inherited from
+    -- the ancestors only: (org-in-archived-heading-p) is nil in old.org
+    ok(not old.headlines[1]:is_archived())
+    ok(not old.headlines[1]:is_hidden_by_ancestor())
+  end)
+
+  it("follows both in org.api queries", function()
+    local buf = org_buffer({ "#+FILETAGS: :ARCHIVE:", "* TODO Old task", "* TODO Old project" })
+    local api = require("org.api")
+    -- agenda = true: what org-agenda-skip lets through
+    eq({}, api.headlines({ bufnr = buf, agenda = true }))
+    -- archived = false: org-in-archived-heading-p, which file tags don't touch
+    local list = api.headlines({ bufnr = buf, archived = false })
+    eq(2, #list)
+    eq(false, list[1].archived)
+  end)
+end)

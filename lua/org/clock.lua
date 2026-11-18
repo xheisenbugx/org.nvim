@@ -333,16 +333,7 @@ local function clock_drawer(hl)
   return log or "LOGBOOK"
 end
 
-local function log_reversed(file)
-  local reversed = config.opts.log_states_order_reversed ~= false
-  local startup = file.settings.startup or {}
-  if startup.logstatesreversed then
-    reversed = true
-  elseif startup.nologstatesreversed then
-    reversed = false
-  end
-  return reversed
-end
+local log_reversed = edit.log_states_reversed
 
 --- Write a new CLOCK line for the entry at `lnum` (org-clock-find-position):
 --- into the clock drawer (created, or collecting the loose CLOCK lines once

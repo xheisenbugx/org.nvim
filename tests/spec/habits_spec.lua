@@ -93,6 +93,30 @@ describe("habits", function()
     eq("OrgAgendaHabitOverdue", g[20][2])
     eq({ "!", "OrgAgendaHabitOverdue" }, g[22])
   end)
+
+  -- :h org-differences: Emacs's org-habit-parse-todo signals
+  -- wrong-type-argument when the done heading has no timestamp
+  it("reads only the state changes when the done heading has no timestamp", function()
+    local config = require("org.config")
+    local saved = config.opts.log_note_headings
+    for _, heading in ipairs({ "Done by %u", "" }) do
+      config.opts.log_note_headings = vim.tbl_extend("force", saved or {}, { done = heading })
+      local buf = org_buffer({
+        "* TODO Habit",
+        "SCHEDULED: " .. ts(0, ".+1d"),
+        ":PROPERTIES:",
+        ":STYLE: habit",
+        ":END:",
+        "- Done by me " .. ts(-1, "09:00", true),
+        "- a list item " .. ts(-2, "09:00", true),
+        '- State "DONE"       from "TODO"       ' .. ts(-3, "09:00", true),
+      })
+      local ok_, h = pcall(habits.parse, files.get_buffer(buf).headlines[1])
+      config.opts.log_note_headings = saved
+      assert(ok_, h)
+      eq({ [T - 3] = true }, h.done_days)
+    end
+  end)
 end)
 
 -- Emacs Org 9.8 parity (expectations checked against Emacs in batch mode)

@@ -363,11 +363,11 @@ end
 ---@field level? integer|{ min?: integer, max?: integer }
 ---@field title? string text the title contains (ignoring case)
 ---@field id? string
----@field archived? boolean include (true, default) or skip (false) ARCHIVE-tagged subtrees
+---@field archived? boolean include (true, default) or skip (false) ARCHIVE-tagged subtrees: the heading's own tag or an ancestor's (org-in-archived-heading-p), not `#+FILETAGS: :ARCHIVE:`
 ---@field filter? fun(h: org.api.Headline): boolean
 ---@field bufnr? integer a buffer to read instead of `files` (also one without a file; 0 is the current one). Since API 1.3
 ---@field within? org.api.Headline only the subtree of this headline, it included (`files` and `bufnr` are then ignored). Since API 1.3
----@field agenda? boolean only the entries the agenda views look at (org-agenda-skip): not in a COMMENT subtree (per `agenda.skip_comment_trees`) or an ARCHIVE-tagged one, and not skipped by `agenda.skip_function_global`. Since API 1.3
+---@field agenda? boolean only the entries the agenda views look at (org-agenda-skip): not in a COMMENT subtree (per `agenda.skip_comment_trees`), an ARCHIVE-tagged one or a file tagged ARCHIVE in its `#+FILETAGS:`, and not skipped by `agenda.skip_function_global`. Since API 1.3
 ---@field planned? boolean with a SCHEDULED or DEADLINE date (true), or neither (false). Since API 1.3
 ---@field fields? string[] fill only these of the fields a query computes per headline (`all_tags`, `properties`, `scheduled`, `deadline`, `closed`, `effort`, `category`, `outline_path`, `priority_value`); the others are always there. For big queries that need few of them. Since API 1.3
 
@@ -709,38 +709,6 @@ end
 ---@field type "closed"|"state"|"note"|"last_repeat" where that is written: the CLOSED date, a `- State "DONE" ... [date]` log line (a change to a done keyword), a `- CLOSING NOTE [date]` line, or the LAST_REPEAT property (a repeating entry's last repeat)
 ---@field headline org.api.Headline the entry (one handle per entry)
 
-local STATE_LOG = '^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])'
--- the Lua patterns of org-habit's escapes in `log_note_headings.done`
-local NOTE_ESCAPES = {
-  t = "(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])",
-  d = "(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])",
-  T = "([<%[]%d%d%d%d%-%d%d%-%d%d[^>%]]*[>%]])",
-  D = "([<%[]%d%d%d%d%-%d%d%-%d%d[^>%]]*[>%]])",
-  s = '"%S+"',
-  S = '"%S+"',
-  u = ".-",
-  U = ".-",
-}
-
---- The pattern of a closing-note line, its first capture the date, built
---- from `log_note_headings.done` as org-habit-parse-todo builds its
---- regexp; nil when the heading has no timestamp.
----@return string|nil
-local function done_note_pattern()
-  local heading = (require("org.config").opts.log_note_headings or {}).done
-  if type(heading) ~= "string" or not heading:find("%%%-?%d*[tTdD]") then
-    return nil
-  end
-  local out, pos = {}, 1
-  for s, key, e in heading:gmatch("()%%%-?%d*([tTdDsSuU])()") do
-    out[#out + 1] = vim.pesc(heading:sub(pos, s - 1))
-    out[#out + 1] = NOTE_ESCAPES[key]
-    pos = e
-  end
-  out[#out + 1] = vim.pesc(heading:sub(pos))
-  return "^%s*%-%s+" .. table.concat(out)
-end
-
 --- When the headlines matching `query` were marked done: their CLOSED
 --- date, the log lines org-habit reads (changes to a done keyword, and
 --- closing notes per `log_note_headings.done`), and their LAST_REPEAT
@@ -759,7 +727,9 @@ function M.completed(query)
   from, to = from or -math.huge, to or math.huge
   local out = {}
   local times = H.batch()
-  local closing_note = done_note_pattern()
+  -- the log lines org-habit-parse-todo reads, as habits read them
+  local habits = require("org.agenda.habits")
+  local closing_note = habits.done_note_pattern()
   local ok
   ok, err = each_with_handle(query, function(hl, handle)
     local function add(kind, d)
@@ -782,10 +752,11 @@ function M.completed(query)
     end
     local done = hl.file.settings.todo
     local lines = hl.file.lines
-    for i = hl.line + 1, hl.body_end or hl.line do
+    -- the entry as org-habit-parse-todo reads it (org-entry-end-position)
+    for i = hl.line + 1, hl:entry_end() do
       local line = lines[i]
       local kind = "state"
-      local kw, ts = line:match(STATE_LOG)
+      local kw, ts = line:match(habits.STATE_LOG)
       if not (kw and done:is_done(kw)) then
         kind, ts = "note", closing_note and line:match(closing_note) or nil
       end
