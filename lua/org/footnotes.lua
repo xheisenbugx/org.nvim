@@ -19,20 +19,36 @@ M.section_title = "Footnotes"
 local LITERAL_BLOCKS = { src = true, example = true, export = true, comment = true }
 
 --- Line numbers of `lines` inside (or delimiting) a src, example, export
---- or comment block. An unterminated block is a paragraph, as in Org.
+--- or comment block, or a property drawer (right after a headline or its
+--- planning line, or at the top of the file: node properties hold no
+--- objects). An unterminated block is a paragraph, as in Org.
 ---@param lines string[]
 ---@return table<integer, true>
 function M.literal_lines(lines)
+  local parser = require("org.parser")
   local mask = {}
   local i = 1
   while i <= #lines do
-    local name = lines[i]:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+    local l = lines[i]
+    local name = l:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
     name = name and name:lower()
     local stop
     if name and LITERAL_BLOCKS[name] then
       for j = i + 1, #lines do
         local e = lines[j]:match("^[ \t]*#%+[Ee][Nn][Dd]_(%S+)[ \t]*$")
         if e and e:lower() == name then
+          stop = j
+          break
+        end
+      end
+    elseif
+      l:match("^[ \t]*:[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Ii][Ee][Ss]:[ \t]*$")
+      and (i == 1 or parser.headline_level(lines[i - 1]) or parser.is_planning_line(lines[i - 1]))
+    then
+      for j = i + 1, #lines do
+        if parser.headline_level(lines[j]) then
+          break
+        elseif lines[j]:match("^[ \t]*:[Ee][Nn][Dd]:[ \t]*$") then
           stop = j
           break
         end
@@ -48,6 +64,31 @@ function M.literal_lines(lines)
     end
   end
   return mask
+end
+
+--- Whether a footnote reference can start at byte `col` of `line`, which
+--- is not in a literal block: org-element-context finds none in a comment,
+--- a fixed-width line or a keyword (CAPTION too), nor inside code,
+--- verbatim, an inline src block or a link.
+---@param line string
+---@return fun(col: integer): boolean
+local function reference_test(line)
+  local parser = require("org.parser")
+  -- no footnote reference in a CAPTION either
+  if parser.no_objects(line) or line:match("^%s*#%+[Cc][Aa][Pp][Tt][Ii][Oo][Nn]") then
+    return function()
+      return false
+    end
+  end
+  local spans = parser.objectless_spans(line)
+  return function(col)
+    for _, sp in ipairs(spans or {}) do
+      if col >= sp[1] and col <= sp[2] then
+        return false
+      end
+    end
+    return true
+  end
 end
 
 --- Footnote at the cursor.
@@ -396,10 +437,13 @@ function M.all_labels(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr or 0, 0, -1, false)
   local literal = M.literal_lines(lines)
   for i, l in ipairs(lines) do
-    for label in (literal[i] and "" or l):gmatch("%[fn:([^%]:%s]+)[%]:]") do
-      if not seen[label] then
-        seen[label] = true
-        out[#out + 1] = label
+    local allowed = not literal[i] and l:find("[fn:", 1, true) and reference_test(l)
+    if allowed then
+      for pos, label in l:gmatch("()%[fn:([^%]:%s]+)[%]:]") do
+        if not seen[label] and (pos == 1 or allowed(pos)) then
+          seen[label] = true
+          out[#out + 1] = label
+        end
       end
     end
   end
@@ -497,7 +541,8 @@ function M.new_footnote(opts)
   end
   local row, col0 = unpack(vim.api.nvim_win_get_cursor(0))
   local line = vim.api.nvim_get_current_line()
-  local at = line == "" and 0 or math.min(col0 + 1, #line)
+  -- after the character under the cursor (all of its bytes)
+  local at = line == "" and 0 or utils.char_end(line, col0 + 1)
   local function put(ref, cursor_offset)
     vim.api.nvim_set_current_line(line:sub(1, at) .. ref .. line:sub(at + 1))
     vim.api.nvim_win_set_cursor(0, { row, at + cursor_offset })
@@ -545,35 +590,39 @@ function M.collect_references(lines)
   local literal = M.literal_lines(lines)
   for lnum, line in ipairs(lines) do
     local init = 1
-    while not literal[lnum] do
+    local allowed = not literal[lnum] and line:find("[fn:", 1, true) and reference_test(line)
+    while allowed do
       local s = line:find("[fn:", init, true)
       if not s then
         break
       end
-      local depth, e = 0, nil
-      for i = s, #line do
-        local c = line:sub(i, i)
-        if c == "[" then
-          depth = depth + 1
-        elseif c == "]" then
-          depth = depth - 1
-          if depth == 0 then
-            e = i
-            break
+      local e
+      if allowed(s) then
+        local depth = 0
+        for i = s, #line do
+          local c = line:sub(i, i)
+          if c == "[" then
+            depth = depth + 1
+          elseif c == "]" then
+            depth = depth - 1
+            if depth == 0 then
+              e = i
+              break
+            end
           end
         end
+        if not e then
+          break
+        end
+        local inner = line:sub(s + 4, e - 1)
+        local label, text = inner:match("^([^:%]]*):(.*)$")
+        if label then
+          out[#out + 1] = { lnum = lnum, s = s, e = e, label = label ~= "" and label or nil, text = text }
+        elseif s > 1 then
+          out[#out + 1] = { lnum = lnum, s = s, e = e, label = inner }
+        end
       end
-      if not e then
-        break
-      end
-      local inner = line:sub(s + 4, e - 1)
-      local label, text = inner:match("^([^:%]]*):(.*)$")
-      if label then
-        out[#out + 1] = { lnum = lnum, s = s, e = e, label = label ~= "" and label or nil, text = text }
-      elseif s > 1 then
-        out[#out + 1] = { lnum = lnum, s = s, e = e, label = inner }
-      end
-      init = e + 1
+      init = (e or s) + 1
     end
   end
   return out
@@ -815,9 +864,13 @@ function M.renumber(bufnr)
   end
   local literal = M.literal_lines(lines)
   for i, l in ipairs(lines) do
-    if not literal[i] then
-      lines[i] = l:gsub("%[fn:(%d+)([%]:])", function(num, c)
-        return "[fn:" .. (map[num] or num) .. c
+    if not literal[i] and l:find("[fn:", 1, true) then
+      -- a definition at the line start, a reference where one can be
+      local allowed = reference_test(l)
+      lines[i] = l:gsub("()%[fn:(%d+)([%]:])", function(pos, num, c)
+        if pos == 1 or allowed(pos) then
+          return "[fn:" .. (map[num] or num) .. c
+        end
       end)
     end
   end

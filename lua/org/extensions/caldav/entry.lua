@@ -298,7 +298,12 @@ local function set_description(bufnr, uid, kind, text)
   if not hl then
     return
   end
-  local _, layout = M.read(file, hl, kind)
+  local fields, layout = M.read(file, hl, kind)
+  -- the event's time in the text being replaced (`... on <date> ...`)
+  local stamp
+  if layout.src == "inline" and not layout.in_title and layout.line then
+    stamp = file.lines[layout.line]:sub(layout.start_col, layout.end_col)
+  end
   local first, last = text_range(file, hl, layout.text)
   if first <= last then
     local new = text_lines(text, common_indent(file, first, last))
@@ -306,6 +311,15 @@ local function set_description(bufnr, uid, kind, text)
   else
     local new = text_lines(text, edit.body_indent(hl.level))
     vim.api.nvim_buf_set_lines(bufnr, layout.text - 1, layout.text - 1, false, new)
+  end
+  if stamp then
+    -- unless the new text still holds it, the time goes on a line of its
+    -- own above the text: the entry keeps its date
+    local now_file, now = M.find(bufnr, uid)
+    if now and (M.read(now_file, now, kind)).time ~= fields.time then
+      local at = body_start(now)
+      vim.api.nvim_buf_set_lines(bufnr, at - 1, at - 1, false, { edit.body_indent(now.level) .. stamp })
+    end
   end
 end
 

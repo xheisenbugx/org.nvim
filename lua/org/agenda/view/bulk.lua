@@ -118,8 +118,10 @@ function M.bulk_action()
     if not kw then
       return
     end
+    -- org-inhibit-blocking t, org-inhibit-logging 'note: no entry is
+    -- refused for its children, and a note becomes a time
     bulk(function(target)
-      call("org.todo", "change_state", target, kw ~= "(none)" and kw or nil)
+      call("org.todo", "change_state", target, kw ~= "(none)" and kw or nil, { force = true, inhibit_note = true })
     end, persistent)
   elseif choice == "s" or choice == "d" then
     local kind = choice == "s" and "scheduled" or "deadline"
@@ -127,6 +129,9 @@ function M.bulk_action()
     if not ans then
       return
     end
+    -- org-agenda-schedule / org-agenda-deadline (org--deadline-or-schedule):
+    -- the old repeater and warning period stay, CLOSED goes, and a change
+    -- is logged with a time, never a note (org-log-reschedule 'time)
     bulk(function(target)
       if ans.shift then
         local _, _, hl = require("org.edit").resolve_headline(target)
@@ -134,10 +139,10 @@ function M.bulk_action()
           call("org.timestamps", "shift", target, kind, ans.shift, ans.unit)
         else
           local d = date.today():add(ans.shift, ans.unit):clone({ active = true })
-          call("org.timestamps", "set_date", target, kind, d)
+          call("org.timestamps", "plan_date", target, kind, d, { note = false })
         end
       else
-        call("org.timestamps", "set_date", target, kind, ans.date)
+        call("org.timestamps", "plan_date", target, kind, ans.date, { note = false })
       end
     end, persistent)
   elseif choice == "S" then
@@ -156,8 +161,10 @@ function M.bulk_action()
       if item.sexp then
         return
       end
+      -- org-agenda-schedule, as for `s`: the repeater stays; but
+      -- log_reschedule is as set (a note per entry with "note")
       local d = today:add(M.scatter_distance(days, count > 0), "d"):clone({ active = true })
-      call("org.timestamps", "set_date", target, "scheduled", d)
+      call("org.timestamps", "plan_date", target, "scheduled", d)
     end, persistent)
   elseif choice == "+" or choice == "-" then
     local tag = utils.input_complete(choice == "+" and "Tag to add: " or "Tag to remove: ", all_tags_in_view())
@@ -174,17 +181,30 @@ function M.bulk_action()
     if ok and not dest then
       return
     end
+    -- the location is a marker in Emacs: it follows the headline while
+    -- the entries before it move away
+    local dmark = dest
+      and dest.lnum
+      and require("org.marks").set(dest.bufnr or utils.load_buffer(dest.filename), dest.lnum)
     bulk(function(target)
-      call("org.refile", "refile", target, { dest = dest })
-    end, persistent)
+      local d = dest
+      local l = dmark and dmark:lnum()
+      if d and l then
+        d = vim.tbl_extend("force", d, { lnum = l })
+      end
+      call("org.refile", "refile", target, { dest = d })
+    end, persistent, { subtree = true })
+    if dmark then
+      dmark:del()
+    end
   elseif choice == "$" then
     bulk(function(target)
       call("org.archive", "archive_subtree", target, { from_agenda = true })
-    end, persistent)
+    end, persistent, { subtree = true })
   elseif choice == "A" then
     bulk(function(target)
       call("org.archive", "archive_to_sibling", target)
-    end, persistent)
+    end, persistent, { subtree = true })
   elseif choice == "f" then
     local expr = utils.input({ prompt = "Function (Lua, receives target { bufnr, lnum } and the item): " })
     if not expr or vim.trim(expr) == "" then

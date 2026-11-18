@@ -417,10 +417,8 @@ function M.pick(opts)
   local initial = sel:to_date_string()
   if opts.with_time and not sel.hour then
     local now = date.now()
-    local r = (require("org.config").opts.time_stamp_rounding_minutes or {})[1] or 0
-    if r > 1 then
-      now = now:add(math.floor(now.min / r + 0.5) * r - now.min, "min")
-    end
+    -- org-current-time: a tie goes to the even multiple
+    now = date.round_minutes(now, (require("org.config").opts.time_stamp_rounding_minutes or {})[1])
     if not opts.default and now.hour < (tonumber(require("org.config").opts.extend_today_until) or 0) then
       -- still yesterday (org-read-date): its last minute
       now = now:clone({ hour = 23, min = 59 })

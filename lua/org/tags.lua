@@ -11,6 +11,29 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.tags.select")
 
+--- The character of `s` at byte `i`: its bytes (one byte when `s` is not
+--- UTF-8 there) and whether a tag can hold it (org-tag-re
+--- `[[:alnum:]_@#%]`).
+---@param s string
+---@param i integer
+---@return string ch, boolean tag_char
+local function char_at(s, i)
+  local c = s:byte(i)
+  local n = c < 0x80 and 1 or c >= 0xF0 and 4 or c >= 0xE0 and 3 or c >= 0xC2 and 2 or 0
+  if n == 1 then
+    local ch = s:sub(i, i)
+    return ch, ch:match("^[%w_@#%%]$") ~= nil
+  end
+  local ch = n > 0 and s:sub(i, i + n - 1) or ""
+  if n == 0 or c > 0xF4 or #ch ~= n or not ch:match("^.[\128-\191]+$") then
+    return s:sub(i, i), false -- not UTF-8
+  end
+  -- Vim's character class: 2 a word character, above 3 a script's
+  -- letters; 0 blanks, 1 punctuation and symbols, 3 emoji
+  local class = vim.fn.charclass(ch)
+  return ch, class >= 2 and class ~= 3
+end
+
 --- Is `tag` a name org reads back as a tag (org-tag-re `[[:alnum:]_@#%]`):
 --- ASCII letters and digits, `_`, `@`, `#`, `%`, and letters and digits of
 --- other scripts (no punctuation, symbols or emoji)? The API and the
@@ -23,26 +46,44 @@ function M.valid(tag)
   end
   local i = 1
   while i <= #tag do
-    local c = tag:byte(i)
-    local n = c < 0x80 and 1 or c >= 0xF0 and 4 or c >= 0xE0 and 3 or c >= 0xC2 and 2 or 0
-    local ch = n > 0 and tag:sub(i, i + n - 1) or ""
-    if n == 1 then
-      if not ch:match("^[%w_@#%%]$") then
-        return false
-      end
-    elseif n == 0 or c > 0xF4 or #ch ~= n or not ch:match("^.[\128-\191]+$") then
-      return false -- not UTF-8
-    else
-      -- Vim's character class: 2 a word character, above 3 a script's
-      -- letters; 0 blanks, 1 punctuation and symbols, 3 emoji
-      local class = vim.fn.charclass(ch)
-      if class < 2 or class == 3 then
-        return false
-      end
+    local ch, ok = char_at(tag, i)
+    if not ok then
+      return false
     end
-    i = i + n
+    i = i + #ch
   end
   return true
+end
+
+--- The tags in what the user typed, as org-set-tags-command reads them:
+--- every run of characters a tag can't hold (`[^[:alnum:]_@#%]+`)
+--- separates two tags, so "foo-bar" and "a b" are two tags each and
+--- ":a:b:" is a and b. Without duplicates.
+---@param str? string
+---@return string[]
+function M.parse_typed(str)
+  str = str or ""
+  local out, seen, cur = {}, {}, {}
+  local function flush()
+    local tag = table.concat(cur)
+    cur = {}
+    if tag ~= "" and not seen[tag] then
+      seen[tag] = true
+      out[#out + 1] = tag
+    end
+  end
+  local i = 1
+  while i <= #str do
+    local ch, ok = char_at(str, i)
+    if ok then
+      cur[#cur + 1] = ch
+    else
+      flush()
+    end
+    i = i + #ch
+  end
+  flush()
+  return out
 end
 
 --- Fire the User autocmd `OrgTagsChanged` (org-after-tags-change-hook,
@@ -711,10 +752,17 @@ function M.fast_select(current, defs, inherited, opts)
       current = {}
       changed = true
     elseif ch == "\t" then
-      local tag = utils.input_complete("Tag: ", opts.completion or M.all_tags())
-      tag = tag and vim.trim(tag)
-      if tag and tag ~= "" then
-        current = add_or_remove(tag, current, groups)
+      -- one tag toggles; text holding several ("next week") adds each,
+      -- as org-set-tags-command splits it when it sets the tags
+      local typed = M.parse_typed(utils.input_complete("Tag: ", opts.completion or M.all_tags()))
+      if #typed == 1 then
+        current = add_or_remove(typed[1], current, groups)
+      else
+        for _, tag in ipairs(typed) do
+          if not vim.tbl_contains(current, tag) then
+            current = add_or_remove(tag, current, groups)
+          end
+        end
       end
       changed = true
     elseif todo_by_key[ch] and opts.on_todo then
@@ -787,7 +835,7 @@ function M.set_tags(target, tags, no_fast)
     else
       local default = #hl.tags > 0 and (":" .. table.concat(hl.tags, ":") .. ":") or ""
       local typed = utils.input_complete("Tags: ", M.all_tags(bufnr), default)
-      tags = typed and M.parse_input(typed) or nil
+      tags = typed and M.parse_typed(typed) or nil
     end
     if not tags then
       return nil
@@ -876,7 +924,7 @@ function M.set_tags_command()
       end
     end
     local tag = utils.input_complete((op == "add" and "Add" or "Remove") .. " tag: ", candidates)
-    tag = tag and M.parse_input(tag)[1]
+    tag = tag and M.parse_typed(tag)[1]
     if not tag then
       return
     end

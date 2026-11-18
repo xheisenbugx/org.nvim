@@ -210,7 +210,8 @@ local function copy_resources(info)
   local src_dir = info.input_file and vim.fn.fnamemodify(info.input_file, ":p:h") or vim.fn.getcwd()
   for _, kv in ipairs(fm.parse_arguments(info.hugo_resources)) do
     if kv[1] == "src" and type(kv[2]) == "string" then
-      for _, f in ipairs(vim.fn.glob(src_dir .. "/" .. kv[2], false, true)) do
+      -- (document text: utils.glob, never vim.fn.glob(), which runs `backticks`)
+      for _, f in ipairs(require("org.utils").glob(src_dir .. "/" .. kv[2])) do
         local ext = vim.fn.fnamemodify(f, ":e"):lower()
         if vim.tbl_contains(opts().copy_extensions or {}, ext) then
           local rel = f:sub(#src_dir + 2)

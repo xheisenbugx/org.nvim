@@ -77,7 +77,9 @@ ranges no spec runs, a list of what to test next. Nothing extra to
 install, and nothing of it reaches plugin users. The Coverage workflow
 runs it weekly (and from the Actions tab), uploads `coverage/` as an
 artifact and puts the summary on the run's page; it never runs on pull
-requests.
+requests. When a run on `dev` fails (a spec, or a floor below), it opens
+an issue labelled `coverage` with the failures, or comments on the open
+one. A spec's time limit fails there first: give it `or under_coverage()`.
 
 #### Coverage floors
 
@@ -197,6 +199,7 @@ Besides stylua, `make lint` runs `scripts/lint_sources.lua` over `lua/`
 | Rule | Flags | Do instead |
 | --- | --- | --- |
 | `expand` | `vim.fn.expand(x)` where `x` isn't a string literal. Vim expansion runs `` `backticks` `` as shell commands and globs, and paths often come from the document. | `utils.expand_vars(x)` (only `~` and `$VAR`) or `utils.expand(x, base)` |
+| `glob` | `vim.fn.glob(x)` / `vim.fn.globpath(d, x)` where an argument isn't a string literal. `glob()` runs `` `backticks` `` as shell commands, `globpath()` splits its directories at commas, and paths often come from the document or a link. | `utils.glob(pattern)` (no shell; `*`, `?`, `[..]`, `{a,b}`, `**`) |
 | `gsub` | `s:gsub(pat, repl)` / `string.gsub` where `repl` is a variable or a concatenation: a `%` in a path, label or user text is read as a capture. | a literal, a function, a table, or `utils.gsub_escape(value)` |
 | `keyword-span` | a value captured from a `#+KEY: value` line located again with `line:find(value)` from the start of the line, which finds `#+name: name` inside the keyword. | capture the column in the same match: `line:match("^#%+name:%s*()(.-)$")` |
 
@@ -1294,8 +1297,9 @@ too, resolving any conflict (usually `CHANGELOG.md`, take the release's)
 on the `merge-back` branch; pull requests opened by the workflow don't
 start CI. Opening it needs "Allow GitHub Actions to create and approve
 pull requests" (Settings > Actions > General); without it, or if the step
-fails, the release is still out and the step's warning links to open the
-same pull request by hand. Pick the version with
+fails, the release is still out, and the step opens an issue labelled
+`merge-back` (or comments on the open one) with the error and a link to
+open the same pull request by hand. Pick the version with
 [semver](https://semver.org): a breaking change (`feat!:` or a
 `BREAKING CHANGE:` footer, listed first in the changelog) bumps the major
 version, a `feat` the minor version, and fixes the patch.

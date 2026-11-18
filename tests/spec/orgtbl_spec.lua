@@ -113,6 +113,70 @@ describe("table translators (orgtbl-to-*)", function()
     eq("\\begin{tabular}{r}\n\\toprule\na\\\\\n\\midrule\n1\\\\\n\\midrule\n3\\\\\n\\bottomrule\n\\end{tabular}", out)
   end)
 
+  it("keeps the backend's cell separators with :lstart and :lend (Emacs 9.8.10 output)", function()
+    -- org-table--to-generic-row puts :lstart / :lend (and the :ll / :hl /
+    -- :hll variants) around the row's contents, the backend's cells with
+    -- their separators; HTML rows lose org-html-table-row's tags there
+    local H = "hline"
+    local rows = { { "a", "b" }, H, { "1", "2" }, { "3", "4" } }
+    eq(
+      "\\begin{tabular}{rr}\na & b\\\\\n\\hline\n1 & 2\\\\\n3 & 4 \\\\ \\hline\n\\end{tabular}",
+      orgtbl.translate("orgtbl-to-latex", rows, ':llend " \\\\\\\\ \\\\hline"')
+    )
+    eq(
+      "\\begin{tabular}{rr}\n\\rowcolor{x} a & b\n\\hline\n\\rowcolor{x} 1 & 2\n\\rowcolor{x} 3 & 4\n\\end{tabular}",
+      orgtbl.translate("orgtbl-to-latex", rows, ':lstart "\\\\rowcolor{x} "')
+    )
+    eq(
+      "@multitable {a} {a}\na\n@tab b @c\n1\n@tab 2 @c\n3\n@tab 4 @c\n@end multitable",
+      orgtbl.translate("orgtbl-to-texinfo", rows, ':lend " @c"')
+    )
+    local html = orgtbl.translate("orgtbl-to-html", rows, ':llstart "<tr class=\\"last\\">" :llend "</tr>"')
+    eq(
+      table.concat({
+        "</colgroup>",
+        "<thead>",
+        "<tr>",
+        '<th scope="col" class="org-right">a</th>',
+        '<th scope="col" class="org-right">b</th>',
+        "</tr>",
+        "</thead>",
+        "<tbody>",
+        "<tr>",
+        '<td class="org-right">1</td>',
+        '<td class="org-right">2</td>',
+        "</tr>",
+        '<tr class="last">',
+        '<td class="org-right">3</td>',
+        '<td class="org-right">4</td></tr>',
+        "</table>",
+      }, "\n"),
+      html:match("</colgroup>.*$")
+    )
+  end)
+
+  it("html :splice keeps the row groups (Emacs 9.8.10 output)", function()
+    eq(
+      table.concat({
+        "<thead>",
+        "<tr>",
+        '<th scope="col" class="org-right">a</th>',
+        "</tr>",
+        "</thead>",
+        "<tbody>",
+        "<tr>",
+        '<td class="org-right">1</td>',
+        "</tr>",
+        "",
+        "<tr>",
+        '<td class="org-right">3</td>',
+        "</tr>",
+        "</tbody>",
+      }, "\n"),
+      orgtbl.translate("orgtbl-to-html", { { "a" }, "hline", { "1" }, { "3" } }, ":splice t")
+    )
+  end)
+
   it("keeps leading, trailing and doubled hlines (Emacs 9.8.10 output)", function()
     local H = "hline"
     local rows = { H, { "Name", "Val" }, H, { "a", "1" }, H, H, { "b", "2" }, H }

@@ -155,7 +155,8 @@ function M.output_file_name(src, ext, info, pub_dir)
       dir = utils.expand(cfg().output_dir, src and vim.fn.fnamemodify(src, ":p:h") or vim.fn.getcwd())
     end
   end
-  base = base:gsub("%.[^/%.]*$", "")
+  -- file-name-sans-extension: the last extension, not a leading dot
+  base = vim.fn.fnamemodify(base, ":r")
   local out = base .. "." .. ext
   if pub_dir then
     out = vim.fs.normalize(pub_dir .. "/" .. vim.fn.fnamemodify(out, ":t"))

@@ -276,7 +276,7 @@ function M.toggle_tags(current, chosen, query)
     end
   end
   if #chosen == 0 and query and query ~= "" then
-    for _, t in ipairs(require("org.tags").parse_input(query)) do
+    for _, t in ipairs(require("org.tags").parse_typed(query)) do
       if not has[t] then
         out[#out + 1] = t
         has[t] = true

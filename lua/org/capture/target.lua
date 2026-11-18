@@ -319,6 +319,61 @@ local function track_target_changes(loc, before)
   end
 end
 
+--- Decrypt the entry at line `line` when it is encrypted (`org.crypt`), as
+--- org-capture-set-target-location does (:decrypted): the captured text
+--- goes into the clear text, and `reencrypt` encrypts the entry again
+--- before the target is saved or when the capture ends without storing.
+--- The decrypted headline is `loc.decrypted` (a mark).
+---@return boolean|nil ok
+---@return string|nil err
+local function decrypt_target(bufnr, line, loc)
+  local crypt = require("org.crypt")
+  local s = crypt.at_encrypted_entry({ bufnr = bufnr, lnum = line })
+  -- (a position inside the PGP message itself stays as it is)
+  if not s or line >= s then
+    return true
+  end
+  local hl = files.get_buffer(bufnr):headline_at(line)
+  if not hl then
+    return true
+  end
+  local ok, err = crypt.decrypt_entry({ bufnr = bufnr, lnum = hl.line })
+  if not ok then
+    return nil, "Cannot decrypt the capture target: " .. tostring(err or "not decrypted")
+  end
+  -- (a mark that follows the headline when it is rewritten: a capture
+  -- updates its statistics cookie, realigns its tags)
+  loc.decrypted = marks.set(bufnr, hl.line)
+  return true
+end
+
+--- Encrypt again the entry decrypted for the capture (org-capture-finalize
+--- calls org-encrypt-entry at :decrypted). True when there is nothing to
+--- encrypt (any more), else nil and the error; the entry then stays
+--- decrypted in the buffer.
+---@return boolean|nil ok
+---@return string|nil err
+local function reencrypt(loc)
+  local m = loc and loc.decrypted
+  if not m then
+    return true
+  end
+  local lnum = m:lnum()
+  if not lnum or not vim.api.nvim_buf_is_valid(loc.bufnr) then
+    -- the buffer is gone
+    marks.del(m)
+    loc.decrypted = nil
+    return true
+  end
+  local ok, err = require("org.crypt").encrypt_entry({ bufnr = loc.bufnr, lnum = lnum })
+  if not ok then
+    return nil, tostring(err or "encryption failed")
+  end
+  marks.del(m)
+  loc.decrypted = nil
+  return true
+end
+
 --- Resolve a template's target when the capture starts
 --- (org-capture-set-target-location). Headlines of file+headline and the
 --- date tree nodes are created now. Positions are tracked with extmarks.
@@ -452,6 +507,15 @@ function M.resolve_target(tpl, ctx)
   if entry_p and not line then
     return nil, "Capture target not found"
   end
+  if line then
+    -- an encrypted entry is decrypted (tracked as a change of the target,
+    -- so that an abort puts the same PGP message back)
+    local ok, err = decrypt_target(bufnr, line, loc)
+    if not ok then
+      utils.restore_buffer(bufnr, before, loc.was_modified)
+      return nil, err
+    end
+  end
   loc.bufnr = bufnr
   loc.target_entry_p = entry_p
   track_target_changes(loc, before)
@@ -505,10 +569,25 @@ end
 
 local function release(loc)
   if loc then
-    marks.del(loc.mark)
+    marks.del(loc.mark, loc.decrypted)
+    loc.decrypted = nil
     for _, change in ipairs(loc.changes or {}) do
       marks.del(change.mark)
     end
+  end
+end
+
+--- A target buffer holding its text from before the capture again is
+--- unmodified (when it was, and the file still holds that text).
+local function settle_modified(loc)
+  local lines = vim.api.nvim_buf_get_lines(loc.bufnr, 0, -1, false)
+  if vim.deep_equal(lines, loc.original_lines) and not loc.was_modified then
+    -- The target may have been written while capturing: only clear the
+    -- flag when the file still holds the restored text.
+    -- (an empty or missing file is a buffer with one empty line)
+    local name = vim.api.nvim_buf_get_name(loc.bufnr)
+    local disk = name ~= "" and utils.readfile(name) or {}
+    vim.bo[loc.bufnr].modified = name ~= "" and not vim.deep_equal(#disk > 0 and disk or { "" }, lines)
   end
 end
 
@@ -538,15 +617,13 @@ local function cleanup_target(loc)
       end
     end
   end
-  local lines = vim.api.nvim_buf_get_lines(loc.bufnr, 0, -1, false)
-  if vim.deep_equal(lines, loc.original_lines) and not loc.was_modified then
-    -- The target may have been written while capturing: only clear the
-    -- flag when the file still holds the restored text.
-    -- (an empty or missing file is a buffer with one empty line)
-    local name = vim.api.nvim_buf_get_name(loc.bufnr)
-    local disk = name ~= "" and utils.readfile(name) or {}
-    vim.bo[loc.bufnr].modified = name ~= "" and not vim.deep_equal(#disk > 0 and disk or { "" }, lines)
+  -- an entry decrypted for the capture is encrypted again (when putting
+  -- the lines back didn't restore its PGP message already)
+  local enc_ok, enc_err = reencrypt(loc)
+  if not enc_ok then
+    utils.warn("The capture target stays decrypted in its buffer (not saved): " .. tostring(enc_err))
   end
+  settle_modified(loc)
 end
 
 -- Shared with the parts loaded after this one
@@ -557,3 +634,5 @@ shared.put = put
 shared.mark_pos = mark_pos
 shared.release = release
 shared.cleanup_target = cleanup_target
+shared.reencrypt = reencrypt
+shared.settle_modified = settle_modified

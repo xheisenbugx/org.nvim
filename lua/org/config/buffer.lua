@@ -353,8 +353,8 @@ local defaults = {
   --- `-Nd` delay; a negative value applies even then
   --- (org-scheduled-delay-days).
   scheduled_delay_days = 0,
-  --- { rounding of the current time in date prompts, minute step of
-  --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
+  --- { rounding of the current time in date prompts, CLOSED, LAST_REPEAT
+  --- and notes, minute step of <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
   --- exactly that many minutes.
   time_stamp_rounding_minutes = { 0, 5 },
   --- Date prompts interpret incomplete dates in the future: `true` (a past

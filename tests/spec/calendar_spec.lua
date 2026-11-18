@@ -96,6 +96,32 @@ describe("calendar", function()
     ok(table.concat(lines, "\n"):find("x remove", 1, true))
   end)
 
+  it("rounds the default time like org-current-time, a tie to the even multiple", function()
+    -- org-read-date takes its default from (org-current-time), which
+    -- rounds with (round MIN R): with 10 minutes, 10:25 is 10:20
+    local config = require("org.config")
+    local saved = {
+      now = date.now,
+      input = vim.fn.input,
+      popup = config.opts.read_date_popup_calendar,
+      rounding = config.opts.time_stamp_rounding_minutes,
+    }
+    date.now = function()
+      return date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 25 })
+    end
+    vim.fn.input = function()
+      return ""
+    end
+    config.opts.read_date_popup_calendar = false
+    config.opts.time_stamp_rounding_minutes = { 10, 5 }
+    local ok_run, picked = pcall(calendar.pick, { with_time = true })
+    date.now, vim.fn.input = saved.now, saved.input
+    config.opts.read_date_popup_calendar = saved.popup
+    config.opts.time_stamp_rounding_minutes = saved.rounding
+    ok(ok_run, picked)
+    eq({ 10, 20 }, { picked.hour, picked.min })
+  end)
+
   it("keeps one window while moving and closes it when done", function()
     local keys = { "l", "L", "\r" }
     local getcharstr = vim.fn.getcharstr

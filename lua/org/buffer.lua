@@ -220,8 +220,22 @@ function M.detach(bufnr)
     pcall(vim.keymap.del, r[1], r[2], { buffer = bufnr })
   end
   vim.b[bufnr].org_keymaps = nil
-  for _, group in ipairs({ "org.buffer.", "org.fold." }) do
+  -- the autocommands of the buffer, the attach parts' too: speed
+  -- commands, table realigning and typing, the clock display and the
+  -- custom timestamp display would go on editing a buffer that is no
+  -- longer Org (org-mode's local hooks go with kill-all-local-variables)
+  for _, group in ipairs({ "org.buffer.", "org.fold.", "org.speed.", "org.table.", "org.clock.buf." }) do
     pcall(vim.api.nvim_del_augroup_by_name, group .. bufnr)
+  end
+  -- (orgtbl-mode, a minor mode of its own, keeps its table typing)
+  local typing = package.loaded["org.table.typing"]
+  if typing and not vim.b[bufnr].orgtbl_mode then
+    typing.detach(bufnr)
+  end
+  if vim.b[bufnr].org_custom_times_attached then
+    vim.b[bufnr].org_custom_times_attached = nil
+    pcall(vim.api.nvim_del_augroup_by_name, "org.timestamps.custom." .. bufnr)
+    vim.api.nvim_buf_clear_namespace(bufnr, vim.api.nvim_create_namespace("org.timestamps.custom"), 0, -1)
   end
   try("org.ui.decorations", "detach", bufnr)
   try("org.ui.src_highlight", "detach", bufnr)

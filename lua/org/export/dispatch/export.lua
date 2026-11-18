@@ -90,7 +90,7 @@ function M.export(format, opts)
   end
   if not spec then
     -- pandoc: convert the Org export of the buffer
-    local text, _, err = render("org", lines, xopts)
+    local text, info, err = render("org", lines, xopts)
     if not text then
       utils.error("Export failed: " .. err)
       return nil
@@ -100,7 +100,8 @@ function M.export(format, opts)
       utils.error("pandoc not found (needed for " .. format .. " export). Install pandoc or set export.pandoc.cmd")
       return nil
     end
-    local out = opts.output or M.output_file_name(src, PANDOC_EXT[format] or format)
+    -- named by #+EXPORT_FILE_NAME / the subtree's property like native exports
+    local out = opts.output or M.output_file_name(src, PANDOC_EXT[format] or format, info)
     vim.list_extend(cmd, { "-f", "org", "-t", format, "-o", out })
     if not opts.body_only then
       cmd[#cmd + 1] = "--standalone"

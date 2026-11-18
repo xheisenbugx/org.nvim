@@ -127,7 +127,7 @@ local function current_time(past)
   end
   local t = os.date("*t")
   local exact = now:minutes() + t.sec / 60
-  local rounded = now:add(r * math.floor(now.min / r + 0.5) - now.min, "min")
+  local rounded = date.round_minutes(now, r)
   if past and rounded:minutes() > exact then
     rounded = rounded:add(-r, "min")
   end

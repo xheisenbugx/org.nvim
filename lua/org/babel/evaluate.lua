@@ -267,6 +267,11 @@ local function insert_results(bufnr, start, result, args, hash, lang, ctx)
     if handling == "append" then
       vim.api.nvim_buf_set_lines(bufnr, e, e, false, body)
       after_row = e + #body
+      if no_indent and body[1] and body[1]:match("^%s*|") then
+        -- the rows continue a table result: org-table-align realigns it,
+        -- at the indentation of its first row (org-babel-insert-result)
+        require("org.table").align_at(bufnr, e + 1)
+      end
     elseif handling == "prepend" then
       vim.api.nvim_buf_set_lines(bufnr, s, s, false, body)
       after_row = s + #body

@@ -161,6 +161,35 @@ local function strip_active_timestamps(s)
   return (out:gsub("<%%%%%b()[^>\n]*>", ""))
 end
 
+--- Remove from `title` the timestamp `stamp` (which gives the agenda line
+--- its time) with the spaces after it, as org-agenda-format-item removes
+--- its time string (`(regexp-quote time-string) " *"`), unless a `]`
+--- follows. `beg`: only at the start of the title
+--- (remove_times_when_in_prefix = "beg").
+---@param title string
+---@param stamp org.Date
+---@param beg? boolean
+---@return string
+local function remove_time_stamp(title, stamp, beg)
+  if not title:find("<", 1, true) then
+    return title
+  end
+  local want = stamp:to_string()
+  for _, m in ipairs(date.parse_all(title)) do
+    if m.date.active and m.date.hour and m.date:to_string() == want then
+      local e = m.end_col
+      while title:sub(e + 1, e + 1) == " " do
+        e = e + 1
+      end
+      if title:sub(e + 1, e + 1) ~= "]" and (not beg or m.start_col == 1) then
+        return title:sub(1, m.start_col - 1) .. title:sub(e + 1)
+      end
+      return title
+    end
+  end
+  return title
+end
+
 local function time_of(d)
   if d and d.hour then
     return d.hour * 60 + (d.min or 0)
@@ -186,7 +215,20 @@ end
 --- headline's.
 local function set_time(item, stamp, acfg, remove_stamps, sexp_stamp, dotime)
   local title = item.title
+  local rm = acfg.remove_times_when_in_prefix
   if remove_stamps then
+    -- with "beg", Emacs's text starts with the TODO keyword and priority
+    local beg = rm == "beg"
+    if
+      stamp
+      and stamp.hour
+      and not dotime
+      and rm ~= false
+      and item.prefix_has_time ~= false
+      and not (beg and (item.todo or item.priority))
+    then
+      title = remove_time_stamp(title, stamp, beg)
+    end
     title = strip_active_timestamps(title)
   end
   -- Emacs searches DOTIME followed by the headline without its
@@ -225,7 +267,6 @@ local function set_time(item, stamp, acfg, remove_stamps, sexp_stamp, dotime)
       item.time, item.end_time = found.start, found.stop
     end
   end
-  local rm = acfg.remove_times_when_in_prefix
   if found and rm ~= false and item.prefix_has_time ~= false then
     local s, e = title:find(vim.pesc(found.text) .. " *")
     if s and title:sub(e + 1, e + 1) ~= "]" and (rm ~= "beg" or (s == 1 and not item.todo and not item.priority)) then

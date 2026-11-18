@@ -55,6 +55,7 @@ end
 
 --- The current line of an item's entry in `bufnr` (Emacs keeps a marker):
 --- its line when the buffer is unchanged since the agenda was built, else
+--- the line of its extmark (`item.mark`) when that still holds it, else
 --- the line with the same text, the n-th of n identical ones when it was
 --- the n-th before, otherwise the one nearest its old line.
 ---@return integer|nil
@@ -63,6 +64,14 @@ function M.locate_line(bufnr, item)
   local old = item.headline and item.headline.file
   if old and files.cached_buffer(bufnr) == old then
     return lnum
+  end
+  -- the extmark on the entry (org-hd-marker), while its line holds it
+  local m = item.mark
+  if m and m.bufnr == bufnr then
+    local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, m.ns, m.id, {})
+    if ok and pos[1] and vim.api.nvim_buf_get_lines(bufnr, pos[1], pos[1] + 1, false)[1] == raw then
+      return pos[1] + 1
+    end
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local found = {}

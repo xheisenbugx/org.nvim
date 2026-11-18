@@ -231,7 +231,9 @@ end
 local function open_wildcard(pattern, how)
   local dir, glob = pattern:match("^(.*)/([^/]*)$")
   dir = dir ~= "" and dir or "/"
-  local matches = vim.fn.glob(pattern, false, true)
+  -- utils.glob, never vim.fn.glob(): the pattern is document text, and
+  -- Vim's glob runs `backticks` in it as shell commands
+  local matches = utils.glob(pattern)
   if #matches == 0 then
     utils.warn("No files match " .. pattern)
     return false
@@ -454,9 +456,12 @@ function M.find_id_link(path)
   return loc, id, option
 end
 
---- Open a link target string (as written inside [[...]]).
+--- Open a link target string (as written inside [[...]]). `opts.lnum`
+--- (else `opts.link.lnum`) is the line of `bufnr` the link is on: an
+--- `attachment:` link resolves in the attachment directory of that line's
+--- entry (default: the cursor's line when `bufnr` is the current buffer).
 ---@param target string
----@param opts? { bufnr?: integer, split?: string, link?: org.Link, arg?: integer, avoid?: integer[] }
+---@param opts? { bufnr?: integer, lnum?: integer, split?: string, link?: org.Link, arg?: integer, avoid?: integer[] }
 function M.open(target, opts)
   opts = opts or {}
   local arg = opts.arg or 0
@@ -559,7 +564,8 @@ function M.open(target, opts)
     if p then
       path, search = p, s
     end
-    local full = require("org.attach").resolve_attachment(path, { bufnr = bufnr })
+    local lnum = opts.lnum or (opts.link and opts.link.lnum)
+    local full = require("org.attach").resolve_attachment(path, { bufnr = bufnr, lnum = lnum })
     if not full then
       utils.warn("Attachment not found: " .. path)
       return false

@@ -230,7 +230,7 @@ describe("parser highlighter: headlines", function()
     local small, big = time(700), time(7000)
     -- (about 20k and 200k characters) ten times the text, well under a
     -- hundred times the time
-    ok(big < math.max(small, 1) * 40, string.format("%.1f ms vs %.1f ms", small, big))
+    ok(big < math.max(small, 1) * 40 or under_coverage(), string.format("%.1f ms vs %.1f ms", small, big))
   end)
 end)
 

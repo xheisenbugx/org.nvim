@@ -454,6 +454,68 @@ describe("tblfm emacs compat", function()
       end)
     end
 
+    -- math-round / math-ceiling / math-floor / math-trunc with a precision:
+    -- calcFunc-scf shifts the decimal point exactly (Calc floats are
+    -- decimal), then divides back (an integer when it divides); with a
+    -- precision <= 0 an integer stays as it is (Emacs 31.1 Calc)
+    local more = {
+      { "floor(0.29, 2)", "0.29" },
+      { "floor(-0.29, 2)", "-0.29" },
+      { "ceil(1.1, 2)", "1.1" },
+      { "ceil(-1.1, 2)", "-1.1" },
+      { "trunc(0.57, 2)", "0.57" },
+      { "trunc(-0.57, 2)", "-0.57" },
+      { "round(1.005, 2)", "1.01" },
+      { "round(-1.005, 2)", "-1.01" },
+      { "round(2.675, 2)", "2.68" },
+      { "round(0.285, 2)", "0.29" },
+      { "round(9.995, 2)", "10" },
+      { "round(5, 2)", "5" },
+      { "round(12345, -2)", "12345" },
+      { "round(12345.6789, -2)", "12300" },
+      { "floor(-12.5, -1)", "-20" },
+      { "round(1.005, 2.0)", "1.01" },
+      { "round(2:3, 2)", "0.67" },
+      { "rounde(0.125, 2)", "0.12" },
+      { "rounde(2.675, 2)", "2.68" },
+      { "roundu(-0.125, 2)", "-0.12" },
+    }
+    -- numbers with an explicit radix (math-read-number-fancy), and `%`
+    -- before a prefix operator is the modulo, not the postfix percent
+    -- (math-factor-after) (Emacs 31.1 Calc)
+    vim.list_extend(more, {
+      { "2#101", "5" },
+      { "16#FF + 1", "256" },
+      { "16#ff", "255" },
+      { "36#Z", "35" },
+      { "-16#FF", "-255" },
+      { "16#1E3", "483" },
+      { "16#F.8", "15.5" },
+      { "2#101.1", "5.5" },
+      { "2#1.1e1", "3." },
+      { "2#1.1e-1", "0.75" },
+      { "2#101e-2", "1.25" },
+      { "8#7e+1", "56." },
+      { "14#De-1", "0.92857143" },
+      { "16#1E-3", "27" },
+      { "16#F:3", "5" },
+      { "16^^FF", "255" },
+      { "2##101", "5" },
+      { "16#FFFFFFFFFFFFFFFFFF", "4722366482869645213695" },
+      { "3#12a", "#ERROR" },
+      { "7 % -3", "-2" },
+      { "50% - 3", "-1" },
+      { "5% + 2", "1" },
+      { "5 % !0", "0" },
+      { "10% * 2", "0.2" },
+      { "(10%) - 3", "-2.9" },
+    })
+    for _, c in ipairs(more) do
+      it(c[1] .. " = " .. c[2], function()
+        eq(c[2], eval1(c[1]))
+      end)
+    end
+
     it("vector functions over a column range", function()
       local fns = { "vsum", "vmean", "vmax", "vmin", "vcount", "vprod", "vmedian", "vsdev", "vvar" }
       local lines = {}

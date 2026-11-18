@@ -482,7 +482,9 @@ local EXP = "^([-+]?%d*%.?%d+)[eE]([-+]?%d+)$"
 --- (the backend's transcoder).
 ---@param rows (string[]|string)[]
 ---@param params table
----@param backend? { keep_rules?: boolean, cells?: (fun(rows: table): table?), cell?: (fun(s: string): string), row?: (fun(cells: string[], info: table): string), hline?: (fun(info: table): string?), table?: fun(body: string, info: table): string }
+--- `join` writes a row's cells as the backend's row contents (with its
+--- cell separators), for the :lstart / :lend rows.
+---@param backend? { keep_rules?: boolean, cells?: (fun(rows: table): table?), cell?: (fun(s: string): string), join?: (fun(cells: string[], info: table): string), row?: (fun(cells: string[], info: table): string), hline?: (fun(info: table): string?), table?: fun(body: string, info: table): string }
 function M.generic(rows, params, backend)
   params = params or {}
   -- without a backend, Emacs exports through the Org backend, which keeps
@@ -569,10 +571,15 @@ function M.generic(rows, params, backend)
         else
           ls, le = params.lstart, params.lend
         end
+        local rinfo = { header = header, index = i, rows = rows, sep = body }
         if ls or le or not backend.row then
-          line = (apply(ls) or "") .. (body or table.concat(cells)) .. (apply(le) or "")
+          -- the row's contents keep the backend's cell separators (` & `
+          -- in LaTeX): org-table--to-generic-row puts :lstart and :lend
+          -- around the contents of the backend's cells
+          body = body or (backend.join and backend.join(cells, rinfo)) or table.concat(cells)
+          line = (apply(ls) or "") .. body .. (apply(le) or "")
         else
-          line = backend.row(cells, { header = header, index = i, rows = rows, sep = body })
+          line = backend.row(cells, rinfo)
         end
       end
       out[#out + 1] = line
@@ -734,6 +741,9 @@ function M.translators.latex(rows, params)
     cells = function(prepared)
       return export_cells("latex", prepared)
     end,
+    join = function(cells)
+      return table.concat(cells, " & ")
+    end,
     row = function(cells, info)
       -- :sep replaces the LaTeX column separator (org-table--to-generic-cell)
       local line = (info.sep or table.concat(cells, " & ")) .. "\\\\"
@@ -799,32 +809,50 @@ function M.translators.html(rows, params)
   local align = export_alignments(prepared, tx, pinfo.align)
   local names = { l = "left", r = "right", c = "center" }
   local nheader = header_count(prepared)
+  -- :lstart and friends wrap the rows they apply to instead of the
+  -- backend (org-table--to-generic-row): then the rows are the body
+  local custom_rows = false
+  for _, k in ipairs({ "lstart", "lend", "llstart", "llend", "hlstart", "hlend", "hllstart", "hllend" }) do
+    custom_rows = custom_rows or params[k] ~= nil
+  end
+  --- The cells of a row as org-html-table-cell writes them.
+  local function join(cells, info)
+    local tag = info.header and "th" or "td"
+    local out = {}
+    for c, v in ipairs(cells) do
+      out[c] = string.format(
+        '\n<%s%s class="org-%s">%s</%s>',
+        tag,
+        info.header and ' scope="col"' or "",
+        names[align[c]] or "left",
+        v == "" and "&nbsp;" or v,
+        tag
+      )
+    end
+    return table.concat(out)
+  end
   return M.generic(rows, params, {
     cell = html_cell,
     cells = function()
       return tx
     end,
+    join = join,
+    -- org-html-table-row: a row group opens with <thead> (the header) or
+    -- <tbody> and closes after its last row
     row = function(cells, info)
-      local tag = info.header and "th" or "td"
-      local out = { "<tr>" }
-      for c, v in ipairs(cells) do
-        local scope = info.header and ' scope="col"' or ""
-        out[#out + 1] = string.format(
-          '<%s%s class="org-%s">%s</%s>',
-          tag,
-          scope,
-          names[align[c]] or "left",
-          v == "" and "&nbsp;" or v,
-          tag
-        )
+      local r = info.rows
+      local first = info.index == 1 or r[info.index - 1] == "hline"
+      local last = info.index == #r or r[info.index + 1] == "hline"
+      local open, close = "<tbody>", "\n</tbody>"
+      if info.header then
+        open, close = "<thead>", "\n</thead>"
       end
-      out[#out + 1] = "</tr>"
-      return table.concat(out, "\n")
+      return (first and open or "") .. "\n<tr>" .. join(cells, info) .. "\n</tr>" .. (last and close or "")
     end,
     hline = function()
       return nil
     end,
-    table = function(_, info)
+    table = function(body, info)
       -- rebuild with row groups: thead for the header, tbody per group
       -- one <colgroup> per column group (org-html-table)
       local bar, specs = group_bars(pinfo.groups), {}
@@ -836,6 +864,11 @@ function M.translators.html(rows, params)
           .. ((c == #align or bar[c + 1]) and "\n</colgroup>" or "")
       end
       local lines = { "<table" .. attr_text .. ">\n\n" .. table.concat(specs, "\n") }
+      if custom_rows then
+        lines[#lines + 1] = body
+        lines[#lines + 1] = "</table>"
+        return table.concat(lines, "\n")
+      end
       local groups, cur = {}, {}
       for i, r in ipairs(info.rows) do
         if r == "hline" then
@@ -898,6 +931,9 @@ function M.translators.texinfo(rows, params)
     cell = texinfo_cell,
     cells = function(prepared)
       return export_cells("texinfo", prepared)
+    end,
+    join = function(cells)
+      return table.concat(cells, "\n@tab ")
     end,
     row = function(cells, info)
       local lines = { (info.header and "@headitem " or "@item ") .. (cells[1] or "") }

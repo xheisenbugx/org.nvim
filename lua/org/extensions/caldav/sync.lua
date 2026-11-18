@@ -685,9 +685,10 @@ function M.sync_calendar(c, run)
         string.format("%d %s in the calendar left out: set todos = true to sync them", n, n == 1 and "task" or "tasks")
     end
   end
-  -- an event that is no longer in the days asked for may still exist
+  -- an event that is no longer in the days asked for may still exist, and
+  -- so may a task synced before todos was turned off
   local all = win
-  if start then
+  if start or not todos then
     for _, it in pairs(st.items) do
       if not win[it.href] then
         local every, eerr = http.etags(c)

@@ -26,6 +26,14 @@ local function valid_tag(tag)
   return require("org.tags").valid(tag)
 end
 
+--- Fail with `bad_value` unless a property value is one line (a drawer
+--- holds one line per property).
+local function one_line_value(name, value)
+  if value:find("[\r\n]") then
+    fail("the value of " .. name .. " must be one line", "bad_value", { name = name, value = value })
+  end
+end
+
 --- The heading of words[1], and its buffer target.
 local function open(words, flags)
   local hl = run.resolve_target(words[1], flags)
@@ -132,6 +140,7 @@ function M.cmd_set_property(words, flags)
   end
   -- the VALUE: the remaining words
   local value = table.concat(words, " ", 3)
+  one_line_value(name, value)
   local hl, bufnr, lnum = open(words, flags)
   local old = hl:get_property(name:upper(), false)
   local target = { bufnr = bufnr, lnum = lnum }
@@ -304,6 +313,7 @@ function M.cmd_add(words, flags)
     if not name then
       fail("--property needs NAME=VALUE, not " .. p, "bad_value", { property = p })
     end
+    one_line_value(name, value)
     props[#props + 1] = { name, value }
   end
   local dates = {}
@@ -461,9 +471,9 @@ function M.cmd_set_title(words, flags)
   local title = one_line(table.concat(words, " ", 2), "title")
   local hl, bufnr, lnum = open(words, flags)
   local old = hl:plain_title()
-  vim.api.nvim_set_current_buf(bufnr)
-  vim.api.nvim_win_set_cursor(0, { lnum, 0 })
-  require("org.structure").edit_headline(title)
+  -- (in the buffer, not the current window: the session server's user
+  -- stays where they are)
+  require("org.structure").edit_headline(title, { bufnr = bufnr, lnum = lnum })
   local now = run.headline_at(bufnr, lnum)
   return changed(flags, bufnr, lnum, "title", old, now and now:plain_title() or nil)
 end

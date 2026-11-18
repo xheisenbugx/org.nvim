@@ -47,6 +47,24 @@ local function ts(d)
   return d:clone({ active = false }):to_string()
 end
 
+--- In each test of the enclosing describe, `date.now()` is the minute the
+--- test started: a minute turning over between the clock reading the time
+--- and an expectation reading it again (`ago(7)` twice) would put them a
+--- minute apart.
+local function freeze_now()
+  local real_now
+  before_each(function()
+    real_now = date.now
+    local frozen = real_now()
+    date.now = function()
+      return frozen:clone()
+    end
+  end)
+  after_each(function()
+    date.now = real_now
+  end)
+end
+
 local function line_of(buf, pat)
   for i, l in ipairs(buf_lines(buf)) do
     if l:match(pat) then
@@ -76,6 +94,7 @@ local function test(name, fn)
 end
 
 describe("clock in (Emacs)", function()
+  freeze_now()
   test("a numeric into_drawer collects the CLOCK lines once reached", function()
     config.opts.clock.into_drawer = 3
     local old = "CLOCK: [2026-09-20 Sun 10:00]--[2026-09-20 Sun 11:00] =>  1:00"
@@ -110,6 +129,26 @@ describe("clock in (Emacs)", function()
     clock.clock_out()
     local c = files.get_buffer(0).headlines[1].clocks[1]
     eq(0, c["end"].min % 15)
+  end)
+
+  test("rounds a tie to the even multiple, like org-current-time", function()
+    -- org-current-time rounds with (round MIN R): ties go to the even
+    -- multiple, so with 10 minutes 10:05 is 10:00 and 10:25 is 10:20
+    config.opts.clock.rounding_minutes = 10
+    local now = date.now
+    local t = date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 5 })
+    date.now = function()
+      return t
+    end
+    local buf = file_buffer({ "* A" })
+    local ok_run, err = pcall(function()
+      clock.clock_in()
+      t = date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 25 })
+      clock.clock_out()
+    end)
+    date.now = now
+    ok(ok_run, err)
+    eq("CLOCK: [2026-11-02 Mon 10:00]--[2026-11-02 Mon 10:20] =>  0:20", buf_lines(buf)[3])
   end)
 
   test("marks the default task (16), starts where the last clock stopped (64)", function()
@@ -232,6 +271,7 @@ describe("clock in (Emacs)", function()
 end)
 
 describe("clock defaults (Emacs)", function()
+  freeze_now()
   test("keeps 0:00 clock lines unless out_remove_zero_time", function()
     local buf = file_buffer({ "* A" })
     clock.clock_in()
@@ -288,6 +328,7 @@ describe("clock defaults (Emacs)", function()
 end)
 
 describe("clock statusline and effort (Emacs)", function()
+  freeze_now()
   local lines = {
     "* TODO Task",
     ":PROPERTIES:",
@@ -357,6 +398,7 @@ describe("clock statusline and effort (Emacs)", function()
 end)
 
 describe("resolving clocks (Emacs)", function()
+  freeze_now()
   --- A running clock started 60 minutes ago, idle for the last 20.
   local function running()
     local buf = file_buffer({ "* A" })
@@ -728,6 +770,7 @@ describe("S-M-arrows on clock lines (Emacs)", function()
 end)
 
 describe("capture clocking (Emacs)", function()
+  freeze_now()
   local capture = require("org.capture")
   local function run(fn, ...)
     local res
@@ -1056,5 +1099,33 @@ describe("clocked minutes from the timestamps (Emacs)", function()
     local task = file.headlines[1]
     eq(13, task:clocked_minutes(nil, nil, false))
     eq(43, task:clocked_minutes(nil, nil, true))
+  end)
+end)
+
+describe("clocks without a time (Emacs)", function()
+  -- org-clock-sum skips a clock whose start has no time ("Ignoring invalid
+  -- CLOCK"); an end without a time takes the start's (org-element's
+  -- timestamp parser fills :hour-end and :minute-end from the start)
+  local lines = {
+    "* Task",
+    "CLOCK: [2026-11-02 Mon]--[2026-11-03 Tue] => 24:00",
+    "CLOCK: [2026-11-02 Mon]--[2026-11-03 Tue 10:00] => 34:00",
+    "CLOCK: [2026-11-02 Mon 10:00]--[2026-11-03 Tue] => 14:00",
+    "CLOCK: [2026-11-02 Mon 10:00]--[2026-11-02 Mon 10:30] =>  0:30",
+  }
+
+  it("counts them like org-clock-sum", function()
+    local buf = org_buffer(lines, { 1, 0 })
+    local hl = files.get_buffer(buf).headlines[1]
+    -- Emacs: 1440 (Mon 10:00 to Tue 10:00) + 30
+    eq(1470, clock.sum_minutes(hl))
+    eq(1470, clock.sum_minutes(hl, nil, nil, true))
+    eq(1470, hl:clocked_minutes(nil, nil, true))
+  end)
+
+  it("counts them like org-clock-sum in a clock table", function()
+    local buf = org_buffer(vim.list_extend({ "#+BEGIN: clocktable :maxlevel 2", "#+END:" }, lines), { 1, 0 })
+    require("org.dblock").update_at_cursor()
+    eq("| *Total time* | *1d 0:30* |", buf_lines(buf)[5])
   end)
 end)

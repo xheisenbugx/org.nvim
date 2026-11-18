@@ -3,8 +3,8 @@ area: agenda
 recipe: scripts/verify/recipes/agenda.lua
 keys: global.agenda, agenda.quit, agenda.todo, agenda.later, agenda.earlier, agenda.today, agenda.save_all, agenda.switch_to, agenda.goto, agenda.redo, agenda.schedule, agenda.deadline, agenda.priority_up, agenda.set_tags, agenda.clock_in, agenda.refile, agenda.archive, agenda.day_view, agenda.week_view
 modules: lua/org/agenda, lua/org/agenda/items.lua, lua/org/agenda/render.lua, lua/org/agenda/view.lua
-specs: tests/spec/agenda_spec.lua, tests/spec/agenda_view_spec.lua, tests/spec/agenda_dispatch_spec.lua, tests/spec/agenda_emacs_spec.lua, tests/spec/emacs_agenda_parity_spec.lua, tests/spec/ui_agenda_rendering_spec.lua
-doc: org-agenda, org-agenda-keys, org-agenda-custom-commands, org-agenda-prefix
+specs: tests/spec/agenda_spec.lua, tests/spec/agenda_view_spec.lua, tests/spec/agenda_dispatch_spec.lua, tests/spec/agenda_emacs_spec.lua, tests/spec/emacs_agenda_parity_spec.lua, tests/spec/ui_agenda_rendering_spec.lua, tests/spec/agenda_commands_parity_spec.lua, tests/spec/agenda_items_review_spec.lua
+doc: org-agenda, org-agenda-keys, org-agenda-custom-commands, org-agenda-prefix, org-agenda-bulk
 emacs: org-agenda.el
 ---
 
@@ -48,6 +48,10 @@ then the headline.
   `expect.file`.
 - No CLOSED line when marking done unless `log_done = "time"`: it is off
   by default, as `org-log-done` is in Emacs.
+- After the TODO state of an entry changes, its agenda line is drawn
+  again from the headline found at the line's entry; a command that hit
+  another headline with the same text can still show the right line.
+  Check which headline changed in the file (`expect.file` with `lines`).
 - The driver's clock is Monday 2026-10-12 09:00: the week is W42,
   12 – 18 October. Write dates in recipes from that.
 - `agenda_files` must list the scenario's files (`"{{dir}}/todo.org"` or

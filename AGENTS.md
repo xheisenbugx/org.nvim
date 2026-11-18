@@ -40,7 +40,8 @@ make verify RECIPE=agenda                  # drive a feature in a child Neovim, 
   can't parse it (write `M["goto"]`).
 - `make lint` also runs `scripts/lint_sources.lua`, which flags bug classes
   that kept coming back: `vim.fn.expand()` on a non-literal (it runs
-  `backticks`; use `utils.expand_vars` / `utils.expand`), a `gsub`
+  `backticks`; use `utils.expand_vars` / `utils.expand`), `vim.fn.glob()` /
+  `globpath()` on a non-literal (same; use `utils.glob`), a `gsub`
   replacement that is a variable or concatenation (`%` in it is a capture;
   wrap it in `utils.gsub_escape`), and a `#+KEY:` value's column found again
   with `line:find(value)` (capture it with `()`). An audited safe use takes

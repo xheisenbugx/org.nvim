@@ -23,15 +23,24 @@ local function is_headline(line)
   return require("org.parser").headline_level(line) ~= nil
 end
 
---- In an Org table (table.el tables have `|` lines too). `lnum` defaults
---- to the cursor line.
+--- In an Org table (table.el tables have `|` lines too, and a `|` line in
+--- a src, example, export, comment or verse block is text:
+--- org-at-table-p). `lnum` defaults to the cursor line.
 local function in_table(line, lnum)
-  return line:match("^%s*|") ~= nil and not require("org.table.el").at(0, lnum or utils.cursor())
+  if not line:match("^%s*|") then
+    return false
+  end
+  lnum = lnum or utils.cursor()
+  return not require("org.table.el").at(0, lnum) and not require("org.table").in_literal_block(0, lnum)
 end
 
 --- In a table.el table (Emacs only suggests C-c ' there).
 local function in_table_el(line, lnum)
-  return line:match("^%s*[|+]") ~= nil and require("org.table.el").at(0, lnum or utils.cursor()) ~= nil
+  if not line:match("^%s*[|+]") then
+    return false
+  end
+  lnum = lnum or utils.cursor()
+  return require("org.table.el").at(0, lnum) ~= nil and not require("org.table").in_literal_block(0, lnum)
 end
 
 local function list_item(lnum)

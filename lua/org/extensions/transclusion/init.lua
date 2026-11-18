@@ -156,8 +156,22 @@ function M.complete_insert(arglead, cmdline)
     if path:sub(-1) == "/" then
       full = full .. "/"
     end
+    -- the entries of the directory starting with what is typed (listed,
+    -- not globbed: vim.fn.glob() would run `backticks` in the line)
+    local dir, lead = full:match("^(.*)/([^/]*)$")
+    -- (of `/x` the root, of `C:/x` the root of drive C, not `C:`: its
+    -- current directory)
+    dir = dir and utils.dir_path(dir) or "."
+    local prefix_dir = dir:sub(-1) == "/" and dir or dir .. "/"
+    local files = {}
+    for name in utils.scandir(dir) do
+      if name:sub(1, #lead) == lead and (lead:byte(1) == 46 or name:byte(1) ~= 46) then
+        files[#files + 1] = prefix_dir .. name
+      end
+    end
+    table.sort(files)
     local out = {}
-    for _, f in ipairs(vim.fn.glob(vim.fn.escape(full, "*?[]{}") .. "*", false, true)) do
+    for _, f in ipairs(files) do
       local shown = absolute and (path:match("^(.*/)") or "") .. vim.fn.fnamemodify(f, ":t") or f:sub(#base + 2)
       out[#out + 1] = prefix .. shown .. (vim.fn.isdirectory(f) == 1 and "/" or "")
     end

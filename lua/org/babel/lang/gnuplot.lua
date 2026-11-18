@@ -16,7 +16,8 @@ local function quote_field(v, missing)
   end
   local item = s:match("^[<%[]%d%d%d%d%-%d%d%-%d%d") and require("org.date").parse_all(s)[1]
   if item then
-    return os.date("%Y-%m-%d-%H:%M:%S", item.date:to_time())
+    -- format-time-string (also for a date os.date can't decode)
+    return item.date:strftime("%Y-%m-%d-%H:%M:%S")
   end
   if s == "" then
     return missing or s

@@ -334,6 +334,99 @@ describe("footnotes: maintenance", function()
     }, buf_lines(buf))
   end)
 
+  -- org-footnote--collect-references keeps only what org-element-context
+  -- parses as a footnote reference: none in a comment, a fixed-width line,
+  -- a keyword, code, verbatim, an inline src block or a link (Emacs 9.8.10)
+  it("leaves footnote-like text where no reference can be alone", function()
+    local buf = org_buffer({
+      "#+TITLE: t[fn:5]",
+      "x[fn:5] y[fn:2]",
+      ": fixed [fn:5]",
+      "run src_sh{echo [fn:5]} now =[fn:5]=",
+      "",
+      "[fn:2] two",
+      "",
+      "[fn:5] five",
+    })
+    fn.renumber(buf)
+    eq({
+      "#+TITLE: t[fn:5]",
+      "x[fn:1] y[fn:2]",
+      ": fixed [fn:5]",
+      "run src_sh{echo [fn:5]} now =[fn:5]=",
+      "",
+      "[fn:2] two",
+      "",
+      "[fn:1] five",
+    }, buf_lines(buf))
+    -- org-footnote-normalize: no number and no "DEFINITION NOT FOUND." for them
+    buf = org_buffer({ "x[fn:a] y", "# c [fn:b]", ": f [fn:c]", "src_sh{[fn:d]} =[fn:e]= ~[fn:f]~", "", "[fn:a] A" })
+    fn.normalize(buf)
+    eq({
+      "x[fn:1] y",
+      "# c [fn:b]",
+      ": f [fn:c]",
+      "src_sh{[fn:d]} =[fn:e]= ~[fn:f]~",
+      "",
+      "* Footnotes",
+      "",
+      "[fn:1] A",
+    }, buf_lines(buf))
+    buf = org_buffer({ "see [[https://x.org/[fn:1]]] and[fn:2]", "", "[fn:2] two" })
+    fn.normalize(buf)
+    eq({ "see [[https://x.org/[fn:1]]] and[fn:1]", "", "* Footnotes", "", "[fn:1] two" }, buf_lines(buf))
+    -- org-footnote-sort
+    buf = org_buffer({ "a[fn:b] b[fn:a]", "# comment [fn:c]", "", "[fn:a] A", "", "[fn:b] B" })
+    fn.sort(buf)
+    eq({ "a[fn:b] b[fn:a]", "# comment [fn:c]", "", "* Footnotes", "", "[fn:b] B", "", "[fn:a] A" }, buf_lines(buf))
+    -- org-footnote-delete
+    buf = org_buffer({ "a[fn:1] =[fn:1]= b", "[fn:1] def" }, { 1, 2 })
+    with_stub(vim, "notify", function() end, function()
+      fn.delete(buf)
+    end)
+    eq({ "a =[fn:1]= b" }, buf_lines(buf))
+    -- a new footnote takes the first number no reference uses
+    org_buffer({ "a =[fn:1]= b" }, { 1, 0 })
+    eq("1", fn.next_label(0))
+  end)
+
+  -- nor in a node property or a CAPTION keyword; a drawer that isn't the
+  -- property drawer holds paragraphs, where it is one (Emacs 9.8.10)
+  it("leaves footnote-like text in node properties and captions alone", function()
+    local function entry(drawer)
+      return { "* H", drawer, ":NOTE: see [fn:2]", ":END:", "body[fn:2] x[fn:1]", "", "[fn:1] one", "", "[fn:2] two" }
+    end
+    local buf = org_buffer(entry(":PROPERTIES:"))
+    fn.renumber(buf)
+    eq({
+      "* H",
+      ":PROPERTIES:",
+      ":NOTE: see [fn:2]",
+      ":END:",
+      "body[fn:1] x[fn:2]",
+      "",
+      "[fn:2] one",
+      "",
+      "[fn:1] two",
+    }, buf_lines(buf))
+    buf = org_buffer(entry(":NOTES:"))
+    fn.renumber(buf)
+    eq({
+      "* H",
+      ":NOTES:",
+      ":NOTE: see [fn:1]",
+      ":END:",
+      "body[fn:1] x[fn:2]",
+      "",
+      "[fn:2] one",
+      "",
+      "[fn:1] two",
+    }, buf_lines(buf))
+    buf = org_buffer({ "x[fn:a]", "#+CAPTION: cap[fn:b]", "| a |", "", "[fn:a] A" })
+    fn.normalize(buf)
+    eq({ "x[fn:1]", "#+CAPTION: cap[fn:b]", "| a |", "", "* Footnotes", "", "[fn:1] A" }, buf_lines(buf))
+  end)
+
   it("deletes references and definition", function()
     local buf = org_buffer({ "a[fn:1] b[fn:2]", "", "* Footnotes", "[fn:1] one", "", "[fn:2] two" }, { 1, 3 })
     with_stub(vim, "notify", function() end, function()

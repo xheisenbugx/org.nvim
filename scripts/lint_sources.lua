@@ -13,6 +13,10 @@
 --                 commands and interprets %, # and wildcards; paths that can
 --                 come from a document must go through utils.expand_vars or
 --                 utils.expand.
+--   glob          vim.fn.glob() / globpath() (or fn.glob / fn.globpath) on
+--                 anything but string literals. glob() runs `backticks` as
+--                 shell commands and globpath() splits its directories at
+--                 commas; use utils.glob, which does neither.
 --   gsub          :gsub() / string.gsub() whose replacement is a string
 --                 expression that isn't a literal (a variable, a
 --                 concatenation): a `%` in the value is read as a capture
@@ -37,7 +41,7 @@
 
 local M = {}
 
-M.rules = { expand = true, gsub = true, ["keyword-span"] = true, ["planning-line"] = true }
+M.rules = { expand = true, glob = true, gsub = true, ["keyword-span"] = true, ["planning-line"] = true }
 
 ---------------------------------------------------------------------------
 -- Tokenizer
@@ -407,6 +411,35 @@ local function check_expand(toks, hits)
   end
 end
 
+local function check_glob(toks, hits)
+  for i = 1, #toks do
+    local tk = toks[i]
+    if
+      is(tk, "name")
+      and (tk.v == "glob" or tk.v == "globpath")
+      and is(toks[i - 1], "op", ".")
+      and is(toks[i - 2], "name", "fn")
+      and is(toks[i + 1], "op", "(")
+    then
+      local args = call_args(toks, i + 1)
+      local literal = true
+      for k = 1, tk.v == "globpath" and 2 or 1 do
+        local a = args[k]
+        if not (a and a[1] == a[2] and toks[a[1]].t == "string") then
+          literal = false
+        end
+      end
+      if not literal then
+        hits[#hits + 1] = {
+          line = tk.line,
+          rule = "glob",
+          msg = "vim.fn." .. tk.v .. "() on a non-literal runs `backticks` (globpath() splits at commas); use utils.glob",
+        }
+      end
+    end
+  end
+end
+
 local function check_gsub(toks, hits)
   local names
   for i = 1, #toks do
@@ -562,6 +595,7 @@ function M.check(src)
   local toks, comments = M.tokenize(src)
   local raw = {}
   check_expand(toks, raw)
+  check_glob(toks, raw)
   check_gsub(toks, raw)
   check_keyword_span(toks, raw)
   check_planning_line(toks, raw)

@@ -288,6 +288,24 @@ function M.attach_file(path, method, target)
   local name = vim.fn.fnamemodify(path, ":t")
   local dest = dir .. "/" .. name
   local is_dir = utils.is_dir(path)
+  -- copy-file, rename-file and add-name-to-file never replace a file
+  -- (file-already-exists); make-symbolic-link asks first; copy-directory
+  -- (COPY-CONTENTS) copies into an existing directory
+  local into_dir = false
+  local existing = vim.uv.fs_lstat(dest)
+  if existing then
+    if method == "cp" and is_dir and utils.is_dir(dest) then
+      into_dir = true
+    elseif method == "lns" and existing.type ~= "directory" then
+      if not utils.confirm(string.format("File %s already exists; make it a link anyway?", dest)) then
+        return nil
+      end
+      os.remove(dest)
+    else
+      utils.error("File already exists: " .. dest)
+      return nil
+    end
+  end
   local ok, err
   if method == "mv" then
     ok, err = vim.uv.fs_rename(path, dest)
@@ -302,6 +320,8 @@ function M.attach_file(path, method, target)
     ok, err = vim.uv.fs_link(path, dest)
   elseif method == "lns" then
     ok, err = vim.uv.fs_symlink(path, dest)
+  elseif into_dir then
+    ok, err = copy_dir(path .. "/.", dest)
   elseif is_dir then
     ok, err = copy_dir(path, dest)
   else
@@ -352,6 +372,11 @@ function M.attach_url(url, target)
   local name = vim.trim(url):gsub("[?#].*$", ""):match("([^/]+)/*$") or "download"
   vim.fn.mkdir(dir, "p")
   local dest = dir .. "/" .. name
+  -- url-copy-file never replaces a file (file-already-exists)
+  if vim.uv.fs_lstat(dest) then
+    utils.error("File already exists: " .. dest)
+    return nil
+  end
   local res = vim.system({ "curl", "-fsSL", "-o", dest, url }, { text = true }):wait(120000)
   if res.code ~= 0 then
     utils.error("Download failed: " .. vim.trim(res.stderr or ""))

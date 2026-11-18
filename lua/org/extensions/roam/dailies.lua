@@ -131,7 +131,7 @@ function M.list()
     return {}
   end
   local out = {}
-  for _, p in ipairs(vim.fn.globpath(dir, "**/*.org", false, true)) do
+  for _, p in ipairs(utils.glob(dir .. "/**/*.org")) do
     out[#out + 1] = vim.fs.normalize(p)
   end
   table.sort(out)

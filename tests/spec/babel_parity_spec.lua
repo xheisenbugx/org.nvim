@@ -260,6 +260,134 @@ describe("babel parity: results", function()
     }, out)
   end)
 
+  -- org-babel-result-end: only affiliated keywords (org-element--affiliated-re)
+  -- belong to the element after #+RESULTS:; a #+CALL line or a dynamic block
+  -- is not a result and stays
+  it("keeps a #+CALL line or a dynamic block right after #+RESULTS:", function()
+    local buf = org_buffer({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "#+CALL: foo()",
+      "| a |",
+      "",
+      "#+begin_src sh :results output",
+      "echo two",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "#+BEGIN: clocktable :scope file",
+      "| Headline | Time |",
+      "#+END:",
+    }, { 1, 0 })
+    babel.execute({ bufnr = buf, lnum = 9, skip_confirm = true, sync = true })
+    babel.execute({ bufnr = buf, lnum = 1, skip_confirm = true, sync = true })
+    eq({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": new",
+      "#+CALL: foo()",
+      "| a |",
+      "",
+      "#+begin_src sh :results output",
+      "echo two",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": two",
+      "#+BEGIN: clocktable :scope file",
+      "| Headline | Time |",
+      "#+END:",
+    }, buf_lines(buf))
+  end)
+
+  -- org-babel-where-is-src-block-result: a named block or #+CALL only takes
+  -- #+RESULTS: NAME (org-babel-find-named-result); an unnamed #+RESULTS:
+  -- below it is left alone and the named result inserted
+  it("gives a named block its own #+RESULTS: NAME, not an unnamed one", function()
+    local out = run({
+      "#+NAME: foo",
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": old",
+      "",
+      "#+NAME: bar",
+      "#+CALL: foo()",
+      "",
+      "#+RESULTS:",
+      ": old call",
+    })
+    eq({
+      "#+NAME: foo",
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS: foo",
+      ": new",
+      "",
+      "#+RESULTS:",
+      ": old",
+      "",
+      "#+NAME: bar",
+      "#+CALL: foo()",
+      "",
+      "#+RESULTS: bar",
+      ": new",
+      "",
+      "#+RESULTS:",
+      ": old call",
+    }, out)
+  end)
+
+  -- org-babel-insert-result: rows appended to a table result are not
+  -- indented, org-table-align realigns the whole table ("table-align
+  -- does the work for us"), at the indentation of its first row
+  it("realigns a table result that :results append adds rows to", function()
+    local out = run({
+      "- item",
+      "  #+begin_src sh :results table append",
+      '  echo "1 2"',
+      "  #+end_src",
+      "",
+      "  #+RESULTS:",
+      "  | 0 | 0 |",
+      "- next",
+      "",
+      "#+begin_src elisp :results append",
+      "'((10 2))",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "| 0 | 0 |",
+    })
+    eq({ "  |   0 | 0 |", "  | 1 2 |   |", "- next" }, vim.list_slice(out, 7, 9))
+    eq({ "|  0 | 0 |", "| 10 | 2 |" }, vim.list_slice(out, 16, 17))
+  end)
+
+  it("replaces a result together with its affiliated keywords, dual ones included", function()
+    local out = run({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      "#+ATTR_HTML: :width 10",
+      "#+CAPTION[short]: Long",
+      "| old |",
+      "After",
+    })
+    eq({ "#+begin_src sh :results output", "echo new", "#+end_src", "", "#+RESULTS:", ": new", "After" }, out)
+  end)
+
   it("converts Python values like ob-python", function()
     if not has("python3") then
       return
@@ -570,6 +698,26 @@ describe("babel parity: evaluation", function()
   after_each(function()
     config.opts.babel.confirm_evaluate = false
     config.opts.babel.no_eval_on_ctrl_c_ctrl_c = false
+  end)
+
+  -- org-babel-sh-evaluate: a script with :cmdline runs as
+  -- `shell -c "SCRIPT CMDLINE"`, so the shell splits and expands CMDLINE
+  it("passes :cmdline through the shell, quotes and variables included", function()
+    local plain = "#+begin_src sh :cmdline \"one 'two three' $ORG_CMDLINE_X\" :results output"
+    local shebang = '#+begin_src sh :shebang "#!/bin/sh" :cmdline "a \'b c\'" :results output'
+    vim.env.ORG_CMDLINE_X = "x"
+    local out = run({
+      plain,
+      'echo "n=$# 1=$1 2=$2 3=$3"',
+      "#+end_src",
+      "",
+      shebang,
+      'echo "n=$# 2=$2"',
+      "#+end_src",
+    })
+    vim.env.ORG_CMDLINE_X = nil
+    eq({ ": n=3 1=one 2=two three 3=x" }, result_of(out, plain))
+    eq({ ": n=2 2=b c" }, result_of(out, shebang))
   end)
 
   it("executes inline elements with the buffer and asks for :eval query", function()

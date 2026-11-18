@@ -41,10 +41,13 @@ function M.elapsed()
     return 0
   end
   local t = st.paused_at or now()
-  return math.max(0, math.floor(t - st.start))
+  local e = math.floor(t - st.start)
+  -- a relative timer started with a negative offset counts up to 0 first
+  return st.countdown and math.max(0, e) or e
 end
 
---- Seconds shown by the timer: elapsed, or remaining for a countdown.
+--- Seconds of the timer: elapsed (below 0 after a negative start offset),
+--- or remaining for a countdown.
 function M.value()
   local st = M.state
   if st and st.countdown then
@@ -53,9 +56,25 @@ function M.value()
   return M.elapsed()
 end
 
+--- "H:MM:SS", with a "-" before a negative value (org-timer-secs-to-hms).
 function M.format(seconds)
   seconds = math.floor(seconds)
-  return string.format("%d:%02d:%02d", math.floor(seconds / 3600), math.floor(seconds % 3600 / 60), seconds % 60)
+  local sign = seconds < 0 and "-" or ""
+  seconds = math.abs(seconds)
+  return string.format(
+    "%s%d:%02d:%02d",
+    sign,
+    math.floor(seconds / 3600),
+    math.floor(seconds % 3600 / 60),
+    seconds % 60
+  )
+end
+
+--- The timer value as Emacs shows it when inserted, paused or in the mode
+--- line (org-timer-value-string): "H:MM:SS" of its absolute value, so after
+--- a negative offset it counts down to 0:00:00 and then up.
+local function shown()
+  return M.format(math.abs(M.value()))
 end
 
 local function cfg()
@@ -66,19 +85,21 @@ local function fire(pattern, data)
   pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data or {}, modeline = false })
 end
 
---- Complete "SS" or "M:SS" to "H:MM:SS" (org-timer-fix-incomplete).
+--- Complete "SS" or "M:SS" to "H:MM:SS" (org-timer-fix-incomplete). A
+--- sign right before the number stays: "-5:00" is "-0:05:00".
 local function fix_incomplete(hms)
-  local a, b, c = hms:match("(%d+):(%d+):(%d+)")
-  if not a then
-    b, c = hms:match("(%d+):(%d+)")
-    if not b then
-      c = hms:match("(%d+)")
+  local s, _, a, b, c = hms:find("(%d+):(%d+):(%d+)")
+  if not s then
+    s, _, b, c = hms:find("(%d+):(%d+)")
+    if not s then
+      s, _, c = hms:find("(%d+)")
     end
   end
-  if not c then
+  if not (s and c) then
     return nil
   end
-  return string.format("%d:%02d:%02d", tonumber(a) or 0, tonumber(b) or 0, tonumber(c))
+  local sign = s > 1 and hms:sub(s - 1, s - 1):match("^[-+]$") or ""
+  return sign .. string.format("%d:%02d:%02d", tonumber(a) or 0, tonumber(b) or 0, tonumber(c))
 end
 
 --- "[-]H:MM:SS" to seconds (org-timer-hms-to-secs); 0 when not a timer value.
@@ -106,7 +127,7 @@ end
 local function value_string()
   local fmt = cfg().format or "%s "
   -- lint: allow gsub: a formatted timer value
-  return (fmt:gsub("%%s", M.format(M.value()), 1))
+  return (fmt:gsub("%%s", shown(), 1))
 end
 
 --- Start (or restart) the relative timer (org-timer-start). `args` is an
@@ -254,12 +275,12 @@ function M.pause_or_continue()
       arm_countdown()
     end
     fire("OrgTimerContinue")
-    utils.notify("Timer continues at " .. M.format(M.value()))
+    utils.notify("Timer continues at " .. shown())
   else
     fire("OrgTimerPause")
     st.paused_at = now()
     stop_countdown_timer()
-    utils.notify("Timer paused at " .. M.format(M.value()))
+    utils.notify("Timer paused at " .. shown())
   end
   vim.cmd("redrawstatus")
   return true
@@ -298,7 +319,7 @@ function M.insert_item()
   if vim.v.count > 0 or not M.state then
     M.start("")
   end
-  local value = M.format(M.value()) .. " :: "
+  local value = shown() .. " :: "
   local buf = 0
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -442,7 +463,7 @@ function M.statusline()
   if not M.state then
     return ""
   end
-  local s = "⏲ " .. M.format(M.value())
+  local s = "⏲ " .. shown()
   if M.state.paused_at then
     s = s .. " (paused)"
   end

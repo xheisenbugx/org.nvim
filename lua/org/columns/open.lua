@@ -65,7 +65,7 @@ local function bind_keys(state, map, quit)
       if state.mode ~= "overlay" then
         vim.cmd("wincmd p")
       end
-      require("org.links").open(target, { bufnr = state.src })
+      require("org.links").open(target, { bufnr = state.src, lnum = r.hl.line })
     else
       utils.warn("No link in this field")
     end

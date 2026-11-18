@@ -92,6 +92,9 @@ end
 ---@return integer bufnr, integer line
 local function store_capture(tpl, opts)
   local capture = require("org.capture")
+  -- a capture that can't be saved is taken out of the target buffer again:
+  -- the caller still has the text, and a retry must not store it twice
+  opts.rollback = true
   local done, bufnr, line, stored
   local co = coroutine.create(function()
     bufnr, line, stored = capture.capture(tpl, opts)

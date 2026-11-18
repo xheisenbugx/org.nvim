@@ -514,3 +514,30 @@ describe("table: orgtbl_optimized = false", function()
     require("org.table.orgtbl").disable(buf)
   end)
 end)
+
+describe("table: typing on a `|` line of a src block", function()
+  -- org-self-insert-command and org-delete-char only touch fields where
+  -- org-at-table-p, which is false inside a src block: plain editing
+  local src = { "#+begin_src ocaml", "  | Some x  | y", "#+end_src" }
+
+  it("typing keeps the spaces before a `|`", function()
+    local buf = org_buffer(vim.deepcopy(src), { 2, 10 })
+    type_chars(buf, "z")
+    eq("  | Some xz  | y", buf_lines(buf)[2])
+  end)
+
+  it("<Del> adds no space before the next `|`", function()
+    local buf = org_buffer(vim.deepcopy(src), { 2, 5 })
+    local typing = require("org.table.typing")
+    typing._on_delete(buf, false)
+    vim.api.nvim_buf_set_text(buf, 1, 5, 1, 6, { "" })
+    typing._after_delete(buf)
+    eq("  | Sme x  | y", buf_lines(buf)[2])
+  end)
+
+  it("leaving Insert mode does not realign it", function()
+    local buf = org_buffer(vim.deepcopy(src), { 2, 4 })
+    vim.api.nvim_exec_autocmds("InsertLeave", { buffer = buf })
+    eq(src, buf_lines(buf))
+  end)
+end)

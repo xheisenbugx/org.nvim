@@ -353,9 +353,11 @@ local function run_steps(spec, cwd, sync, cb, job)
   local outs = {}
   local failed = false
   local i = 0
+  -- in its own process group, and killed with it past `babel.timeout`
+  -- (jobs.system_wait, jobs.kill_after)
   local function sys_opts(step)
     local env = vim.tbl_extend("force", { PWD = cwd }, step.env or {})
-    return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = env }
+    return jobs.system_opts({ cwd = cwd, text = true, stdin = step.stdin, env = env })
   end
   local function handle(obj, step)
     local stderr = obj.stderr or ""
@@ -391,7 +393,7 @@ local function run_steps(spec, cwd, sync, cb, job)
         if step.fn then
           return run_fn(step)
         end
-        return vim.system(argv(step), sys_opts(step)):wait()
+        return jobs.system_wait(argv(step), sys_opts(step), timeout)
       end)
       if not ok then
         M.error_notify(nil, tostring(obj))
@@ -414,13 +416,14 @@ local function run_steps(spec, cwd, sync, cb, job)
       handle(run_fn(step), step)
       return nxt()
     end
-    local opts = sys_opts(step)
     -- its own process group, so a cancel kills the script's children too
     -- (jobs.kill_process)
-    opts.detach = vim.fn.has("win32") == 0
+    local opts = sys_opts(step)
     -- what it prints shows below the block while it runs (babel.live_output)
     local collected = jobs.stream(job, opts)
+    local exited, timed_out = false, nil
     local ok, proc = pcall(vim.system, argv(step), opts, function(obj)
+      exited = true
       if collected then
         collected(obj)
       end
@@ -429,11 +432,15 @@ local function run_steps(spec, cwd, sync, cb, job)
           -- killed on purpose: no error buffer, no result
           return
         end
-        handle(obj, step)
+        handle(timed_out and timed_out() and jobs.timed_out(obj, timeout) or obj, step)
         nxt()
       end)
     end)
     if ok then
+      ---@cast proc vim.SystemObj
+      timed_out = jobs.kill_after(proc, timeout, function()
+        return exited
+      end)
       jobs.set_kill(job, function()
         jobs.kill_process(proc)
       end)

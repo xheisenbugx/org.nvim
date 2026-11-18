@@ -192,14 +192,37 @@ function M.last_clock_out(hl)
   return nil
 end
 
---- The time recorded by CLOSED and log notes (org-current-effective-time):
---- with `use_last_clock_out_time_as_effective_time` and a headline, the
---- last clock-out time of its subtree; with `use_effective_time`, before
+--- `d` with its minutes rounded to a multiple of `r`, like org-current-time
+--- with ROUNDING-MINUTES: `(round MIN R)` takes a tie to the even multiple
+--- (with 10, 10:25 is 10:20 and 10:35 is 10:40); the hour and the day carry
+--- over. `d` itself when `r` is below 2.
+---@param d org.Date
+---@param r? integer
+---@return org.Date
+function M.round_minutes(d, r)
+  r = tonumber(r) or 0
+  if r <= 1 then
+    return d
+  end
+  -- min / r is exact for a tie (an odd number of halves)
+  local q = d.min / r
+  local f = floor(q)
+  if q - f > 0.5 or (q - f == 0.5 and f % 2 == 1) then
+    f = f + 1
+  end
+  return d:add(r * f - d.min, "min")
+end
+
+--- The time recorded by CLOSED, LAST_REPEAT and log notes
+--- (org-current-effective-time): now, rounded to
+--- `time_stamp_rounding_minutes[1]` like org-current-time; with
+--- `use_last_clock_out_time_as_effective_time` and a headline, the last
+--- clock-out time of its subtree; with `use_effective_time`, before
 --- `extend_today_until` o'clock it is 23:59 of the previous day.
 ---@param hl? org.Headline
 function M.effective_now(hl)
-  local now = M.now()
   local ok, config = pcall(require, "org.config")
+  local now = M.round_minutes(M.now(), ok and (config.opts.time_stamp_rounding_minutes or {})[1] or 0)
   if ok and config.opts.use_last_clock_out_time_as_effective_time then
     local out = M.last_clock_out(hl)
     if out then
@@ -274,17 +297,30 @@ function Date:end_minutes()
   end
 end
 
---- Unix time (via os.time, local timezone).
-function Date:to_time()
+--- Unix time of `d` by os.time (local timezone), or nil when the C library
+--- can't represent it (the Windows runtime before 1970 or after 3000).
+---@param d org.Date
+---@return integer|nil
+local function os_time(d)
   return os.time({
-    year = self.year,
-    month = self.month,
-    day = self.day,
-    hour = self.hour or 0,
-    min = self.min or 0,
+    year = d.year,
+    month = d.month,
+    day = d.day,
+    hour = d.hour or 0,
+    min = d.min or 0,
     sec = 0,
     isdst = nil,
   })
+end
+
+local utc_offset
+
+--- Unix time (via os.time, local timezone). A date os.time can't represent
+--- is its wall time as UTC less the zone's offset early in 1970, so the
+--- order of dates and the minutes between them still hold.
+---@return integer
+function Date:to_time()
+  return os_time(self) or (self:minutes() * 60 - utc_offset(2 * 86400))
 end
 
 --- Actual elapsed minutes between local timestamps. Civil minutes remain
@@ -305,7 +341,24 @@ end
 
 --- format-time-string of the date (see |M.format_time_string|).
 function Date:strftime(fmt)
-  return M.format_time_string(fmt, self:to_time())
+  local time = os_time(self)
+  if time then
+    return M.format_time_string(fmt, time)
+  end
+  -- out of the C library's range (os.date can't decode it either): the
+  -- fields come from the date itself
+  local days = self:days()
+  local y, m, d = M.civil_from_days(days)
+  return M.format_time_string(fmt, self:to_time(), {
+    year = y,
+    month = m,
+    day = d,
+    hour = self.hour or 0,
+    min = self.min or 0,
+    sec = 0,
+    wday = self:weekday() % 7 + 1,
+    yday = days - M.days_from_civil(y, 1, 1) + 1,
+  })
 end
 
 ---------------------------------------------------------------------------
@@ -315,9 +368,13 @@ end
 local WDAY_SHORT = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
 local WDAY_LONG = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
 
---- UTC offset in seconds of the local zone at UNIX time T.
-local function utc_offset(t)
+--- UTC offset in seconds of the local zone at UNIX time T (0 when the C
+--- library can't decode T).
+function utc_offset(t)
   local l, u = os.date("*t", t), os.date("!*t", t)
+  if not (l and u) then
+    return 0
+  end
   return (M.days_from_civil(l.year, l.month, l.day) - M.days_from_civil(u.year, u.month, u.day)) * 86400
     + (l.hour - u.hour) * 3600
     + (l.min - u.min) * 60
@@ -348,13 +405,15 @@ end
 --- %h %H %I %j %k %l %m %M %n %N %p %P %q %r %R %s %S %t %T %u %U %V %w %W
 --- %x %X %y %Y %z %:z %::z %Z %%, the flags `-` (no padding), `_` (spaces),
 --- `0` (zeros), `^` (upper case), `#` (swap case), a field width, and the
---- ignored E / O modifiers.
+--- ignored E / O modifiers. `fields` (an os.date("*t") table) is used
+--- in place of decoding TIME, for a date the C library can't decode.
 ---@param fmt string
 ---@param time? integer
+---@param fields? table
 ---@return string
-function M.format_time_string(fmt, time)
+function M.format_time_string(fmt, time, fields)
   time = time or os.time()
-  local t = os.date("*t", time)
+  local t = fields or os.date("*t", time)
   local out = {}
   local i, n = 1, #fmt
   while i <= n do
@@ -403,23 +462,23 @@ function M.format_time_string(fmt, time)
         value, swapcase = value:lower(), nil
       end
     elseif c == "Z" then
-      local zone = os.date("%Z", time) --[[@as string]]
+      local zone = (os.date("%Z", time) or "") --[[@as string]]
       value, is_text = zone, true
       if swapcase then
         value, swapcase = value:lower(), nil
       end
     elseif c == "c" then
-      value, is_text = M.format_time_string("%a %b %e %H:%M:%S %Y", time), true
+      value, is_text = M.format_time_string("%a %b %e %H:%M:%S %Y", time, fields), true
     elseif c == "D" or c == "x" then
-      value, is_text = M.format_time_string("%m/%d/%y", time), true
+      value, is_text = M.format_time_string("%m/%d/%y", time, fields), true
     elseif c == "F" then
-      value, is_text = M.format_time_string("%Y-%m-%d", time), true
+      value, is_text = M.format_time_string("%Y-%m-%d", time, fields), true
     elseif c == "r" then
-      value, is_text = M.format_time_string("%I:%M:%S %p", time), true
+      value, is_text = M.format_time_string("%I:%M:%S %p", time, fields), true
     elseif c == "R" then
-      value, is_text = M.format_time_string("%H:%M", time), true
+      value, is_text = M.format_time_string("%H:%M", time, fields), true
     elseif c == "T" or c == "X" then
-      value, is_text = M.format_time_string("%H:%M:%S", time), true
+      value, is_text = M.format_time_string("%H:%M:%S", time, fields), true
     elseif c == "n" then
       value = "\n"
     elseif c == "t" then
@@ -600,10 +659,12 @@ end
 --- as much. Other dates are returned as they are.
 ---@return org.Date
 function Date:normalize()
-  if not self.hour then
+  local time = self.hour and os_time(self)
+  if not time then
+    -- no time, or one the C library can't represent: left as written
     return self
   end
-  local t = os.date("*t", self:to_time()) --[[@as osdate]]
+  local t = os.date("*t", time) --[[@as osdate]]
   local min = self.min or 0
   if t.hour == self.hour and t.min == min and t.day == self.day then
     return self
@@ -937,7 +998,9 @@ function next_repeat(ts, now, today)
   elseif r.type == ".+" then
     local base
     if unit == "h" then
-      base = ts:clone({ year = now.year, month = now.month, day = now.day, hour = now.hour, min = now.min })
+      -- moved to now by minutes (org-timestamp-change ... 'minute): the
+      -- end of an HH:MM-HH:MM range moves with the start
+      base = ts:add(now:minutes() - ts:minutes(), "min")
     else
       base = ts:clone({ year = today.year, month = today.month, day = today.day })
     end

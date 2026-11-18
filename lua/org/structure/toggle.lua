@@ -136,6 +136,7 @@ function M.toggle_heading()
       local n = level + depth - 1
       out[#out + 1] = (string.rep("*", odd and 2 * n - 1 or n) .. " " .. kw .. text):gsub("%s+$", "")
       if region then
+        local body = {}
         for l = it.lnum + 1, math.min(it.end_lnum, stop) do
           local owner
           for _, o in ipairs(struct.items) do
@@ -143,10 +144,11 @@ function M.toggle_heading()
               owner = o
             end
           end
-          if owner == it and not is_blank(lines[l]) then
-            out[#out + 1] = vim.trim(lines[l])
+          if owner == it then
+            body[#body + 1] = lines[l]
           end
         end
+        vim.list_extend(out, lists.subtree_body(body, lists.body_column(it)))
       end
     end
     set_lines(bufnr, s, region and stop or s, out)

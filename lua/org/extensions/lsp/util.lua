@@ -240,10 +240,10 @@ end
 
 local function add_dir(add, dir, recursive)
   local pat = recursive and "**/*.org" or "*.org"
-  for _, f in ipairs(vim.fn.globpath(dir, pat, false, true)) do
-    if not f:find("/%.") then
-      add(f)
-    end
+  -- (utils.glob takes no hidden file or directory below `dir`, which may
+  -- itself be hidden: ~/.notes)
+  for _, f in ipairs(utils.glob(dir .. "/" .. pat)) do
+    add(f)
   end
 end
 

@@ -23,6 +23,7 @@ function M.rock_dir(lua_dir)
   if not tree then
     return nil
   end
+  -- lint: allow glob: the plugin's own install tree, never document text
   local dirs = vim.fn.glob(tree .. "/lib/luarocks/rocks-*/org.nvim/*", false, true)
   table.sort(dirs, function(a, b)
     return vim.version.lt(vim.fs.basename(a):match("^[^-]*"), vim.fs.basename(b):match("^[^-]*"))

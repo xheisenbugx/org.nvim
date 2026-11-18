@@ -109,6 +109,39 @@ describe("logging options", function()
     }, buf_lines(buf))
   end)
 
+  it("rounds CLOSED, LAST_REPEAT and notes to time_stamp_rounding_minutes[1]", function()
+    -- org-current-effective-time starts from (org-current-time), rounded
+    -- to (car org-time-stamp-rounding-minutes): with 10, 10:23 is 10:20
+    config.opts.todo_keywords = { "TODO | DONE(!)" }
+    config.opts.log_done = "time"
+    local rounding = config.opts.time_stamp_rounding_minutes
+    config.opts.time_stamp_rounding_minutes = { 10, 5 }
+    local now = date.now
+    date.now = function()
+      return date.Date.new({ year = 2026, month = 11, day = 2, hour = 10, min = 23 })
+    end
+    local buf = org_buffer({ "* TODO A", "* TODO B", "SCHEDULED: <2026-11-02 Mon +1w>" }, { 1, 0 })
+    local ok_run, err = pcall(function()
+      todo.change_state(nil, "DONE")
+      todo.change_state({ bufnr = buf, lnum = 4 }, "DONE")
+    end)
+    date.now = now
+    config.opts.time_stamp_rounding_minutes = rounding
+    ok(ok_run, err)
+    local ts = "[2026-11-02 Mon 10:20]"
+    eq({
+      "* DONE A",
+      "CLOSED: " .. ts,
+      state_line("DONE", "TODO", ts),
+      "* TODO B",
+      "SCHEDULED: <2026-11-09 Mon +1w>",
+      ":PROPERTIES:",
+      ":LAST_REPEAT: " .. ts,
+      ":END:",
+      state_line("DONE", "TODO", ts),
+    }, buf_lines(buf))
+  end)
+
   local entry = {
     "* TODO A",
     "SCHEDULED: <2026-01-01 Thu>",
@@ -434,6 +467,43 @@ describe("tag options", function()
     utils.input_complete = input_complete
   end)
 
+  it("splits typed tags at characters a tag can't hold", function()
+    -- org-set-tags-command turns every run of [^[:alnum:]_@#%] in what was
+    -- typed into a tag separator: "foo-bar" sets foo and bar
+    local input_complete = utils.input_complete
+    utils.input_complete = function()
+      return ":old:foo-bar: a.b"
+    end
+    config.opts.use_fast_tag_selection = false
+    local buf = org_buffer({ "* Task :old:" }, { 1, 0 })
+    local ok_run, err = pcall(tags.set_tags)
+    utils.input_complete = input_complete
+    ok(ok_run, err)
+    ok(buf_lines(buf)[1]:match("^%* Task%s+:old:foo:bar:a:b:$"), buf_lines(buf)[1])
+    local hl = require("org.files").get_buffer(buf).headlines[1]
+    eq({ "old", "foo", "bar", "a", "b" }, hl.tags)
+    eq("Task", hl.title)
+  end)
+
+  it("splits a tag typed after TAB in the fast selection", function()
+    -- org-fast-tag-selection keeps what TAB reads as one entry, and
+    -- org-set-tags-command splits it when it sets the tags: "next week"
+    -- sets next and week
+    local getchar, input_complete = utils.getchar, utils.input_complete
+    local keys = { "\t", "\r" }
+    utils.getchar = function()
+      return table.remove(keys, 1)
+    end
+    utils.input_complete = function()
+      return "next week"
+    end
+    local buf = org_buffer({ "#+TAGS: work(w)", "* Task" }, { 2, 0 })
+    local ok_run, err = pcall(tags.set_tags)
+    utils.getchar, utils.input_complete = getchar, input_complete
+    ok(ok_run, err)
+    eq({ "next", "week" }, require("org.files").get_buffer(buf).headlines[1].tags)
+  end)
+
   it("shows at most fast_tag_selection_maximum_tags tags", function()
     local defs = {
       { name = "a1" },
@@ -549,6 +619,35 @@ describe("hour repeaters on a date without a time", function()
     ok(okc, err)
     eq(lines, buf_lines(buf))
     eq({ "Cannot repeat in 5 hour(s) because no hour has been set" }, msgs)
+  end)
+end)
+
+describe(".+ hour repeaters on a time range", function()
+  -- Emacs 9.8.10 org-auto-repeat-maybe: a `.+Nh` timestamp is first moved
+  -- to now by minutes (org-timestamp-change ... 'minute), which moves the
+  -- end of an HH:MM-HH:MM range by as much (org-modify-ts-extra), then N
+  -- hours are added: <13:00-14:00 .+3h> done at 14:37 is <17:37-18:37>
+  with_config({ log_repeat = false, log_done = false, todo_keywords = { "TODO | DONE" } })
+  local real_now
+  before_each(function()
+    real_now = date.now
+    date.now = function()
+      return date.Date.new({ year = 2026, month = 11, day = 17, hour = 14, min = 37 })
+    end
+  end)
+  after_each(function()
+    date.now = real_now
+  end)
+
+  it("keeps the length of the range", function()
+    local buf = org_buffer({ "* TODO Stretch", "<2026-11-17 Tue 13:00-14:00 .+3h>" }, { 1, 0 })
+    todo.change_state(nil, "DONE")
+    eq("<2026-11-17 Tue 17:37-18:37 .+3h>", buf_lines(buf)[2])
+    -- further from now Emacs drops the end time (org-modify-ts-extra
+    -- carries one hour at most, :h org-differences); the length stays
+    buf = org_buffer({ "* TODO Stretch", "SCHEDULED: <2026-11-17 Tue 22:00-23:30 .+3h>" }, { 1, 0 })
+    todo.change_state(nil, "DONE")
+    eq("SCHEDULED: <2026-11-17 Tue 17:37-19:07 .+3h>", buf_lines(buf)[2])
   end)
 end)
 
