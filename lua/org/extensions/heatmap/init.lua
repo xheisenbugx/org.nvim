@@ -450,7 +450,7 @@ function M.render(st)
   local files = views.files(st.src)
   st.file_set = views.file_set(files)
   st.key = views.files_key(files)
-  local hls, err = views.collect(st.src, { tag = st.tag, files = files })
+  local hls, err = views.collect_parsed(st.src, { tag = st.tag, files = files })
   local first, last = M.range(st.weeks, today)
   st.first, st.last = first, last
   local values, details = M.data(st.kind, hls, first, last)

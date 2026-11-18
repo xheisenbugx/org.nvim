@@ -266,7 +266,7 @@ function M.build(st)
   local files = views.files(st.src)
   st.file_set = views.file_set(files)
   st.key = views.files_key(files)
-  local hls, err = views.collect(st.src, {
+  local hls, err = views.collect_parsed(st.src, {
     files = files,
     query = o.query,
     filter = st.filter,
