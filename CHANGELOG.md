@@ -13,6 +13,7 @@ This file is generated from the git history by `make changelog`
 ### Fixes
 
 - 50 bugs from a bug hunt across links, capture, agenda, babel, tables, dates and extensions ([#361](https://github.com/xheisenbugx/org.nvim/pull/361))
+- **ics:** Give a fetch command that isn't curl `-o FILE URL` again ([#362](https://github.com/xheisenbugx/org.nvim/pull/362))
 
 <details><summary>Tests, CI and chores (2)</summary>
 
