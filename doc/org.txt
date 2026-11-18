@@ -10075,6 +10075,13 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
                extension without it is experimental; `:checkhealth org`
                shows it for a third-party extension that sets it
 
+Read and change Org data through |org-api|: its functions and fields keep
+working across releases of the same major API version, where the other
+`org.*` modules can change in any release. The `kanban`, `timeline` and
+`heatmap` extensions read and change entries through it alone (their
+windows and drawing are shared code of the built-in views), so a
+third-party extension can do what they do.
+
 ------------------------------------------------------------------------------
 org-ql                                                    *org-extensions-ql*
 

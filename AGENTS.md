@@ -49,6 +49,11 @@ make verify RECIPE=agenda                  # drive a feature in a child Neovim, 
 - `make lint` also runs `scripts/readme_stats.lua`: the sizes `README.md`
   quotes (lines of Lua, tests, spec files) must be no more than the counts
   and at most 10% behind them. `make readme-stats` rewrites them.
+- `make lint` also runs `scripts/lint_extension_requires.lua`: an extension
+  may name no internal org module beyond those in
+  `scripts/extension_requires.txt` (a list that only shrinks). Use
+  `org.api` (extend it if needed); delete a line when its use is gone
+  (CONTRIBUTING.md, "Extensions use org.api").
 - `make typecheck` runs lua-language-server (CI pins 3.19.1) over the
   repo with `.luarc.json`. Any warning or error fails it; the type-system
   checks the code isn't annotated well enough for yet (`need-check-nil`,

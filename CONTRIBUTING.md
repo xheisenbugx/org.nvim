@@ -1136,6 +1136,36 @@ breaking one (`feat(<name>)!:` or a `BREAKING CHANGE:` footer) bumps the
 major version. Nothing is demoted automatically: a stable extension below
 the bar is a prompt to add the missing specs or docs.
 
+### Extensions use org.api
+
+An extension reads and changes Org data through `org.api` (`:h org-api`):
+its functions and fields only change with a major version of the API,
+where `org.files`, `org.parser`, `org.utils` and every other module are
+internal and can change in any release. An extension built on the API is
+one a third party could have written, and it keeps working when the
+internals move. `kanban`, `timeline` and `heatmap` are built that way
+(their windows and drawing come from `org.extensions.views_util`, the
+shared code of the built-in views).
+
+`make lint` runs `scripts/lint_extension_requires.lua`, which lists every
+org module an extension's code names (a `require`, `pcall(require, …)`,
+a require through an alias, `org.lazy`'s `on_load`, a module name in a
+local), leaving out `org.api*`, the registry `org.extensions`,
+`org.extensions.views_util` and the extension's own modules, and compares
+the `<extension> <module>` pairs with `scripts/extension_requires.txt`,
+the dependencies extensions had when the check came in. It fails on a pair
+the file lacks (a new internal dependency) and on a listed pair no longer
+found, so the list only shrinks:
+
+- When the API lacks what you need, extend it (an addition raises its
+  minor version, `:h org-api-version`, with a spec in
+  `tests/spec/api_spec.lua` and an entry under `:h org-api`) rather than
+  requiring the internal module.
+- When you move an extension (or part of one) to the API, delete the
+  lines the check says are gone.
+- `views_util`'s own pairs are in the list too: shared code is no way
+  around the check.
+
 ## Lessons from past debugging
 
 What cost rounds before and isn't obvious from the code.
