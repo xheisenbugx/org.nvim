@@ -166,7 +166,6 @@ local function keyword_set(kws)
   end
   return set
 end
-M._keyword_set = keyword_set
 
 --- The columns of the board: `{ name, keywords, set, wip, done }`.
 ---@param o table options
