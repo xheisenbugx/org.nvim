@@ -48,6 +48,17 @@ M.defaults = {
   recurrence_days = 90,
   --- Minutes between syncs in the background (0: only `caldav_sync`).
   interval = 0,
+  --- Sync a calendar when one of its files is shown in a window, unless it
+  --- was synced less than `open_interval` minutes ago. Not for direction
+  --- "push" (nothing would come). Per calendar.
+  sync_on_open = false,
+  --- Minutes after a calendar's last sync before showing one of its files
+  --- syncs it again (`sync_on_open`).
+  open_interval = 5,
+  --- Sync a calendar a moment after one of its files is saved (`:w`, or a
+  --- save of org's: capture, refile, ...). Saves close together make one
+  --- sync. Not for direction "pull" (nothing would go). Per calendar.
+  sync_on_save = false,
   --- Save the org files a sync changed.
   save = true,
   --- Zone the timestamps are in (an IANA name); nil = the system's.
@@ -327,20 +338,165 @@ local function tick()
 end
 M._tick = tick
 
+--- The names of the calendars `path` is a file of whose `option`
+--- (`sync_on_open` / `sync_on_save`) is on, leaving out those whose
+--- direction is `skip`.
+---@param path string
+---@param option string
+---@param skip string
+---@return string[]
+function M.calendars_of(path, option, skip)
+  local out = {}
+  if path == "" then
+    return out
+  end
+  local key = M.same_file(path)
+  for _, c in ipairs(M.calendars()) do
+    if M.opt(c, option) == true and M.opt(c, "direction") ~= skip then
+      for _, f in ipairs((M.files_of(c)) or {}) do
+        if M.same_file(f) == key then
+          out[#out + 1] = c.name
+          break
+        end
+      end
+    end
+  end
+  return out
+end
+
+--- Whether `option` is on for any calendar.
+---@param option string
+---@return boolean
+local function any_on(option)
+  for _, c in ipairs(M.calendars()) do
+    if M.opt(c, option) == true then
+      return true
+    end
+  end
+  return false
+end
+
+local GROUP = "org_caldav_sync_on_open"
+---@type integer|nil the OrgFileWritten listener (sync_on_save)
+local written
+
+--- `sync_on_open`: buffer `buf` was shown in a window; sync its
+--- calendars that weren't synced for `open_interval` minutes.
+---@param buf integer
+function M._on_open(buf)
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "" or vim.bo[buf].filetype ~= "org" then
+    return
+  end
+  local sync = require("org.extensions.caldav.sync")
+  local wait = (tonumber(M.opts().open_interval) or 0) * 60
+  local now = os.time()
+  local names = {}
+  for _, name in ipairs(M.calendars_of(vim.api.nvim_buf_get_name(buf), "sync_on_open", "push")) do
+    local last = sync.last[name]
+    if not last or now - last.time >= wait then
+      names[#names + 1] = name
+    end
+  end
+  if #names > 0 then
+    sync.run(names, { auto = true })
+  end
+end
+
+--- Milliseconds a sync on save waits for more saves.
+M._save_delay = 1000
+
+---@type table<string, true> calendars whose files were saved since the last sync on save
+local pending = {}
+local save_timer
+
+local function stop_save_timer()
+  if save_timer then
+    -- lint: allow pcall: a timer that is already closed has nothing to stop
+    pcall(save_timer.stop, save_timer)
+    -- lint: allow pcall: a timer that is already closed has nothing to stop
+    pcall(save_timer.close, save_timer)
+    save_timer = nil
+  end
+  pending = {}
+end
+
+--- `sync_on_save`: sync the calendars whose files were saved (when a
+--- sync is running, again after it).
+function M._flush_saves()
+  local names = vim.tbl_keys(pending)
+  pending = {}
+  if #names == 0 then
+    return
+  end
+  table.sort(names)
+  utils().try("caldav: sync on save", function()
+    require("org.extensions.caldav.sync").run(names, { auto = true, queue = true })
+  end)
+end
+
+--- `sync_on_save`: an org file was written (OrgFileWritten's data).
+---@param data { file?: string }
+function M._on_save(data)
+  if require("org.extensions.caldav.sync").saving or type(data.file) ~= "string" then
+    return
+  end
+  local names = M.calendars_of(data.file, "sync_on_save", "pull")
+  if #names == 0 then
+    return
+  end
+  for _, name in ipairs(names) do
+    pending[name] = true
+  end
+  save_timer = save_timer or assert(vim.uv.new_timer())
+  save_timer:stop()
+  save_timer:start(M._save_delay, 0, vim.schedule_wrap(M._flush_saves))
+end
+
+local function stop_triggers()
+  pcall(vim.api.nvim_del_augroup_by_name, GROUP)
+  if written then
+    require("org.api").off(written)
+    written = nil
+  end
+  stop_save_timer()
+end
+
 ---@param o table
 function M.setup(o)
   require("org.extensions.caldav.http").forget_secrets()
   require("org.extensions.caldav.sync").reset()
   stop_timer()
+  stop_triggers()
   local minutes = tonumber(o.interval) or 0
   if minutes > 0 and #M.calendars() > 0 then
     timer = assert(vim.uv.new_timer())
     timer:start(minutes * 60000, minutes * 60000, vim.schedule_wrap(tick))
   end
+  if any_on("sync_on_open") then
+    -- BufEnter: back to a window that shows the file; BufWinEnter: the
+    -- first time (at BufEnter of a new buffer the file isn't read yet)
+    vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
+      group = vim.api.nvim_create_augroup(GROUP, { clear = true }),
+      desc = "org: caldav sync_on_open",
+      callback = function(ev)
+        vim.schedule(function()
+          utils().try("caldav: sync on open", M._on_open, ev.buf)
+        end)
+      end,
+    })
+  end
+  if any_on("sync_on_save") then
+    -- (fired after `:w` and after org's own saves, with the sync's own
+    -- among them: `sync.saving` tells those)
+    written = require("org.api").on("OrgFileWritten", function(data)
+      utils().try("caldav: sync on save", M._on_save, data)
+    end)
+  end
 end
 
 function M.teardown()
   stop_timer()
+  stop_triggers()
   require("org.extensions.caldav.http").forget_secrets()
 end
 
@@ -368,6 +524,8 @@ local KEYS = {
   "delete_remote",
   "todos",
   "past_days",
+  "sync_on_open",
+  "sync_on_save",
 }
 
 ---@param h table vim.health
@@ -414,6 +572,13 @@ function M.health(h, o)
       if not vim.tbl_contains(KEYS, key) then
         problems[#problems + 1] = string.format("%s is not an option of a calendar", tostring(key))
       end
+    end
+    local dir = M.opt(c, "direction")
+    if M.opt(c, "sync_on_open") == true and dir == "push" then
+      h.info(string.format('caldav: %s: sync_on_open does nothing with direction = "push"', c.name))
+    end
+    if M.opt(c, "sync_on_save") == true and dir == "pull" then
+      h.info(string.format('caldav: %s: sync_on_save does nothing with direction = "pull"', c.name))
     end
     for name, choices in pairs(CHOICES) do
       local v = M.opt(c, name)

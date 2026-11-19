@@ -1182,6 +1182,7 @@ describe("org.api", function()
         "OrgRefile",
         "OrgArchive",
         "OrgFileLoaded",
+        "OrgFileWritten",
       }) do
         ok(api.events[name], name)
       end
@@ -1213,6 +1214,37 @@ describe("org.api", function()
       eq({ {}, { "x" } }, { tags[1].from, tags[1].to })
       eq(2, #prio)
       eq(buf, prio[1].bufnr)
+    end)
+
+    it("fires OrgFileWritten after :w and after org's own saves", function()
+      local got = {}
+      local id = api.on("OrgFileWritten", function(data)
+        got[#got + 1] = data
+      end)
+      local path = write(dir, "written.org", { "* One" })
+      vim.cmd("enew!")
+      vim.cmd.edit(vim.fn.fnameescape(path))
+      local buf = vim.api.nvim_get_current_buf()
+      vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "* Two" })
+      vim.cmd("silent write")
+      vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "* Three" })
+      ok(require("org.utils").save_buffer(buf))
+      -- a buffer that isn't org: nothing
+      local txt = write(dir, "notes.txt", { "x" })
+      vim.cmd.edit(vim.fn.fnameescape(txt))
+      vim.cmd("silent write")
+      api.off(id)
+      vim.cmd("silent! bwipeout! " .. buf)
+      local real = vim.fs.normalize(vim.uv.fs_realpath(path))
+      eq(
+        {
+          { bufnr = buf, file = real, source = "write" },
+          { bufnr = buf, file = real, source = "save_buffer" },
+        },
+        vim.tbl_map(function(d)
+          return { bufnr = d.bufnr, file = vim.fs.normalize(vim.uv.fs_realpath(d.file)), source = d.source }
+        end, got)
+      )
     end)
 
     it("fires OrgFileLoaded for listeners with patterns that match it", function()
@@ -1295,8 +1327,8 @@ describe("org.api", function()
       end, list)
     end
 
-    it("is version 1.3", function()
-      ok(api.has("1.3"))
+    it("is version 1.4", function()
+      ok(api.has("1.4"))
     end)
 
     it("today() is org's today; a date has its day number and is made from one", function()

@@ -621,9 +621,12 @@ local function reconcile(c, st, all, remote, ctx, res, run, paths)
   end
 
   if e.opts().save then
+    -- (the sync's own saves start no sync on save)
+    M.saving = true
     for b in pairs(touched) do
-      utils().save_buffer_or_warn(b)
+      utils().try("caldav: save", utils().save_buffer_or_warn, b)
     end
+    M.saving = false
   end
   return plan, nil
 end
@@ -841,11 +844,23 @@ function M.running()
   return running
 end
 
---- Sync the calendars (`only`: the one of that name). `opts.auto`: nobody
---- asked (the timer): no questions, and a message only when something
---- changed or went wrong. `opts.done(results)` is called at the end.
----@param only? string
----@param opts? { auto?: boolean, done?: fun(results: org.caldav.Result[]|nil) }
+--- Whether the sync is saving the files it changed (a save that starts
+--- no sync on save).
+M.saving = false
+
+-- calendar name -> true: syncs asked for (`opts.queue`) while one ran,
+-- started when it ends
+local queued = {}
+
+--- Sync the calendars (`only`: the one of that name, or those of the
+--- names). `opts.auto`: nobody asked (the timer, opening or saving a
+--- file): no questions, and a message only when something changed or
+--- went wrong. `opts.queue`: when a sync is running, sync these
+--- calendars again when it ends instead of doing nothing (a save made
+--- while a sync waits for the server must still be sent). `opts.done(results)`
+--- is called at the end (nil: nothing ran, or it was queued).
+---@param only? string|string[]
+---@param opts? { auto?: boolean, queue?: boolean, done?: fun(results: org.caldav.Result[]|nil) }
 function M.run(only, opts)
   opts = opts or {}
   local u = utils()
@@ -854,22 +869,28 @@ function M.run(only, opts)
       opts.done(results)
     end
   end
+  local names = type(only) == "string" and { only } or only
+  local cals = {}
+  for _, c in ipairs(ext().calendars()) do
+    if names == nil or vim.tbl_contains(names, c.name) then
+      cals[#cals + 1] = c
+    end
+  end
   if running then
-    if not opts.auto then
+    if opts.queue then
+      for _, c in ipairs(cals) do
+        queued[c.name] = true
+      end
+    elseif not opts.auto then
       u.warn("caldav: a sync is already running")
     end
     return finish(nil)
   end
-  local cals = {}
-  for _, c in ipairs(ext().calendars()) do
-    if only == nil or c.name == only then
-      cals[#cals + 1] = c
-    end
-  end
   if #cals == 0 then
     if not opts.auto then
       u.warn(
-        only and ("caldav: no calendar named " .. only) or "caldav: no calendars (set extensions.caldav.calendars)"
+        names and ("caldav: no calendar named " .. table.concat(names, ", "))
+          or "caldav: no calendars (set extensions.caldav.calendars)"
       )
     end
     return finish(nil)
@@ -935,12 +956,19 @@ function M.run(only, opts)
       end
     end
     finish(results)
+    local again = vim.tbl_keys(queued)
+    if #again > 0 then
+      queued = {}
+      table.sort(again)
+      M.run(again, { auto = true, queue = true })
+    end
   end)
 end
 
---- Forget what the timer warned about (a new setup).
+--- Forget what the timer warned about and the syncs waiting (a new setup).
 function M.reset()
   warned = {}
+  queued = {}
   M.last = {}
 end
 

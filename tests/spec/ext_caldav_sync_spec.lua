@@ -1031,6 +1031,185 @@ describe("caldav: in the background", function()
   end)
 end)
 
+describe("caldav: sync on open and on save", function()
+  local caldav = require("org.extensions.caldav")
+  local real_delay, real_sync_calendar
+  local syncs
+
+  before_each(function()
+    before()
+    real_delay, real_sync_calendar = caldav._save_delay, sync.sync_calendar
+    caldav._save_delay = 20
+    syncs = {}
+    sync.sync_calendar = function(c, run)
+      syncs[#syncs + 1] = c.name
+      return real_sync_calendar(c, run)
+    end
+  end)
+
+  after_each(function()
+    caldav._save_delay, sync.sync_calendar = real_delay, real_sync_calendar
+    vim.cmd("silent! %bwipeout!")
+    after()
+  end)
+
+  local function settle()
+    vim.wait(5000, function()
+      return not sync.running()
+    end, 5)
+    -- a sync on save waits for more saves, then runs
+    vim.wait(caldav._save_delay * 5, function()
+      return false
+    end, 5)
+    vim.wait(5000, function()
+      return not sync.running()
+    end, 5)
+  end
+
+  local function write(lines)
+    vim.fn.writefile(lines, path)
+  end
+
+  it("syncs a calendar when its file is shown, at most once in open_interval", function()
+    srv:put("work", "a.ics", event("uid-a", { "SUMMARY:Review", "DTSTART:20261112T150000Z" }))
+    write({})
+    setup(nil, { sync_on_open = true })
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    settle()
+    eq({ "Work" }, syncs)
+    ok(has(org(), "* Review"))
+    -- back to it at once: no second sync
+    vim.cmd("enew")
+    vim.cmd.buffer(vim.fn.bufnr(path))
+    settle()
+    eq(1, #syncs)
+    -- an older sync: it syncs again
+    sync.last.Work.time = os.time() - 6 * 60
+    vim.cmd("enew")
+    vim.cmd.buffer(vim.fn.bufnr(path))
+    settle()
+    eq(2, #syncs)
+  end)
+
+  it("syncs on open only the calendars of the file, and none that only pushes", function()
+    write({})
+    local other = tmp .. "/other.org"
+    vim.fn.writefile({}, other)
+    setup({ direction = "push" }, { sync_on_open = true, sync_on_save = true, open_interval = 0 })
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    vim.cmd.edit(vim.fn.fnameescape(other))
+    settle()
+    eq({}, syncs)
+    eq({}, caldav.calendars_of(path, "sync_on_open", "push"))
+    eq({ "Work" }, caldav.calendars_of(path, "sync_on_save", "pull"))
+    eq({}, caldav.calendars_of(other, "sync_on_save", "pull"))
+  end)
+
+  it("is off unless asked for", function()
+    write({})
+    setup()
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Talk", "<2026-11-12 Thu 10:00>" })
+    vim.cmd("silent write")
+    settle()
+    eq({}, syncs)
+    eq(0, #srv:files("work"))
+  end)
+
+  it("sends an entry a moment after :w, once for saves close together, and not again for its own save", function()
+    write({})
+    setup(nil, { sync_on_save = true })
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Talk", "<2026-11-12 Thu 10:00>" })
+    vim.cmd("silent write")
+    vim.api.nvim_buf_set_lines(0, -1, -1, false, { "* Lunch", "<2026-11-12 Thu 12:00>" })
+    vim.cmd("silent write")
+    settle()
+    -- one sync: the sync saved the IDs it gave, which starts no other
+    eq({ "Work" }, syncs)
+    eq(2, #srv:files("work"))
+    ok(table.concat(org(), "\n"):find(":ID:", 1, true))
+    eq(false, vim.bo.modified)
+    eq(table.concat(org(), "\n"), table.concat(vim.fn.readfile(path), "\n"))
+  end)
+
+  it("syncs on org's own saves too", function()
+    write({})
+    setup(nil, { sync_on_save = true })
+    set({ "* Talk", "<2026-11-12 Thu 10:00>" })
+    require("org.utils").save_buffer(buf())
+    settle()
+    eq({ "Work" }, syncs)
+    eq(1, #srv:files("work"))
+  end)
+
+  it("syncs again after a sync that was running when the file was saved", function()
+    write({})
+    setup(nil, { sync_on_save = true })
+    -- a slow server: the save comes while the sync waits for it
+    local fast = http.transport
+    http.transport = function(req, cb)
+      fast(req, function(...)
+        local args = { ... }
+        vim.defer_fn(function()
+          cb(unpack(args))
+        end, caldav._save_delay * 3)
+      end)
+    end
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    local done, at_done = false, nil
+    sync.run(nil, {
+      done = function()
+        done, at_done = true, #syncs
+      end,
+    })
+    ok(sync.running())
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Talk", "<2026-11-12 Thu 10:00>" })
+    vim.cmd("silent write")
+    vim.wait(5000, function()
+      return done
+    end, 5)
+    -- the save was queued, not run beside the first sync
+    eq(1, at_done)
+    settle()
+    eq({ "Work", "Work" }, syncs)
+    eq(1, #srv:files("work"))
+  end)
+
+  it("does not sync on save a calendar that only pulls", function()
+    write({})
+    setup({ direction = "pull" }, { sync_on_save = true })
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Talk", "<2026-11-12 Thu 10:00>" })
+    vim.cmd("silent write")
+    settle()
+    eq({}, syncs)
+  end)
+
+  it("takes the options per calendar, and stops on a new setup", function()
+    write({})
+    setup({ sync_on_save = true })
+    local function listeners()
+      return #vim.api.nvim_get_autocmds({ event = "User", pattern = "OrgFileWritten" })
+    end
+    eq(1, listeners())
+    -- health: an option of a calendar, and one its direction makes useless
+    setup({ direction = "pull", sync_on_save = true })
+    local out = {}
+    local h = {}
+    for _, level in ipairs({ "ok", "info", "warn", "error" }) do
+      h[level] = function(msg)
+        out[#out + 1] = level .. ": " .. msg
+      end
+    end
+    caldav.health(h, caldav.opts())
+    ok(vim.tbl_contains(out, 'info: caldav: Work: sync_on_save does nothing with direction = "pull"'), vim.inspect(out))
+    ok(not table.concat(out, "\n"):find("not an option", 1, true), vim.inspect(out))
+    require("org").setup({ extensions = {} })
+    eq(0, listeners())
+  end)
+end)
+
 describe("caldav: matching and coming back", function()
   before_each(before)
   after_each(after)

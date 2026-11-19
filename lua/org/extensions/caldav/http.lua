@@ -508,6 +508,8 @@ end
 ---@field delete_remote? "ask"|"always"|"never"
 ---@field todos? boolean
 ---@field past_days? integer|false
+---@field sync_on_open? boolean
+---@field sync_on_save? boolean
 
 ---@param reply org.caldav.Reply
 ---@return string
