@@ -869,7 +869,13 @@ function M.run(only, opts)
       opts.done(results)
     end
   end
-  local names = type(only) == "string" and { only } or only
+  ---@type string[]|nil
+  local names
+  if type(only) == "string" then
+    names = { only }
+  elseif type(only) == "table" then
+    names = only
+  end
   local cals = {}
   for _, c in ipairs(ext().calendars()) do
     if names == nil or vim.tbl_contains(names, c.name) then

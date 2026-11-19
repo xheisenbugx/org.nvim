@@ -11873,10 +11873,11 @@ Each calendar takes:
               sent too
   `files`     more org files whose entries are sent to the calendar
 and may set `direction`, `conflict`, `delete_local`, `delete_remote`,
-`todos`, `past_days`, `sync_on_open` and `sync_on_save` for itself. A calendar needs an `inbox` or `files`;
-with `files` only, the calendar's new events are not added anywhere (the
-sync says how many). A file belongs to one calendar. List the files in
-`agenda_files` to see the events in the agenda.
+`todos`, `past_days`, `sync_on_open` and `sync_on_save` for itself. A
+calendar needs an `inbox` or `files`; with `files` only, the calendar's
+new events are not added anywhere (the sync says how many). A file
+belongs to one calendar. List the files in `agenda_files` to see the
+events in the agenda.
 
 Entries and events ~
 An entry and an event belong together when the entry's ID property is the

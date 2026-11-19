@@ -4,7 +4,7 @@ recipe: scripts/verify/recipes/extensions.lua
 keys: global.kanban_open, global.journal_new_entry, org.present_start
 modules: lua/org/extensions/init.lua, lua/org/extensions/kanban, lua/org/extensions/views_util.lua, lua/org/extensions/journal, lua/org/extensions/present, lua/org/extensions/caldav
 specs: tests/spec/extensions_spec.lua, tests/spec/ext_kanban_spec.lua, tests/spec/ext_journal_spec.lua, tests/spec/ext_present_spec.lua, tests/spec/ext_present_edge_spec.lua, tests/spec/ext_caldav_spec.lua, tests/spec/ext_caldav_sync_spec.lua, tests/spec/ext_caldav_e2e_spec.lua
-doc: org-extensions, org-extensions-kanban, org-extensions-views, org-extensions-journal, org-extensions-present, org-extensions-caldav
+doc: org-extensions, org-extensions-kanban, org-extensions-views, org-extensions-journal, org-extensions-present, org-extensions-caldav, org-extensions-caldav-triggers
 emacs: none (kanban), org-journal (journal), org-present (present), org-caldav (caldav)
 ---
 
