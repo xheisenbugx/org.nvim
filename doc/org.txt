@@ -8828,6 +8828,8 @@ and `heatmap` extensions are built on it): `api.today()`,
 `priority_value` and `bufnr`, a date's `days`, `h:move_after()`,
 `h:move_before()` and `opts.interactive`.
 
+API 1.4 added the `OrgFileWritten` event (|org-api-events|).
+
 Files ~
                                                            *org-api-files*
 api.agenda_files()          Absolute paths of the agenda files.
@@ -9316,6 +9318,11 @@ for `api.off(id)`; `api.events` maps each name to a short description.
                          the background, |org-agenda-index|), or a buffer
                          parsed for the first time. Fires on the next
                          event loop turn.
+    OrgFileWritten       bufnr, file, source ("write": `:w` and the other
+                         write commands; "save_buffer": org's own saves,
+                         such as capture, refile and agenda edits, which
+                         run no BufWritePost): an org buffer was written.
+                         Fires right after the write. Since API 1.4.
 Handlers run during the command, like Emacs hooks, and may edit buffers:
 the command follows its entries where a handler moves them (the region
 command its headlines; a refile the line it returns, its bookmark and the
@@ -11866,10 +11873,11 @@ Each calendar takes:
               sent too
   `files`     more org files whose entries are sent to the calendar
 and may set `direction`, `conflict`, `delete_local`, `delete_remote`,
-`todos` and `past_days` for itself. A calendar needs an `inbox` or `files`;
-with `files` only, the calendar's new events are not added anywhere (the
-sync says how many). A file belongs to one calendar. List the files in
-`agenda_files` to see the events in the agenda.
+`todos`, `past_days`, `sync_on_open` and `sync_on_save` for itself. A
+calendar needs an `inbox` or `files`; with `files` only, the calendar's
+new events are not added anywhere (the sync says how many). A file
+belongs to one calendar. List the files in `agenda_files` to see the
+events in the agenda.
 
 Entries and events ~
 An entry and an event belong together when the entry's ID property is the
@@ -11958,6 +11966,31 @@ sent is sent at the next sync.
 With `interval`, a sync also runs every that many minutes. It asks no
 questions (deletions that need an answer wait for `:Org caldav_sync`) and
 reports only changes and failures.
+
+                                         *org-extensions-caldav-triggers*
+Two more syncs that ask nothing and report the same way, off by default:
+  `sync_on_open`  syncs a calendar when one of its files is shown in a
+                  window (opened, or gone back to), unless the calendar was
+                  synced less than `open_interval` minutes ago (5). It
+                  brings the calendar's changes, so it does nothing for a
+                  calendar with `direction = "push"`.
+  `sync_on_save`  syncs a calendar a moment after one of its files is
+                  saved: by `:w`, and by org's own saves (capture, refile,
+                  agenda edits). Saves close together, such as `:wa`, make
+                  one sync, and a save while a sync runs is synced when it
+                  ends. It sends org's changes, so it does nothing for a
+                  calendar with `direction = "pull"`. The sync's own saves
+                  start no other.
+Either syncs the whole calendar of the file, which sends and fetches only
+what changed. Expect the buffer to change after a save: a new entry with a
+date gets its ID property (the sync saves the file again, with `save`),
+and the calendar's changes come in. Both can be set per calendar:
+>lua
+    extensions = { caldav = { sync_on_open = true, calendars = {
+      { name = "Work", url = "...", inbox = "~/org/work.org",
+        sync_on_save = true },
+    } } },
+<
 
 Repeating events ~
 A rule a repeater can say is written as one (`FREQ=WEEKLY` is `+1w`), and
@@ -12091,6 +12124,11 @@ Options ~
   `past_days`        days back events are picked up; false: all (30)
   `recurrence_days`  days ahead the occurrences of a rule are listed (90)
   `interval`         minutes between syncs in the background; 0: none (0)
+  `sync_on_open`     sync a calendar when one of its files is shown
+                     (|org-extensions-caldav-triggers|) (false)
+  `open_interval`    minutes after a calendar's last sync before
+                     `sync_on_open` syncs it again (5)
+  `sync_on_save`     sync a calendar after one of its files is saved (false)
   `save`             save the org files a sync changed (true)
   `timezone`         IANA zone of the timestamps (nil: the system's)
   `tz_aliases`       extra TZID -> IANA zone names ({})

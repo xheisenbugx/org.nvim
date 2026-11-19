@@ -165,7 +165,10 @@ Some things to know before you start:
   `ctx.source` is `"write"` or `"save_buffer"`. Unregister in your
   extension's `teardown` with `require("org.write_hooks").unregister("my-ext")`.
   crypt (`encrypt_on_save`, order 50), transclusion (order 10) and roam
-  (order 20) are the built-in users. Don't write org buffers yourself with
+  (order 20) are the built-in users. An extension that only needs to know
+  a write happened (by `:w` or by org) listens to the `OrgFileWritten`
+  event through `org.api` instead (`:h org-api-events`), as caldav's
+  `sync_on_save` does. Don't write org buffers yourself with
   `:write` from code: inside an autocommand or a `BufWriteCmd` the hooks
   don't run; call `utils.save_buffer` (or `save_buffer_or_warn`) and check
   its result.

@@ -181,7 +181,9 @@ apply there.
 - **Org saves through `utils.save_buffer`.** It writes with `:noautocmd`,
   so logic that must run around every write (`:w` or org's own saves)
   registers a hook in `lua/org/write_hooks.lua`, not a
-  BufWritePre/BufWritePost autocommand. See CONTRIBUTING.md.
+  BufWritePre/BufWritePost autocommand; an extension that only reacts
+  after a write listens to `OrgFileWritten` through `org.api`. See
+  CONTRIBUTING.md.
 - **`:checkhealth org` checks what a feature needs.** A feature that
   needs an external program, a path or a state file adds a check in
   `lua/org/health/init.lua` (an extension: its `health(h, opts)`). Checks

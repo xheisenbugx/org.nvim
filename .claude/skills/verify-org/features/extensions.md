@@ -4,7 +4,7 @@ recipe: scripts/verify/recipes/extensions.lua
 keys: global.kanban_open, global.journal_new_entry, org.present_start
 modules: lua/org/extensions/init.lua, lua/org/extensions/kanban, lua/org/extensions/views_util.lua, lua/org/extensions/journal, lua/org/extensions/present, lua/org/extensions/caldav
 specs: tests/spec/extensions_spec.lua, tests/spec/ext_kanban_spec.lua, tests/spec/ext_journal_spec.lua, tests/spec/ext_present_spec.lua, tests/spec/ext_present_edge_spec.lua, tests/spec/ext_caldav_spec.lua, tests/spec/ext_caldav_sync_spec.lua, tests/spec/ext_caldav_e2e_spec.lua
-doc: org-extensions, org-extensions-kanban, org-extensions-views, org-extensions-journal, org-extensions-present, org-extensions-caldav
+doc: org-extensions, org-extensions-kanban, org-extensions-views, org-extensions-journal, org-extensions-present, org-extensions-caldav, org-extensions-caldav-triggers
 emacs: none (kanban), org-journal (journal), org-present (present), org-caldav (caldav)
 ---
 
@@ -80,6 +80,14 @@ _G.__caldav = srv                           -- for later `expect = { lua = ... }
 | delete the entry's lines, `:Org caldav_sync` | a question: `1 entry was deleted in the org files. Delete it from the calendar too?` with the title below and `(Y)es, [N]o:` |
 | `y` (a `type` step) | `caldav: Home: 1 deleted in the calendar`, no Press ENTER; the resource is gone from the server |
 
+With `sync_on_open = true, sync_on_save = true` (start in another file,
+install the stand-in, then show the inbox):
+
+| Step | Expected |
+| --- | --- |
+| `:edit` the inbox | `caldav: Home: 1 from the calendar` with no command typed; the event's heading (folded) |
+| add a dated entry, `:write` | a moment later `caldav: Home: 1 to the calendar`; the entry has an `:ID:`, is on the server, and the buffer is saved again (not modified) |
+
 ## Gotchas
 
 - The header's `keys` may name an extension's keys and actions
@@ -108,6 +116,11 @@ _G.__caldav = srv                           -- for later `expect = { lua = ... }
 - CalDAV: the delete question is `vim.fn.confirm()`. While it waits,
   Neovim answers no request that runs Lua, so a `key` step (it resolves
   placeholders in the child first) times out: answer with `type = "y"`.
+- CalDAV `sync_on_open`: install the stand-in before the inbox is shown
+  (open another file first), or the first sync goes to curl and fails.
+  A heading the sync adds is folded: check its timestamp with `buffer`.
+  Add entries with `nvim_buf_set_lines` rather than typed keys: the
+  indent options move typed lines.
 - CalDAV: the recipe's stand-in replaces the transport, so curl isn't
   run; `tests/spec/ext_caldav_e2e_spec.lua` is what goes through real
   curl. Neither talks to a real server.
