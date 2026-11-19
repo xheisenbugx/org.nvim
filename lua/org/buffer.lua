@@ -85,6 +85,29 @@ local function register_crypt_hook()
   })
 end
 
+-- OrgFileWritten (|org-api-events|): after every write of an org buffer,
+-- by a write command or by org's own saves (`utils.save_buffer`, which
+-- runs no BufWritePost), so a listener sees both alike.
+local written_hook_registered = false
+local function register_written_hook()
+  if written_hook_registered then
+    return
+  end
+  written_hook_registered = true
+  require("org.write_hooks").register("org.written", {
+    order = 95,
+    filetype = "org",
+    post = function(bufnr, ctx)
+      if ctx.ok then
+        require("org.utils").user_event(
+          "OrgFileWritten",
+          { bufnr = bufnr, file = vim.api.nvim_buf_get_name(bufnr), source = ctx.source }
+        )
+      end
+    end,
+  })
+end
+
 --- Concealing for the buffer in window `win`: set with `:setlocal`, so
 --- other buffers later shown in the window keep their own values.
 local function set_win_opts(bufnr, win)
@@ -166,6 +189,7 @@ function M.attach(bufnr)
   try("org.table.attach", "attach", bufnr)
   try("org.clock.attach", "attach", bufnr)
   register_crypt_hook()
+  register_written_hook()
   -- speed commands (org.speed.attach): the module loads on a character
   -- typed while `use_speed_commands` is on
   vim.api.nvim_create_autocmd("InsertCharPre", {

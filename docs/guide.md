@@ -1033,7 +1033,8 @@ each one stands.
   keyword, priority and tags in org are left alone (the text under the
   heading is the event's description, and is sent). Deletions ask first.
   Repeating events, tasks (VTODO) as TODO entries, pull-only or push-only
-  calendars, a sync every few minutes (`interval`), and
+  calendars, a sync every few minutes (`interval`) or when a calendar's
+  file is opened or saved (`sync_on_open`, `sync_on_save`), and
   `:Org caldav_discover` to find the calendars of an account.
 
   ```lua

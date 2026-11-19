@@ -44,7 +44,7 @@ local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
 --- fields or events; a new MAJOR may break code written for an older one.
-M.version = "1.3.0"
+M.version = "1.4.0"
 
 --- Does this API provide `version` ("1", "1.0" or "1.0.0")? True when the
 --- major versions are equal and this one is not older.
@@ -1323,6 +1323,7 @@ M.events = {
   OrgArchive = "subtree about to leave its file for the archive: bufnr, lnum, title, archive_file",
   OrgArchiveFinalize = "archived copy in place: bufnr, lnum, title, archive_file",
   OrgFileLoaded = "file read from disk or buffer parsed for the first time: file, bufnr, source",
+  OrgFileWritten = "org buffer written, by :w or org's own saves: bufnr, file, source",
 }
 
 --- Call `fn(data, ev)` on the User autocmd `event` (a name of

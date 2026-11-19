@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.5.0] - 2026-11-19
+
+### Features
+
+- **caldav:** Sync on opening and on saving a calendar's file ([#375](https://github.com/xheisenbugx/org.nvim/pull/375))
+
 ## [v3.4.0] - 2026-11-18
 
 ### Features
@@ -709,6 +715,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.5.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.4.0...v3.5.0
 [v3.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.6...v3.4.0
 [v3.3.6]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.5...v3.3.6
 [v3.3.5]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.4...v3.3.5

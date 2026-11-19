@@ -29,6 +29,16 @@
 ---Minutes between syncs in the background; `0`: only `caldav_sync`
 ---(default: `0`).
 ---@field interval? integer
+---Sync a calendar when one of its files is shown in a window, unless it
+---was synced less than `open_interval` minutes ago; not for direction
+---"push" (default: `false`).
+---@field sync_on_open? boolean
+---Minutes after a calendar's last sync before `sync_on_open` syncs it
+---again (default: `5`).
+---@field open_interval? integer
+---Sync a calendar a moment after one of its files is saved; not for
+---direction "pull" (default: `false`).
+---@field sync_on_save? boolean
 ---Save the org files a sync changed (default: `true`).
 ---@field save? boolean
 ---IANA zone the timestamps are in (default: `nil`, the system's).
@@ -77,6 +87,10 @@
 ---@field todos? boolean
 ---Overrides the `past_days` option for this calendar.
 ---@field past_days? integer|false
+---Overrides the `sync_on_open` option for this calendar.
+---@field sync_on_open? boolean
+---Overrides the `sync_on_save` option for this calendar.
+---@field sync_on_save? boolean
 
 ---@class org.Config.Extensions.Caldav.Inbox
 ---The org file.

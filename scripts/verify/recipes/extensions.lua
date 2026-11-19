@@ -208,4 +208,55 @@ return {
       { expect = { lua = "return #_G.__caldav:files('home') == 1" } },
     },
   },
+  {
+    name = "caldav: sync_on_open brings the calendar in when its file is shown, sync_on_save sends a :w",
+    files = { ["calendar.org"] = {}, ["notes.org"] = { "* Notes" } },
+    open = "notes.org",
+    setup = {
+      extensions = {
+        caldav = {
+          calendars = {
+            { name = "Home", url = "http://dav.test/dav/calendars/me/home/", inbox = "{{dir}}/calendar.org" },
+          },
+          timezone = "UTC",
+          state_dir = "{{dir}}/state",
+          sync_on_open = true,
+          sync_on_save = true,
+        },
+      },
+    },
+    steps = {
+      {
+        note = "a stand-in for the server answers inside the child; notes.org is no file of a calendar",
+        lua = [[
+          local file = vim.api.nvim_get_runtime_file("tests/support/caldav_server.lua", false)[1]
+          local srv = dofile(file).new()
+          srv:calendar("home")
+          srv:put("home", "a.ics", table.concat({
+            "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "UID:uid-a", "SUMMARY:Design review",
+            "DTSTART:20261015T150000Z", "DTEND:20261015T160000Z", "END:VEVENT", "END:VCALENDAR",
+          }, "\r\n") .. "\r\n")
+          require("org.extensions.caldav.http").transport = srv:transport()
+          _G.__caldav = srv
+        ]],
+      },
+      {
+        note = "showing the calendar's file syncs it: no command typed",
+        lua = "vim.cmd.edit(vim.fn.fnameescape((...) .. '/calendar.org'))",
+        expect = { screen = { "caldav: Home: 1 from the calendar", "* Design review" } },
+      },
+      { note = "the heading is folded: its timestamp line", expect = { buffer = "^<2026%-10%-15 Thu 15:00%-16:00>$" } },
+      {
+        note = "a new dated entry (set as lines: typed, the indent options move them)",
+        lua = "vim.api.nvim_buf_set_lines(0, -1, -1, false, { '* Dentist', '<2026-10-16 Fri 09:00>' })",
+      },
+      {
+        cmd = "write",
+        note = "a moment after the write the entry is sent, gets its ID, and the file is saved again",
+        expect = { screen = "caldav: Home: 1 to the calendar", buffer = "^:ID: " },
+      },
+      { expect = { lua = "return #_G.__caldav:files('home') == 2 and not vim.bo.modified" } },
+      { note = "the file on disk has the ID the sync gave", expect = { file = { "calendar.org", "^:ID: " } } },
+    },
+  },
 }
