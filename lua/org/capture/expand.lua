@@ -353,10 +353,59 @@ function M.eval_sexp(expr, ctx)
   return ""
 end
 
+--- `text` as typed at `%?` (`ctx.typed`, the `org` command line's text)
+--- on a line that reads `lead` before it and `tail` after it: the text
+--- and the cursor marker in place of `%?`, and the tail. Unlike `%i`,
+--- whose lead starts every line, each newline is indented as org-return
+--- indents a new line there (org-indent-line): after a headline at
+--- column 0, or at its level + 1 when `adapt_indentation` is `true`; after
+--- a list bullet at the column after it; else at the line's own
+--- indentation. On a headline the tail (its tags) stays on it, and in a
+--- table row each further line is a row of its own below it. A line that
+--- would start a heading (`*` at column 0) gets a space before it, so the
+--- text stays in its entry, as with `org add --body`.
+---@param text string
+---@param lead string
+---@param tail string
+---@return string typed the text and the cursor marker
+---@return string tail
+local function typed_text(text, lead, tail)
+  local indent, close
+  local stars = lead:match("^(%*+)[ \t]")
+  if stars then
+    -- org-adapt-indentation t only: headline-data indents no body text
+    local adapt = require("org.ui.decorations").adapt_indentation(0) == true
+    indent = adapt and string.rep(" ", #stars + 1) or ""
+  elseif lead:match("^[ \t]*|") then
+    indent, close = lead, tail:find("|", 1, true) and " |" or ""
+  else
+    local lists = require("org.lists")
+    local item = lists.parse_item_line(lead)
+    indent = item and string.rep(" ", lists.body_column(item)) or lead:match("^[ \t]*")
+  end
+  local first, rest = text:match("^([^\n]*)(.*)$")
+  rest = rest:gsub("\n([^\n]*)", function(l)
+    if l == "" then
+      return "\n"
+    end
+    l = indent .. l
+    if l:match("^%*+%s") or l:match("^%*+$") then
+      l = " " .. l
+    end
+    return "\n" .. l .. (close or "")
+  end)
+  if rest ~= "" and (stars or close) then
+    -- the rest of the headline or table row stays on its line
+    return first .. tail .. rest .. CURSOR, ""
+  end
+  return first .. rest .. CURSOR, tail
+end
+
 --- Expand a template string like org-capture-fill-template: `%[file]`,
 --- then the non-interactive escapes, `%(lua)`, the prompts `%^...` and
 --- finally the backreferences `%\N` / `%\*N`. The first `%?` becomes the
---- cursor marker. Must run inside a coroutine when it prompts.
+--- cursor marker, after `ctx.typed` when there is one. Must run inside a
+--- coroutine when it prompts.
 ---@param text string
 ---@param ctx org.Config.CaptureContext|table
 ---@return string text with the CURSOR marker
@@ -411,6 +460,18 @@ function M.expand(text, ctx)
     end
     return splice(s, p, e, content)
   end)
+
+  -- the caller's text (`ctx.typed`) is typed at the first %? (one added at
+  -- the end without any), unless the template uses %i, whose initial
+  -- content it then is
+  local typed = ctx.typed
+  if typed then
+    if text:find("%i", 1, true) then
+      typed = nil
+    elseif not text:find("%?", 1, true) then
+      text = text .. "%?"
+    end
+  end
 
   -- non-interactive escapes; `in_expr`: inside %(...), quote the values
   local function expand_simple(s, in_expr)
@@ -684,7 +745,14 @@ function M.expand(text, ctx)
   text = untabify(text)
   local c = text:find("%?", 1, true)
   if c then
-    text = text:sub(1, c - 1) .. CURSOR .. text:sub(c + 2)
+    local before, after = text:sub(1, c - 1), text:sub(c + 2)
+    if typed then
+      local eol = after:find("\n", 1, true) or #after + 1
+      local at, tail = typed_text(typed, before:match("[^\n]*$"), after:sub(1, eol - 1))
+      text = before .. at .. tail .. after:sub(eol)
+    else
+      text = before .. CURSOR .. after
+    end
   end
   return text, ctx
 end

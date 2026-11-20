@@ -119,14 +119,20 @@ describe("cli helpers", function()
           t = { description = "T", target = "/tmp/x.org", template = "* TODO %?\n  %U" },
           i = { description = "I", target = "/tmp/x.org", template = "* %i %?" },
           e = { description = "E", target = "/tmp/x.org", type = "item" },
+          f = { description = "F", target = "/tmp/x.org", template = "* Fixed\n" },
+          c = { description = "C", target = "/tmp/x.org", type = "checkitem", template = " " },
         },
       },
     })
+    -- the template is kept: capture puts the text at %? (or %i)
     local t = cli.capture_template("t")
-    eq("* TODO %i\n  %U", t.template)
+    eq("* TODO %?\n  %U", t.template)
     eq(true, t.immediate_finish)
     eq("* %i %?", cli.capture_template("i").template)
-    eq("- %i", cli.capture_template("e").template)
+    eq("* Fixed\n", cli.capture_template("f").template)
+    -- an empty one is Emacs's (org-capture-set-plist), without %a
+    eq("- %?", cli.capture_template("e").template)
+    eq("- [ ] %?", cli.capture_template("c").template)
     local success, e = pcall(cli.capture_template, "zz")
     eq(false, success)
     eq(2, e.code)
@@ -338,6 +344,83 @@ describe("cli (bin/org)", function()
       keys[#keys + 1] = t.key
     end
     eq({ "n", "p", "t" }, keys)
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("puts multi-line text where %? is, its first line in the heading (#378)", function()
+    local dir = workspace()
+    -- `* TODO %?\n  %U`: the first line is the heading, the rest its body
+    eq(0, (run(dir, { "capture", "-" }, "Title\nbody line one\n- [ ] item\n")))
+    local lines = read(dir .. "/inbox.org")
+    eq({ "* Inbox", "** TODO Title", "body line one", "- [ ] item" }, vim.list_slice(lines, 1, 4))
+    ok(lines[5]:match("^  %[%d+%-%d+%-%d+"), lines[5])
+    eq(5, #lines)
+    -- the same from a JSON object
+    local input = vim.json.encode({ template = "t", text = "Second\nits body" })
+    eq(0, (run(dir, { "capture", "--input", "-" }, input)))
+    eq({ "** TODO Second", "its body" }, vim.list_slice(read(dir .. "/inbox.org"), 6, 7))
+    -- `%i` keeps Emacs's meaning: the text before it starts every line
+    eq(0, (run(dir, { "capture", "-t", "n", "-" }, "One\nTwo\n")))
+    eq({ "* One", "* Two" }, read(dir .. "/notes.org"))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("indents the lines of text at %? as a new line typed there", function()
+    -- org-return at %?: column 0 after a heading (level + 1 with
+    -- adapt_indentation), after the bullet in an item, the line's own
+    -- indentation in body text; a heading's tags stay on it
+    local dir = workspace()
+    local function target(name)
+      return vim.inspect(dir .. "/" .. name .. ".org")
+    end
+    vim.fn.writefile({ "* Top" }, dir .. "/item.org")
+    vim.fn.writefile({ "* Top" }, dir .. "/adapt.org")
+    vim.fn.writefile({ "* From file %?", "file body" }, dir .. "/tpl.txt")
+    local function config(extra)
+      vim.fn.writefile({
+        "return {",
+        "  org_directory = " .. vim.inspect(dir) .. ",",
+        extra or "",
+        "  capture = { templates = {",
+        "    b = { description = 'B', target = " .. target("body") .. ", template = '* Fixed\\n  %?' },",
+        "    l = { description = 'L', target = " .. target("item") .. ", headline = 'Top', type = 'item',",
+        "          template = '- [ ] %?' },",
+        "    e = { description = 'E', target = " .. target("empty") .. " },",
+        "    g = { description = 'G', target = " .. target("tags") .. ", template = '* TODO %? :inbox:' },",
+        "    s = { description = 'S', target = " .. target("list") .. ", template = { '* L %?', '' } },",
+        "    f = { description = 'F', target = " .. target("fn") .. ", template = function() return '* FN %?' end },",
+        "    i = { description = 'I', target = " .. target("file") .. ", template = '%[' .. " .. vim.inspect(
+          dir .. "/tpl.txt"
+        ) .. " .. ']' },",
+        "    a = { description = 'A', target = " .. target("adapt") .. ", headline = 'Top', template = '* %?' },",
+        "  } },",
+        "}",
+      }, dir .. "/cfg.lua")
+    end
+    config()
+    eq(0, (run(dir, { "capture", "-t", "b", "-" }, "one\ntwo\n")))
+    eq({ "* Fixed", "  one", "  two" }, read(dir .. "/body.org"))
+    eq(0, (run(dir, { "capture", "-t", "l", "-" }, "one\ntwo\n")))
+    eq({ "* Top", "- [ ] one", "  two" }, read(dir .. "/item.org"))
+    -- a template without text is Emacs's `* %?` (org-capture-set-plist)
+    eq(0, (run(dir, { "capture", "-t", "e", "-" }, "one\ntwo\n")))
+    eq({ "* one", "two" }, read(dir .. "/empty.org"))
+    -- the tags stay on the heading; a `*` line stays text, as with add --body
+    eq(0, (run(dir, { "capture", "-t", "g", "-" }, "one\ntwo\n* eggs\n")))
+    local lines = read(dir .. "/tags.org")
+    ok(lines[1]:match("^%* TODO one%s+:inbox:$"), lines[1])
+    eq({ "two", " * eggs" }, vim.list_slice(lines, 2))
+    -- a list, a function or a file gives the template text
+    eq(0, (run(dir, { "capture", "-t", "s", "-" }, "one\ntwo\n")))
+    eq({ "* L one", "two" }, read(dir .. "/list.org"))
+    eq(0, (run(dir, { "capture", "-t", "f", "-" }, "one\ntwo\n")))
+    eq({ "* FN one", "two" }, read(dir .. "/fn.org"))
+    eq(0, (run(dir, { "capture", "-t", "i", "-" }, "one\ntwo\n")))
+    eq({ "* From file one", "two", "file body" }, read(dir .. "/file.org"))
+    -- adapt_indentation: at the level + 1 of the heading where it lands
+    config("  adapt_indentation = true,")
+    eq(0, (run(dir, { "capture", "-t", "a", "-" }, "one\ntwo\n")))
+    eq({ "* Top", "** one", "   two" }, read(dir .. "/adapt.org"))
     vim.fn.delete(dir, "rf")
   end)
 
