@@ -17,8 +17,9 @@ local arg_path = M.arg_path
 local short_path = M.short_path
 
 --- The template to capture `text` with: a copy of template `key` that
---- finishes at once and puts the text where `%?` was (unless the template
---- already uses `%i`).
+--- finishes at once. The text goes to capture as `opts.text`: at `%i`
+--- when the template has one, else where `%?` is as if typed there.
+---@return table tpl
 function M.capture_template(key)
   local capture = require("org.capture")
   local tpl = capture.get_template(key)
@@ -30,15 +31,11 @@ function M.capture_template(key)
   tpl.clock_in = false
   tpl.clock_keep = false
   tpl.clock_resume = false
-  if type(tpl.template) == "string" and not tpl.template:find("%%i") then
-    local n
-    tpl.template, n = tpl.template:gsub("%%%?", "%%i", 1)
-    if n == 0 then
-      tpl.template = tpl.template .. "%i"
-    end
-  elseif tpl.template == nil or tpl.template == "" then
-    local empty = { entry = "* %i", item = "- %i", checkitem = "- [ ] %i", ["table-line"] = "| %i |" }
-    tpl.template = empty[tpl.type or "entry"] or "%i"
+  if tpl.template == nil or type(tpl.template) == "string" and not tpl.template:match("%S") then
+    -- Emacs's templates for an empty one (org-capture-set-plist), but no
+    -- `%a` for an entry: a link to wherever the command runs
+    local empty = { entry = "* %?", item = "- %?", checkitem = "- [ ] %?", ["table-line"] = "| %? |" }
+    tpl.template = empty[tpl.type or "entry"] or "%?"
   end
   return tpl
 end
@@ -183,7 +180,7 @@ function M.cmd_capture(words, flags)
     end,
   })
   M.mark_messages()
-  local bufnr, line = store_capture(tpl, { initial = text, answers = answers })
+  local bufnr, line = store_capture(tpl, { text = text, answers = answers })
   local hl = (tpl.type or "entry") == "entry" and M.headline_at(bufnr, line) or nil
   local id
   if hl then
@@ -253,7 +250,7 @@ function M.cmd_protocol(words, flags)
     run = function(key, initial)
       local tpl = M.capture_template(key or default_template_key())
       capture_target_guard(tpl, flags)
-      local bufnr, line = store_capture(tpl, { initial = initial })
+      local bufnr, line = store_capture(tpl, { text = initial })
       return { bufnr = bufnr, line = line }
     end,
   }) --[[@as { bufnr: integer, line: integer|nil }]]

@@ -676,6 +676,10 @@
 ---@field annotation? string
 ---Initial content, e.g. the visual selection (`%i`). (default: `""`)
 ---@field initial? string
+---`org capture`'s text: put at the first `%?` as if typed there (at the
+---end of a template without one), its other lines indented as Org indents
+---a new line there; a template that uses `%i` gets it there instead.
+---@field typed? string
 ---Date used for `%t`/`%T`/`%u`/`%U` and the datetree (from the agenda or `time_prompt`).
 ---@field date? table
 ---The target file.

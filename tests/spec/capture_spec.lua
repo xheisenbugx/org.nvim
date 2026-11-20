@@ -172,6 +172,42 @@ describe("capture.expand (org-capture-fill-template)", function()
     eq("x = (one\ntwo)", run(capture.expand, 'x = %("(" .. [[%i]] .. ")")', { initial = "one\ntwo" }))
   end)
 
+  it("puts ctx.typed at %? as typed there, not prefixed like %i (#378)", function()
+    -- each newline indented as org-return leaves it (org-indent-line):
+    -- column 0 after a headline, after the bullet in an item, else the
+    -- line's indentation; a headline keeps its tags, a table row its cells
+    local function typed(template, text, initial)
+      return (run(capture.expand, template, { typed = text, initial = initial }):gsub("\30", "<C>"))
+    end
+    eq("* Title\nbody\nmore<C>", typed("* %?", "Title\nbody\nmore"))
+    eq("** TODO [#A] Title\nbody<C>", typed("** TODO [#A] %?", "Title\nbody"))
+    eq("* TODO one :inbox:\ntwo<C>", typed("* TODO %? :inbox:", "one\ntwo"))
+    eq("  one\n  two<C> rest", typed("  %? rest", "one\ntwo"))
+    eq("- [ ] one\n  two<C>", typed("- [ ] %?", "one\ntwo"))
+    eq("  1. one\n     two<C>", typed("  1. %?", "one\ntwo"))
+    eq("| one | x |\n| two |<C>", typed("| %? | x |", "one\ntwo"))
+    eq("* H\none\n\ntwo<C>", typed("* H\n%?", "one\n\ntwo"))
+    -- a line that would start a heading stays text in the entry
+    eq("* one\n * two<C>", typed("* %?", "one\n* two"))
+    -- without %?, at the end; with %i, there only
+    eq("* H\none\ntwo<C>", typed("* H\n", "one\ntwo"))
+    eq("* one\n* two", typed("* %i", "one\ntwo", "one\ntwo"))
+    -- the text is not a template: its escapes stay as written
+    eq("* 100%i %U<C> :x:", typed("* %? :x:", "100%i %U"))
+  end)
+
+  it("indents ctx.typed after a headline per adapt_indentation", function()
+    local opts = require("org.config").opts
+    local saved = opts.adapt_indentation
+    local res = {}
+    for _, v in ipairs({ true, "headline-data" }) do
+      opts.adapt_indentation = v
+      res[#res + 1] = run(capture.expand, "** %?", { typed = "one\ntwo" }):gsub("\30", "")
+    end
+    opts.adapt_indentation = saved
+    eq({ "** one\n   two", "** one\ntwo" }, res)
+  end)
+
   it("expands %a %l %L and asks for the description of %A", function()
     local restore = answer({ "D" })
     local text = run(capture.expand, "%a|%l|%L|%A|%:link", { annotation = "[[file:/x.org::*H][H]]" })
