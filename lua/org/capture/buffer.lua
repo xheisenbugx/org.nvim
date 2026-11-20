@@ -577,7 +577,12 @@ end
 --- whose target can't be saved keeps its text in the target buffer,
 --- unsaved; with `opts.rollback` (for a caller that still has the text,
 --- such as the `org` command line) it takes it out again instead.
----@param opts? { initial?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean, rollback?: boolean }
+--- `opts.text` is the entry's text from a caller that has it already
+--- (the `org` command line): it fills `%i` when the template has one, as
+--- initial content does in Emacs, and else goes where `%?` is as if typed
+--- there (`ctx.typed`; at the end of a template without `%?`), its other
+--- lines indented as Org indents a new line, not prefixed like `%i`'s.
+---@param opts? { initial?: string, text?: string, date?: table, here?: boolean, date_prompt?: boolean, answers?: table<string|integer, any>, noninteractive?: boolean, rollback?: boolean }
 ---@return integer|nil buf the capture buffer: the target buffer in place, unnarrowed or with immediate_finish
 ---@return integer|nil # the capture window, or the line of the stored entry
 ---@return string|nil # with immediate_finish, the file of the stored entry (its buffer may be gone: kill_buffer)
@@ -623,6 +628,9 @@ function M.capture(tpl_or_key, opts)
   local line = mark_pos(loc)
   ctx.target_hl = line and ctx.target_file:headline_at(line) or nil
   local ttype = tpl.type or "entry"
+  if opts.text then
+    ctx.initial, ctx.typed = opts.text, opts.text
+  end
   local ok, expanded = pcall(M.expand, template_text(tpl, ctx), ctx)
   if not ok then
     -- a cancelled prompt (or a failing template) leaves no trace

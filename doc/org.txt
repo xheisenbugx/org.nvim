@@ -12303,17 +12303,29 @@ Reading:
 Writing (each saves the files it changed):
 `org capture [-t KEY] [--field NAME=VALUE] [--input FILE] [--id] TEXT...`
     Capture TEXT with template KEY (default: `capture_template`, else `t`,
-    else the first). The template finishes at once, the text taking the
-    place of `%?` (or filling `%i` when the template has one). TEXT `-`
-    reads stdin. `--field` answers a prompt of the template by its name,
-    the text before any `|`: `%^{Title}` and `%^{Title}p` by `Title`,
-    `%^{Size [cm]|10}` by `Size [cm]`, `%^g` by `Tags`, a date prompt by
-    its name or `Date` (names ignore case). `--input FILE`
-    (`-` for stdin) reads a JSON object `{ "template", "text", "fields" }`
-    instead. `--id` gives the new entry an ID. When the target can't be
-    saved (a read-only file, say) the capture fails and the target, also
-    a running Neovim's buffer of it, is left as it was: running the
-    command again doesn't store the text twice.
+    else the first). The template finishes at once, the text going where
+    `%?` is (at the end without one) as if typed there: its first line
+    continues that line and the others are indented as Org indents a
+    new line there. After a heading they start at column 0 (at its
+    level + 1 with `adapt_indentation = true`), so `* %?` puts the
+    first line in the heading and the rest in its body, the heading
+    keeping the tags that follow `%?`; after a list bullet they start
+    after the bullet; else like the line of `%?`; in a table row each
+    line is a row of its own. A line that would start a heading gets a
+    space before it, as with `add --body`. A template that uses `%i`
+    gets the text there instead, the text before `%i` starting each of
+    its lines as in Emacs. TEXT `-` reads stdin. On Windows, `org.cmd`
+    runs through cmd.exe, which cuts an argument at a newline: give text
+    of several lines on stdin (`-`) or in `--input`. `--field` answers a
+    prompt of the template by its name, the text before any `|`:
+    `%^{Title}` and `%^{Title}p` by `Title`, `%^{Size [cm]|10}` by
+    `Size [cm]`, `%^g` by `Tags`, a date prompt by its name or `Date`
+    (names ignore case). `--input FILE` (`-` for stdin) reads a JSON
+    object `{ "template", "text", "fields" }` instead. `--id` gives the
+    new entry an ID. When the target can't be saved (a read-only file,
+    say) the capture fails and the target, also a running Neovim's
+    buffer of it, is left as it was: running the command again doesn't
+    store the text twice.
 `org clock in [--pick N] TARGET`, `org clock out`, `org clock cancel`
     Clock in a heading, clock out of the running clock, or cancel it.
 `org add PARENT TITLE [--todo KW] [--priority P] [--tag TAG]...`
