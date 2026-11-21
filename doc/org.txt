@@ -12350,7 +12350,9 @@ Writing (each saves the files it changed):
     Append TEXT to the body of the heading, after its planning, drawers
     and text and before its first child heading; TEXT `-` reads stdin.
     After text already there it starts a new paragraph (a blank line
-    first). Lines are indented and a `*` line is kept as text as with
+    first); a lone timestamp line under the heading (the "created at"
+    line of a capture's `%U` / `%T`) is not text, so the first append
+    goes right under it. Lines are indented and a `*` line is kept as text as with
     `add --body`. On Windows, `org.cmd` runs through cmd.exe, which
     cuts an argument at a newline: give text of several lines on stdin
     (`-`). `org mcp` passes it whole.
