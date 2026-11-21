@@ -714,9 +714,14 @@ function M.known_ids()
   return known
 end
 
---- For tests.
-function M._reset()
+--- Drop the database read so far: the next lookup reads the file
+--- again, as a Neovim that just started does (`org mcp` between tool
+--- calls, since another program may have written it meanwhile).
+function M.unload()
   db = nil
 end
+
+--- For tests.
+M._reset = M.unload
 
 return M

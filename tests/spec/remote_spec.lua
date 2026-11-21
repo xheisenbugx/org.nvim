@@ -416,6 +416,36 @@ describe("remote: forwarding to a running Neovim", function()
     ok(contains(read(dir .. "/work.org"), "CLOCK: ["))
   end)
 
+  it("runs org mcp's tool calls in the Neovim", function()
+    local dir = workspace()
+    local a = scratch_address()
+    local _, chan = server(dir, a, "vim.cmd.edit(" .. vim.inspect(dir .. "/inbox.org") .. ")")
+    local function call(id, name, arguments)
+      return vim.json.encode({
+        jsonrpc = "2.0",
+        id = id,
+        method = "tools/call",
+        params = { name = name, arguments = arguments },
+      })
+    end
+    local stdin = table.concat({
+      vim.json.encode({ jsonrpc = "2.0", id = 1, method = "initialize", params = vim.empty_dict() }),
+      call(2, "capture", { template = "t", text = "Buy milk" }),
+      call(3, "clock_in", { target = "Write release notes" }),
+    }, "\n") .. "\n"
+    local res = vim
+      .system({ require("org.extensions.cli").bin(), "mcp" }, { text = true, stdin = stdin, env = env(dir, a), cwd = dir })
+      :wait(30000)
+    eq(0, res.code, res.stderr)
+    for _, l in ipairs(vim.split(vim.trim(res.stdout), "\n")) do
+      local msg = vim.json.decode(l)
+      eq(false, msg.result.isError == true, l)
+    end
+    -- captured into the Neovim's open buffer, clocked in on its clock
+    eq({ "* Inbox", "** TODO Buy milk" }, eval(chan, "return vim.api.nvim_buf_get_lines(0, 0, -1, false)"))
+    eq("Write release notes", eval(chan, "return (require('org.api').clock.status() or {}).title"))
+  end)
+
   it("changes TODO states and builds agendas without touching the Neovim's windows", function()
     local dir = workspace()
     local a = scratch_address()

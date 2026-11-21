@@ -14,7 +14,7 @@
 --- (:block ranges), sum (org-clock-sum), clocktable, report (the clock
 --- report commands), clocking (clock in, out, cancel, goto), lines (editing
 --- CLOCK lines), resolve (open and idle clocks), modeline (statusline,
---- effort), display (sums on headlines) and persist (restore, sync).
+--- effort), display (sums on headlines) and persist (restore, sync, forget).
 
 local config = require("org.config")
 local date = require("org.date")

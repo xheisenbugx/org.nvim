@@ -61,7 +61,8 @@ Write (never prompt; --force writes over unsaved changes in a running Neovim):
   archive TARGET
   id TARGET [--create]
 
-  mcp [--read-only]   the commands as the tools of an MCP server for AI
+  mcp [--read-only] [--isolated]
+                      the commands as the tools of an MCP server for AI
                       agents (JSON-RPC on stdin and stdout)
   lsp [--stdio]       the language server of the lsp extension for any
                       editor (LSP on stdin and stdout)
@@ -359,13 +360,16 @@ end
 require("org.extensions.cli.session")
 
 local session_begin = shared.session_begin
+local resident_begin = shared.resident_begin
 
 --- Run the CLI. Returns the exit code: 0 ok, 1 failure (or nothing
 --- found), 2 usage error, 3 input would be needed, 4 file busy.
 --- `opts.session`: run by the session server for a client in `opts.cwd`
---- (see |M.serve|).
+--- (see |M.serve|). `opts.resident`: run by a server in its own Neovim,
+--- which loaded the configuration and runs one command after another
+--- (`org mcp`; see `resident_begin`).
 ---@param argv string[]
----@param opts? { session?: boolean, cwd?: string }
+---@param opts? { session?: boolean, cwd?: string, resident?: boolean }
 ---@return integer
 function M.main(argv, opts)
   opts = opts or {}
@@ -462,10 +466,14 @@ function M.main(argv, opts)
     if state.session then
       restore = session_begin(flags)
     else
-      -- the configuration may enable the session server: not here
-      require("org.remote").inhibit = true
-      M.headless()
-      M.load_config(flags)
+      if opts.resident then
+        restore = resident_begin()
+      else
+        -- the configuration may enable the session server: not here
+        require("org.remote").inhibit = true
+        M.headless()
+        M.load_config(flags)
+      end
       local forwarded = M.forward(argv or {}, command, flags)
       if forwarded then
         return forwarded
