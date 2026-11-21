@@ -26,3 +26,6 @@
 ---List only the tools that don't change files, as `org mcp --read-only`.
 ---(default: `false`)
 ---@field read_only? boolean
+---Run each tool call in a new Neovim, stopped after 10 minutes, rather than
+---in the server's own, as `org mcp --isolated`. (default: `false`)
+---@field isolated? boolean

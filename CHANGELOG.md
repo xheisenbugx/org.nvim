@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.6.0] - 2026-11-21
+
+### Performance
+
+- **cli:** Run org mcp's tool calls in its own Neovim (--isolated keeps one per call) ([#383](https://github.com/xheisenbugx/org.nvim/pull/383))
+
 ## [v3.5.1] - 2026-11-20
 
 ### Fixes
@@ -721,6 +727,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.1...v3.6.0
 [v3.5.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.0...v3.5.1
 [v3.5.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.4.0...v3.5.0
 [v3.4.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.3.6...v3.4.0

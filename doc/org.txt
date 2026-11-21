@@ -12394,7 +12394,7 @@ Writing (each saves the files it changed):
     Neovim running, a capture is stored at once with its template, as
     `org capture` does, and `store-link` and `open-source` fail.
 
-`org mcp [--read-only]`
+`org mcp [--read-only] [--isolated]`
     Serve the commands to an AI agent as an MCP server, on stdin and
     stdout (|org-extensions-cli-mcp|).
 `org lsp [--stdio]`
@@ -12654,13 +12654,24 @@ Claude Code `/mcp__org__plan_day`):
                     the inbox, by default where the templates capture)
 Each asks the agent to propose changes and make them once you agree.
 
-Each call runs `org COMMAND ... --json` in a new Neovim, as from a shell,
-so it sees the files as they are on disk and writes them as `org` does
-(the swap-file guard, the write hooks); with the session server on
-(|org-remote|) the call runs in that Neovim instead, unless `--config`,
-`--files`, `--dir` or `--no-server` came before `mcp`. Calls are answered
-in order, one at a time. Nothing but protocol messages goes to stdout;
-`-v` copies each call's messages to stderr, which clients log.
+Each call runs `org COMMAND ... --json` as from a shell: it sees the
+files as they are on disk and writes them as `org` does (the swap-file
+guard, the write hooks); with the session server on (|org-remote|) the
+call runs in that Neovim instead, unless `--config`, `--files`, `--dir`
+or `--no-server` came before `mcp`. Otherwise the server runs it in its
+own Neovim, which loaded the configuration when it started (restart the
+server after changing it), and then closes what the call opened: the
+next call reads the files, the running clock and the ID database again,
+so it sees what Neovim or another `org` changed meanwhile. A call takes
+a few milliseconds, the agenda of many files longer. `export`, which
+runs code blocks and other programs, runs in a new Neovim. With
+`--isolated` (or the `mcp.isolated` option) every call does: each then
+takes as long as `org` from a shell, the configuration is read each
+time, and a call still running after 10 minutes is stopped, where one
+that hangs in the server's Neovim holds up the calls after it. Calls
+are answered in order, one at a time. Nothing but protocol messages
+goes to stdout; `-v` copies each call's messages to stderr, which
+clients log.
 
 `--read-only` (or the `mcp.read_only` option) leaves out the tools that
 change files (every `writes` command, and `export`, which writes its
@@ -12735,6 +12746,8 @@ Options (`extensions.cli`) ~
                        before it fails with `file_busy` (10)
   `mcp.read_only`      `org mcp` lists only the tools that don't change
                        files, as `--read-only` (false)
+  `mcp.isolated`       `org mcp` runs each tool call in a new Neovim, as
+                       `--isolated` (false)
 
 Clock in the shell and in Neovim ~
 Every write (`org clock in`, `out` and `cancel`, `capture`, `set`, ...)
@@ -12750,7 +12763,8 @@ Limits ~
   - Each call starts Neovim and parses the agenda files: about 0.25 s for
     200 files of 25 entries each (the agenda itself is most of it, so a
     parse cache would gain little), fine for a status bar every few
-    seconds, not for a tight loop.
+    seconds, not for a tight loop. `org mcp` starts Neovim once, and
+    parses again only the files that changed.
   - The CLI edits files on disk. A Neovim that has the same file open
     sees the change as a file changed outside it ('autoread'), at once
     with the extension enabled (it watches the stamp file). The CLI does

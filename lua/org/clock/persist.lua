@@ -71,6 +71,17 @@ function M.sync()
   return nil
 end
 
+--- Forget the clock, as a Neovim that just started knows it: no running
+--- clock (its timers stopped), history, default or interrupted task, or
+--- leftover time; `restore()` reads them again. For a Neovim that runs
+--- one command of the command line after another (`org mcp`), where
+--- another `org` may clock in or out between them.
+function M.forget()
+  stop_timers()
+  M.state, M.last, M.history = nil, nil, {}
+  M.default_task, M.interrupted, M.leftover = nil, nil, nil
+end
+
 --- Restore the running clock after a restart (from `clock.persist_file`).
 --- Called by `setup()` when `clock.persist` is set: `true` restores the
 --- clock and the history, `"clock"` / `"history"` only one of them.
