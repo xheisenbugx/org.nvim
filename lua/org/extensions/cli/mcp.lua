@@ -4,11 +4,13 @@
 --- one message per line) for AI agents: every command of the command line
 --- but `schema`, `help`, `version`, `protocol`, `mcp` and `lsp` is a tool, whose
 --- `inputSchema` is the command's `input_schema` (`schema.input_schema`).
---- A tool call runs `org COMMAND ... --json` in a new Neovim, as the shell
---- does, so it reads the files as they are on disk, writes them through
---- the guard and the write hooks and runs in the session server when one
---- listens; its result is the JSON envelope. With `--read-only` (or
---- `extensions.cli.mcp.read_only`) the tools that write are left out.
+--- A tool call runs `org COMMAND ... --json` as the shell does: it reads
+--- the files as they are on disk, writes them through the guard and the
+--- write hooks and runs in the session server when one listens; its
+--- result is the JSON envelope. It runs in the server's own Neovim, which
+--- loaded the configuration once, and leaves no buffer behind (export,
+--- and every tool with `--isolated`, in a new Neovim). With `--read-only`
+--- (or `extensions.cli.mcp.read_only`) the tools that write are left out.
 
 local schema = require("org.extensions.cli.schema")
 local shared = require("org.extensions.cli.shared")
@@ -24,7 +26,8 @@ local state = shared.state
 --- one of them gets it back, any other the newest.
 M.PROTOCOLS = { "2025-06-18", "2025-03-26", "2024-11-05" }
 
---- How long a tool call may take (ms) before its Neovim is stopped.
+--- How long a tool call that runs in a new Neovim (export, or any with
+--- `--isolated`) may take (ms) before that Neovim is stopped.
 M.TIMEOUT = 600000
 
 -- commands that are no tools: descriptions, the URL handler (it needs a
@@ -483,6 +486,63 @@ local function text_result(text, is_error)
   return { content = { { type = "text", text = text } }, isError = is_error or false }
 end
 
+--- The tools/call result of a run of `org` that printed `stdout` and
+--- `stderr` and exited with `code` (124: stopped after `M.TIMEOUT`).
+---@param server table
+---@param stdout string
+---@param stderr string
+---@param code integer
+---@param cap? integer
+---@return table
+local function run_result(server, stdout, stderr, code, cap)
+  stdout, stderr = vim.trim(stdout), vim.trim(stderr)
+  if stderr ~= "" and server.verbose then
+    run.stderr(stderr .. "\n")
+  end
+  local dok, env = pcall(vim.json.decode, stdout)
+  if not dok or type(env) ~= "table" or env.ok == nil then
+    local why = code == 124 and ("timed out after " .. M.TIMEOUT / 1000 .. " s") or ("exit code " .. tostring(code))
+    return text_result("org failed (" .. why .. "): " .. (stderr ~= "" and stderr or stdout), true)
+  end
+  return M.result(env, cap)
+end
+
+--- Run `org` with `argv` in this Neovim, as `org` would in a new one with
+--- the configuration loaded here: its result as a tools/call result.
+---@param server table
+---@param argv string[]
+---@param cap? integer
+---@return table
+local function run_here(server, argv, cap)
+  local cmd = vim.list_extend(vim.list_extend({}, server.global_argv), argv)
+  local out, err = {}, {}
+  local saved = { stdout = run.stdout, stderr = run.stderr, state = {} }
+  -- the call has its own state; the server's (`org mcp` running) comes back
+  for k, v in pairs(state) do
+    saved.state[k] = v
+  end
+  local function to_out(s)
+    out[#out + 1] = s
+  end
+  local function to_err(s)
+    err[#err + 1] = s
+  end
+  run.stdout, run.stderr = to_out, to_err
+  local ok, code = pcall(run.main, cmd, { resident = true })
+  run.stdout, run.stderr = saved.stdout, saved.stderr
+  for k in pairs(state) do
+    state[k] = nil
+  end
+  for k, v in pairs(saved.state) do
+    state[k] = v
+  end
+  if not ok then
+    err[#err + 1] = tostring(code)
+    code = 1
+  end
+  return run_result(server, table.concat(out), table.concat(err), code, cap)
+end
+
 --- Run `org` with `argv` in a new Neovim: its result as a tools/call
 --- result (a list cut to `cap`).
 ---@param server table
@@ -499,18 +559,7 @@ local function run_org(server, argv, cap)
   if not ok then
     return text_result("could not start Neovim: " .. tostring(res), true)
   end
-  local stdout = vim.trim(res.stdout or "")
-  local stderr = vim.trim(res.stderr or "")
-  if stderr ~= "" and server.verbose then
-    run.stderr(stderr .. "\n")
-  end
-  local dok, env = pcall(vim.json.decode, stdout)
-  if not dok or type(env) ~= "table" or env.ok == nil then
-    local why = res.code == 124 and ("timed out after " .. M.TIMEOUT / 1000 .. " s")
-      or ("exit code " .. tostring(res.code))
-    return text_result("org failed (" .. why .. "): " .. (stderr ~= "" and stderr or stdout), true)
-  end
-  return M.result(env, cap)
+  return run_result(server, res.stdout or "", res.stderr or "", res.code, cap)
 end
 
 ---------------------------------------------------------------------------
@@ -566,6 +615,11 @@ METHODS["tools/call"] = function(server, params)
       return text_result(argv.msg, true)
     end
     error(argv, 0)
+  end
+  -- what the session server runs in a running Neovim runs here (export
+  -- runs code blocks and other programs: in a Neovim of its own)
+  if not server.isolated and run.SESSION_COMMANDS[c.name] then
+    return run_here(server, argv, cap)
   end
   return run_org(server, argv, cap)
 end
@@ -730,9 +784,10 @@ function M.handle_line(server, line)
 end
 
 --- A server for the flags `org mcp` got: the global arguments every tool
---- call passes on, and whether it is read-only.
+--- call passes on, whether it is read-only, and whether each call runs in
+--- a new Neovim (`isolated`).
 ---@param flags table
----@return { global_argv: string[], read_only: boolean, verbose: boolean }
+---@return { global_argv: string[], read_only: boolean, isolated: boolean, verbose: boolean }
 function M.server(flags)
   local g = { "--json" }
   if flags.config then
@@ -751,6 +806,7 @@ function M.server(flags)
   return {
     global_argv = g,
     read_only = flags.read_only or opts.read_only or false,
+    isolated = flags.isolated or opts.isolated or false,
     verbose = flags.verbose or false,
   }
 end

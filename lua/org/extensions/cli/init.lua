@@ -37,6 +37,9 @@ M.defaults = {
   mcp = {
     --- List only the tools that don't change files (as `--read-only`).
     read_only = false,
+    --- Run each tool call in a new Neovim, stopped after 10 minutes, rather
+    --- than in the server's own (as `--isolated`).
+    isolated = false,
   },
 }
 

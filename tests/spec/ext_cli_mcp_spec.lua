@@ -444,3 +444,154 @@ describe("cli mcp: org mcp", function()
     eq("usage", vim.json.decode(res.stdout).errors[1].code)
   end)
 end)
+
+--- A running `org mcp` (with `args`) that takes one request at a time:
+--- `ask(msg)` sends it and waits for its answer, so the spec can change
+--- things between calls. Its own data directory, for the ID database.
+local function running(dir, args)
+  local e = env(dir)
+  e.XDG_DATA_HOME = dir .. "/xdg-data"
+  local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua", "mcp" }
+  vim.list_extend(cmd, args or {})
+  local pending, replies = "", {}
+  local proc = vim.system(cmd, {
+    stdin = true,
+    env = e,
+    cwd = dir,
+    stdout = function(_, chunk)
+      pending = pending .. (chunk or "")
+      while true do
+        local nl = pending:find("\n", 1, true)
+        if not nl then
+          break
+        end
+        replies[#replies + 1] = pending:sub(1, nl - 1)
+        pending = pending:sub(nl + 1)
+      end
+    end,
+  })
+  local s = { env = e }
+  function s.ask(msg)
+    local before = #replies
+    proc:write(vim.json.encode(msg) .. "\n")
+    ok(
+      vim.wait(30000, function()
+        return #replies > before
+      end, 10),
+      "no answer to " .. vim.json.encode(msg)
+    )
+    return vim.json.decode(replies[before + 1])
+  end
+  --- Run `org ARGS...` as another process would, meanwhile.
+  function s.org(...)
+    local c = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua", "--json" }
+    vim.list_extend(c, { ... })
+    local res = vim.system(c, { text = true, env = e, cwd = dir }):wait(30000)
+    eq(0, res.code, res.stdout .. res.stderr)
+    return vim.json.decode(res.stdout).data
+  end
+  function s.close()
+    proc:write(nil)
+    return proc:wait(30000)
+  end
+  s.ask(INIT)
+  return s
+end
+
+--- `cfg.lua` counts how often it is loaded (a Neovim starting) in
+--- loads.txt; returns the count so far.
+local function count_loads(dir)
+  local cfg = vim.fn.readfile(dir .. "/cfg.lua")
+  table.insert(cfg, 2, "local f = io.open(dir .. '/loads.txt', 'a'); f:write('x\\n'); f:close()")
+  vim.fn.writefile(cfg, dir .. "/cfg.lua")
+  return function()
+    return vim.fn.filereadable(dir .. "/loads.txt") == 1 and #vim.fn.readfile(dir .. "/loads.txt") or 0
+  end
+end
+
+describe("cli mcp: tools run in the server's Neovim", function()
+  local function titles(res)
+    return vim.tbl_map(function(h)
+      return (h.todo and (h.todo .. " ") or "") .. h.title
+    end, result(res))
+  end
+
+  it("runs every tool but export there: the configuration loads once", function()
+    local dir = workspace()
+    local loads = count_loads(dir)
+    local s = running(dir)
+    eq(1, loads())
+    eq({ "TODO Buy milk", "NEXT Garden", "NEXT Garden" }, titles(s.ask(call(2, "headlines", { todo = "open" }))))
+    eq(false, s.ask(call(3, "set_todo", { target = "Buy milk", state = "DONE" })).result.isError)
+    eq(false, s.ask(call(4, "clock_status")).result.isError)
+    eq(false, s.ask(call(5, "templates")).result.isError)
+    eq(1, loads())
+    -- export runs code blocks and other programs: in a Neovim of its own
+    local ex = s.ask(call(6, "export", { file = dir .. "/home.org", backend = "ascii", stdout = true }))
+    eq(false, ex.result.isError)
+    ok(result(ex).text:match("Buy milk"))
+    eq(2, loads())
+    eq(0, s.close().code)
+  end)
+
+  it("runs each in a new Neovim with --isolated", function()
+    local dir = workspace()
+    local loads = count_loads(dir)
+    local s = running(dir, { "--isolated" })
+    eq({ "TODO Buy milk", "NEXT Garden", "NEXT Garden" }, titles(s.ask(call(2, "headlines", { todo = "open" }))))
+    eq(false, s.ask(call(3, "set_todo", { target = "Buy milk", state = "DONE" })).result.isError)
+    eq(3, loads())
+    eq(0, s.close().code)
+  end)
+
+  it("takes isolated from the configuration", function()
+    local dir = workspace()
+    local loads = count_loads(dir)
+    local cfg = vim.fn.readfile(dir .. "/cfg.lua")
+    table.insert(cfg, #cfg, "  extensions = { cli = { mcp = { isolated = true } } },")
+    vim.fn.writefile(cfg, dir .. "/cfg.lua")
+    local s = running(dir)
+    eq(false, s.ask(call(2, "templates")).result.isError)
+    eq(2, loads())
+    eq(0, s.close().code)
+  end)
+
+  it("reads the files, the clock and the IDs as they are on disk at each call", function()
+    local dir = workspace()
+    local s = running(dir)
+    eq(false, s.ask(call(2, "set_todo", { target = "Buy milk", state = "DONE" })).result.isError)
+    -- another program changes the file the last call wrote
+    vim.fn.writefile({
+      "* TODO Buy milk :errand:",
+      "* TODO Call mom",
+      "* Projects",
+      "** NEXT Garden",
+      "** NEXT Garden",
+    }, dir .. "/home.org")
+    eq(
+      { "TODO Buy milk", "TODO Call mom", "NEXT Garden", "NEXT Garden" },
+      titles(s.ask(call(3, "headlines", { todo = "open" })))
+    )
+    eq(false, s.ask(call(4, "set_todo", { target = "Call mom", state = "DONE" })).result.isError)
+    eq("* TODO Buy milk :errand:", vim.fn.readfile(dir .. "/home.org")[1])
+    eq("* DONE Call mom", vim.fn.readfile(dir .. "/home.org")[2])
+
+    -- a clock stopped by another org
+    eq(true, result(s.ask(call(5, "clock_in", { target = "Buy milk" }))).active)
+    eq(true, result(s.ask(call(6, "clock_status"))).active)
+    s.org("clock", "out")
+    eq(false, result(s.ask(call(7, "clock_status"))).active)
+
+    -- an ID another org made stays in the ID database
+    local a = result(s.ask(call(8, "id", { target = "Buy milk", create = true }))).id
+    local b = s.org("id", "--create", "Call mom").id
+    local c = result(s.ask(call(9, "id", { target = "Projects", create = true }))).id
+    local data_dir = dir .. "/xdg-data/" .. (vim.fn.has("win32") == 1 and "nvim-data" or "nvim")
+    local db = vim.json.decode(table.concat(vim.fn.readfile(data_dir .. "/org/id-locations.json"), "\n"))
+    local home = vim.fs.normalize(vim.fn.resolve(dir .. "/home.org"))
+    for _, id in ipairs({ a, b, c }) do
+      eq(home, db[id] and vim.fs.normalize(vim.fn.resolve(db[id])), id)
+    end
+    eq(0, s.close().code)
+  end)
+end)

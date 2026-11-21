@@ -141,6 +141,7 @@ M.FLAGS = {
   { key = "output", names = { "-o", "--output" }, value = "FILE", desc = "export to FILE" },
   { key = "stdout", names = { "--stdout" }, desc = "export to stdout" },
   { key = "read_only", names = { "--read-only" }, desc = "no tools that change files" },
+  { key = "isolated", names = { "--isolated" }, desc = "run each tool call in a new Neovim" },
   { key = "stdio", names = { "--stdio" }, desc = "talk on stdin and stdout (the only transport; editors pass it)" },
   { key = "priority", names = { "--priority" }, value = "P", desc = "priority of the new heading (A, B, C, ...)" },
   {
@@ -620,7 +621,7 @@ M.COMMANDS = {
   {
     name = "mcp",
     summary = "Serve the commands as the tools of an MCP server (JSON-RPC on stdin and stdout) for AI agents",
-    flags = { "read_only" },
+    flags = { "read_only", "isolated" },
     output = { type = "object" },
   },
   {
