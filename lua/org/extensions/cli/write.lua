@@ -222,6 +222,15 @@ local function blank(line)
   return line == nil or not line:match("%S")
 end
 
+--- Whether a line holds one timestamp and nothing else (a capture's
+--- `%U` / `%T` line).
+---@param line string?
+---@return boolean
+local function lone_timestamp(line)
+  local stamps = line and require("org.date").parse_all(line) or {}
+  return #stamps == 1 and vim.trim(line --[[@as string]]) == stamps[1].raw
+end
+
 --- The lines of `text` as body lines of a heading of `level`: split at
 --- newlines, without the blank lines around them, indented as planning
 --- lines are (adapt_indentation). A line that would read as a heading
@@ -450,9 +459,14 @@ function M.cmd_append(words, flags)
   while at - 1 > floor and blank(lines[at - 1]) do
     at = at - 1
   end
+  -- a lone timestamp right under the metadata is the "created at" line a
+  -- capture's %U / %T leaves, not a paragraph (#386)
+  if at - 1 == floor + 1 and lone_timestamp(lines[at - 1]) then
+    floor = at - 1
+  end
   local new = body_lines(text, h.level)
-  -- a new paragraph after text already there (planning and the property
-  -- drawer are not text)
+  -- a new paragraph after text already there (planning, the property
+  -- drawer and a capture's timestamp line are not text)
   if at - 1 > floor then
     table.insert(new, 1, "")
   end

@@ -210,6 +210,25 @@ describe("cli append", function()
     eq({ "* Task", "  SCHEDULED: <2026-10-20 Tue>", "text", "* Next" }, read(dir))
   end)
 
+  -- #386: a capture's `%U` / `%T` line is the entry's "created at", not a
+  -- paragraph: the first append goes right under it, later ones don't
+  it("appends under a lone timestamp line without a blank line", function()
+    local dir = workspace({ "* Notes", "** Call the vendor", "  [2026-11-21 Sat 11:23]", "* Next" })
+    eq(0, (run(dir, { "append", "Call the vendor", "Ask about the price." })))
+    eq({ "* Notes", "** Call the vendor", "  [2026-11-21 Sat 11:23]", "Ask about the price.", "* Next" }, read(dir))
+    eq(0, (run(dir, { "append", "Call the vendor", "Second." })))
+    eq({ "  [2026-11-21 Sat 11:23]", "Ask about the price.", "", "Second.", "* Next" }, vim.list_slice(read(dir), 3))
+    dir = workspace({ "* Task", "  SCHEDULED: <2026-10-20 Tue>", "  <2026-10-19 Mon 09:00>", "* Next" })
+    eq(0, (run(dir, { "append", "Task", "text" })))
+    eq({ "  <2026-10-19 Mon 09:00>", "text", "* Next" }, vim.list_slice(read(dir), 3))
+  end)
+
+  it("still starts a paragraph after a line with a timestamp in its text", function()
+    local dir = workspace({ "* Task", "  Met on [2026-11-21 Sat].", "* Next" })
+    eq(0, (run(dir, { "append", "Task", "text" })))
+    eq({ "* Task", "  Met on [2026-11-21 Sat].", "", "text", "* Next" }, read(dir))
+  end)
+
   it("reads the text from stdin with -", function()
     local dir = workspace(PROJECT)
     eq(0, (run(dir, { "append", "Second", "-" }, "from stdin\n")))
