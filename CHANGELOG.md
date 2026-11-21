@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.6.1] - 2026-11-21
+
+### Fixes
+
+- **cli:** Append right under a capture's timestamp line ([#387](https://github.com/xheisenbugx/org.nvim/pull/387))
+
 ## [v3.6.0] - 2026-11-21
 
 ### Performance
@@ -727,6 +733,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.0...v3.6.1
 [v3.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.1...v3.6.0
 [v3.5.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.0...v3.5.1
 [v3.5.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.4.0...v3.5.0
