@@ -1257,7 +1257,7 @@ function M.update_all()
   for _, f in ipairs(feeds) do
     -- per-feed messages are replaced by the summary, like Emacs's echo area
     ---@diagnostic disable-next-line: duplicate-set-field
-    utils.notify = function() end
+    utils.notify = function(_, _, _) end
     local ok, n = pcall(M.update, f)
     utils.notify = notify
     if ok and type(n) == "number" then
