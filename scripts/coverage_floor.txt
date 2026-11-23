@@ -6,6 +6,7 @@
 # `make coverage-check ARGS=--update` resets every floor to the coverage
 # rounded down, less one; never lower one just to make the check pass
 # (CONTRIBUTING.md, "Coverage floors").
+lua/org                              88
 lua/org/api                          94
 lua/org/parser.lua                   95
 lua/org/element.lua                  97

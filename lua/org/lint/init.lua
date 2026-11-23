@@ -152,7 +152,9 @@ end
 ---@param text? string[] lines instead of the buffer's
 ---@param defer? boolean
 function M.document(bufnr, text, defer)
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   local lines = text or vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local file

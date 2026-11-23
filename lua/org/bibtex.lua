@@ -295,9 +295,10 @@ function M.headline_entry(hl)
     end
   end
   local fields = {}
-  if o.export_arbitrary_fields and o.prefix then
-    local prefix = o.prefix:lower()
-    local type_prop = (o.prefix .. (o.type_property_name or "btype")):lower()
+  local raw_prefix = o.prefix
+  if o.export_arbitrary_fields and type(raw_prefix) == "string" then
+    local prefix = raw_prefix:lower()
+    local type_prop = (raw_prefix .. (o.type_property_name or "btype")):lower()
     for _, kv in ipairs(drawer_properties(hl)) do
       local key = kv[1]:lower()
       if key:find(prefix, 1, true) and key ~= type_prop then
@@ -1228,7 +1229,7 @@ function M.file_search(key)
     local s = l:find("@%a+[ \t]*{[ \t]*" .. vim.pesc(key) .. "[ \t]*,")
     if s then
       vim.api.nvim_win_set_cursor(0, { i, s - 1 })
-      pcall(vim.cmd, "normal! zt")
+      pcall(vim.api.nvim_command, "normal! zt")
       break
     end
   end

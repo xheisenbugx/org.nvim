@@ -410,6 +410,7 @@ function M.meta_return()
   if in_table(line) and not arg then
     -- org-table-wrap-region: split the field at the cursor (Insert mode)
     -- or go to the field below
+    ---@type boolean|nil
     local split = false
     if insert_mode then
       split = nil -- meta_return_split_line decides

@@ -608,7 +608,7 @@ function M.heading_at(bufnr, lnum)
   if not hl then
     return nil
   end
-  local page, kept = exported_headings(file, heading_options(bufnr))
+  local page, kept = exported_headings(file, heading_options(bufnr) or {})
   local index_of = {}
   for i, h in ipairs(page) do
     index_of[h] = i
@@ -694,7 +694,7 @@ local function send_file(req, res, p, rest)
     return res:send(416, headers, "")
   end
   local code = 200
-  if first then
+  if first and length then
     code = 206
     headers["Content-Range"] = ("bytes %d-%d/%d"):format(first, first + length - 1, st.size)
   else
@@ -881,7 +881,9 @@ end
 ---@param bufnr? integer
 ---@return org.preview.Preview|nil
 function M.start(bufnr)
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   local p = M.previews[bufnr]
   if p then
     return p
@@ -894,6 +896,7 @@ function M.start(bufnr)
     token = token(),
     version = 0,
     streams = {},
+    files = {},
     augroup = vim.api.nvim_create_augroup("org.preview." .. bufnr, { clear = true }),
   }
   M.previews[bufnr] = p
@@ -948,7 +951,9 @@ end
 ---@param bufnr? integer
 ---@return boolean stopped
 function M.stop(bufnr)
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   local p = M.previews[bufnr]
   if not p then
     return false

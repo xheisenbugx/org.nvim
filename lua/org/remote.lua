@@ -171,7 +171,7 @@ function M.start(address)
       end
       os.remove(address)
     end
-    vim.fn.mkdir(vim.fs.dirname(address), "p", tonumber("700", 8))
+    vim.fn.mkdir(vim.fs.dirname(address), "p", "0o700")
   end
   local ok, res = pcall(vim.fn.serverstart, address)
   if not ok then

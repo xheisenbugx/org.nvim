@@ -148,10 +148,11 @@ function M.parse_range(value, size)
     first, last = math.max(size - n, 0), size - 1
   else
     first = tonumber(a)
-    last = b == "" and size - 1 or math.min(tonumber(b), size - 1)
-    if b ~= "" and tonumber(b) < first then
+    local nb = b ~= "" and tonumber(b) or nil
+    if not first or (b ~= "" and (not nb or nb < first)) then
       return nil
     end
+    last = nb and math.min(nb, size - 1) or (size - 1)
   end
   if first >= size then
     return false
@@ -345,8 +346,8 @@ function Stream:close()
   end
   self.closed = true
   close(self.client)
-  if self.on_close then
-    local cb = self.on_close
+  local cb = self.on_close
+  if cb then
     vim.schedule(cb)
   end
 end

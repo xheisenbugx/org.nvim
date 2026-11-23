@@ -507,7 +507,7 @@ function M.org()
                 package.loaded[name] = nil
               end
             end
-            require("org").setup(opts)
+            require("org").setup(opts --[[@as org.Config]])
             utils.notify("Successfully reloaded Org\n" .. require("org.version").string(true))
           end,
         },

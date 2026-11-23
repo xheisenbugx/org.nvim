@@ -1025,7 +1025,7 @@ end
 ---@return boolean completed the action ran to its end without waiting for input or failing
 function M.run(name, ...)
   local fn, a = M.get(name)
-  if not fn then
+  if not fn or not a then
     return true, false
   end
   -- the highlight groups are defined on first use, not at setup()

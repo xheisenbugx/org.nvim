@@ -96,7 +96,7 @@ end
 ---@param sel table date
 --- `opts.marks` maps day numbers (`date.days_from_civil`) to the highlight
 --- group their day number is drawn with.
----@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean, live?: boolean, futurep?: boolean, marks?: table<integer, string> }
+---@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean, live?: boolean, futurep?: boolean, calendar?: boolean, marks?: table<integer, string> }
 ---@return string[] lines, table[] marks
 function M.render(sel, opts)
   opts = opts or {}
@@ -399,6 +399,7 @@ end
 
 --- read_date_popup_calendar (or its alias popup_calendar_for_date_prompt)
 local function popup_calendar()
+  ---@type table
   local o = require("org.config").opts
   return o.read_date_popup_calendar ~= false and o.popup_calendar_for_date_prompt ~= false
 end
