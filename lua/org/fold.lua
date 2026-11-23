@@ -886,8 +886,13 @@ shared.regions = regions
 require("org.fold.hidden")
 require("org.fold.helpers")
 require("org.fold.global")
-require("org.fold.cycle")
-require("org.fold.commands")
 require("org.fold.setup")
+
+-- Interactive cycling and visibility commands load on first use rather than
+-- on every first Org buffer open.
+require("org.lazy").parts(M, shared, {
+  "org.fold.cycle",
+  "org.fold.commands",
+}, { _force_archived = true })
 
 return M
