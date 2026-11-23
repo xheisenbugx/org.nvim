@@ -212,6 +212,34 @@ local function unset(record, bufnr)
   end
 end
 
+--- Shorten a description by dropping trailing parenthetical notes
+--- (`(count: ...)`, `(Visual: ...)`, Emacs command names).
+---@param desc string
+---@return string
+local function shorten_desc(desc)
+  local s = desc
+  while true do
+    local next_s = s:gsub("%s+%b()%s*$", "")
+    if next_s == s then
+      break
+    end
+    s = next_s
+  end
+  return s
+end
+
+--- Format a keymap description according to `mappings.short_desc`:
+--- when false (default), `"org: " .. desc`; when true, the `"org: "`
+--- prefix and trailing parenthetical hints are omitted.
+---@param desc string
+---@return string
+function M.format_desc(desc)
+  if (config.opts.mappings or {}).short_desc then
+    return shorten_desc(desc)
+  end
+  return "org: " .. desc
+end
+
 --- Global keymaps (agenda, capture, ...). Calling it again (`setup()`
 --- twice) first removes the keymaps of the previous call.
 function M.setup_global()
@@ -228,7 +256,7 @@ function M.setup_global()
         for _, lhs in ipairs(config.lhs_list(value)) do
           for _, mode in ipairs(a.modes or { "n" }) do
             if mode ~= "i" then
-              set(mode, lhs, wrap(name, lhs, mode), { desc = "org: " .. a.desc }, global_maps)
+              set(mode, lhs, wrap(name, lhs, mode), { desc = M.format_desc(a.desc) }, global_maps)
             end
           end
         end
@@ -255,7 +283,7 @@ function M.attach(bufnr)
       for _, lhs in ipairs(config.lhs_list(value)) do
         for _, mode in ipairs(a.modes or { "n" }) do
           if mode ~= "i" or name == "meta_return" or name == "meta_shift_return" then
-            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc }, record)
+            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = M.format_desc(a.desc) }, record)
           end
         end
       end
@@ -268,7 +296,7 @@ function M.attach(bufnr)
       for _, lhs in ipairs(config.lhs_list(value)) do
         for _, mode in ipairs(a.modes or { "n" }) do
           if mode ~= "i" then
-            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc }, record)
+            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = M.format_desc(a.desc) }, record)
           end
         end
       end
@@ -279,7 +307,7 @@ function M.attach(bufnr)
       local a = actions.list[name]
       if a then
         for _, lhs in ipairs(config.lhs_list(value)) do
-          set("i", lhs, wrap(name, lhs, "i"), { buffer = bufnr, desc = "org: " .. a.desc }, record)
+          set("i", lhs, wrap(name, lhs, "i"), { buffer = bufnr, desc = M.format_desc(a.desc) }, record)
         end
       end
     end
@@ -293,7 +321,7 @@ function M.attach(bufnr)
     for _, lhs in ipairs(config.lhs_list(to[name])) do
       set({ "o", "x" }, lhs, function()
         require("org.textobjects").select(kind, inner)
-      end, { buffer = bufnr, desc = "org: " .. name:gsub("_", " ") }, record)
+      end, { buffer = bufnr, desc = M.format_desc((name:gsub("_", " "))) }, record)
     end
   end
   vim.b[bufnr].org_keymaps = record
@@ -360,8 +388,10 @@ function M.register_which_key()
   for _, g in ipairs(all) do
     spec[#spec + 1] = { prefix .. g[1], group = g[2], mode = { "n", "x" } }
   end
+  local short = (config.opts.mappings or {}).short_desc
   for _, lhs in ipairs(emacs_prefixes()) do
-    spec[#spec + 1] = { lhs, group = emacs_groups[lhs], mode = { "n", "x" } }
+    local label = emacs_groups[lhs]
+    spec[#spec + 1] = { lhs, group = short and shorten_desc(label) or label, mode = { "n", "x" } }
   end
   utils.try("mappings: which-key groups", wk.add, spec)
 end

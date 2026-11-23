@@ -8228,10 +8228,14 @@ mappings ~
 
 Every mapping is `mappings.<section>.<action> = lhs | { lhs, ... } | false`.
 `<prefix>` expands to `mappings.prefix`. `mappings.disable_all = true` turns
-off every mapping.
+off every mapping. `mappings.short_desc = true` omits the `"org: "` prefix and
+trailing parenthetical hints (counts, Visual-mode notes, Emacs command names)
+from keymap descriptions so popups such as which-key stay compact (`g?` still
+shows the full descriptions).
 >lua
     mappings = {
       prefix = "<localleader>",
+      short_desc = true,
       org = { toggle_checkbox = "<leader>x", open_at_point = "gx" },
       agenda = { later = "L", earlier = "H" },
     }

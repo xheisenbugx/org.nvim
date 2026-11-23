@@ -421,6 +421,11 @@
 --- buffer keys are still set).
 --- Default: `false`
 ---@field disable_all? boolean
+--- Omit the `"org: "` prefix and trailing parenthetical hints (counts,
+--- Visual-mode notes, Emacs command names) from keymap `desc` strings,
+--- keeping popups such as which-key compact (`g?` still shows full text).
+--- Default: `false`
+---@field short_desc? boolean
 --- Replaces `<prefix>` in every lhs. Default: `"<leader>o"`
 ---@field prefix? string
 --- Global normal-mode keys, set on `setup()` (available everywhere). Set to `false` to disable the whole section.

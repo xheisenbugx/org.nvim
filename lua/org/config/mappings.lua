@@ -21,6 +21,10 @@ local defaults = {
   ---------------------------------------------------------------------------
   mappings = {
     disable_all = false,
+    --- Omit the `"org: "` prefix and trailing parenthetical hints (counts,
+    --- Visual-mode notes, Emacs command names) from keymap `desc` strings,
+    --- keeping popups such as which-key compact. `g?` still shows full text.
+    short_desc = false,
     prefix = "<leader>o",
     global = {
       agenda = "<prefix>a",
