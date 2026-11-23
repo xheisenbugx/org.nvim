@@ -354,8 +354,8 @@ local function sexp_stamp(days, time)
 end
 
 local function default_opts()
-  local config = require("org.config").opts
-  local todo = require("org.todo_keywords").global()
+  local api = require("org.api")
+  local todo = api.todo_keywords() or { all = {} }
   local ext = require("org.extensions").opts("quickadd") or {}
   local kw = ext.keyword
   if kw == nil then
@@ -363,12 +363,10 @@ local function default_opts()
   end
   return {
     keyword = kw,
-    keywords = vim.tbl_map(function(k)
-      return k.name
-    end, todo.keywords),
+    keywords = todo.all,
     date_kind = ext.date_kind or "scheduled",
-    priority_highest = config.priority_highest or "A",
-    priority_lowest = config.priority_lowest or "C",
+    priority_highest = api.option("priority_highest") or "A",
+    priority_lowest = api.option("priority_lowest") or "C",
   }
 end
 

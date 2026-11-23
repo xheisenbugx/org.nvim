@@ -223,7 +223,7 @@ describe("org's own writes", function()
     -- (BufWriteCmd) or an autocommand, skips the write hooks; save_buffer
     -- runs them. The exceptions:
     local allowed = {
-      ["lua/org/utils.lua"] = true, -- save_buffer itself
+      ["lua/org/utils/buffer.lua"] = true, -- save_buffer itself
       -- heal: a re-write of an unmodified buffer, in without_inserted
       ["lua/org/extensions/transclusion/save.lua"] = true,
       -- writes the edit-special buffer (its BufWriteCmd syncs the block)

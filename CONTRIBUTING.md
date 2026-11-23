@@ -340,7 +340,7 @@ To turn it into a regression case:
 
 ## Comparing with Emacs
 
-org.nvim aims to behave like Emacs Org 9.8.12. Besides the hand-written
+org.nvim aims to behave like Emacs Org 9.8.13. Besides the hand-written
 `*_emacs_spec.lua` and `*_parity_spec.lua` specs, these specs compare
 org.nvim with real Emacs output that's checked in under
 `tests/fixtures/emacs/`:
@@ -357,10 +357,10 @@ org.nvim with real Emacs output that's checked in under
 
 They only read the fixtures, so you don't need Emacs to run them. To
 regenerate the fixtures after you change an input or add a case, you need
-Emacs with Org 9.8.12:
+Emacs with Org 9.8.13:
 
 ```sh
-ORG_DIR=/path/to/org-9.8.12 make parity-fixtures   # or AREAS="agenda lint"
+ORG_DIR=/path/to/org-9.8.13 make parity-fixtures   # or AREAS="agenda lint"
 git diff tests/fixtures/emacs                      # review what Emacs changed
 ```
 
@@ -377,7 +377,7 @@ Org documents (`tests/difftest/gen.lua`: headlines with TODO keywords,
 priorities, tags and COMMENT, planning with repeaters and warnings,
 drawers and clocks, lists with checkboxes and counters, tables with
 `#+TBLFM`, footnotes, blocks, links, emphasis edge cases, inline tasks),
-runs each through Emacs Org 9.8.12 and org.nvim, and compares what a set of
+runs each through Emacs Org 9.8.13 and org.nvim, and compares what a set of
 "oracles" print:
 
 | Oracle | Compares |
@@ -402,10 +402,10 @@ org.nvim the matching actions of `lua/org/actions.lua`, both with the
 document unfolded and inline tasks on. The report shows the steps of a
 failure next to its replay command.
 
-It needs Emacs and Org 9.8.12 (see `scripts/emacs-parity/README.md`):
+It needs Emacs and Org 9.8.13 (see `scripts/emacs-parity/README.md`):
 
 ```sh
-export ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.12
+export ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.13
 make difftest                                    # 100 documents, random seed
 make difftest SEED=1 COUNT=300                   # a reproducible run
 make difftest SEED=42 COUNT=1 ORACLES=export-md  # replay one failure
@@ -458,7 +458,7 @@ without Emacs.
 ### Watching for Org releases
 
 org.nvim is measured against one Org release, pinned by `ORG_VERSION` in
-`.github/workflows/difftest.yml` (9.8.12; `scripts/emacs-parity/common.el`
+`.github/workflows/difftest.yml` (9.8.13; `scripts/emacs-parity/common.el`
 and `docs/parity/inventory.el` name it too). Every Monday the Org releases
 workflow (`.github/workflows/org-release.yml`, also runnable from the
 Actions tab) looks up the latest release, the highest of GNU ELPA's `org`
@@ -478,10 +478,10 @@ does the work, and runs locally too (it needs `curl`, `git`, Emacs and
 
 ```sh
 w=scripts/emacs-parity/release-watch.sh
-$w pinned; $w latest                                    # 9.8.12, the newest
-$w inventory 9.8.11 out/old && $w inventory 9.8.12 out/new
-$w report out/old out/new 9.8.11 9.8.12 > report.md     # the issue body
-$w fetch 9.8.12 ~/org-lisp                              # ~/org-lisp/org-9.8.12
+$w pinned; $w latest                                    # 9.8.13, the newest
+$w inventory 9.8.11 out/old && $w inventory 9.8.13 out/new
+$w report out/old out/new 9.8.11 9.8.13 > report.md     # the issue body
+$w fetch 9.8.13 ~/org-lisp                              # ~/org-lisp/org-9.8.13
 ```
 
 A release only tagged in git (GNU ELPA publishes its tarball a little

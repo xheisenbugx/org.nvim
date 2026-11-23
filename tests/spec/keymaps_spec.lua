@@ -417,3 +417,69 @@ describe("falling back to a remapping global mapping", function()
     eq({ "* Heading text", "DONE" }, buf_lines(buf))
   end)
 end)
+
+describe("mappings.short_desc (#406)", function()
+  local config = require("org.config")
+  local saved_opts
+  before_each(function()
+    saved_opts = vim.deepcopy(config.opts)
+  end)
+  after_each(function()
+    require("org").setup(saved_opts)
+  end)
+
+  it("keeps the org: prefix and parenthetical notes by default", function()
+    org_buffer({ "* Task" }, { 1, 0 })
+    eq("org: Deadline (Visual: all headlines)", vim.fn.maparg(config.lhs_list("<prefix>d")[1], "n", false, true).desc)
+    eq(
+      "org: Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)",
+      vim.fn.maparg(config.lhs_list("<prefix>r")[1], "n", false, true).desc
+    )
+    eq(
+      "org: Capture (count: 4 go to target, 16 last stored, 1 ask date)",
+      vim.fn.maparg(config.lhs_list("<prefix>c")[1], "n", false, true).desc
+    )
+    eq(
+      "org: around heading",
+      vim.fn.maparg(config.lhs_list(config.defaults.mappings.text_objects.around_heading)[1], "o", false, true).desc
+    )
+  end)
+
+  it("strips the org: prefix and trailing parentheticals when enabled", function()
+    local added = {}
+    local saved_wk = package.loaded["which-key"]
+    package.loaded["which-key"] = {
+      add = function(spec)
+        vim.list_extend(added, spec)
+      end,
+    }
+    require("org").setup(vim.tbl_deep_extend("force", vim.deepcopy(saved_opts), {
+      mappings = { short_desc = true },
+    }))
+    package.loaded["which-key"] = saved_wk
+
+    local buf = org_buffer({ "* Task" }, { 1, 0 })
+    eq("Deadline", vim.fn.maparg(config.lhs_list("<prefix>d")[1], "n", false, true).desc)
+    eq("Refile subtree / region", vim.fn.maparg(config.lhs_list("<prefix>r")[1], "n", false, true).desc)
+    eq("Capture", vim.fn.maparg(config.lhs_list("<prefix>c")[1], "n", false, true).desc)
+    eq("Change TODO state", vim.fn.maparg("<C-c><C-t>", "n", false, true).desc)
+    -- preserves inline "(s)" without a leading space
+    eq("Blank table field(s)", vim.fn.maparg("<C-c><Space>", "n", false, true).desc)
+    eq(
+      "around heading",
+      vim.fn.maparg(config.lhs_list(config.defaults.mappings.text_objects.around_heading)[1], "o", false, true).desc
+    )
+
+    local labels = {}
+    for _, g in ipairs(added) do
+      labels[g[1]] = g.group
+    end
+    eq("org C-x", labels["<C-C><C-X>"])
+    eq("org babel", labels["<C-C><C-V>"])
+
+    -- toggling back restores full descriptions cleanly
+    require("org").setup(saved_opts)
+    require("org.mappings").attach(buf)
+    eq("org: Deadline (Visual: all headlines)", vim.fn.maparg(config.lhs_list("<prefix>d")[1], "n", false, true).desc)
+  end)
+end)

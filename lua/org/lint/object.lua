@@ -884,7 +884,7 @@ end
 
 --- Parse buffer lines into a document.
 ---@param lines string[]
----@param opts? { file?: table, dir?: string, bufnr?: integer, filename?: string }
+---@param opts? { file?: table, dir?: string, bufnr?: integer, filename?: string, objects?: boolean }
 local function parse(lines, opts)
   opts = opts or {}
   local doc = setmetatable({

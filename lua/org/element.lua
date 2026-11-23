@@ -34,21 +34,7 @@ local M = {}
 ---@field list_item? org.ListItem the list item of an `item`
 
 local GREATER_BLOCKS_EXCLUDED = { src = true, example = true, export = true, verse = true, comment = true }
-local AFFILIATED = {
-  NAME = true,
-  CAPTION = true,
-  HEADER = true,
-  HEADERS = true,
-  RESULTS = true,
-  RESULT = true,
-  RESNAME = true,
-  PLOT = true,
-  LABEL = true,
-  SRCNAME = true,
-  TBLNAME = true,
-  DATA = true,
-  SOURCE = true,
-}
+local AFFILIATED = require("org.element_lines").AFFILIATED
 
 local is_blank = utils.is_blank
 

@@ -86,7 +86,7 @@ function M.lines(item, level, now)
   end
   local props = {}
   if item.effort then
-    local name = require("org.config").opts.effort_property or "Effort"
+    local name = require("org.api").option("effort_property") or "Effort"
     props[#props + 1] = { name, require("org.date").format_duration(item.effort) }
   end
   if opts().created then
@@ -110,11 +110,11 @@ end
 local function default_file()
   local f = opts().file
   if f == nil or f == "" then
-    f = require("org.config").opts.default_notes_file
+    f = require("org.api").option("default_notes_file")
   end
   local path = utils.expand(f)
   if not path:match("^/") and not path:match("^%a:[/\\]") then
-    path = utils.expand(require("org.config").opts.org_directory) .. "/" .. path
+    path = utils.expand(require("org.api").option("org_directory")) .. "/" .. path
   end
   return vim.fs.normalize(path)
 end
@@ -127,12 +127,12 @@ local targets_memo
 
 local function target_files()
   local now = vim.uv.now()
-  local config = require("org.config").opts
+  local agenda_files = require("org.api").option("agenda_files")
   if
     targets_memo
     and now - targets_memo.at < TARGETS_TTL
     and targets_memo.opts == opts()
-    and targets_memo.agenda == config.agenda_files
+    and targets_memo.agenda == agenda_files
   then
     return targets_memo.paths
   end
@@ -151,7 +151,7 @@ local function target_files()
       out[#out + 1] = p
     end
   end
-  targets_memo = { at = now, paths = out, opts = opts(), agenda = config.agenda_files }
+  targets_memo = { at = now, paths = out, opts = opts(), agenda = agenda_files }
   return out
 end
 
@@ -346,7 +346,7 @@ function M.resolve_target(target)
         p = p .. ".org"
       end
       if not utils.is_absolute(p) then
-        p = utils.expand(require("org.config").opts.org_directory) .. "/" .. p
+        p = utils.expand(require("org.api").option("org_directory")) .. "/" .. p
       end
       if vim.fn.filereadable(p) == 0 then
         -- no such file: `@Parent/Child`, an outline path
@@ -503,7 +503,7 @@ function M.open_prompt(default, cb)
   local width = math.min(math.max(60, math.floor(vim.o.columns * 0.6)), vim.o.columns - 4)
   local row = math.floor(vim.o.lines * 0.25)
   local col = math.floor((vim.o.columns - width) / 2)
-  local border = require("org.config").opts.win_border or "rounded"
+  local border = require("org.api").option("win_border") or "rounded"
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = "wipe"
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { default or "" })
@@ -694,9 +694,7 @@ function M.capture_filter(tpl, lines)
   if not hl or hl.line ~= 1 then
     return nil
   end
-  local keywords = vim.tbl_map(function(k)
-    return k.name
-  end, require("org.todo_keywords").global().keywords)
+  local keywords = (require("org.api").todo_keywords() or { all = {} }).all
   local item = M.parse(hl.title, nil, { keyword = hl.todo or false, keywords = keywords })
   local tags = vim.deepcopy(hl.tags)
   for _, t in ipairs(item.tags) do
@@ -737,7 +735,7 @@ function M.capture_filter(tpl, lines)
   end
   local rest = (hl.planning_line or hl.line) + 1
   if item.effort then
-    local name = require("org.config").opts.effort_property or "Effort"
+    local name = require("org.api").option("effort_property") or "Effort"
     local prop = edit.property_line(indent, name, require("org.date").format_duration(item.effort))
     if hl.properties_range then
       for i = rest, hl.properties_range[2] - 1 do
@@ -788,8 +786,8 @@ function M.complete(arglead)
     return out
   elseif arglead:sub(1, 1) == "*" then
     local out = { "*-" }
-    for _, k in ipairs(require("org.todo_keywords").global().keywords) do
-      out[#out + 1] = "*" .. k.name
+    for _, name in ipairs((require("org.api").todo_keywords() or { all = {} }).all) do
+      out[#out + 1] = "*" .. name
     end
     return out
   end

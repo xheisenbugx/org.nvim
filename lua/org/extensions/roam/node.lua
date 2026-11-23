@@ -678,7 +678,10 @@ end
 
 local function set_own_tags(h, tags)
   if h.hl then
-    require("org.tags").set_tags({ bufnr = h.bufnr, lnum = h.lnum }, tags, true)
+    local head = require("org.api").headline_at({ bufnr = h.bufnr, lnum = h.lnum })
+    if head then
+      head:set_tags(tags, { save = false })
+    end
   else
     set_filetags(h.bufnr, h.file, tags)
   end

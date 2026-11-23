@@ -312,7 +312,7 @@ local function configured_files()
       end
     end
     if w.org_directory ~= false then
-      local dir = utils.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
+      local dir = utils.expand(require("org.api").option("org_directory"), vim.fn.getcwd())
       if dir and utils.is_dir(dir) then
         add_dir(add, dir, w.recursive ~= false)
       end

@@ -1,6 +1,6 @@
 # Emacs parity fixtures
 
-These scripts run Emacs Org 9.8.12 in batch over checked-in inputs and
+These scripts run Emacs Org 9.8.13 in batch over checked-in inputs and
 write its output under `tests/fixtures/emacs/`. The
 `tests/spec/emacs_*_parity_spec.lua` specs run org.nvim on the same inputs
 and compare. The specs only read the fixtures, so CI needs no Emacs.
@@ -12,7 +12,7 @@ ORG_DIR=~/src/org-mode/lisp make parity-fixtures    # Org first on the load-path
 EMACS=/path/to/emacs make parity-fixtures
 ```
 
-`generate.sh` refuses to run unless `(org-version)` is 9.8.12. Emacs
+`generate.sh` refuses to run unless `(org-version)` is 9.8.13. Emacs
 bundles an older Org, so you usually need `ORG_DIR`.
 
 ## Areas
@@ -124,13 +124,13 @@ declined, one that changed it first adds an `!error` line to its step.
 exits.
 
 ```sh
-ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.12 make difftest SEED=1 COUNT=300
+ORG_EMACS=emacs ORG_LISP_DIR=/path/to/org-9.8.13 make difftest SEED=1 COUNT=300
 ```
 
 `ORG_EMACS` and `ORG_LISP_DIR` default to `EMACS` and `ORG_DIR`.
-`scripts/emacs-parity/release-watch.sh fetch 9.8.12 DIR` puts Org 9.8.12's
-Lisp directory at `DIR/org-9.8.12`: GNU ELPA's
-`https://elpa.gnu.org/packages/org-9.8.12.tar`, or, before ELPA publishes
-it, a `git clone` of the `release_9.8.12` tag after `make autoloads`,
+`scripts/emacs-parity/release-watch.sh fetch 9.8.13 DIR` puts Org 9.8.13's
+Lisp directory at `DIR/org-9.8.13`: GNU ELPA's
+`https://elpa.gnu.org/packages/org-9.8.13.tar`, or, before ELPA publishes
+it, a `git clone` of the `release_9.8.13` tag after `make autoloads`,
 which writes `org-version.el`. The Difftest workflow fetches it that way
 and byte-compiles it.

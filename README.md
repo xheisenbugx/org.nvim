@@ -42,7 +42,7 @@ isn't a syntax file with a few keymaps on top. It reimplements Org's
 behaviour: the agenda, capture templates, repeaters, clock tables, table
 formulas, Babel and export.
 
-- 🪶 **No dependencies.** It's about 260k lines of Lua and needs no
+- 🪶 **No dependencies.** It's about 270k lines of Lua and needs no
   tree-sitter parser, external binary or companion plugin.
 - 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
   so you can edit a file in Emacs today and in Neovim tomorrow.
@@ -57,7 +57,7 @@ formulas, Babel and export.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
   source, pickers for snacks.nvim, fzf-lua, Telescope and mini.pick, and a
   lualine clock, and it works with any other setup too.
-- ✅ **Tested.** The headless test suite runs 5,700+ tests from 360+ spec
+- ✅ **Tested.** The headless test suite runs 6,000+ tests from 370+ spec
   files.
 
 How does it compare with nvim-orgmode and Neorg? See [why another Org
@@ -378,9 +378,9 @@ by topic, with each command's Vim and Emacs keys on one row.
 
 ## 📊 Parity with Emacs Org
 
-**98.6% of Org 9.8.12's commands, options, Babel languages, link types and
+**98.6% of Org 9.8.13's commands, options, Babel languages, link types and
 export transcoders behave the same in org.nvim** (strict count, October
-2026). Emacs itself lists every one of them in Org 9.8.12; each is classified in
+2026). Emacs itself lists every one of them in Org 9.8.13; each is classified in
 [`docs/parity/inventory.tsv`](docs/parity/inventory.tsv) and scored by
 [`docs/parity/score.sh`](docs/parity/score.sh):
 
@@ -450,7 +450,7 @@ its options or keys are called out in the release notes) or 🧪
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal` | `src_lsp`, `caldav` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp` | `caldav` |
 
 The [guide](docs/guide.md#-extensions) describes each one with a demo,
 the [extensions status](https://org-nvim.com/extensions.html) page shows

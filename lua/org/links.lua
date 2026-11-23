@@ -69,11 +69,16 @@ shared.is_type = is_type
 shared.lopts = lopts
 
 require("org.links.parse")
-require("org.links.search")
-require("org.links.open")
-require("org.links.shell")
-require("org.links.store")
-require("org.links.insert")
-require("org.links.commands")
+
+-- Search, following, storing, inserting and link commands load on first use
+-- so callers that only parse or classify links don't pull them in.
+require("org.lazy").parts(M, shared, {
+  "org.links.search",
+  "org.links.open",
+  "org.links.shell",
+  "org.links.store",
+  "org.links.insert",
+  "org.links.commands",
+})
 
 return M

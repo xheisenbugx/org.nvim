@@ -185,4 +185,27 @@ describe("coverage", function()
     eq(1, res.code)
     ok(res.stderr:find("no coverage counts", 1, true), res.stderr)
   end)
+
+  it("keeps scripts/coverage_floor.txt in sync with scripts/typecheck_strict.txt", function()
+    local function paths(rel)
+      local out = {}
+      for _, line in ipairs(vim.fn.readfile(root .. "/" .. rel)) do
+        local p = line:match("^%s*([^#%s]+)")
+        if p then
+          out[p] = true
+        end
+      end
+      return out
+    end
+    local strict = paths("scripts/typecheck_strict.txt")
+    local floors = paths("scripts/coverage_floor.txt")
+    local missing = {}
+    for p in pairs(strict) do
+      if not floors[p] then
+        missing[#missing + 1] = p
+      end
+    end
+    table.sort(missing)
+    eq({}, missing, "paths in scripts/typecheck_strict.txt missing from scripts/coverage_floor.txt")
+  end)
 end)

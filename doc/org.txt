@@ -493,7 +493,7 @@ org.nvim development (Emacs parity) ~
 Shown only when Emacs is installed or `ORG_EMACS` / `ORG_LISP_DIR` is set:
 which Emacs, and which Org release `ORG_LISP_DIR` (or `ORG_DIR`) holds, read
 from its `org-version.el`. Only maintainers need them, for `make difftest`
-and `make parity-fixtures`, which compare org.nvim with Org 9.8.12.
+and `make parity-fixtures`, which compare org.nvim with Org 9.8.13.
 
 Windows ~
                                                                 *org-windows*
@@ -7600,7 +7600,9 @@ groups.
 Recommended options ~
                                                       *org-config-recommended*
 The options most setups change, with their defaults. The rest of this
-chapter lists every option.
+chapter lists every option. Unknown top-level options passed to `setup()`
+emit a warning with suggestions (`:checkhealth org` checks nested options
+and extension options too).
 
   org_directory = "~/org"
       Base directory: relative paths (capture targets, ...) start here.
@@ -8226,10 +8228,14 @@ mappings ~
 
 Every mapping is `mappings.<section>.<action> = lhs | { lhs, ... } | false`.
 `<prefix>` expands to `mappings.prefix`. `mappings.disable_all = true` turns
-off every mapping.
+off every mapping. `mappings.short_desc = true` omits the `"org: "` prefix and
+trailing parenthetical hints (counts, Visual-mode notes, Emacs command names)
+from keymap descriptions so popups such as which-key stay compact (`g?` still
+shows the full descriptions).
 >lua
     mappings = {
       prefix = "<localleader>",
+      short_desc = true,
       org = { toggle_checkbox = "<leader>x", open_at_point = "gx" },
       agenda = { later = "L", earlier = "H" },
     }
@@ -8380,7 +8386,10 @@ Insert mode). Keys marked (ctx) depend on the cursor, like in Emacs.
 A count stands in for C-u (e.g. `4<C-c>.` is `C-u C-c .`).
 
 With which-key.nvim, the C-c C-x, C-c C-v and C-c " groups are labelled
-("org C-x ...", "org babel (C-v)", "org plot"). which-key lists them after
+("org C-x ...", "org babel (C-v)", "org plot"), and org.nvim keeps <C-c><C-c>
+(and other sequences containing a follow-up <C-c>) working when which-key's
+popup catches the first <C-c> while still letting <C-c> cancel popups that have
+no <C-c> continuation. which-key lists those groups after
 the keys directly under C-c, below the end of its popup, and its default
 scroll keys <C-d> and <C-u> are org's own C-c C-d (deadline) and C-c C-u
 (parent heading). To scroll that popup, give which-key other keys: >lua
@@ -8830,6 +8839,11 @@ and `heatmap` extensions are built on it): `api.today()`,
 
 API 1.4 added the `OrgFileWritten` event (|org-api-events|).
 
+API 1.5 added `api.option()` for reading resolved configuration options.
+
+API 1.6 added `api.release`, `api.lhs_list()`, `api.priority_value()`, and
+`api.format_time()`.
+
 Files ~
                                                            *org-api-files*
 api.agenda_files()          Absolute paths of the agenda files.
@@ -8849,6 +8863,26 @@ api.todo_keywords([where])  The TODO keywords in effect `{ todo, done,
                             (org-todo-keywords-1). nil and an error for a
                             file that can't be read or a buffer that isn't
                             org. Since API 1.3.
+api.option(path)            Read a resolved configuration option by
+                            dot-separated `path` (e.g. `"org_directory"`,
+                            `"ui.todo_keyword_faces"`,
+                            `"agenda.save_after_edit"`), or nil when a
+                            segment does not exist. Returned tables are
+                            read-only views and must not be mutated. Since
+                            API 1.5.
+api.release                 The org.nvim plugin release string (e.g.
+                            `"3.6.1"`), separate from `api.version`. Since
+                            API 1.6.
+api.lhs_list(value)         Expand a mapping option (`string`, `string[]`,
+                            `false` or `nil`) into key sequences with
+                            `<prefix>` replaced by `mappings.prefix`. Since
+                            API 1.6.
+api.priority_value(p)       Numeric rank of a priority cookie (`"A"` -> 65,
+                            `"1"` -> 1, ...) under the active `priority`
+                            configuration, or nil if invalid. Since API 1.6.
+api.format_time(fmt, [t])   Format Unix timestamp `t` (default now) using
+                            Emacs `format-time-string` directives. Since
+                            API 1.6.
 
 A file is `{ file, bufnr, title, category, filetags, properties,
 todo_keywords = { todo, done, all }, headlines }`: `file` is the path (nil
@@ -10122,8 +10156,8 @@ Each extension is marked as one of:
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`,
               `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
-              `literate`, `lsp`, `timeline`, `hugo`, `journal`
-Experimental: `src_lsp`, `caldav`
+              `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`
+Experimental: `caldav`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -13476,7 +13510,7 @@ Notes ~
 ------------------------------------------------------------------------------
 Language servers in src blocks                        *org-extensions-src-lsp*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `src_lsp` lets the language server of a block's language work inside
 `#+begin_src` blocks, like otter.nvim: its diagnostics show in the block,

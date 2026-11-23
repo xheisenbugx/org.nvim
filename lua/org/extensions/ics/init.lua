@@ -657,7 +657,7 @@ end
 ---@return string|nil file
 function M.import_occurrence(occ)
   local o = opts()
-  local file = o.import_file or require("org.config").opts.default_notes_file
+  local file = o.import_file or require("org.api").option("default_notes_file")
   if not file or file == "" then
     utils().error("ics: set extensions.ics.import_file")
     return nil

@@ -16,10 +16,10 @@
 ;; Obsolete aliases are skipped.
 ;;
 ;;   emacs -Q --batch -l docs/parity/inventory.el \
-;;     --eval '(org-parity-inventory "/path/to/org-9.8.12/" "out/")'
+;;     --eval '(org-parity-inventory "/path/to/org-9.8.13/" "out/")'
 ;;
 ;; The commands and options in inventory.tsv were listed from Org 9.8.10
-;; and checked against Org 9.8.11 and 9.8.12 (the same ones); the
+;; and checked against Org 9.8.11, 9.8.12 and 9.8.13 (the same ones); the
 ;; executors, link types and transcoders were listed from Org 9.8.12 (the
 ;; same in 9.8.10).  A link type belongs to the library of its functions,
 ;; else to the library whose loading registered it.  A transcoder may name

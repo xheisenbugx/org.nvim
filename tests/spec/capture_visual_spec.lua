@@ -33,14 +33,21 @@ describe("capture from Visual mode", function()
     screen:input("V" .. keys)
     -- type the template key once the menu is up (a key typed earlier is
     -- run when Visual mode ends: fix/visual-typeahead)
-    vim.wait(5000, function()
-      return screen:snapshot():find("Quote", 1, true) ~= nil
-    end, 20)
+    ok(
+      vim.wait(5000, function()
+        return screen:snapshot():find("Quote", 1, true) ~= nil
+      end, 20),
+      "capture menu did not open"
+    )
     screen:input("t")
-    -- the menu reads the key and opens the capture window asynchronously
-    vim.wait(5000, function()
-      return screen:lua("return vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == '* Q'")
-    end, 20)
+    -- wait on the rendered screen rather than an RPC, so we never call into
+    -- the child Neovim while it may still sit inside the menu's getchar()
+    ok(
+      vim.wait(5000, function()
+        return screen:snapshot():find("* Q", 1, true) ~= nil
+      end, 20),
+      "capture buffer did not open"
+    )
     return screen:lua([[
       local source = vim.fn.bufnr("#")
       return {

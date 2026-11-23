@@ -162,8 +162,14 @@ local function headline(line, level, todo_cfg)
     end
   end
   if parts.todo then
-    local cfg = todo_cfg or require("org.todo_keywords").global()
-    out[#out + 1] = { parts.todo, cfg:is_done(parts.todo) and "OrgDone" or "OrgTodo" }
+    local is_done
+    if todo_cfg then
+      is_done = todo_cfg:is_done(parts.todo)
+    else
+      local kws = require("org.api").todo_keywords()
+      is_done = kws ~= nil and vim.tbl_contains(kws.done, parts.todo)
+    end
+    out[#out + 1] = { parts.todo, is_done and "OrgDone" or "OrgTodo" }
     pos = pos + #parts.todo
     ws()
   end
@@ -260,8 +266,8 @@ function M.org(lines, todo_cfg)
         if not chunks and (block == "quote" or block == "verse") then
           -- Org text, on OrgQuoteBlock / OrgVerseBlock with
           -- ui.fontify_quote_and_verse_blocks (org-fontify-quote-and-verse-blocks)
-          local ui = require("org.config").opts.ui or {}
-          local base = ui.fontify_quote_and_verse_blocks and (block == "quote" and "OrgQuoteBlock" or "OrgVerseBlock")
+          local base = require("org.api").option("ui.fontify_quote_and_verse_blocks")
+              and (block == "quote" and "OrgQuoteBlock" or "OrgVerseBlock")
             or nil
           chunks = M.inline(line, base)
         end

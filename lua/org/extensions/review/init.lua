@@ -1025,7 +1025,7 @@ local function log_path()
   if f and f ~= "" then
     return utils.expand(f)
   end
-  return utils.expand(require("org.config").opts.org_directory) .. "/review.org"
+  return utils.expand(require("org.api").option("org_directory")) .. "/review.org"
 end
 M.log_path = log_path
 

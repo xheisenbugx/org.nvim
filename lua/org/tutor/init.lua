@@ -328,16 +328,17 @@ end
 local function check_one(ctx, c)
   local hl = ctx.exercise
   if c.heading then
-    hl = nil
+    local found
     for _, h in ipairs(descendants(ctx.file, ctx.exercise)) do
       if h:plain_title() == c.heading then
-        hl = h
+        found = h
         break
       end
     end
-    if not hl then
+    if not found then
       return false
     end
+    hl = found
   end
   if c.todo ~= nil and (hl.todo or false) ~= c.todo then
     return false

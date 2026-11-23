@@ -58,7 +58,7 @@ org.nvim exists because I wanted something those projects don't aim for:
 **On AI:** org.nvim is written with AI assistance
 ([Claude Code](https://claude.com/claude-code)). To keep that honest, its
 behaviour is checked against the Emacs Org source rather than guessed,
-every feature comes with headless tests (`make test`, 4,800+ of them), and
+every feature comes with headless tests (`make test`, 6,000+ of them), and
 I review and use every change myself. Bug reports are very welcome,
 especially where it doesn't match Emacs.
 
@@ -906,7 +906,7 @@ its options may still change):
 
 | ✅ Stable | 🧪 Experimental |
 | --- | --- |
-| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal` | `src_lsp`, `caldav` |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`, `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp` | `caldav` |
 
 An experimental extension is promoted once it meets measurable criteria
 (specs, coverage, docs, releases without a breaking change, no open bugs),
@@ -1144,7 +1144,7 @@ each one stands.
 
   ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](https://raw.githubusercontent.com/xheisenbugx/org.nvim/media/lsp.gif)
 
-- 🧪 **`src_lsp`** (like [otter.nvim](https://github.com/jmbuhr/otter.nvim)):
+- ✅ **`src_lsp`** (like [otter.nvim](https://github.com/jmbuhr/otter.nvim)):
   the language servers you set up with `vim.lsp.enable()` work inside
   `#+begin_src` blocks of the languages you list. Diagnostics show in the
   block as you type, and go to definition, hover, references, signature

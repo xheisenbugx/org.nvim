@@ -2,7 +2,7 @@
 ---
 --- A fast, line-based parser producing an outline of headlines with their
 --- planning, properties, drawers, clocks and timestamps. Element-level
---- parsing for export lives in `org.export.ast`.
+--- parsing for export lives in `org.export.element`.
 ---
 --- Line numbers are 1-based everywhere.
 

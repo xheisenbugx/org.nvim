@@ -68,6 +68,126 @@ end
 --- lists replace). Used for extension options.
 M.merge = merge_into
 
+--- Valid top-level options whose default is `nil` (so they do not appear as
+--- keys in `M.defaults`). Kept in sync with `org.Config` in
+--- `lua/org/_meta/config.lua` (tested in `config_setup_spec.lua`).
+---@type table<string, boolean>
+M.NIL_DEFAULTS = {
+  columns_dblock_formatter = true,
+  columns_modify_value_for_display_function = true,
+  cycle_max_level = true,
+  edit_fixed_width_region_mode = true,
+  inlinetask_default_state = true,
+  popup_calendar_for_date_prompt = true,
+  priority_get_priority_function = true,
+  sparse_tree_default_date_type = true,
+  tags_sort_function = true,
+  todo_repeat_to_state = true,
+}
+
+--- Levenshtein edit distance between two short strings.
+---@param a string
+---@param b string
+---@return integer
+local function edit_distance(a, b)
+  local m, n = #a, #b
+  if m == 0 then
+    return n
+  elseif n == 0 then
+    return m
+  end
+  local prev = {}
+  for j = 0, n do
+    prev[j] = j
+  end
+  for i = 1, m do
+    local curr = { [0] = i }
+    local ca = a:byte(i)
+    for j = 1, n do
+      local cost = ca == b:byte(j) and 0 or 1
+      curr[j] = math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
+    end
+    prev = curr
+  end
+  return prev[n]
+end
+
+--- Unknown top-level option names passed to `setup()`, sorted.
+---@param opts? table
+---@return string[]
+function M.unknown_top_level(opts)
+  if type(opts) ~= "table" then
+    return {}
+  end
+  local unknown = {}
+  for k in pairs(opts) do
+    if type(k) == "string" and M.defaults[k] == nil and not M.NIL_DEFAULTS[k] then
+      unknown[#unknown + 1] = k
+    end
+  end
+  table.sort(unknown)
+  return unknown
+end
+
+--- Suggest a known top-level option for `name`, plus whether it looks like an
+--- nvim-orgmode `org_*` option name.
+---@param name string
+---@return string|nil suggestion, boolean nvim_orgmode
+local function suggest_option(name)
+  if name:sub(1, 4) == "org_" then
+    local stripped = name:sub(5)
+    if M.defaults[stripped] ~= nil or M.NIL_DEFAULTS[stripped] then
+      return stripped, true
+    end
+  end
+  local best, best_d = nil, 3
+  local function consider(candidate)
+    if math.abs(#candidate - #name) < best_d then
+      local d = edit_distance(name, candidate)
+      if d < best_d or (d == best_d and best and candidate < best) then
+        best, best_d = candidate, d
+      end
+    end
+  end
+  for k in pairs(M.defaults) do
+    consider(k)
+  end
+  for k in pairs(M.NIL_DEFAULTS) do
+    consider(k)
+  end
+  return best, false
+end
+
+--- Human-readable warning for unknown top-level `setup()` options, or nil when
+--- `unknown` is empty.
+---@param unknown string[]
+---@return string|nil
+function M.format_unknown_warning(unknown)
+  if #unknown == 0 then
+    return nil
+  end
+  local parts = {}
+  local has_migrate = false
+  for _, name in ipairs(unknown) do
+    local suggestion, migrate = suggest_option(name)
+    if migrate then
+      has_migrate = true
+    end
+    if suggestion then
+      parts[#parts + 1] = string.format("`%s` (did you mean `%s`?)", name, suggestion)
+    else
+      parts[#parts + 1] = string.format("`%s`", name)
+    end
+  end
+  local hint = has_migrate and "run :Org migrate_config or :checkhealth org" or "see :h org-config or :checkhealth org"
+  return string.format(
+    "Unknown setup() option%s: %s (%s)",
+    #unknown == 1 and "" or "s",
+    table.concat(parts, ", "),
+    hint
+  )
+end
+
 --- Options that are tables of sub-options (`clock = { ... }`).
 local SECTIONS = {}
 for _, k in ipairs({

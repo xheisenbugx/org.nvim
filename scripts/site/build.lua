@@ -389,9 +389,9 @@ do
     return "<tr>" .. table.concat(cells) .. "</tr>"
   end
   local b = {
-    "<h1>Parity with Emacs Org 9.8.12</h1>",
+    "<h1>Parity with Emacs Org 9.8.13</h1>",
     '<p class="lead">Every interactive command, user option, Babel executor, link type and export '
-      .. "back-end transcoder of Org 9.8.12 is listed in "
+      .. "back-end transcoder of Org 9.8.13 is listed in "
       .. '<a href="'
       .. blob("docs/parity/inventory.tsv")
       .. '"><code>docs/parity/inventory.tsv</code></a> with its status in org.nvim. '

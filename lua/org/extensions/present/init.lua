@@ -203,7 +203,12 @@ local function decorate(st, slide, lines)
   local first_heading = true
   -- level of the slide headline above (for indenting deeper headlines)
   local base
-  local todo_cfg = require("org.files").get_buffer(buf).settings.todo
+  local api = require("org.api")
+  local todo_kws = api.todo_keywords(buf) or api.todo_keywords()
+  local kw_set = {}
+  for _, k in ipairs((todo_kws or {}).all or {}) do
+    kw_set[k] = true
+  end
   for i, line in ipairs(lines) do
     local row = i - 1
     local stars = line:match("^(%*+%s+)")
@@ -229,10 +234,10 @@ local function decorate(st, slide, lines)
         base = level
         -- the TODO keyword keeps its own colour
         local start = #stars
-        local parts = require("org.parser").parse_headline_line(line, todo_cfg)
-        if parts and parts.todo then
+        local word, after = line:match("^(%S+)()", #stars + 1)
+        if word and kw_set[word] then
           -- "* TODO" alone: the title (and its highlight) is empty
-          start = math.min(line:find(parts.todo, #stars + 1, true) + #parts.todo, #line)
+          start = math.min(after, #line)
         end
         vim.api.nvim_buf_set_extmark(buf, ns, row, start, {
           end_col = #line,
@@ -432,7 +437,7 @@ local function render(st, lnum)
 end
 
 local function set_keys(st)
-  local config = require("org.config")
+  local api = require("org.api")
   -- keys that a presentation key may start: global Normal-mode keys, the
   -- leaders and the presentation's own keys. A key that starts one waits
   -- for it (<Space> with a space leader); the others are nowait.
@@ -445,7 +450,7 @@ local function set_keys(st)
   end
   for _, set in ipairs({ st.opts.keys or {}, st.read_only and st.opts.read_only_keys or {} }) do
     for _, keys in pairs(set) do
-      for _, lhs in ipairs(config.lhs_list(keys)) do
+      for _, lhs in ipairs(api.lhs_list(keys)) do
         longer[#longer + 1] = vim.keycode(lhs)
       end
     end
@@ -461,7 +466,7 @@ local function set_keys(st)
   end
   local function map(keys, name)
     local out = {}
-    for _, lhs in ipairs(config.lhs_list(keys)) do
+    for _, lhs in ipairs(api.lhs_list(keys)) do
       vim.keymap.set("n", lhs, function()
         M[name]()
       end, { buffer = st.buf, nowait = not waits(lhs), desc = "org present: " .. name:gsub("_", " ") })

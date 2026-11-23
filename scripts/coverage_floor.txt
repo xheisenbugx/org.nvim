@@ -6,6 +6,7 @@
 # `make coverage-check ARGS=--update` resets every floor to the coverage
 # rounded down, less one; never lower one just to make the check pass
 # (CONTRIBUTING.md, "Coverage floors").
+lua/org                              88
 lua/org/api                          94
 lua/org/parser.lua                   95
 lua/org/element.lua                  97
@@ -40,3 +41,36 @@ lua/org/ui.lua                       90
 lua/org/ui                           82
 lua/org/migrate.lua                  91
 lua/org/reload.lua                   84
+lua/org/utils.lua                    91
+lua/org/utils                        91
+lua/org/id.lua                       92
+lua/org/config                       98
+lua/org/org_mouse.lua                96
+lua/org/org_mouse                    88
+lua/org/todo.lua                     92
+lua/org/tags.lua                     93
+lua/org/refile.lua                   87
+lua/org/archive.lua                  93
+lua/org/integrations                 91
+lua/org/edit.lua                     91
+lua/org/properties.lua               79
+lua/org/priority.lua                 89
+lua/org/todo_keywords.lua            91
+lua/org/keywords.lua                 99
+lua/org/footnotes.lua                83
+lua/org/datetree.lua                 95
+lua/org/dblock.lua                   88
+lua/org/inlinetask.lua               80
+lua/org/attach.lua                   69
+lua/org/special.lua                  79
+lua/org/speed.lua                    74
+lua/org/textobjects.lua              90
+lua/org/lineedit.lua                 93
+lua/org/goto.lua                     91
+lua/org/mappings.lua                 98
+lua/org/timer.lua                    79
+lua/org/yank.lua                     74
+lua/org/cite.lua                     94
+lua/org/cite                         84
+lua/org/cite_mouse.lua               86
+lua/org/log.lua                      97

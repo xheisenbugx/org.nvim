@@ -395,7 +395,7 @@ end
 
 T.drawer = function(el, contents, info)
   local name = (el.drawer_name or ""):upper()
-  local log = require("org.config").opts.log_into_drawer
+  local log = require("org.api").option("log_into_drawer")
   if name == "LOGBOOK" or (type(log) == "string" and name == log:upper()) then
     return ""
   end

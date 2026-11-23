@@ -740,7 +740,7 @@ function M.align_at(bufnr, lnum, literal)
   end
 end
 
--- Local functions the parts below use
+-- Local functions the parts below use (loaded lazily at the end of this file).
 local shared = require("org.table.shared")
 shared.current_field = current_field
 shared.cursor_pos = cursor_pos
@@ -758,14 +758,6 @@ shared.restore_cursor = restore_cursor
 shared.selected_rect = selected_rect
 shared.set_cursor = set_cursor
 shared.write_table = write_table
-
-require("org.table.structure")
-require("org.table.sort")
-require("org.table.convert")
-require("org.table.tblfm")
-require("org.table.navigate")
-require("org.table.fields")
-require("org.table.region")
 
 ---------------------------------------------------------------------------
 -- Shrinking columns (Emacs org-table-shrink / C-c TAB)
@@ -876,5 +868,18 @@ end
 function M.attach(bufnr)
   require("org.table.attach").attach(bufnr)
 end
+
+-- Table structure editing, sorting, conversion, formulas, navigation and
+-- region operations load on first use so aligning, parsing and shrinking
+-- tables don't pull them in.
+require("org.lazy").parts(M, shared, {
+  "org.table.structure",
+  "org.table.sort",
+  "org.table.convert",
+  "org.table.tblfm",
+  "org.table.navigate",
+  "org.table.fields",
+  "org.table.region",
+})
 
 return M

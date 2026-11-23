@@ -182,10 +182,14 @@ end
 local shared = require("org.columns.shared")
 shared.ns = ns
 
-require("org.columns.summary")
-require("org.columns.dblock")
-require("org.columns.view")
-require("org.columns.edit")
-require("org.columns.open")
+-- Summary calculations, dynamic block and interactive column view load on
+-- first use so callers reading format specs or property values stay light.
+require("org.lazy").parts(M, shared, {
+  "org.columns.summary",
+  "org.columns.dblock",
+  "org.columns.view",
+  "org.columns.edit",
+  "org.columns.open",
+})
 
 return M

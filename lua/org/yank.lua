@@ -483,11 +483,28 @@ function M.yank_media()
   return false
 end
 
+--- Handle pasted `lines` in an Org buffer as dropped files when they name
+--- existing paths (`yank.dnd_paste`). Returns true when handled.
+---@param lines string[]
+---@return boolean
+function M.handle_paste(lines)
+  local paths = M.parse_dropped(table.concat(lines, "\n"))
+  if paths then
+    local ok, handled = utils.try("yank: handle dropped files", M.handle_files, paths, "private")
+    if ok and handled then
+      return true
+    end
+  end
+  return false
+end
+
 --- vim.paste wrapper: in Org buffers, text that names existing files
 --- (a file dropped on the terminal) is handled like a drop
 --- (`yank.dnd_paste`). Everything else pastes as usual.
 function M.setup_paste()
-  if M._paste_wrapped then
+  local buf_mod = package.loaded["org.buffer"]
+  if M._paste_wrapped or (buf_mod and buf_mod._paste_wrapped) then
+    M._paste_wrapped = true
     return
   end
   M._paste_wrapped = true
@@ -496,12 +513,8 @@ function M.setup_paste()
   ---@diagnostic disable-next-line: duplicate-set-field
   vim.paste = function(lines, phase)
     if phase == -1 and vim.bo.filetype == "org" and cfg().dnd_paste ~= false then
-      local paths = M.parse_dropped(table.concat(lines, "\n"))
-      if paths then
-        local ok, handled = pcall(M.handle_files, paths, "private")
-        if ok and handled then
-          return true
-        end
+      if M.handle_paste(lines) then
+        return true
       end
     end
     return orig(lines, phase)

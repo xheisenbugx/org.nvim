@@ -147,4 +147,22 @@ describe("README stats (scripts/readme_stats.lua)", function()
       ok(text:match(claim.pattern), claim.label)
     end
   end)
+
+  it("checks and updates docs/guide.md's test count", function()
+    local guide = "every feature comes with headless tests (`make test`, 4,800+ of them).\n"
+    local got = vim.tbl_map(function(p)
+      return p.line .. ": " .. p.msg
+    end, stats.check(guide, COUNTS, stats.GUIDE_CLAIMS))
+    eq({ "1: 4,800+ tests, but there are 5,703: write 5,700+ (make readme-stats)" }, got)
+    local updated = stats.update(guide, COUNTS, stats.GUIDE_CLAIMS)
+    eq("every feature comes with headless tests (`make test`, 5,700+ of them).\n", updated)
+    eq({}, stats.check(updated, COUNTS, stats.GUIDE_CLAIMS))
+
+    local f = assert(io.open(root .. "/docs/guide.md", "rb"))
+    local text = f:read("*a")
+    f:close()
+    for _, claim in ipairs(stats.GUIDE_CLAIMS) do
+      ok(text:match(claim.pattern), claim.label)
+    end
+  end)
 end)

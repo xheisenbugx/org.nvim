@@ -1153,7 +1153,11 @@ function M.update(feed, retrieve_only)
   -- the first status of each guid (nil guids under a key of their own)
   local by_guid = {}
   for _, st in ipairs(old) do
-    local k = st.guid == nil and vim.NIL or st.guid
+    ---@type any
+    local k = st.guid
+    if k == nil then
+      k = vim.NIL
+    end
     by_guid[k] = by_guid[k] or st
   end
   local function old_of(guid)
@@ -1252,7 +1256,8 @@ function M.update_all()
   local notify = utils.notify
   for _, f in ipairs(feeds) do
     -- per-feed messages are replaced by the summary, like Emacs's echo area
-    utils.notify = function() end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    utils.notify = function(_, _, _) end
     local ok, n = pcall(M.update, f)
     utils.notify = notify
     if ok and type(n) == "number" then

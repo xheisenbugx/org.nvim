@@ -4,6 +4,7 @@
 --- org-element. lua/org/lint/object.lua adds the object methods and
 --- `parse`.
 
+local elines = require("org.element_lines")
 local util = require("org.lint.util")
 local data = require("org.lint.data")
 local timestamp = require("org.lint.timestamp")
@@ -61,34 +62,13 @@ function Doc:last_nonblank(k, floor)
   return k
 end
 
-local function headline_stars(l)
-  local stars = l:match("^(%*+) ")
-  return stars and #stars or nil
-end
-
-local function match_drawer(l)
-  return l:match("^[ \t]*:([%w_%-]+):[ \t]*$")
-end
-
-local function is_drawer_end(l)
-  return l:match("^[ \t]*:[Ee][Nn][Dd]:[ \t]*$") ~= nil
-end
-
-local function match_block_begin(l)
-  return l:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
-end
-
-local function is_comment(l)
-  return l:match("^[ \t]*#$") ~= nil or l:match("^[ \t]*# ") ~= nil
-end
-
-local function is_fixed(l)
-  return l:match("^[ \t]*:$") ~= nil or l:match("^[ \t]*: ") ~= nil
-end
-
-local function is_hr(l)
-  return l:match("^[ \t]*%-%-%-%-%-+[ \t]*$") ~= nil
-end
+local headline_stars = elines.headline_stars
+local match_drawer = elines.drawer_name
+local is_drawer_end = elines.is_end_line
+local match_block_begin = elines.block_type
+local is_comment = elines.is_comment_line
+local is_fixed = elines.is_fixed_width
+local is_hr = elines.is_hr
 
 local function is_item(l)
   return l:match("^[ \t]*[%-+][ \t]") ~= nil
@@ -99,9 +79,7 @@ local function is_item(l)
     or l:match("^[ \t]+%*$") ~= nil
 end
 
-local function latex_begin(l)
-  return l:match("^[ \t]*\\begin{([A-Za-z0-9*]+)}")
-end
+local latex_begin = elines.latex_env_begin
 
 local function tableel_rule(l)
   local body = l:match("^[ \t]*%+([%-+]+)[ \t]*$")

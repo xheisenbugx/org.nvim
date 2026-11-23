@@ -1,4 +1,4 @@
--- Emacs Org 9.8.12 workers for the differential test: each one runs
+-- Emacs Org 9.8.13 workers for the differential test: each one runs
 -- scripts/emacs-parity/difftest.el, which answers requests on stdin (see
 -- that file). Requests are queued on the least busy worker and answered
 -- in the background, so Emacs works while org.nvim computes its side.
@@ -13,7 +13,7 @@
 -- is replaced and the requests queued behind it are sent again.
 --
 -- ORG_EMACS (or EMACS) names the Emacs binary, ORG_LISP_DIR (or ORG_DIR)
--- an Org 9.8.12 lisp directory put first on the load-path.
+-- an Org 9.8.13 lisp directory put first on the load-path.
 
 local M = {}
 
@@ -204,7 +204,7 @@ function Pool:stop()
   end
 end
 
---- Check that Emacs runs and loads Org 9.8.12 (common.el raises an error
+--- Check that Emacs runs and loads Org 9.8.13 (common.el raises an error
 --- otherwise): nil, or why not.
 function M.check()
   local cmd = M.cmd()

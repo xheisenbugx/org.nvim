@@ -297,3 +297,231 @@ describe("yank_media on Windows", function()
     eq({ dir .. "/a b.txt" }, yank.parse_dropped('"' .. win .. '\\a b.txt"'))
   end)
 end)
+
+describe("yank_media clipboard backends and drop options", function()
+  local real_has, real_executable, real_system, env
+
+  before_each(function()
+    real_has, real_executable, real_system = vim.fn.has, vim.fn.executable, vim.system
+    env = { WAYLAND_DISPLAY = vim.env.WAYLAND_DISPLAY, DISPLAY = vim.env.DISPLAY }
+    vim.env.WAYLAND_DISPLAY, vim.env.DISPLAY = nil, nil
+  end)
+
+  after_each(function()
+    vim.fn.has, vim.fn.executable, vim.system = real_has, real_executable, real_system
+    vim.env.WAYLAND_DISPLAY, vim.env.DISPLAY = env.WAYLAND_DISPLAY, env.DISPLAY
+    config.setup({})
+  end)
+
+  it("reads images through xclip on X11 and returns nil when xclip fails", function()
+    local dir = tmpdir()
+    vim.env.DISPLAY = ":0"
+    vim.fn.executable = function(exe)
+      return exe == "xclip" and 1 or 0
+    end
+    vim.system = function(cmd)
+      eq("xclip", cmd[1])
+      local target = cmd[5]
+      return {
+        wait = function()
+          if target == "TARGETS" then
+            return { code = 0, stdout = "image/png\n" }
+          end
+          eq("image/png", target)
+          return { code = 0, stdout = "XCLIPPNG" }
+        end,
+      }
+    end
+    local buf = org_file(dir, {
+      yank = {
+        image_save_method = function()
+          return "from-fn/"
+        end,
+        image_file_name_function = function()
+          return "x11"
+        end,
+      },
+    })
+    ok(yank.yank_media())
+    eq("[[file:from-fn/x11.png]]", vim.api.nvim_buf_get_lines(buf, 4, 5, false)[1])
+    eq({ "XCLIPPNG" }, utils.readfile(dir .. "/from-fn/x11.png"))
+
+    vim.system = function()
+      return {
+        wait = function()
+          return { code = 1, stdout = "" }
+        end,
+      }
+    end
+    eq(nil, yank.clipboard())
+  end)
+
+  it("reads images and file URLs through osascript on macOS", function()
+    local dir = tmpdir()
+    utils.writefile(dir .. "/doc.txt", { "hi" })
+    vim.fn.has = function(f)
+      if f == "mac" then
+        return 1
+      elseif f == "win32" then
+        return 0
+      end
+      return real_has(f)
+    end
+    vim.fn.executable = function(exe)
+      return exe == "osascript" and 1 or 0
+    end
+    local mode = "image"
+    vim.system = function(cmd)
+      eq("osascript", cmd[1])
+      local script = table.concat(cmd, " ")
+      return {
+        wait = function()
+          if script:find("clipboard info", 1, true) then
+            return { code = 0, stdout = mode == "image" and "«class PNGf», 123" or "«class furl», 42" }
+          elseif script:find("write (the clipboard", 1, true) then
+            local path = script:match('POSIX file "([^"]+)"')
+            utils.writefile(path, { "MACPNG" })
+            return { code = 0, stdout = "" }
+          elseif script:find("POSIX path of", 1, true) then
+            return { code = 0, stdout = dir .. "/doc.txt\n" }
+          end
+          return { code = 1, stdout = "" }
+        end,
+      }
+    end
+    local buf = org_file(dir, {
+      yank = {
+        image_save_method = "mac/",
+        image_file_name_function = function()
+          return "shot"
+        end,
+        dnd_method = "file-link",
+      },
+    })
+    ok(yank.yank_media())
+    eq("[[file:mac/shot.png]]", vim.api.nvim_buf_get_lines(buf, 4, 5, false)[1])
+    eq({ "MACPNG" }, utils.readfile(dir .. "/mac/shot.png"))
+
+    mode = "file"
+    vim.api.nvim_buf_set_lines(buf, 4, 5, false, { "" })
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    ok(yank.yank_media())
+    eq("[[" .. dir .. "/doc.txt]]", vim.api.nvim_buf_get_lines(buf, 4, 5, false)[1])
+  end)
+
+  it("returns false when no clipboard tool is available", function()
+    vim.fn.has = function(f)
+      if f == "mac" or f == "win32" then
+        return 0
+      end
+      return real_has(f)
+    end
+    vim.fn.executable = function()
+      return 0
+    end
+    eq(nil, yank.clipboard())
+    eq(false, yank.yank_media())
+  end)
+
+  it("rejects invalid image_save_method values and skips unreadable copied files", function()
+    local dir = tmpdir()
+    org_file(dir, {
+      yank = {
+        image_save_method = function()
+          return 42
+        end,
+        image_file_name_function = function()
+          return "bad"
+        end,
+      },
+    })
+    ok(not pcall(yank.save_image, "image/png", "DATA"))
+
+    org_file(dir, {
+      yank = {
+        image_save_method = 123,
+        image_file_name_function = function()
+          return "bad"
+        end,
+      },
+    })
+    ok(not pcall(yank.save_image, "image/png", "DATA"))
+
+    -- empty name cancels saving
+    org_file(dir, {
+      yank = {
+        image_save_method = "img/",
+        image_file_name_function = function()
+          return ""
+        end,
+      },
+    })
+    eq(nil, yank.save_image("image/png", "DATA"))
+
+    -- x-special copied files with an unreadable entry notifies and skips it
+    local orig_notify, notes = utils.notify, {}
+    utils.notify = function(msg)
+      notes[#notes + 1] = msg
+    end
+    local orig_clip = yank.clipboard
+    yank.clipboard = function()
+      return {
+        types = { "x-special/gnome-copied-files" },
+        read = function()
+          return "cut\nfile://" .. dir .. "/missing.txt\n"
+        end,
+      }
+    end
+    eq(false, yank.yank_media())
+    yank.clipboard = orig_clip
+    utils.notify = orig_notify
+    ok(notes[1] and notes[1]:find("not readable", 1, true))
+  end)
+
+  it("supports ask, move, hard link, symlink, open and parse_dropped edge cases", function()
+    local dir = tmpdir()
+    utils.writefile(dir .. "/move.png", { "m" })
+    utils.writefile(dir .. "/hard.png", { "h" })
+    utils.writefile(dir .. "/sym.png", { "s" })
+    utils.writefile(dir .. "/open.org", { "* Opened" })
+    local buf = org_file(dir, { yank = { dnd_method = "attach", image_save_method = "imgs/" } })
+
+    local orig_menu = ui.menu
+    local choices = { "mv", "ln", "lns", nil }
+    ui.menu = function()
+      return table.remove(choices, 1)
+    end
+    ok(yank.handle_file(dir .. "/move.png", "ask", ""))
+    eq(false, utils.exists(dir .. "/move.png"))
+    ok(utils.exists(dir .. "/imgs/move.png"))
+
+    ok(yank.handle_file(dir .. "/hard.png", "ask", ""))
+    ok(utils.exists(dir .. "/imgs/hard.png"))
+
+    ok(yank.handle_file(dir .. "/sym.png", "ask", ""))
+    ok(utils.exists(dir .. "/imgs/sym.png"))
+
+    -- cancelled attach method menu
+    eq(false, yank.handle_file(dir .. "/hard.png", "ask", ""))
+    ui.menu = orig_menu
+
+    -- open method edits the file
+    config.setup({ org_directory = dir, yank = { dnd_method = "open" } })
+    ok(yank.handle_file(dir .. "/open.org"))
+    eq("* Opened", vim.api.nvim_buf_get_lines(0, 0, 1, false)[1])
+
+    -- unknown dnd_method returns false
+    config.setup({ org_directory = dir, yank = { dnd_method = "bogus" } })
+    eq(false, yank.handle_file(dir .. "/open.org"))
+
+    -- parse_dropped edge cases
+    eq(nil, yank.parse_dropped("   "))
+    eq(nil, yank.parse_dropped('"' .. dir .. "/open.org"))
+    eq(nil, yank.parse_dropped("file://" .. dir .. "/open.org\nnot-a-uri"))
+    if real_has("win32") == 0 then
+      utils.writefile(dir .. '/q"u.txt', { "q" })
+      eq({ dir .. '/q"u.txt' }, yank.parse_dropped('"' .. dir .. '/q\\"u.txt"'))
+    end
+    ok(vim.api.nvim_buf_is_valid(buf))
+  end)
+end)

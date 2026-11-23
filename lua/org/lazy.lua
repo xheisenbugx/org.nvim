@@ -103,10 +103,15 @@ end
 --- is set on it: code that only uses the facade's own functions (the list
 --- item parser the folds use) doesn't load them. Both are plain tables
 --- again once the parts are in.
+---
+--- `own` lists fields that belong to `facade` itself even while currently
+--- `nil` (for example state fields like `clock.state`), so reading or
+--- assigning them does not trigger loading the deferred parts.
 ---@param facade table
 ---@param shared table
 ---@param names string[] the parts, loaded in this order
-function M.parts(facade, shared, names)
+---@param own? table<string, boolean> facade-owned keys that may be nil
+function M.parts(facade, shared, names, own)
   local function load()
     setmetatable(facade, nil)
     setmetatable(shared, nil)
@@ -116,10 +121,17 @@ function M.parts(facade, shared, names)
   end
   setmetatable(facade, {
     __index = function(t, k)
+      if own and own[k] then
+        return nil
+      end
       load()
       return rawget(t, k)
     end,
     __newindex = function(t, k, v)
+      if own and own[k] then
+        rawset(t, k, v)
+        return
+      end
       load()
       rawset(t, k, v)
     end,

@@ -453,7 +453,9 @@ local function check_glob(toks, hits)
         hits[#hits + 1] = {
           line = tk.line,
           rule = "glob",
-          msg = "vim.fn." .. tk.v .. "() on a non-literal runs `backticks` (globpath() splits at commas); use utils.glob",
+          msg = "vim.fn."
+            .. tk.v
+            .. "() on a non-literal runs `backticks` (globpath() splits at commas); use utils.glob",
         }
       end
     end
@@ -684,7 +686,8 @@ local function check_pcall(toks, hits)
       aliases = aliases or vim_aliases(toks)
       local vim_fn = root and (root == "vim" or aliases[root])
       if not vim_fn or callee:match("nvim_exec_autocmds$") then
-        local what = callee or (f and is(toks[f[1]], "name", "function") and "function() ... end")
+        local what = callee
+          or (f and is(toks[f[1]], "name", "function") and "function() ... end")
           or (f and src_text(toks, f[1], f[2]))
           or "?"
         hits[#hits + 1] = {

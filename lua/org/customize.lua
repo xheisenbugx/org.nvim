@@ -260,7 +260,8 @@ function M.reset()
   if not o or o.section then
     return
   end
-  M.set(o.path, vim.deepcopy(get(config.defaults, o.path)))
+  local def = get(config.defaults, o.path)
+  M.set(o.path, type(def) == "table" and vim.deepcopy(def) or def)
   if M._buf and vim.api.nvim_buf_is_valid(M._buf) then
     local cur = vim.api.nvim_win_get_cursor(0)
     refresh(M._buf)
