@@ -591,9 +591,9 @@ end
 
 -- Sort key of a LOGBOOK item: its first timestamp, or nil.
 local function item_time(item)
-  local date = require("org.date")
+  local api = require("org.api")
   for br in item:gmatch("%b[]") do
-    local d = date.parse(br)
+    local d = api.date(br)
     if d then
       return string.format("%04d%02d%02d%02d%02d", d.year, d.month, d.day, d.hour or 0, d.min or 0)
     end

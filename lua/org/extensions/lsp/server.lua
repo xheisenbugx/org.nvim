@@ -70,7 +70,7 @@ R["initialize"] = function(srv, params)
   srv.client_capabilities = params and params.capabilities
   return {
     capabilities = M.capabilities(),
-    serverInfo = { name = "org.nvim", version = require("org.version").release },
+    serverInfo = { name = "org.nvim", version = require("org.api").release },
   }
 end
 
