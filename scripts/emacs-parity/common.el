@@ -19,8 +19,8 @@
 (setq text-quoting-style 'curve)
 (require 'subr-x)
 
-(unless (string-prefix-p "9.8.12" (org-version))
-  (error "Expected Org 9.8.12, got %s (set ORG_DIR)" (org-version)))
+(unless (string-prefix-p "9.8.13" (org-version))
+  (error "Expected Org 9.8.13, got %s (set ORG_DIR)" (org-version)))
 
 (defconst parity-root (file-name-as-directory (getenv "PARITY_ROOT"))
   "The repository root.")

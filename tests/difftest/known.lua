@@ -1,4 +1,4 @@
--- Known differences between org.nvim and Emacs Org 9.8.12 that `make
+-- Known differences between org.nvim and Emacs Org 9.8.13 that `make
 -- difftest` finds on generated documents. A diff hunk matching an entry
 -- doesn't fail the run (the report counts it); any other hunk does.
 --

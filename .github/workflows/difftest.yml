@@ -1,6 +1,6 @@
 name: Difftest
 
-# org.nvim against Emacs Org 9.8.12 on generated documents, nightly and on
+# org.nvim against Emacs Org 9.8.13 on generated documents, nightly and on
 # demand: `make difftest` (tests/difftest/, scripts/emacs-parity/difftest.el)
 # from a random first seed. A difference that isn't a known one
 # (tests/difftest/known.lua) fails the run (exit 1), uploads the shrunk
@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  ORG_VERSION: "9.8.12"
+  ORG_VERSION: "9.8.13"
 
 jobs:
   difftest:

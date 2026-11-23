@@ -1,5 +1,5 @@
 -- The differential test: generated Org documents (tests/difftest/gen.lua)
--- through org.nvim and Emacs Org 9.8.12, oracle by oracle
+-- through org.nvim and Emacs Org 9.8.13, oracle by oracle
 -- (tests/difftest/oracles.lua, scripts/emacs-parity/difftest.el); every
 -- difference that isn't a known one (tests/difftest/known.lua) is shrunk
 -- to a small input and reported. `make difftest` runs it
