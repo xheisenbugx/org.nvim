@@ -10122,8 +10122,8 @@ Each extension is marked as one of:
 Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
               `kanban`, `sidebar`, `merge`, `transclusion`, `heatmap`,
               `review`, `pomodoro`, `drill`, `cli`, `diagrams`, `code`,
-              `literate`, `lsp`, `timeline`, `hugo`, `journal`
-Experimental: `src_lsp`, `caldav`
+              `literate`, `lsp`, `timeline`, `hugo`, `journal`, `src_lsp`
+Experimental: `caldav`
 
 Bug reports about experimental extensions are just as welcome.
 
@@ -13476,7 +13476,7 @@ Notes ~
 ------------------------------------------------------------------------------
 Language servers in src blocks                        *org-extensions-src-lsp*
 
-Stability: experimental (|org-extensions-stability|)
+Stability: stable (|org-extensions-stability|)
 
 `src_lsp` lets the language server of a block's language work inside
 `#+begin_src` blocks, like otter.nvim: its diagnostics show in the block,
