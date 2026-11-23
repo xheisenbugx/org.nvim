@@ -4,31 +4,9 @@
 -- Emacs data
 ---------------------------------------------------------------------------
 
-local AFFILIATED = {
-  CAPTION = true,
-  DATA = true,
-  HEADER = true,
-  HEADERS = true,
-  LABEL = true,
-  NAME = true,
-  PLOT = true,
-  RESNAME = true,
-  RESULT = true,
-  RESULTS = true,
-  SOURCE = true,
-  SRCNAME = true,
-  TBLNAME = true,
-}
-local TRANSLATION = {
-  DATA = "NAME",
-  LABEL = "NAME",
-  RESNAME = "NAME",
-  SOURCE = "NAME",
-  SRCNAME = "NAME",
-  TBLNAME = "NAME",
-  RESULT = "RESULTS",
-  HEADERS = "HEADER",
-}
+local elines = require("org.element_lines")
+local AFFILIATED = elines.AFFILIATED
+local TRANSLATION = elines.TRANSLATION
 
 -- `org-babel-header-arg-names`
 local HEADER_ARG_NAMES = {
