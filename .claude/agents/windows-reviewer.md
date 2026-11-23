@@ -21,7 +21,7 @@ changed specs in `tests/spec/`.
 Base findings on these, not on general advice. Read them when a finding
 depends on one.
 
-**Paths** (`lua/org/utils.lua`, pinned by `tests/spec/windows_paths_spec.lua`):
+**Paths** (`lua/org/utils/fs.lua`, pinned by `tests/spec/windows_paths_spec.lua`):
 
 - Paths are kept with forward slashes. `vim.uv.fs_realpath`,
   `fnamemodify(":p")`, `fnamemodify(":~")`, `getcompletion()` and
