@@ -466,17 +466,32 @@ shared.state_in_buffer = state_in_buffer
 shared.task_of = task_of
 shared.unnamed = unnamed
 
+shared.notified = false
+shared.resolving = false
+
 -- In this order: a part takes the shared functions of the parts before it.
 require("org.clock.timers")
 require("org.clock.range")
 require("org.clock.sum")
-require("org.clock.clocktable")
-require("org.clock.report")
 require("org.clock.clocking")
-require("org.clock.lines")
-require("org.clock.resolve")
 require("org.clock.modeline")
-require("org.clock.display")
 require("org.clock.persist")
+
+-- Reporting, clocktable, line editing, resolution and display overlays load
+-- on first use so clocking in/out, modeline checks and CLOCKSUM don't pull
+-- them in.
+require("org.lazy").parts(M, shared, {
+  "org.clock.clocktable",
+  "org.clock.report",
+  "org.clock.lines",
+  "org.clock.resolve",
+  "org.clock.display",
+}, {
+  state = true,
+  last = true,
+  default_task = true,
+  interrupted = true,
+  leftover = true,
+})
 
 return M
