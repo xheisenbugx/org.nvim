@@ -48,6 +48,17 @@ M.CLAIMS = {
   },
 }
 
+--- Claims checked in `docs/guide.md`.
+M.GUIDE_CLAIMS = {
+  { key = "tests", kind = "floor", step = 100, label = "tests", pattern = "`make test`, ()([%d,]+)()%+ of them" },
+}
+
+--- Files checked by the CLI (`file` relative to repo root, `claims` table).
+M.TARGETS = {
+  { file = "README.md", claims = M.CLAIMS },
+  { file = "docs/guide.md", claims = M.GUIDE_CLAIMS },
+}
+
 local function read(path)
   local f = io.open(path, "rb")
   if not f then
@@ -148,11 +159,12 @@ local function line_of(text, pos)
   return n + 1
 end
 
---- What is wrong with the numbers of the README `text`, given `counts`.
+--- What is wrong with the numbers of `text`, given `counts` and `claims`
+--- (default `M.CLAIMS`).
 ---@return { line: integer, msg: string }[]
-function M.check(text, counts)
+function M.check(text, counts, claims)
   local problems = {}
-  for _, claim in ipairs(M.CLAIMS) do
+  for _, claim in ipairs(claims or M.CLAIMS) do
     local s, written = text:match(claim.pattern)
     local count = counts[claim.key]
     if not s then
@@ -187,9 +199,9 @@ function M.check(text, counts)
   return problems
 end
 
---- The README `text` with every number found rewritten from `counts`.
-function M.update(text, counts)
-  for _, claim in ipairs(M.CLAIMS) do
+--- `text` with every number of `claims` (default `M.CLAIMS`) rewritten from `counts`.
+function M.update(text, counts, claims)
+  for _, claim in ipairs(claims or M.CLAIMS) do
     local s, _, e = text:match(claim.pattern)
     if s then
       text = text:sub(1, s - 1) .. M.wanted(claim, counts[claim.key]) .. text:sub(e)
@@ -200,27 +212,31 @@ end
 
 if arg and arg[0] and arg[0]:match("readme_stats%.lua$") then
   local root = vim.fn.getcwd()
-  local path = root .. "/README.md"
-  local text = read(path)
-  if not text then
-    io.stdout:write("readme_stats.lua: no README.md in ", root, "\n")
-    os.exit(2)
-  end
   local counts = M.count(root)
-  if arg[1] == "--update" then
-    local new = M.update(text, counts)
-    if new ~= text then
-      local f = assert(io.open(path, "wb"))
-      f:write(new)
-      f:close()
+  local failed = false
+  for _, target in ipairs(M.TARGETS) do
+    local path = root .. "/" .. target.file
+    local text = read(path)
+    if not text then
+      io.stdout:write("readme_stats.lua: no ", target.file, " in ", root, "\n")
+      os.exit(2)
     end
-    text = new
+    if arg[1] == "--update" then
+      local new = M.update(text, counts, target.claims)
+      if new ~= text then
+        local f = assert(io.open(path, "wb"))
+        f:write(new)
+        f:close()
+      end
+      text = new
+    end
+    local problems = M.check(text, counts, target.claims)
+    for _, p in ipairs(problems) do
+      io.stdout:write(string.format("%s:%d: stats: %s\n", target.file, p.line, p.msg))
+      failed = true
+    end
   end
-  local problems = M.check(text, counts)
-  for _, p in ipairs(problems) do
-    io.stdout:write(string.format("README.md:%d: stats: %s\n", p.line, p.msg))
-  end
-  if #problems > 0 then
+  if failed then
     os.exit(1)
   end
   io.stdout:write(

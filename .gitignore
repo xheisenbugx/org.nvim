@@ -21,6 +21,9 @@ docs/media/*.png
 # examples/13-links.org opens and attaches this one
 !docs/media/columns.png
 docs/media/video/
+docs/media/promo/
+docs/media/promo-fframes/
+docs/media/tutorials/
 .DS_Store
 
 # make coverage
