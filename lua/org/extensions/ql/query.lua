@@ -12,7 +12,6 @@
 --- (`{ "deadline", ":to", "today" }`), and `{ "pred", fn }` calls
 --- `fn(headline)`. Sexp and plain queries are read into that form.
 
-local config = require("org.config")
 local date = require("org.date")
 local utils = require("org.utils")
 
@@ -481,7 +480,7 @@ local function numeric(pos, get, parse)
 end
 
 local function effort_of(hl)
-  local v = hl:get_property(config.opts.effort_property or "Effort")
+  local v = hl:get_property(require("org.api").option("effort_property") or "Effort")
   return v and date.parse_duration(v) or nil
 end
 
@@ -724,7 +723,7 @@ local function planning_pred(kinds, single)
         local ts = hl.planning and hl.planning[k]
         if ts then
           if auto then
-            local warn = date.deadline_warning_days(ts, config.opts.deadline_warning_days or 14)
+            local warn = date.deadline_warning_days(ts, require("org.api").option("deadline_warning_days") or 14)
             if ts:days() <= date.today_days() + warn then
               return true
             end

@@ -64,7 +64,7 @@ local function countdowns(out, hl, lines, range, today)
     return
   end
   local line = lines[p] or ""
-  local cfg_warn = require("org.config").opts.deadline_warning_days or 14
+  local cfg_warn = require("org.api").option("deadline_warning_days") or 14
   for _, kind in ipairs({ "deadline", "scheduled" }) do
     local ts = hl.planning[kind]
     if ts and ts.active ~= false then
@@ -133,7 +133,7 @@ function M.hints(doc, params)
   end
   local sums, all_time, effort
   if o.clock and clock and shared then
-    local key = o.clock_range or (require("org.config").opts.clock or {}).display_default_range or "thisyear"
+    local key = o.clock_range or require("org.api").option("clock.display_default_range") or "thisyear"
     local from, to = clock.special_range(key)
     sums = shared.clock_sum(file.children, from, to)
   end

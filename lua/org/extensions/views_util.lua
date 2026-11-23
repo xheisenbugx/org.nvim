@@ -61,7 +61,7 @@ end
 ---@param todo_cfg? org.TodoConfig
 ---@return string
 function M.todo_group(kw, todo_cfg)
-  local faces = (require("org.config").opts.ui or {}).todo_keyword_faces or {}
+  local faces = require("org.api").option("ui.todo_keyword_faces") or {}
   if faces[kw] then
     return "orgTodoKw_" .. kw:gsub("[^%w_]", "_")
   end
@@ -73,7 +73,7 @@ end
 ---@param p string
 ---@return string
 function M.priority_group(p)
-  local faces = (require("org.config").opts.ui or {}).priority_faces or {}
+  local faces = require("org.api").option("ui.priority_faces") or {}
   if faces[p] then
     return require("org.highlights").face_group("orgPriorityFace_", p)
   end
@@ -84,7 +84,7 @@ end
 ---@param tag string
 ---@return string
 function M.tag_group(tag)
-  local faces = (require("org.config").opts.ui or {}).tag_faces or {}
+  local faces = require("org.api").option("ui.tag_faces") or {}
   if faces[tag] then
     return require("org.highlights").face_group("orgTagFace_", tag)
   end
@@ -491,7 +491,7 @@ end
 ---@param files org.File[]
 ---@return string
 function M.files_key(files)
-  local parts = { tostring(require("org.date").today_days()) }
+  local parts = { tostring(require("org.api").today().days) }
   for i, f in ipairs(files) do
     parts[i + 1] = tostring(f)
   end
@@ -516,7 +516,7 @@ end
 ---@return boolean
 function M.save_after_edit(save)
   if save == nil then
-    save = require("org.config").opts.agenda.save_after_edit
+    save = require("org.api").option("agenda.save_after_edit")
   end
   return save and true or false
 end

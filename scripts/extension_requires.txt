@@ -74,7 +74,6 @@ drill org.files
 drill org.fold
 drill org.parser
 drill org.utils
-hugo org.config
 hugo org.date
 hugo org.export
 hugo org.export.element
@@ -88,7 +87,6 @@ hugo org.utils
 hugo org.write_hooks
 ics org.agenda.items
 ics org.agenda.view
-ics org.config
 ics org.date
 ics org.lazy
 ics org.parser
@@ -108,7 +106,6 @@ lsp org.actions
 lsp org.clock
 lsp org.clock.shared
 lsp org.completion
-lsp org.config
 lsp org.date
 lsp org.duration
 lsp org.edit
@@ -148,7 +145,6 @@ ql org.agenda.render
 ql org.agenda.search
 ql org.agenda.sparse
 ql org.agenda.view
-ql org.config
 ql org.date
 ql org.dblock
 ql org.files
@@ -161,7 +157,6 @@ ql org.table
 ql org.todo
 ql org.utils
 quickadd org.capture
-quickadd org.config
 quickadd org.date
 quickadd org.edit
 quickadd org.files
@@ -174,7 +169,6 @@ quickadd org.utils
 review org.agenda.items
 review org.calendar
 review org.capture
-review org.config
 review org.date
 review org.edit
 review org.files
@@ -203,7 +197,6 @@ roam org.write_hooks
 sidebar org.agenda.habits
 sidebar org.agenda.items
 sidebar org.clock
-sidebar org.config
 sidebar org.date
 sidebar org.extensions.pomodoro
 sidebar org.files
@@ -221,7 +214,6 @@ super_agenda org.config
 super_agenda org.date
 super_agenda org.lazy
 super_agenda org.utils
-transclusion org.config
 transclusion org.element
 transclusion org.export.fontify
 transclusion org.export.hooks
@@ -235,8 +227,6 @@ transclusion org.ui.decorations
 transclusion org.utils
 transclusion org.write_hooks
 views_util org.agenda.search
-views_util org.config
-views_util org.date
 views_util org.extensions.ql.query
 views_util org.files
 views_util org.highlights

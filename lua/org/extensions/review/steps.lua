@@ -38,11 +38,10 @@ end
 --- Files holding the inbox: `inbox` (a path or list), else `default_notes_file`.
 ---@return string[]
 function M.inbox_paths(opts)
-  local config = require("org.config")
   local utils = require("org.utils")
   local inbox = opts.inbox
   if inbox == nil or inbox == "" then
-    inbox = config.opts.default_notes_file
+    inbox = require("org.api").option("default_notes_file")
   end
   local out = {}
   for _, p in ipairs(type(inbox) == "table" and inbox or { inbox }) do

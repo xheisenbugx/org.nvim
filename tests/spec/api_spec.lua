@@ -1327,8 +1327,18 @@ describe("org.api", function()
       end, list)
     end
 
-    it("is version 1.4", function()
+    it("is version 1.5", function()
       ok(api.has("1.4"))
+      ok(api.has("1.5"))
+    end)
+
+    it("option() reads top-level and nested resolved options", function()
+      eq(config.opts.org_directory, api.option("org_directory"))
+      eq(config.opts.agenda.save_after_edit, api.option("agenda.save_after_edit"))
+      eq(config.opts.ui.todo_keyword_faces, api.option("ui.todo_keyword_faces"))
+      eq(nil, api.option("no_such_option"))
+      eq(nil, api.option("org_directory.nested"))
+      eq(nil, api.option(""))
     end)
 
     it("today() is org's today; a date has its day number and is made from one", function()

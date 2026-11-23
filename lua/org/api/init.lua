@@ -44,7 +44,7 @@ local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
 --- fields or events; a new MAJOR may break code written for an older one.
-M.version = "1.4.0"
+M.version = "1.5.0"
 
 --- Does this API provide `version` ("1", "1.0" or "1.0.0")? True when the
 --- major versions are equal and this one is not older.
@@ -73,6 +73,28 @@ end
 
 M.Headline = H.Headline
 M.agenda = require("org.api.agenda")
+
+--- Read a resolved org.nvim configuration option by dot-separated path
+--- (e.g. `"org_directory"`, `"ui.todo_keyword_faces"`,
+--- `"agenda.save_after_edit"`), or nil when a segment does not exist.
+--- Returned tables are read-only views of the active options and must not
+--- be mutated. Since API 1.5.
+---@param path string dot-separated option path (see |org-config|)
+---@return any
+function M.option(path)
+  if type(path) ~= "string" or path == "" then
+    return nil
+  end
+  ---@type any
+  local cur = require("org.config").opts
+  for part in path:gmatch("[^%.]+") do
+    if type(cur) ~= "table" then
+      return nil
+    end
+    cur = cur[part]
+  end
+  return cur
+end
 
 --- Turn what the API accepts as a date (a string, a table with year,
 --- month and day, a Unix time) into an |org.api.Date|.

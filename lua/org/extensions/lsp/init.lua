@@ -182,7 +182,7 @@ end
 
 local function root_dir()
   local utils = require("org.utils")
-  local dir = utils.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
+  local dir = utils.expand(require("org.api").option("org_directory"), vim.fn.getcwd())
   if dir and utils.is_dir(dir) then
     return dir
   end
