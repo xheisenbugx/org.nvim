@@ -60,12 +60,13 @@ local function measure(path)
   return files, lines > 0 and hit * 100 / lines or 100
 end
 
-local out, failures, report = {}, {}, {}
+local out, failures, report, seen = {}, {}, {}, {}
 for line in (read(floor_path) .. "\n"):gmatch("([^\n]*)\n") do
   local path, floor = line:match("^%s*([^#%s]+)%s*([%d%.]*)%s*$")
   if not path then
     out[#out + 1] = line
   else
+    seen[path] = true
     floor = tonumber(floor)
     local files, pct = measure(path)
     if update then
@@ -78,6 +79,24 @@ for line in (read(floor_path) .. "\n"):gmatch("([^\n]*)\n") do
     end
     local shown = files > 0 and ("%5.1f%%"):format(pct) or "    -"
     report[#report + 1] = ("%-36s %s  floor %s"):format(path, shown, floor and tostring(floor) .. "%" or "-")
+  end
+end
+
+-- Keep the default floor file in step with scripts/typecheck_strict.txt.
+if not update and not args[2] then
+  local strict_path = root .. "/scripts/typecheck_strict.txt"
+  local f = io.open(strict_path, "rb")
+  if f then
+    local strict = f:read("*a")
+    f:close()
+    for line in (strict .. "\n"):gmatch("([^\n]*)\n") do
+      local path = line:match("^%s*([^#%s]+)%s*$")
+      if path and not seen[path] then
+        failures[#failures + 1] = ("%s: in scripts/typecheck_strict.txt but missing from scripts/coverage_floor.txt"):format(
+          path
+        )
+      end
+    end
   end
 end
 
