@@ -15,10 +15,6 @@ local M = {}
 
 M.list = {
   {
-    file = "capture_visual_spec.lua",
-    reason = "the wait loop RPCs into a child Neovim that may still sit in the capture menu's getchar",
-  },
-  {
     file = "perf_budgets_spec.lua",
     reason = "a linear-growth check can fail when one measurement is slowed by the runner",
   },
