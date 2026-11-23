@@ -370,7 +370,7 @@ function M.hugo_date(raw, info)
   if fm.is_date(raw) then
     return raw, time
   end
-  local s = require("org.date").format_time_string(info.hugo_date_format or opts().date_format, time)
+  local s = require("org.api").format_time(info.hugo_date_format or opts().date_format, time)
   s = s:gsub("([+-]%d%d)(%d%d)$", "%1:%2")
   return s, time
 end
@@ -569,7 +569,7 @@ local function lastmod(info, date_time)
     return nil
   end
   local now = os.time()
-  local s = require("org.date").format_time_string(info.hugo_date_format or opts().date_format, now)
+  local s = require("org.api").format_time(info.hugo_date_format or opts().date_format, now)
   s = s:gsub("([+-]%d%d)(%d%d)$", "%1:%2")
   local period = tonumber(opts().suppress_lastmod_period) or 0
   if period == 0 then

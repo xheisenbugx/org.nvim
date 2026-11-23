@@ -421,7 +421,7 @@ end
 -- Priority as a number where higher is more important (A > B, and 1 > 10
 -- with numeric priorities).
 local function prio_num(p)
-  local v = p and require("org.priority").to_value(p)
+  local v = p and require("org.api").priority_value(p)
   return v and -v or nil
 end
 
@@ -1209,7 +1209,7 @@ local SORTERS = {
     return planning_day(hl, { "closed" })
   end),
   priority = by_key(function(hl)
-    return hl.priority and require("org.priority").to_value(hl.priority) or nil
+    return hl.priority and require("org.api").priority_value(hl.priority) or nil
   end),
   todo = by_key(function(hl)
     if not hl.todo then

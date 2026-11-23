@@ -44,7 +44,11 @@ local M = {}
 
 --- Version of the API (`MAJOR.MINOR.PATCH`). A new MINOR adds functions,
 --- fields or events; a new MAJOR may break code written for an older one.
-M.version = "1.5.0"
+M.version = "1.6.0"
+
+--- Plugin release version of org.nvim (e.g. `"3.6.1"`), distinct from
+--- `api.version`. Since API 1.6.
+M.release = require("org.version").release
 
 --- Does this API provide `version` ("1", "1.0" or "1.0.0")? True when the
 --- major versions are equal and this one is not older.
@@ -94,6 +98,37 @@ function M.option(path)
     cur = cur[part]
   end
   return cur
+end
+
+--- Expand a mapping option (`string`, `string[]`, `false` or `nil`) into
+--- key sequences with `<prefix>` substituted from `mappings.prefix`.
+--- Since API 1.6.
+---@param value string|string[]|false|nil
+---@return string[]
+function M.lhs_list(value)
+  return require("org.config").lhs_list(value)
+end
+
+--- Numeric value of a priority cookie (`"A"` -> 65, `"1"` -> 1, ...) under
+--- the active `priority` configuration, or nil for an invalid value.
+--- Since API 1.6.
+---@param priority string|integer|nil
+---@return integer|nil
+function M.priority_value(priority)
+  if priority == nil then
+    return nil
+  end
+  return require("org.priority").to_value(priority)
+end
+
+--- Format a Unix timestamp (default: current time) using Emacs
+--- `format-time-string` directives (`%Y`, `%m`, `%d`, `%H`, `%M`, `%S`,
+--- `%z`, `%Z`, ...). Since API 1.6.
+---@param fmt string
+---@param time? integer Unix timestamp in seconds
+---@return string
+function M.format_time(fmt, time)
+  return require("org.date").format_time_string(fmt, time)
 end
 
 --- Turn what the API accepts as a date (a string, a table with year,

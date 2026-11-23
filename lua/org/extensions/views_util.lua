@@ -58,15 +58,20 @@ end
 --- Highlight group of a TODO keyword: its `ui.todo_keyword_faces` face,
 --- else OrgDone or OrgTodo.
 ---@param kw string
----@param todo_cfg? org.TodoConfig
+---@param todo_cfg? org.api.TodoKeywords|org.TodoConfig
 ---@return string
 function M.todo_group(kw, todo_cfg)
-  local faces = require("org.api").option("ui.todo_keyword_faces") or {}
+  local api = require("org.api")
+  local faces = api.option("ui.todo_keyword_faces") or {}
   if faces[kw] then
     return "orgTodoKw_" .. kw:gsub("[^%w_]", "_")
   end
-  todo_cfg = todo_cfg or require("org.todo_keywords").global()
-  return todo_cfg:is_done(kw) and "OrgDone" or "OrgTodo"
+  if todo_cfg and type(todo_cfg.is_done) == "function" then
+    return todo_cfg:is_done(kw) and "OrgDone" or "OrgTodo"
+  end
+  local kws = todo_cfg or api.todo_keywords()
+  local done = kws and kws.done or {}
+  return vim.tbl_contains(done, kw) and "OrgDone" or "OrgTodo"
 end
 
 --- Highlight group of a priority cookie.

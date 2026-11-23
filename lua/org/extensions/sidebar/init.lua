@@ -317,7 +317,7 @@ function M.render(st)
   local inner = math.max(10, w - 3)
   local cv = views.Canvas.new()
   local refs = {}
-  local todo_cfg = require("org.todo_keywords").global()
+  local todo_cfg = require("org.api").todo_keywords()
 
   local function section(icon, name, count, count_hl)
     cv:add("")

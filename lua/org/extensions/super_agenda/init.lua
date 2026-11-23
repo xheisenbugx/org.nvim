@@ -1258,11 +1258,11 @@ end
 -- it (looked up when pressed), else the key itself.
 local function agenda_key(lhs)
   return function()
-    local config = require("org.config")
+    local api = require("org.api")
     local view = require("org.agenda.view")
     local kc = vim.keycode(lhs)
-    for name, value in pairs(config.opts.mappings.agenda or {}) do
-      for _, l in ipairs(config.lhs_list(value)) do
+    for name, value in pairs(api.option("mappings.agenda") or {}) do
+      for _, l in ipairs(api.lhs_list(value)) do
         if vim.keycode(l) == kc and view.actions[name] then
           require("org.utils").run(view.actions[name])
           return

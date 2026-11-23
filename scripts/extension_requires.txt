@@ -74,7 +74,6 @@ drill org.files
 drill org.fold
 drill org.parser
 drill org.utils
-hugo org.date
 hugo org.export
 hugo org.export.element
 hugo org.export.entities
@@ -122,10 +121,8 @@ lsp org.parser
 lsp org.symbols
 lsp org.table
 lsp org.utils
-lsp org.version
 lsp org.write_hooks
 merge org.config
-merge org.date
 merge org.parser
 merge org.utils
 pomodoro org.agenda.notifications
@@ -133,8 +130,6 @@ pomodoro org.clock
 pomodoro org.edit
 pomodoro org.files
 pomodoro org.utils
-present org.config
-present org.files
 present org.parser
 present org.ui.images
 present org.utils
@@ -151,7 +146,6 @@ ql org.files
 ql org.fold
 ql org.lazy
 ql org.links
-ql org.priority
 ql org.refile
 ql org.table
 ql org.todo
@@ -164,7 +158,6 @@ quickadd org.lazy
 quickadd org.parser
 quickadd org.refile
 quickadd org.tags
-quickadd org.todo_keywords
 quickadd org.utils
 review org.agenda.items
 review org.calendar
@@ -191,7 +184,6 @@ roam org.pickers
 roam org.pickers.backends.snacks
 roam org.protocol
 roam org.refile
-roam org.tags
 roam org.utils
 roam org.write_hooks
 sidebar org.agenda.habits
@@ -200,7 +192,6 @@ sidebar org.clock
 sidebar org.date
 sidebar org.extensions.pomodoro
 sidebar org.files
-sidebar org.todo_keywords
 sidebar org.utils
 src_lsp org.babel.blocks
 src_lsp org.babel.langs
@@ -210,7 +201,6 @@ super_agenda org.agenda.items
 super_agenda org.agenda.render
 super_agenda org.agenda.search
 super_agenda org.agenda.view
-super_agenda org.config
 super_agenda org.date
 super_agenda org.lazy
 super_agenda org.utils
@@ -222,7 +212,6 @@ transclusion org.id
 transclusion org.lazy
 transclusion org.links
 transclusion org.parser
-transclusion org.todo_keywords
 transclusion org.ui.decorations
 transclusion org.utils
 transclusion org.write_hooks
@@ -230,5 +219,4 @@ views_util org.agenda.search
 views_util org.extensions.ql.query
 views_util org.files
 views_util org.highlights
-views_util org.todo_keywords
 views_util org.utils

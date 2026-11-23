@@ -162,8 +162,14 @@ local function headline(line, level, todo_cfg)
     end
   end
   if parts.todo then
-    local cfg = todo_cfg or require("org.todo_keywords").global()
-    out[#out + 1] = { parts.todo, cfg:is_done(parts.todo) and "OrgDone" or "OrgTodo" }
+    local is_done
+    if todo_cfg then
+      is_done = todo_cfg:is_done(parts.todo)
+    else
+      local kws = require("org.api").todo_keywords()
+      is_done = kws ~= nil and vim.tbl_contains(kws.done, parts.todo)
+    end
+    out[#out + 1] = { parts.todo, is_done and "OrgDone" or "OrgTodo" }
     pos = pos + #parts.todo
     ws()
   end

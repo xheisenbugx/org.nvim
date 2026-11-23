@@ -8834,6 +8834,9 @@ API 1.4 added the `OrgFileWritten` event (|org-api-events|).
 
 API 1.5 added `api.option()` for reading resolved configuration options.
 
+API 1.6 added `api.release`, `api.lhs_list()`, `api.priority_value()`, and
+`api.format_time()`.
+
 Files ~
                                                            *org-api-files*
 api.agenda_files()          Absolute paths of the agenda files.
@@ -8860,6 +8863,19 @@ api.option(path)            Read a resolved configuration option by
                             segment does not exist. Returned tables are
                             read-only views and must not be mutated. Since
                             API 1.5.
+api.release                 The org.nvim plugin release string (e.g.
+                            `"3.6.1"`), separate from `api.version`. Since
+                            API 1.6.
+api.lhs_list(value)         Expand a mapping option (`string`, `string[]`,
+                            `false` or `nil`) into key sequences with
+                            `<prefix>` replaced by `mappings.prefix`. Since
+                            API 1.6.
+api.priority_value(p)       Numeric rank of a priority cookie (`"A"` -> 65,
+                            `"1"` -> 1, ...) under the active `priority`
+                            configuration, or nil if invalid. Since API 1.6.
+api.format_time(fmt, [t])   Format Unix timestamp `t` (default now) using
+                            Emacs `format-time-string` directives. Since
+                            API 1.6.
 
 A file is `{ file, bufnr, title, category, filetags, properties,
 todo_keywords = { todo, done, all }, headlines }`: `file` is the path (nil

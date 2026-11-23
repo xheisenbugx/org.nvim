@@ -694,9 +694,7 @@ function M.capture_filter(tpl, lines)
   if not hl or hl.line ~= 1 then
     return nil
   end
-  local keywords = vim.tbl_map(function(k)
-    return k.name
-  end, require("org.todo_keywords").global().keywords)
+  local keywords = (require("org.api").todo_keywords() or { all = {} }).all
   local item = M.parse(hl.title, nil, { keyword = hl.todo or false, keywords = keywords })
   local tags = vim.deepcopy(hl.tags)
   for _, t in ipairs(item.tags) do
@@ -788,8 +786,8 @@ function M.complete(arglead)
     return out
   elseif arglead:sub(1, 1) == "*" then
     local out = { "*-" }
-    for _, k in ipairs(require("org.todo_keywords").global().keywords) do
-      out[#out + 1] = "*" .. k.name
+    for _, name in ipairs((require("org.api").todo_keywords() or { all = {} }).all) do
+      out[#out + 1] = "*" .. name
     end
     return out
   end
