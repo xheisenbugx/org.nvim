@@ -8,6 +8,42 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.7.0] - 2026-11-23
+
+### Features
+
+- **extensions:** Promote src_lsp to stable ([#393](https://github.com/xheisenbugx/org.nvim/pull/393))
+- **config:** Warn on unknown top-level setup() options with suggestions ([#396](https://github.com/xheisenbugx/org.nvim/pull/396))
+- **api:** Add api.option() (API 1.5) and decouple extensions from org.config ([#397](https://github.com/xheisenbugx/org.nvim/pull/397))
+- **api:** Add API 1.6 helpers and decouple 11 extensions from internal modules ([#400](https://github.com/xheisenbugx/org.nvim/pull/400))
+- **mappings:** Add mappings.short_desc for concise keymap descriptions ([#411](https://github.com/xheisenbugx/org.nvim/pull/411))
+
+### Fixes
+
+- **export:** Preserve empty leading text node when indent precedes an object ([#407](https://github.com/xheisenbugx/org.nvim/pull/407))
+- **mappings:** Keep \<C-c>\<C-c> working with which-key.nvim ([#410](https://github.com/xheisenbugx/org.nvim/pull/410))
+
+### Performance
+
+- **startup:** Defer statusline, yank, agenda index and guard mode-line check ([#390](https://github.com/xheisenbugx/org.nvim/pull/390))
+- **lazy:** Defer heavy facade parts across fold, clock, table, links and columns ([#399](https://github.com/xheisenbugx/org.nvim/pull/399))
+
+### Refactors
+
+- **utils:** Split org.utils into focused domain submodules ([#398](https://github.com/xheisenbugx/org.nvim/pull/398))
+- **parser:** Share Org line classifiers and affiliated keyword tables across element, export and lint ([#401](https://github.com/xheisenbugx/org.nvim/pull/401))
+
+<details><summary>Tests, CI and chores (6)</summary>
+
+- **chore(lint):** Sync CI stylua paths, track guide stats and update .gitignore ([#391](https://github.com/xheisenbugx/org.nvim/pull/391))
+- **chore(coverage):** Sync coverage_floor.txt with typecheck_strict.txt ([#392](https://github.com/xheisenbugx/org.nvim/pull/392))
+- **test(capture):** Wait on screen snapshot instead of RPC and unquarantine capture_visual_spec ([#394](https://github.com/xheisenbugx/org.nvim/pull/394))
+- **chore(typecheck):** Fix remaining strict warnings and cover all of lua/org ([#395](https://github.com/xheisenbugx/org.nvim/pull/395))
+- **chore(parity):** Measure against Org 9.8.13 ([#409](https://github.com/xheisenbugx/org.nvim/pull/409))
+- **test(yank):** Cover clipboard backends and file drop paths ([#408](https://github.com/xheisenbugx/org.nvim/pull/408))
+
+</details>
+
 ## [v3.6.1] - 2026-11-21
 
 ### Fixes
@@ -733,6 +769,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.1...v3.7.0
 [v3.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.0...v3.6.1
 [v3.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.1...v3.6.0
 [v3.5.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.0...v3.5.1
