@@ -19,7 +19,13 @@ require("org.lazy").on_load("vim.filetype", "org", function(filetype)
       [".*"] = {
         function(_, bufnr)
           local first = bufnr and vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or ""
-          local lower = first:lower()
+          -- Emacs file-local mode lines sit on the first line; bound the slice
+          -- so minified single-line files aren't scanned or lowercased whole.
+          local head = #first > 512 and first:sub(1, 512) or first
+          if not head:find("-*-", 1, true) then
+            return
+          end
+          local lower = head:lower()
           if lower:match("%-%*%-.*mode:%s*org[%s;]") or lower:match("%-%*%-%s*org%s*%-%*%-") then
             return "org"
           end

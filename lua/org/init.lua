@@ -14,6 +14,60 @@ local M = {}
 
 local did_setup = false
 
+--- Defer loading `org.agenda.index` until an org buffer opens (or VimEnter
+--- when `agenda.index.start == "startup"`). Once the module is loaded, it
+--- owns its own augroup and flush hook.
+local function setup_agenda_index(cfg)
+  if package.loaded["org.agenda.index"] then
+    require("org.agenda.index").setup()
+    return
+  end
+  local group = vim.api.nvim_create_augroup("org.agenda_index", { clear = true })
+  local agenda = cfg.agenda
+  local idx = type(agenda) == "table" and agenda.index or nil
+  if type(idx) ~= "table" or idx.enabled == false then
+    return
+  end
+  -- If an agenda call loads the index later without going through setup(),
+  -- still stop and flush it on exit; never load it just to exit.
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = group,
+    callback = function()
+      local mod = package.loaded["org.agenda.index"]
+      if mod then
+        mod.stop()
+        mod.flush()
+      end
+    end,
+  })
+  if idx.background == false then
+    return
+  end
+  local function activate()
+    require("org.agenda.index").setup()
+  end
+  if idx.start == "startup" then
+    if vim.v.vim_did_enter == 1 then
+      activate()
+    else
+      vim.api.nvim_create_autocmd("VimEnter", { group = group, once = true, callback = activate })
+    end
+    return
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then
+      activate()
+      return
+    end
+  end
+  vim.api.nvim_create_autocmd("FileType", {
+    group = group,
+    pattern = "org",
+    once = true,
+    callback = activate,
+  })
+end
+
 --- Configure org.nvim. Merges `opts` over the defaults (see `:h org-config`),
 --- loads the enabled `extensions` (see `:h org-extensions`), registers
 --- `:Org` and the global keymaps (highlight groups are defined on the
@@ -39,12 +93,11 @@ function M.setup(opts)
   require("org.commands").setup()
   require("org.mappings").setup_global()
   require("org.highlights").setup()
-  require("org.yank").setup_paste()
   -- the Org menus (ui.menus)
   require("org.menu").setup()
-  -- the agenda index: background parsing of the agenda files
-  require("org.agenda.index").setup()
   local cfg = require("org.config").opts
+  -- the agenda index: background parsing of the agenda files (loaded lazily)
+  setup_agenda_index(cfg)
   if #(cfg.entities_user or {}) > 0 or package.loaded["org.entities"] then
     -- org-entities-user
     require("org.entities").apply_user()
@@ -152,21 +205,29 @@ end
 ---@return string component clock and timer text joined by a space, or `""`
 function M.statusline()
   local parts = {}
+  -- Only read already-loaded clock/timer modules: neither can be running
+  -- before it is loaded (`clock.persist` schedules loading `org.clock`), so
+  -- statusline redraws in non-org sessions never drag them in eagerly.
   for _, mod in ipairs({ "org.clock", "org.timer" }) do
-    local ok, m = pcall(require, mod)
-    local s = ok and m.statusline and m.statusline() or ""
+    local m = package.loaded[mod]
+    local s = type(m) == "table" and m.statusline and m.statusline() or ""
     if s ~= "" then
       parts[#parts + 1] = s
     end
   end
   -- components added by extensions, in name order
-  local names = vim.tbl_keys(M.statusline_components)
-  table.sort(names)
-  for _, name in ipairs(names) do
-    local ok, s = pcall(M.statusline_components[name])
-    if ok and type(s) == "string" and s ~= "" then
-      parts[#parts + 1] = s
+  if next(M.statusline_components) ~= nil then
+    local names = vim.tbl_keys(M.statusline_components)
+    table.sort(names)
+    for _, name in ipairs(names) do
+      local ok, s = pcall(M.statusline_components[name])
+      if ok and type(s) == "string" and s ~= "" then
+        parts[#parts + 1] = s
+      end
     end
+  end
+  if #parts == 0 then
+    return ""
   end
   return table.concat(parts, " ")
 end

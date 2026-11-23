@@ -64,6 +64,31 @@ function M.beamer_startup(bufnr)
   return ok and file and file.settings and file.settings.startup and file.settings.startup.beamer and true or false
 end
 
+-- Deferred vim.paste wrapper for dropped files (yank.dnd_paste): installed on
+-- the first org buffer and loads `org.yank` only when pasting inside an org
+-- buffer.
+local function register_paste_hook()
+  if M._paste_wrapped then
+    return
+  end
+  local loaded_yank = package.loaded["org.yank"]
+  if loaded_yank and loaded_yank._paste_wrapped then
+    M._paste_wrapped = true
+    return
+  end
+  M._paste_wrapped = true
+  local orig = vim.paste
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.paste = function(lines, phase)
+    if phase == -1 and vim.bo.filetype == "org" and (config.opts.yank or {}).dnd_paste ~= false then
+      if require("org.yank").handle_paste(lines) then
+        return true
+      end
+    end
+    return orig(lines, phase)
+  end
+end
+
 -- The crypt write hook (org-crypt-use-before-save-magic) until org.crypt
 -- loads and registers its own under the same name: it loads org.crypt only
 -- when `crypt.encrypt_on_save` is on at the time of a write.
@@ -188,6 +213,7 @@ function M.attach(bufnr)
   -- (the attach parts of the larger modules, which load on first use)
   try("org.table.attach", "attach", bufnr)
   try("org.clock.attach", "attach", bufnr)
+  register_paste_hook()
   register_crypt_hook()
   register_written_hook()
   -- speed commands (org.speed.attach): the module loads on a character
