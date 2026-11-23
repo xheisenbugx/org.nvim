@@ -1,6 +1,6 @@
 -- The org.nvim side of the differential test: for an Org file, what each
 -- oracle prints. scripts/emacs-parity/difftest.el prints the same things
--- with Emacs Org 9.8.12; keep the two in step.
+-- with Emacs Org 9.8.13; keep the two in step.
 --
 --   export-<backend>  ox.export_as(backend), body only, Babel off
 --   agenda            "=== <view>" + the text of a few views over the file

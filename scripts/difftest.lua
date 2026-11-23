@@ -1,4 +1,4 @@
--- `make difftest`: org.nvim against Emacs Org 9.8.12 on generated documents
+-- `make difftest`: org.nvim against Emacs Org 9.8.13 on generated documents
 -- (tests/difftest/init.lua). Run with tests/minimal_init.lua:
 --
 --   nvim --headless -u tests/minimal_init.lua -l scripts/difftest.lua
@@ -12,9 +12,9 @@
 --   DIFFTEST_JOBS      Emacs workers (default: CPUs, at most 8)
 --   DIFFTEST_MINIMISE  kinds of failure to shrink (default 20); the others
 --                      are reported with their whole input
---   ORG_EMACS, ORG_LISP_DIR  Emacs and the Org 9.8.12 lisp directory
+--   ORG_EMACS, ORG_LISP_DIR  Emacs and the Org 9.8.13 lisp directory
 -- Exits with 1 when a difference isn't a known one, with 2 on an
--- infrastructure failure: no Emacs with Org 9.8.12, too many Emacs errors
+-- infrastructure failure: no Emacs with Org 9.8.13, too many Emacs errors
 -- or timeouts (tests/difftest/init.lua, M.infrastructure), a crash.
 
 local oracles = require("tests.difftest.oracles")
@@ -41,7 +41,7 @@ end
 
 local problem = emacs.check()
 if problem then
-  io.stderr:write("difftest: Emacs with Org 9.8.12 is needed (ORG_EMACS, ORG_LISP_DIR)\n" .. problem .. "\n")
+  io.stderr:write("difftest: Emacs with Org 9.8.13 is needed (ORG_EMACS, ORG_LISP_DIR)\n" .. problem .. "\n")
   os.exit(2)
 end
 

@@ -493,7 +493,7 @@ org.nvim development (Emacs parity) ~
 Shown only when Emacs is installed or `ORG_EMACS` / `ORG_LISP_DIR` is set:
 which Emacs, and which Org release `ORG_LISP_DIR` (or `ORG_DIR`) holds, read
 from its `org-version.el`. Only maintainers need them, for `make difftest`
-and `make parity-fixtures`, which compare org.nvim with Org 9.8.12.
+and `make parity-fixtures`, which compare org.nvim with Org 9.8.13.
 
 Windows ~
                                                                 *org-windows*

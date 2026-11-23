@@ -378,9 +378,9 @@ by topic, with each command's Vim and Emacs keys on one row.
 
 ## 📊 Parity with Emacs Org
 
-**98.6% of Org 9.8.12's commands, options, Babel languages, link types and
+**98.6% of Org 9.8.13's commands, options, Babel languages, link types and
 export transcoders behave the same in org.nvim** (strict count, October
-2026). Emacs itself lists every one of them in Org 9.8.12; each is classified in
+2026). Emacs itself lists every one of them in Org 9.8.13; each is classified in
 [`docs/parity/inventory.tsv`](docs/parity/inventory.tsv) and scored by
 [`docs/parity/score.sh`](docs/parity/score.sh):
 

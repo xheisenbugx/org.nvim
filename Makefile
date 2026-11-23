@@ -126,12 +126,12 @@ publish-media:
 	else git -C $$d commit -q -m "docs(media): update the README media" && git -C $$d push -q origin HEAD:media; fi; \
 	git worktree remove --force $$d
 
-# Regenerate the Emacs Org 9.8.12 outputs the *_parity specs compare with
+# Regenerate the Emacs Org 9.8.13 outputs the *_parity specs compare with
 # (needs Emacs; see scripts/emacs-parity/README.md). AREAS picks a subset.
 parity-fixtures:
 	scripts/emacs-parity/generate.sh $(AREAS)
 
-# org.nvim against Emacs Org 9.8.12 on COUNT generated documents from SEED
+# org.nvim against Emacs Org 9.8.13 on COUNT generated documents from SEED
 # (default random), for the ORACLES given (default all); differences that
 # aren't known are shrunk and reported in difftest-out/. Needs Emacs:
 # ORG_EMACS and ORG_LISP_DIR (see "Differential testing" in CONTRIBUTING.md).
