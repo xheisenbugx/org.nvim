@@ -291,6 +291,7 @@ function M.from_minutes(minutes, fmt, canonical)
     local seconds = math.fmod(60 * minutes, 60)
     return string.format("%s:%02d", M.from_minutes(whole, "h:mm"), floor(seconds))
   end
+  ---@cast fmt table
   local mode = special(fmt)
   if mode == "h:mm" or mode == "h:mm:ss" then
     -- Mixed format: units above the hour, then H:MM or H:MM:SS.

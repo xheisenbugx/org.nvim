@@ -443,7 +443,7 @@ function M.decrypt_entry(target)
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local s, e = encrypted_range(lines, hl)
-  if not s then
+  if not s or not e then
     return nil
   end
   check_auto_save(bufnr)
@@ -481,7 +481,7 @@ function M.decrypt_entry(target)
   local folded = bufnr == vim.api.nvim_get_current_buf() and vim.fn.foldclosed(hl.line) ~= -1
   vim.api.nvim_buf_set_lines(bufnr, s - 1, e, false, new)
   if folded and vim.fn.foldclosed(hl.line) == -1 then
-    pcall(vim.cmd, hl.line .. "foldclose")
+    pcall(vim.api.nvim_command, hl.line .. "foldclose")
   end
   return true
 end

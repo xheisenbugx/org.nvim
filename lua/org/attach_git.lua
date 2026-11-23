@@ -115,9 +115,12 @@ function M.annex_get_maybe(path, dir)
   if found == "found" then
     return
   end
-  local get = cfg().git_annex_auto_get
-  if get == nil or get == "ask" then
+  local auto_get = cfg().git_annex_auto_get
+  local get
+  if auto_get == nil or auto_get == "ask" then
     get = utils.confirm(string.format("Run git annex get %s?", rel))
+  else
+    get = auto_get
   end
   if not get then
     error(string.format("File %s stored in git annex but unavailable", path), 0)

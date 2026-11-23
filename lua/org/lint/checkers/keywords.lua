@@ -258,10 +258,10 @@ end
 local function placeholders(template)
   local seen, args = {}, {}
   for n in template:gmatch("%$([1-9]%d*)") do
-    n = tonumber(n)
-    if not seen[n] then
-      seen[n] = true
-      args[#args + 1] = n
+    local idx = tonumber(n)
+    if idx and not seen[idx] then
+      seen[idx] = true
+      args[#args + 1] = idx
     end
   end
   table.sort(args)

@@ -146,6 +146,9 @@ end
 --- (org-protocol-project-alist), or nil.
 function M.source_file(url)
   url = M.sanitize_uri(url)
+  if not url then
+    return nil
+  end
   for _, p in ipairs(cfg().projects or {}) do
     local base = p.base_url
     local s = base and url:find(base, 1, true)
@@ -218,8 +221,8 @@ function M.create(project)
   if base_url:sub(-1) ~= "/" then
     base_url = base_url .. "/"
   end
-  local wdir = utils.expand(project.base_directory or vim.fn.getcwd())
-  wdir = ask("Local working directory: ", wdir)
+  local default_wdir = utils.expand(project.base_directory or vim.fn.getcwd())
+  local wdir = ask("Local working directory: ", default_wdir)
   if not wdir then
     return nil
   end
@@ -227,13 +230,13 @@ function M.create(project)
   if wdir:sub(-1) ~= "/" then
     wdir = wdir .. "/"
   end
-  local strip = project.html_extension or ".html"
-  strip = ask("Extension to strip from published URLs (" .. strip .. "): ", strip)
+  local default_strip = project.html_extension or ".html"
+  local strip = ask("Extension to strip from published URLs (" .. default_strip .. "): ", default_strip)
   if not strip then
     return nil
   end
-  local suffix = project.base_extension and ("." .. project.base_extension) or ".org"
-  suffix = ask("Extension of editable files (" .. suffix .. "): ", suffix)
+  local default_suffix = project.base_extension and ("." .. project.base_extension) or ".org"
+  local suffix = ask("Extension of editable files (" .. default_suffix .. "): ", default_suffix)
   if not suffix then
     return nil
   end

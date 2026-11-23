@@ -335,7 +335,9 @@ end
 ---@param bufnr? integer
 function M.apply(bufnr)
   require("org.highlights").ensure()
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
   cmd("syntax clear")
   cmd("syntax spell toplevel")
   src_regions(bufnr, require("org.config").opts)

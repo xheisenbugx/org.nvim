@@ -253,8 +253,8 @@ local function at_headline_data(ctx, el)
   elseif el.type == "drawer" then
     local name = (ctx.lines[el.post] or ""):match("^%s*:([%w_%-]+):")
     local log = config.opts.log_into_drawer
-    log = log == true and "LOGBOOK" or log
-    return type(log) == "string" and name ~= nil and name:upper() == log:upper()
+    local drawer = log == true and "LOGBOOK" or log
+    return type(drawer) == "string" and name ~= nil and name:upper() == drawer:upper()
   elseif el.type == "clock" then
     local p = el.first - 1
     return p < 1 or at_headline_data(ctx, at_eol(ctx, p))
