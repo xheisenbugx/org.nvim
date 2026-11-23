@@ -85,7 +85,15 @@ end
 ---@param opts? org.Config user options; omitted fields keep their defaults
 ---@return org the `org` module itself, so calls can be chained
 function M.setup(opts)
-  require("org.config").setup(opts)
+  local config = require("org.config")
+  config.setup(opts)
+  local unknown = config.unknown_top_level(opts)
+  if #unknown > 0 then
+    local msg = config.format_unknown_warning(unknown)
+    if msg then
+      require("org.utils").warn(msg)
+    end
+  end
   -- the agenda file list saved by agenda_file_to_front / remove_file
   require("org.files").load_saved_agenda_files()
   did_setup = true
