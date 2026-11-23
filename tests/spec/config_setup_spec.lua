@@ -100,4 +100,48 @@ describe("org.setup called again", function()
     end
     eq(count, vim.tbl_count(config.defaults))
   end)
+
+  it("knows every top-level field declared on org.Config in lua/org/_meta/config.lua", function()
+    local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
+    local in_config, missing = false, {}
+    for _, line in ipairs(vim.fn.readfile(root .. "/lua/org/_meta/config.lua")) do
+      local cls = line:match("^%-%-%-@class%s+(%S+)")
+      if cls then
+        in_config = cls == "org.Config"
+      end
+      if in_config then
+        local field = line:match("^%-%-%-@field%s+([%w_]+)%??%s")
+        if field and config.defaults[field] == nil and not config.NIL_DEFAULTS[field] then
+          missing[#missing + 1] = field
+        end
+      end
+    end
+    eq({}, missing)
+  end)
+
+  it("warns on unknown top-level options with suggestions", function()
+    local utils = require("org.utils")
+    local ok_clean, msgs_clean = utils.noninteractive(function()
+      require("org").setup({ cycle_max_level = 3, agenda_files = {} })
+    end)
+    eq(true, ok_clean)
+    eq({}, msgs_clean)
+
+    local ok_typo, msgs_typo = utils.noninteractive(function()
+      require("org").setup({ agnda_files = {} })
+    end)
+    eq(true, ok_typo)
+    eq(1, #msgs_typo)
+    eq(vim.log.levels.WARN, msgs_typo[1].level)
+    ok(msgs_typo[1].msg:find("`agnda_files` (did you mean `agenda_files`?)", 1, true), msgs_typo[1].msg)
+
+    local ok_mig, msgs_mig = utils.noninteractive(function()
+      require("org").setup({ org_agenda_files = {} })
+    end)
+    eq(true, ok_mig)
+    eq(1, #msgs_mig)
+    eq(vim.log.levels.WARN, msgs_mig[1].level)
+    ok(msgs_mig[1].msg:find("`org_agenda_files` (did you mean `agenda_files`?)", 1, true), msgs_mig[1].msg)
+    ok(msgs_mig[1].msg:find(":Org migrate_config", 1, true), msgs_mig[1].msg)
+  end)
 end)

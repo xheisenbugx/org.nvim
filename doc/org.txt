@@ -7600,7 +7600,9 @@ groups.
 Recommended options ~
                                                       *org-config-recommended*
 The options most setups change, with their defaults. The rest of this
-chapter lists every option.
+chapter lists every option. Unknown top-level options passed to `setup()`
+emit a warning with suggestions (`:checkhealth org` checks nested options
+and extension options too).
 
   org_directory = "~/org"
       Base directory: relative paths (capture targets, ...) start here.
