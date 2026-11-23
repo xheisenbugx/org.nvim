@@ -53,30 +53,8 @@ local function word_char(c)
   return c ~= "" and (c:match("[%w_]") ~= nil or c:byte() >= 128)
 end
 
+local date = require("org.date")
 local DAYS = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
-
-local function days_from_civil(y, m, d)
-  y = m <= 2 and y - 1 or y
-  local era = math.floor(y / 400)
-  local yoe = y - era * 400
-  local mp = (m + 9) % 12
-  local doy = math.floor((153 * mp + 2) / 5) + d - 1
-  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
-  return era * 146097 + doe - 719468
-end
-
-local function civil_from_days(z)
-  z = z + 719468
-  local era = math.floor(z / 146097)
-  local doe = z - era * 146097
-  local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
-  local y = yoe + era * 400
-  local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
-  local mp = math.floor((5 * doy + 2) / 153)
-  local d = doy - math.floor((153 * mp + 2) / 5) + 1
-  local m = mp < 10 and mp + 3 or mp - 9
-  return m <= 2 and y + 1 or y, m, d
-end
 
 --- `format-time-string` of `org-timestamp-formats` (without brackets) for a
 --- date that may be out of range (normalized like `encode-time`).
@@ -84,9 +62,9 @@ local function format_date(y, mo, d, h, mi)
   local total = (h or 0) * 60 + (mi or 0)
   y = y + math.floor((mo - 1) / 12)
   mo = (mo - 1) % 12 + 1
-  local days = days_from_civil(y, mo, 1) + d - 1 + math.floor(total / 1440)
+  local days = date.days_from_civil(y, mo, 1) + d - 1 + math.floor(total / 1440)
   total = total % 1440
-  local yy, mm, dd = civil_from_days(days)
+  local yy, mm, dd = date.civil_from_days(days)
   local s = string.format("%04d-%02d-%02d %s", yy, mm, dd, DAYS[(days + 4) % 7 + 1])
   if h and mi then
     s = s .. string.format(" %02d:%02d", math.floor(total / 60), total % 60)
