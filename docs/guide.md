@@ -58,7 +58,7 @@ org.nvim exists because I wanted something those projects don't aim for:
 **On AI:** org.nvim is written with AI assistance
 ([Claude Code](https://claude.com/claude-code)). To keep that honest, its
 behaviour is checked against the Emacs Org source rather than guessed,
-every feature comes with headless tests (`make test`, 4,800+ of them), and
+every feature comes with headless tests (`make test`, 6,000+ of them), and
 I review and use every change myself. Bug reports are very welcome,
 especially where it doesn't match Emacs.
 
