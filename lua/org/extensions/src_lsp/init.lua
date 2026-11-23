@@ -22,7 +22,7 @@
 local M = {}
 
 --- See :h org-extensions-stability (scripts/extension_report.lua measures it).
-M.stability = "experimental"
+M.stability = "stable"
 
 M.defaults = {
   --- Languages whose blocks get their language servers: a list of
