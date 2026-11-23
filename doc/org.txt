@@ -8382,7 +8382,10 @@ Insert mode). Keys marked (ctx) depend on the cursor, like in Emacs.
 A count stands in for C-u (e.g. `4<C-c>.` is `C-u C-c .`).
 
 With which-key.nvim, the C-c C-x, C-c C-v and C-c " groups are labelled
-("org C-x ...", "org babel (C-v)", "org plot"). which-key lists them after
+("org C-x ...", "org babel (C-v)", "org plot"), and org.nvim keeps <C-c><C-c>
+(and other sequences containing a follow-up <C-c>) working when which-key's
+popup catches the first <C-c> while still letting <C-c> cancel popups that have
+no <C-c> continuation. which-key lists those groups after
 the keys directly under C-c, below the end of its popup, and its default
 scroll keys <C-d> and <C-u> are org's own C-c C-d (deadline) and C-c C-u
 (parent heading). To scroll that popup, give which-key other keys: >lua
