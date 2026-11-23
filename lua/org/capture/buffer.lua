@@ -172,27 +172,28 @@ end
 local function map_unnarrowed(s)
   local bufnr = s.bufnr
   local maps = config.opts.mappings.capture or {}
+  local fmt_desc = require("org.mappings").format_desc
   local actions = {
     {
       maps.finalize,
       function()
         utils.run(M.finalize, bufnr, { jump = vim.v.count > 0 })
       end,
-      "org: finalize capture (count: and jump to it)",
+      fmt_desc("finalize capture (count: and jump to it)"),
     },
     {
       maps.kill,
       function()
         M.kill(bufnr)
       end,
-      "org: abort capture",
+      fmt_desc("abort capture"),
     },
     {
       maps.refile,
       function()
         utils.run(M.refile, bufnr)
       end,
-      "org: refile capture",
+      fmt_desc("refile capture"),
     },
   }
   s.maps = {}
@@ -504,6 +505,7 @@ local function open_buffer(tpl, text, ctx)
   vim.wo[win].winbar = hint()
 
   local maps = config.opts.mappings.capture or {}
+  local fmt_desc = require("org.mappings").format_desc
   local insert = {}
   local function set(lhs, fn, desc)
     local modes = capture_modes(lhs)
@@ -516,22 +518,22 @@ local function open_buffer(tpl, text, ctx)
     set(lhs, function()
       local jump = vim.v.count > 0
       utils.run(M.finalize, buf, { jump = jump })
-    end, "org: finalize capture (count: and jump to it)")
+    end, fmt_desc("finalize capture (count: and jump to it)"))
   end
   for _, lhs in ipairs(config.lhs_list(maps.kill)) do
     set(lhs, function()
       M.kill(buf)
-    end, "org: abort capture")
+    end, fmt_desc("abort capture"))
   end
   for _, lhs in ipairs(config.lhs_list(maps.refile)) do
     set(lhs, function()
       utils.run(M.refile, buf)
-    end, "org: refile capture")
+    end, fmt_desc("refile capture"))
   end
   for prefix, entries in pairs(by_prefix(insert)) do
     vim.keymap.set("i", prefix, function()
       read_after_prefix(prefix, entries)
-    end, { buffer = buf, desc = "org: capture keys" })
+    end, { buffer = buf, desc = fmt_desc("capture keys") })
   end
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = buf,
