@@ -122,6 +122,49 @@ describe("emacs keys", function()
     eq(nil, labels["<C-C><C-X>"])
     eq("narrow", labels[config.lhs_list("<prefix>n")[1]])
   end)
+  -- #405: which-key's getcharstr() raises "Keyboard interrupt" on a second <C-c>
+  it("keeps <C-c><C-c> working with which-key while <C-c> still cancels other popups", function()
+    local saved_wk = package.loaded["which-key"]
+    local saved_state = package.loaded["which-key.state"]
+    local has_ctrl_c_child = true
+    local fake_state = {
+      state = {
+        node = {
+          find = function(_, key, opts)
+            if has_ctrl_c_child and key == "<C-C>" and opts and opts.expand then
+              return { keys = "<C-C><C-C>" }
+            end
+          end,
+        },
+      },
+      getchar = function()
+        return false, "Keyboard interrupt"
+      end,
+    }
+    package.loaded["which-key"] = { add = function() end }
+    package.loaded["which-key.state"] = fake_state
+
+    require("org.mappings").register_which_key()
+    -- when the active node has a <C-C> child, Keyboard interrupt becomes <C-c>
+    local gok, ch = fake_state.getchar()
+    eq(true, gok)
+    eq(vim.keycode("<C-c>"), ch)
+
+    -- when the active node has no <C-C> child, Keyboard interrupt stays an interrupt
+    has_ctrl_c_child = false
+    local cok, cerr = fake_state.getchar()
+    eq(false, cok)
+    eq("Keyboard interrupt", cerr)
+
+    -- patching again is idempotent (does not double-wrap)
+    local wrapped = fake_state.getchar
+    require("org.mappings")._patch_which_key()
+    eq(wrapped, fake_state.getchar)
+
+    package.loaded["which-key"] = saved_wk
+    package.loaded["which-key.state"] = saved_state
+  end)
+
   it("<C-c><C-x><C-f> names a special key it doesn't take", function()
     local buf = org_buffer({ "word" }, { 1, 0 })
     local utils = require("org.utils")

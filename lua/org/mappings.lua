@@ -297,6 +297,41 @@ function M.attach(bufnr)
     end
   end
   vim.b[bufnr].org_keymaps = record
+  if package.loaded["which-key"] then
+    M._patch_which_key()
+  end
+end
+
+local CTRL_C_KEY = vim.keycode("<C-c>")
+local CTRL_C_TRANS = vim.fn.keytrans(CTRL_C_KEY)
+
+--- which-key reads follow-up keys with `pcall(vim.fn.getcharstr)`. Pressing
+--- <C-c> there raises "Keyboard interrupt" in terminals / Neovim, so which-key
+--- aborts the sequence and <C-c><C-c> (and <C-c><C-x><C-c>, ...) never fire
+--- (#405). Turn that interrupt back into <C-c> when the active which-key node
+--- actually has a <C-c> continuation; otherwise keep the interrupt so <C-c>
+--- still cancels popups with no <C-c> child.
+function M._patch_which_key()
+  local ok, state = pcall(require, "which-key.state")
+  if not ok or type(state) ~= "table" or type(state.getchar) ~= "function" then
+    return
+  end
+  if state._org_ctrl_c_patched then
+    return
+  end
+  state._org_ctrl_c_patched = true
+  local orig = state.getchar
+  state.getchar = function()
+    local gok, char = orig()
+    if not gok and tostring(char):find("Keyboard interrupt", 1, true) then
+      local st = state.state
+      local node = type(st) == "table" and st.node or nil
+      if type(node) == "table" and type(node.find) == "function" and node:find(CTRL_C_TRANS, { expand = true }) then
+        return true, CTRL_C_KEY
+      end
+    end
+    return gok, char
+  end
 end
 
 local groups = {
@@ -345,8 +380,19 @@ end
 function M.register_which_key()
   local ok, wk = pcall(require, "which-key")
   if not ok or not wk.add then
+    vim.api.nvim_create_autocmd("User", {
+      group = vim.api.nvim_create_augroup("OrgWhichKey", { clear = true }),
+      pattern = "VeryLazy",
+      once = true,
+      callback = function()
+        if package.loaded["which-key"] then
+          M.register_which_key()
+        end
+      end,
+    })
     return
   end
+  M._patch_which_key()
   local prefix = config.opts.mappings.prefix or "<leader>o"
   local spec = {}
   local all = vim.list_extend({}, groups)
