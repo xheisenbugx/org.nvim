@@ -202,6 +202,45 @@ function P:fill_paragraph(node, ignore_first)
   local text = table.concat(lines, "\n") .. (node.no_final_newline and "" or "\n")
   node.contents =
     self:parse_objects(text, M.RESTRICTIONS[node.type == "verse-block" and "verse-block" or "paragraph"], node)
+  -- Emacs's org-element-normalize-contents strips common indentation from
+  -- plain-text strings in place, leaving "" before an object on an indented
+  -- first line or right after a line-break (org-export--keep-spaces then
+  -- sees a previous plain-text node not ending in whitespace).
+  local stripped = {}
+  local any_stripped = false
+  for k = 1, #lines do
+    if node.raw_lines[k] and #lines[k] < #node.raw_lines[k] then
+      stripped[k] = true
+      any_stripped = true
+    end
+  end
+  if any_stripped then
+    local line_no = 1
+    if not ignore_first and stripped[1] and node.contents[1] and node.contents[1].type ~= "plain-text" then
+      table.insert(node.contents, 1, M.text("", node))
+    end
+    local function mark_after_breaks(container)
+      local list = container.contents
+      local j = 1
+      while j <= #list do
+        local c = list[j]
+        if c.type == "line-break" then
+          line_no = line_no + 1
+          if stripped[line_no] and list[j + 1] and list[j + 1].type ~= "plain-text" then
+            table.insert(list, j + 1, M.text("", container))
+            j = j + 1
+          end
+        elseif c.type == "plain-text" or c.value then
+          local _, n = (c.value or ""):gsub("\n", "")
+          line_no = line_no + n
+        elseif c.contents and #c.contents > 0 then
+          mark_after_breaks(c)
+        end
+        j = j + 1
+      end
+    end
+    mark_after_breaks(node)
+  end
   -- Emacs only removes the common indentation from plain text
   -- (org-element-normalize-contents): multi-line verbatim values keep it
   local removed, last = 0, #lines
