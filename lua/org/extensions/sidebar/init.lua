@@ -102,7 +102,7 @@ function M.teardown()
 end
 
 function M.health(h, o)
-  local inbox = (o and o.inbox_file) or require("org.config").opts.default_notes_file
+  local inbox = (o and o.inbox_file) or require("org.api").option("default_notes_file")
   if inbox and not utils.exists(utils.expand(inbox)) then
     h.warn("sidebar: inbox file not found: " .. inbox)
   else
@@ -272,7 +272,7 @@ function M.collect(o, cache)
     data.clock = a
   end
   data.pomodoro = pomodoro()
-  local inbox = o.inbox_file or require("org.config").opts.default_notes_file
+  local inbox = o.inbox_file or require("org.api").option("default_notes_file")
   if inbox then
     local path = utils.expand(inbox)
     local f = require("org.files").get(path)
@@ -622,7 +622,7 @@ function M.open()
     events = { "OrgPomodoroPhase" },
     -- the agenda files and the inbox; other org buffers don't matter
     relevant = function(b)
-      local inbox = o.inbox_file or require("org.config").opts.default_notes_file
+      local inbox = o.inbox_file or require("org.api").option("default_notes_file")
       if inbox and views.same_file(vim.api.nvim_buf_get_name(b), utils.expand(inbox)) then
         return true
       end

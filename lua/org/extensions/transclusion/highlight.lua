@@ -260,8 +260,8 @@ function M.org(lines, todo_cfg)
         if not chunks and (block == "quote" or block == "verse") then
           -- Org text, on OrgQuoteBlock / OrgVerseBlock with
           -- ui.fontify_quote_and_verse_blocks (org-fontify-quote-and-verse-blocks)
-          local ui = require("org.config").opts.ui or {}
-          local base = ui.fontify_quote_and_verse_blocks and (block == "quote" and "OrgQuoteBlock" or "OrgVerseBlock")
+          local base = require("org.api").option("ui.fontify_quote_and_verse_blocks")
+              and (block == "quote" and "OrgQuoteBlock" or "OrgVerseBlock")
             or nil
           chunks = M.inline(line, base)
         end

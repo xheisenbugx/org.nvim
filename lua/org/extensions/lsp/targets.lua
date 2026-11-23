@@ -481,7 +481,7 @@ function M.resolve(doc, link)
       return M.locate(doc.path, link.path)
     end
     -- a link type that can say where it points (the code extension's code:)
-    local lt = (require("org.config").opts.links.types or {})[link.type]
+    local lt = (require("org.api").option("links.types") or {})[link.type]
     if type(lt) == "table" and type(lt.locate) == "function" then
       local ok, loc = pcall(lt.locate, link.path, doc.path or doc.bufnr)
       if ok and type(loc) == "table" and loc.path then

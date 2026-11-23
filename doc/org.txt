@@ -8832,6 +8832,8 @@ and `heatmap` extensions are built on it): `api.today()`,
 
 API 1.4 added the `OrgFileWritten` event (|org-api-events|).
 
+API 1.5 added `api.option()` for reading resolved configuration options.
+
 Files ~
                                                            *org-api-files*
 api.agenda_files()          Absolute paths of the agenda files.
@@ -8851,6 +8853,13 @@ api.todo_keywords([where])  The TODO keywords in effect `{ todo, done,
                             (org-todo-keywords-1). nil and an error for a
                             file that can't be read or a buffer that isn't
                             org. Since API 1.3.
+api.option(path)            Read a resolved configuration option by
+                            dot-separated `path` (e.g. `"org_directory"`,
+                            `"ui.todo_keyword_faces"`,
+                            `"agenda.save_after_edit"`), or nil when a
+                            segment does not exist. Returned tables are
+                            read-only views and must not be mutated. Since
+                            API 1.5.
 
 A file is `{ file, bufnr, title, category, filetags, properties,
 todo_keywords = { todo, done, all }, headlines }`: `file` is the path (nil

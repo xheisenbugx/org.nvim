@@ -354,7 +354,7 @@ local function sexp_stamp(days, time)
 end
 
 local function default_opts()
-  local config = require("org.config").opts
+  local api = require("org.api")
   local todo = require("org.todo_keywords").global()
   local ext = require("org.extensions").opts("quickadd") or {}
   local kw = ext.keyword
@@ -367,8 +367,8 @@ local function default_opts()
       return k.name
     end, todo.keywords),
     date_kind = ext.date_kind or "scheduled",
-    priority_highest = config.priority_highest or "A",
-    priority_lowest = config.priority_lowest or "C",
+    priority_highest = api.option("priority_highest") or "A",
+    priority_lowest = api.option("priority_lowest") or "C",
   }
 end
 

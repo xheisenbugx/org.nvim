@@ -731,9 +731,9 @@ local function excluded(tags, lines, filename)
         ex[t] = true
       end
     end
-  elseif (require("org.config").opts.export or {}).exclude_tags then
+  elseif require("org.api").option("export.exclude_tags") then
     ex = {}
-    for _, t in ipairs(require("org.config").opts.export.exclude_tags) do
+    for _, t in ipairs(require("org.api").option("export.exclude_tags")) do
       ex[t] = true
     end
   end
@@ -969,7 +969,7 @@ function M.export_as_buffer(o)
   pcall(vim.api.nvim_set_option_value, "filetype", "markdown", { buf = buf })
   pcall(vim.api.nvim_buf_set_name, buf, "*Org Hugo Export* #" .. buf)
   vim.bo[buf].modified = false
-  local show = (require("org.config").opts.export or {}).show_temporary_export_buffer ~= false
+  local show = require("org.api").option("export.show_temporary_export_buffer") ~= false
   if show and not o.hidden then
     vim.cmd("vsplit")
     vim.api.nvim_win_set_buf(0, buf)

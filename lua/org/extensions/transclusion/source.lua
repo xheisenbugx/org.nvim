@@ -890,7 +890,7 @@ resolve = function(spec, ctx)
   ctx = ctx or {}
   -- a link type that says what to transclude (the code extension's code:
   -- gives the file, the lines of the definition and its language)
-  local lt = (require("org.config").opts.links.types or {})[spec.type]
+  local lt = (require("org.api").option("links.types") or {})[spec.type]
   if type(lt) == "table" and type(lt.transclude) == "function" then
     local ok, conv, err = pcall(lt.transclude, spec.path, ctx)
     if not ok or type(conv) ~= "table" or not conv.path then
