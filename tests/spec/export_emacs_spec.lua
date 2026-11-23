@@ -1223,3 +1223,29 @@ describe("export: the end of a buffer or subtree without a newline (Emacs 9.8.10
     has(export.to_string("html", { bufnr = buf, body_only = true, subtree_line = 3 }), "<p>\nb text</p>")
   end)
 end)
+
+describe("export: leading indent before an omitted object (Emacs 9.8.12)", function()
+  -- org-element-normalize-contents strips common indentation from the leading
+  -- plain-text string in place, leaving "" before the first object; then
+  -- org-export--keep-spaces sees a previous plain-text node not ending in
+  -- whitespace and preserves the omitted object's :post-blank spaces
+  -- (difftest seed 7986281, #402).
+  it("preserves post-blank spaces after an indented leading target or export snippet", function()
+    eq(
+      " plan <https://example.com>\n",
+      (ox.export_as("ascii", { " <<target>> plan [[https://example.com]]" }, { body_only = true }))
+    )
+    eq(" plan\n", (ox.export_as("ascii", { "\t<<target>> plan" }, { body_only = true })))
+    eq("  plan\n", (ox.export_as("ascii", { " <<target>>  plan" }, { body_only = true })))
+    eq("plan\n", (ox.export_as("ascii", { "<<target>> plan" }, { body_only = true })))
+    eq("- plan\n", (ox.export_as("ascii", { "- <<target>> plan" }, { body_only = true })))
+    eq(" plan\n", (ox.export_as("ascii", { " @@latex:x@@ plan" }, { body_only = true })))
+    eq("<p>\n plan\n</p>\n", (ox.export_as("html", { " @@latex:x@@ plan" }, { body_only = true })))
+    eq(
+      "1) a:b\n    plan <https://example.com>\n",
+      (ox.export_as("ascii", { "1) a:b \\\\", " <<target>> plan [[https://example.com]]" }, { body_only = true }))
+    )
+    eq("a\n plan\n", (ox.export_as("ascii", { " a \\\\", " <<target>> plan" }, { body_only = true })))
+    eq("a\nplan\n", (ox.export_as("ascii", { "a \\\\", "<<target>> plan" }, { body_only = true })))
+  end)
+end)
