@@ -451,10 +451,12 @@ function M.meta_return_heading(opts)
     else
       add_todo_keyword(bufnr, kw ~= "" and kw or nil)
     end
-    require("org.lists").update_statistics_for(bufnr, cursor()[1])
-    local hl = files.get_buffer(bufnr):headline_on(cursor()[1])
-    if hl then
-      todo.run_statistics_hooks(bufnr, hl)
+    if config.opts.provide_todo_statistics ~= false then
+      require("org.lists").update_parent_todo_statistics(bufnr, cursor()[1])
+      local hl = files.get_buffer(bufnr):headline_on(cursor()[1])
+      if hl then
+        todo.run_statistics_hooks(bufnr, hl)
+      end
     end
   end
 end

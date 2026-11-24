@@ -393,6 +393,75 @@ describe("lists: statistics cookies (make difftest, commands oracle)", function(
     require("org.todo").select_or_cycle()
     eq({ "* P [1/1]" .. string.rep(" ", 65) .. ":x:", "** DONE a" }, buf_lines(buf))
   end)
+
+  it("counts only headlines at the toggled headline's level when not recursive (issue #414)", function()
+    -- org-update-parent-todo-statistics (org.el): scans every descendant of
+    -- the parent (l1 > level), taking a headline's TODO keyword only when
+    -- recursive or l1 == ltoggle (the level of the changed headline)
+    local todo = require("org.todo")
+    local structure = require("org.structure")
+
+    -- exact minimal case from make difftest seed 2474750: demoting one child
+    -- puts it at level 4; toggling the remaining level-3 child ignores it
+    local buf = org_buffer({
+      "** (paren) foo-bar 42 plan [%]",
+      "*** DONE",
+      "*** DONE",
+    }, { 2, 0 })
+    structure.demote_subtree()
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    todo.select_or_cycle()
+    eq({ "** (paren) foo-bar 42 plan [0%]", "**** DONE", "*** " }, buf_lines(buf))
+
+    -- toggling a level-4 direct child scans the whole subtree for level-4
+    -- headings, including one under a level-3 sibling
+    buf = org_buffer({ "** P [/]", "**** TODO a", "*** Sub", "**** TODO c" }, { 2, 0 })
+    todo.select_or_cycle()
+    eq({ "** P [1/2]", "**** DONE a", "*** Sub", "**** TODO c" }, buf_lines(buf))
+
+    -- C-c # (org-update-statistics-cookies) jumps to the first child heading
+    -- (level 4 here); C-u C-c # visits every heading top-down (last is level 3)
+    buf = org_buffer({ "** P [/]", "**** DONE a", "*** TODO b" }, { 1, 0 })
+    lists.update_statistics()
+    eq("** P [1/1]", buf_lines(buf)[1])
+    lists.update_all_statistics(buf)
+    eq("** P [0/1]", buf_lines(buf)[1])
+
+    -- with hierarchical_todo_statistics = false (recursive), all descendants count
+    local cfg = require("org.config").opts
+    local saved_hier, saved_provide, saved_hooks =
+      cfg.hierarchical_todo_statistics, cfg.provide_todo_statistics, cfg.after_todo_statistics_hooks
+    local ok_err, err = pcall(function()
+      cfg.hierarchical_todo_statistics = false
+      buf = org_buffer({ "** P [%]", "**** DONE a", "*** DONE b" }, { 3, 0 })
+      todo.select_or_cycle()
+      eq("** P [100%]", buf_lines(buf)[1])
+
+      -- org-after-todo-statistics-hook gets the same ltoggle-filtered counts
+      cfg.hierarchical_todo_statistics = true
+      local got
+      cfg.after_todo_statistics_hooks = {
+        function(n_done, n_not_done)
+          got = { n_done, n_not_done }
+        end,
+      }
+      buf = org_buffer({ "** P [%]", "**** DONE a", "*** DONE b" }, { 3, 0 })
+      todo.select_or_cycle()
+      eq({ 0, 0 }, got)
+      cfg.after_todo_statistics_hooks = {}
+
+      -- org-provide-todo-statistics = 'all-headlines counts every descendant
+      -- headline in the total, and only l1 == ltoggle done headlines in done
+      cfg.provide_todo_statistics = "all-headlines"
+      buf = org_buffer({ "* P [/]", "** TODO a", "*** TODO a1", "** plain" }, { 2, 0 })
+      todo.select_or_cycle()
+      eq("* P [1/3]", buf_lines(buf)[1])
+    end)
+    cfg.hierarchical_todo_statistics = saved_hier
+    cfg.provide_todo_statistics = saved_provide
+    cfg.after_todo_statistics_hooks = saved_hooks
+    assert(ok_err, err)
+  end)
 end)
 
 describe("lists: parents of ill-formed lists (org-list-parents-alist, make difftest #294)", function()

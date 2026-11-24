@@ -185,4 +185,32 @@ return {
       },
     },
   },
+  {
+    name = "TODO statistics cookie counts only headings at the toggled level",
+    files = {
+      ["plan.org"] = {
+        "** Plan [%]",
+        "**** DONE Deeper",
+        "*** DONE Sibling",
+      },
+    },
+    open = "plan.org",
+    steps = {
+      { at = "Sibling" },
+      {
+        note = "org-update-parent-todo-statistics: ignores the level-4 heading when toggling a level-3 one",
+        key = "{{org.todo_next}}",
+        expect = { screen = { "** Plan [0%]", "**** DONE Deeper", "*** Sibling" } },
+      },
+      { cmd = "write" },
+      {
+        expect = {
+          file = {
+            "plan.org",
+            lines = { "** Plan [0%]", "**** DONE Deeper", "*** Sibling" },
+          },
+        },
+      },
+    },
+  },
 }
