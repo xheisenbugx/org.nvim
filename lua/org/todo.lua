@@ -313,7 +313,7 @@ end
 local function statistics_ancestors(hl)
   local parent = hl.parent
   if not parent then
-    return {}
+    return {}, false
   end
   local recursive = config.opts.hierarchical_todo_statistics == false
   local limit = 0
@@ -341,7 +341,7 @@ local function statistics_ancestors(hl)
     end
     h = h.parent
   end
-  return out
+  return out, recursive
 end
 
 --- Run the statistics hooks after the TODO state of `hl` changed:
@@ -356,11 +356,12 @@ function M.run_statistics_hooks(bufnr, hl)
   local after = cfg.after_todo_statistics_hooks or {}
   local lnum = hl.line
   if #after > 0 then
-    for _, l in ipairs(statistics_ancestors(hl)) do
+    local ancestors, recursive = statistics_ancestors(hl)
+    for _, l in ipairs(ancestors) do
       local file = files.get_buffer(bufnr)
       local cur = file:headline_on(l)
       if cur and (cur.raw:find("%[%d*%%%]") or cur.raw:find("%[%d*/%d*%]")) then
-        local done, total = require("org.lists").todo_counts(file, cur)
+        local done, total = require("org.lists").todo_counts(file, cur, recursive, hl.level)
         for _, fn in ipairs(after) do
           local ok, err = pcall(fn, done, total - done, { bufnr = bufnr, lnum = cur.line })
           if not ok then
