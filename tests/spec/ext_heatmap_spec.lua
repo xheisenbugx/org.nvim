@@ -398,9 +398,11 @@ describe("heatmap edges", function()
     local weeks = st.weeks
     vim.o.columns = 80
     vim.api.nvim_exec_autocmds("VimResized", {})
+    local resized_weeks = st.weeks
+    local width = vim.api.nvim_win_get_width(st.win)
     vim.o.columns = columns
-    ok(st.weeks < weeks, st.weeks .. " < " .. weeks)
-    ok(vim.api.nvim_win_get_width(st.win) <= 78)
+    ok(resized_weeks < weeks, resized_weeks .. " < " .. weeks)
+    ok(width <= 78)
   end)
 
   it("stays open when it opens the agenda from a split", function()

@@ -458,10 +458,11 @@ describe("timeline details", function()
     local columns = vim.o.columns
     vim.o.columns = 40
     local st = timeline.open()
-    vim.o.columns = columns
-    ok(st.cells >= 5, st.cells)
+    local cells = st.cells
     local _, l = line_of(st, "NEXT Build")
-    ok(vim.fn.strdisplaywidth(l:match("^(.-)│")) <= 16, l)
+    vim.o.columns = columns
+    ok(cells >= 5, cells)
+    ok(l and vim.fn.strdisplaywidth(l:match("^(.-)│")) <= 16, l)
   end)
 
   it("shows the filter and the tag", function()
