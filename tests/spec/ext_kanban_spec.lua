@@ -578,10 +578,11 @@ describe("kanban board edges", function()
     local columns = vim.o.columns
     vim.o.columns = columns - 10
     vim.api.nvim_exec_autocmds("VimResized", {})
+    local width = vim.api.nvim_win_get_width(st.win)
     vim.o.columns = columns
     undo()
     eq(0, n[1])
-    ok(vim.api.nvim_win_get_width(st.win) <= columns - 12)
+    ok(width <= columns - 12)
   end)
 
   it("keeps the card borders aligned with wide characters", function()
