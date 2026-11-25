@@ -14,6 +14,12 @@ This file is generated from the git history by `make changelog`
 
 - **lists:** Count only headlines at the toggled level in TODO statistics cookies ([#415](https://github.com/xheisenbugx/org.nvim/pull/415))
 
+<details><summary>Tests, CI and chores (1)</summary>
+
+- **test(views):** Read resized layout before restoring vim.o.columns ([eb0bf90](https://github.com/xheisenbugx/org.nvim/commit/eb0bf9040cda82204b85c3d60067428fc20b210a))
+
+</details>
+
 ## [v3.7.0] - 2026-11-23
 
 ### Features
