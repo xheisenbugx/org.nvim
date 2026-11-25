@@ -50,13 +50,17 @@ local function count_checkboxes(items, recursive)
 end
 
 --- Done and total counts of the child entries of `hl` that a TODO
---- statistics cookie counts (org-provide-todo-statistics).
+--- statistics cookie counts (org-provide-todo-statistics,
+--- org-update-parent-todo-statistics).
 ---@param file org.File
 ---@param hl org.Headline
 ---@param recursive? boolean count every descendant (default: from the
 ---  entry's COOKIE_DATA and `hierarchical_todo_statistics`)
+---@param target_level? integer when not recursive, only headings at this
+---  level (`ltoggle` in org-update-parent-todo-statistics) contribute
+---  their TODO keyword; defaults to the first descendant's level
 ---@return integer done, integer total
-function M.todo_counts(file, hl, recursive)
+function M.todo_counts(file, hl, recursive, target_level)
   local cookie_data = (hl.properties.COOKIE_DATA or ""):lower()
   local cfg = require("org.config").opts
   if recursive == nil then
@@ -66,34 +70,47 @@ function M.todo_counts(file, hl, recursive)
   -- keywords, "all-headlines", a list of keywords (plus done keywords) or
   -- { todo keywords, done keywords }
   local provide = cfg.provide_todo_statistics
-  local function counts(c)
-    local kw, done_kw = c.todo, c:is_done()
+  if provide == false then
+    return 0, 0
+  end
+  local headlines = file.headlines
+  if not recursive and target_level == nil then
+    local nxt = headlines[hl.index + 1]
+    if nxt and nxt.level > hl.level then
+      target_level = nxt.level
+    end
+  end
+  local function counts(kw, done_kw)
     if provide == "all-headlines" then
       return true, done_kw
     elseif type(provide) == "table" and type(provide[1]) == "table" then
       local in_done = done_kw and vim.tbl_contains(provide[2] or {}, kw)
-      return vim.tbl_contains(provide[1], kw) or in_done, in_done
+      return (kw ~= nil and vim.tbl_contains(provide[1], kw)) or in_done, in_done
     elseif type(provide) == "table" then
-      return vim.tbl_contains(provide, kw) or done_kw, done_kw
+      return (kw ~= nil and vim.tbl_contains(provide, kw)) or done_kw, done_kw
     end
     return kw ~= nil, done_kw
   end
   local done, total = 0, 0
-  local function walk(children)
-    for _, c in ipairs(children) do
-      local counted, is_done = counts(c)
-      if counted then
-        total = total + 1
-        if is_done then
-          done = done + 1
-        end
-      end
-      if recursive then
-        walk(c.children)
+  -- org-update-parent-todo-statistics scans every descendant heading
+  -- (l1 > level) and extracts its TODO keyword only when recursive or
+  -- l1 == ltoggle
+  for i = hl.index + 1, #headlines do
+    local c = headlines[i]
+    if c.level <= hl.level then
+      break
+    end
+    local match_level = recursive or c.level == target_level
+    local kw = match_level and c.todo or nil
+    local done_kw = match_level and c:is_done() or false
+    local counted, is_done = counts(kw, done_kw)
+    if counted then
+      total = total + 1
+      if is_done then
+        done = done + 1
       end
     end
   end
-  walk(hl.children)
   return done, total
 end
 
@@ -248,6 +265,7 @@ function M.update_parent_todo_statistics(bufnr, lnum)
   end
   local recursive = require("org.config").opts.hierarchical_todo_statistics == false
     or (prop ~= nil and prop:find("recursive") ~= nil)
+  local ltoggle = hl.level
   local cur, first = hl.parent, true
   while cur and (recursive or first) and cur.line >= lim do
     first = false
@@ -256,7 +274,7 @@ function M.update_parent_todo_statistics(bufnr, lnum)
     end
     local line = file.lines[cur.line]
     if has_cookie(line) then
-      local d, t = M.todo_counts(file, cur, recursive)
+      local d, t = M.todo_counts(file, cur, recursive, ltoggle)
       local new = replace_cookies(line, d, t)
       if new ~= line then
         set_lines(bufnr, cur.line, cur.line, { realign(file, new) })
@@ -330,10 +348,11 @@ function M.update_statistics()
     end
   end
   local todo_cookie = (hl.properties.COOKIE_DATA or ""):lower():find("todo")
+  local nxt = file.headlines[hl.index + 1]
   if has_boxes and not todo_cookie then
     update_section(bufnr, file, hl, hl.line + 1, hl.body_end)
-  elseif #hl.children > 0 then
-    update_section(bufnr, file, hl, hl.line + 1, hl.line)
+  elseif nxt and nxt.level > hl.level then
+    M.update_parent_todo_statistics(bufnr, nxt.line)
   else
     local line = file.lines[hl.line]
     local new = line:gsub("%[%d*%%%]", "[100%%]"):gsub("%[%d*/%d*%]", "[0/0]")

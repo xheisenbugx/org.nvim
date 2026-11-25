@@ -372,9 +372,10 @@ describe("sidebar", function()
     local columns = vim.o.columns
     vim.o.columns = 24
     local ok_open, st = pcall(sidebar.open)
+    local width = ok_open and st and vim.api.nvim_win_get_width(st.win) or nil
     vim.o.columns = columns
     ok(ok_open, st)
-    ok(st and vim.api.nvim_win_get_width(st.win) < 24)
+    ok(width and width < 24)
   end)
 
   it("shows calendar events with the ics extension", function()
