@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.7.1] - 2026-11-25
+
+### Fixes
+
+- **lists:** Count only headlines at the toggled level in TODO statistics cookies ([#415](https://github.com/xheisenbugx/org.nvim/pull/415))
+
 ## [v3.7.0] - 2026-11-23
 
 ### Features
@@ -769,6 +775,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.7.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.7.0...v3.7.1
 [v3.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.1...v3.7.0
 [v3.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.0...v3.6.1
 [v3.6.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.5.1...v3.6.0
