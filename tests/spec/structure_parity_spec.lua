@@ -1140,6 +1140,38 @@ describe("emacs parity: T2", function()
     "#+END_QUOTE",
     "x",
   })
+  -- extended? and verbatim? match the type case-insensitively in Emacs
+  -- (case-fold-search t): SRC gets the trailing space and the cursor on
+  -- the #+BEGIN_SRC line, EXAMPLE escapes the region.
+  case("tmpl-upper-src", "* H\n|\nx", function()
+    h.stub_input({ "\t", "SRC" })
+    h.keys("i<Cmd>lua require('org.structure').insert_structure_template()<CR>python<Esc>")
+  end, {
+    "* H",
+    "#+BEGIN_SRC python",
+    "#+END_SRC",
+    "x",
+  })
+  case("tmpl-upper-export", "* H\n|\nx", function()
+    h.stub_input({ "\t", "EXPORT" })
+    h.keys("i<Cmd>lua require('org.structure').insert_structure_template()<CR>html<Esc>")
+  end, {
+    "* H",
+    "#+BEGIN_EXPORT html",
+    "#+END_EXPORT",
+    "x",
+  })
+  case("tmpl-upper-region-example", "* H\n|* a\nb", function()
+    h.keys("Vj")
+    h.stub_input({ "\t", "EXAMPLE" })
+    require("org.structure").insert_structure_template()
+  end, {
+    "* H",
+    "#+BEGIN_EXAMPLE",
+    ",* a",
+    "b",
+    "#+END_EXAMPLE",
+  })
   case("drawer-headline", "* H|\nSCHEDULED: <2024-01-01 Mon>\n:PROPERTIES:\n:A: 1\n:END:\nbody", function()
     h.stub_input({ "NOTES" })
     require("org.structure").insert_drawer()
@@ -2938,4 +2970,17 @@ describe("emacs parity: the element at a list's first line is the list", functio
     require("org.element").forward()
     eq(4, vim.api.nvim_win_get_cursor(0)[1])
   end)
+end)
+
+describe("emacs parity: upper-case structure_template_alist entries", function()
+  with_config({ startup_folded = "showeverything", structure_template_alist = { s = "SRC" } })
+  case("tmpl-alist-upper-src", "* H\n|\nx", function()
+    h.stub_input({ "s" })
+    h.keys("i<Cmd>lua require('org.structure').insert_structure_template()<CR>lua<Esc>")
+  end, {
+    "* H",
+    "#+BEGIN_SRC lua",
+    "#+END_SRC",
+    "x",
+  })
 end)

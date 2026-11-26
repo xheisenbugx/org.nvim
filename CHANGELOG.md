@@ -8,6 +8,12 @@ pull request, by its [Conventional Commits](https://www.conventionalcommits.org/
 This file is generated from the git history by `make changelog`
 (`scripts/changelog.lua`); edit the pull request titles, not this file.
 
+## [v3.7.2] - 2026-11-26
+
+### Fixes
+
+- **structure:** Match src/export/verbatim block types case-insensitively ([#420](https://github.com/xheisenbugx/org.nvim/pull/420))
+
 ## [v3.7.1] - 2026-11-25
 
 ### Fixes
@@ -781,6 +787,7 @@ This file is generated from the git history by `make changelog`
 
 </details>
 
+[v3.7.2]: https://github.com/xheisenbugx/org.nvim/compare/v3.7.1...v3.7.2
 [v3.7.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.7.0...v3.7.1
 [v3.7.0]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.1...v3.7.0
 [v3.6.1]: https://github.com/xheisenbugx/org.nvim/compare/v3.6.0...v3.6.1

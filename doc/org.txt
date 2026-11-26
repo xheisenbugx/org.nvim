@@ -604,8 +604,10 @@ stars alone is text, like in Emacs): >org
                 after `#+begin_src ` to type the language. Types come from
                 `structure_template_alist` (a export ascii, c center,
                 C comment, e example, E export, h export html, l export
-                latex, q quote, s src, v verse); TAB asks for any type,
-                written in upper case for #+BEGIN_/#+END_.
+                latex, q quote, s src, v verse); TAB asks for any type.
+                A type written in upper case (`SRC`, or an upper-case
+                name in `structure_template_alist`, e.g. `s = "SRC"`)
+                gives #+BEGIN_/#+END_.
                                                               *org-tempo*
 <s<Tab>         With `tempo = true` (the org-tempo module), `<` plus a key
                 of `structure_template_alist` then <Tab> in Insert mode
@@ -7863,6 +7865,9 @@ Structure and visibility ~
   sort_function             "collate"  text order in sorting: "collate"
                                       (locale)|"fallback" (codes)|function
   structure_template_alist  { a = "export ascii", c = "center", ... }
+                                      a name in upper case gives an
+                                      upper-case block: { s = "SRC" }
+                                      inserts #+BEGIN_SRC / #+END_SRC
   tempo                     false     `<s` TAB expansion (org-tempo)
   tempo_keywords            { L = "latex", H = "html", A = "ascii",
                               i = "index" }
