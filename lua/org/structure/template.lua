@@ -137,11 +137,13 @@ end
 ---@param type string
 function M.insert_block(type, s, e)
   local bufnr = buf()
-  local extended = type == "src" or type == "export"
+  -- Emacs matches these with case-fold-search, so SRC is extended too.
+  local lower = type:lower()
+  local extended = lower == "src" or lower == "export"
   local first_word = type:match("^(%S+)") or type
   local upcase = first_word == first_word:upper() and first_word:lower() ~= first_word
   local begin_kw, end_kw = upcase and "BEGIN" or "begin", upcase and "END" or "end"
-  local verbatim = type:match("^example") or type:match("^export") or type:match("^src") or type:match("^comment")
+  local verbatim = lower:match("^example") or lower:match("^export") or lower:match("^src") or lower:match("^comment")
   if s then
     local lines = get_lines(bufnr, s, e)
     while #lines > 1 and is_blank(lines[#lines]) do
