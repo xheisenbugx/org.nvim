@@ -105,7 +105,9 @@ end
 --- Leave out of both sides what Emacs raised an error on: the agenda view
 --- or S-TAB step whose section holds an "!error" line, or the table an
 --- "!error" line follows (difftest.el puts it back unchanged), when the
---- rest still lines up. `skipped` gets the errors left out. Nil when
+--- rest still lines up. In the commands oracle every step after the
+--- first one with an error goes too, as it starts from the buffer Emacs
+--- left part-way through. `skipped` gets the errors left out. Nil when
 --- nothing is left to compare (or the sides don't line up).
 ---@return string[]?, string[]?
 local function skip_errors(oracle, e, o, skipped)
@@ -118,15 +120,23 @@ local function skip_errors(oracle, e, o, skipped)
     if not se or not so or #se ~= #so then
       return nil
     end
-    local e2, o2, left = {}, {}, 0
+    local e2, o2, left, after = {}, {}, 0, nil
     for i, s in ipairs(se) do
       if s.name ~= so[i].name then
         return nil
       end
       e2[#e2 + 1], o2[#o2 + 1] = s.name, s.name
       local serr = first_error(s.lines)
-      if serr then
+      if after then
+        -- a command step after one Emacs raised an error on starts from
+        -- the buffer Emacs left half-done: nothing to compare
+        skipped[#skipped + 1] = s.name:sub(5) .. ": skipped after " .. after
+        e2[#e2 + 1], o2[#o2 + 1] = SKIPPED, SKIPPED
+      elseif serr then
         skipped[#skipped + 1] = s.name:sub(5) .. ": " .. serr
+        if oracle == "commands" then
+          after = s.name:sub(5)
+        end
         e2[#e2 + 1], o2[#o2 + 1] = SKIPPED, SKIPPED
       else
         left = left + 1
