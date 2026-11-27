@@ -231,6 +231,29 @@ describe("difftest", function()
     ok(compare.compare("export-html", "!error x\n", "y\n", { known = {} }).emacs_error)
   end)
 
+  it("stops comparing commands at the first step Emacs raised an error on", function()
+    -- later steps start from the buffer Emacs left half-done (#423)
+    local res = compare.compare(
+      "commands",
+      "=== 1 todo 12\n!error Prompted: Continue?\n=== 2 promote 1\na\n=== 3 demote 1\nb\n",
+      "=== 1 todo 12\nx\n=== 2 promote 1\ny\n=== 3 demote 1\nz\n",
+      { known = {} }
+    )
+    eq("!error Prompted: Continue?", res.emacs_error)
+    eq(0, #res.hunks)
+    -- an error in a later step: the steps before it are still compared
+    res = compare.compare(
+      "commands",
+      "=== 1 promote 1\na\n=== 2 todo 12\n!error boom\n=== 3 demote 1\nb\n",
+      "=== 1 promote 1\nx\n=== 2 todo 12\ny\n=== 3 demote 1\nz\n",
+      { known = {} }
+    )
+    eq(nil, res.emacs_error)
+    eq({ "2 todo 12: !error boom", "3 demote 1: skipped after 2 todo 12" }, res.skipped)
+    eq(1, #res.hunks)
+    eq({ "a" }, res.hunks[1].emacs)
+  end)
+
   it("fails as an infrastructure problem when Emacs keeps raising errors", function()
     local res = run({ count = 4, oracles = { "export-ascii", "export-md" } }, { "export-md" })
     eq(4, res.stats.emacs_errors)
